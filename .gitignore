@@ -1,0 +1,12 @@
+node_modules/
+.turbo/
+*.DS_Store
+
+# Never commit environment files. Keep documented templates trackable.
+**/*.env*
+!**/.env.example
+
+apps/part-viewer/build/
+apps/part-viewer/.react-router/
+apps/part-viewer/test-results/
+apps/part-viewer/playwright-report/
