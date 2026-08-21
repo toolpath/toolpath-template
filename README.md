@@ -1,13 +1,29 @@
 # Toolpath DFM Template
 
-A customer-facing design-for-manufacturability application for uploading a CAD part, starting
+A design-for-manufacturability application for uploading a CAD part, starting
 Toolpath Engine analysis, and inspecting the resulting features and mesh. Use this repository as a
-GitHub template to build your own Toolpath-powered product.
+GitHub template to build your own Toolpath API powered product.
+
+See https://developers.toolpath.com/ for documentation on using the Toolpath API.
 
 ## Start here
 
-1. Select **Use this template** on GitHub, or clone this repository.
-2. Install Node.js 24.18+ and enable Corepack.
+1. Create a new github repository and select **Start with a template** to use this repository as a base to build your own application.
+   ![Selecting the Toolpath template on GitHub](assets/make-template.png)
+2. Install Node.js 24.18 or newer. Node.js is the program that runs this
+   application on your computer. Download and install it from
+   [nodejs.org](https://nodejs.org/). Then open **Terminal** on macOS or Linux,
+   or **PowerShell** on Windows, and run:
+
+   ```sh
+   node --version
+   corepack enable
+   ```
+
+   The first command should show `v24.18.0` or a higher version.
+   Corepack comes with Node.js and turns on the exact version of `pnpm` that
+   this project needs to install and run its files.
+
 3. Create a local environment file and set the required values:
 
 ```sh
@@ -18,8 +34,7 @@ pnpm dev
 ```
 
 Set the generated value as `APP_SESSION_SECRET` and set `TOOLPATH_API_BASE_URL` in
-`apps/dfm/.env`. The application accepts each user's Toolpath API key through its
-bring-your-own-key connection screen; do not put API keys in environment variables.
+`apps/dfm/.env`.
 
 ## Development
 
@@ -29,17 +44,10 @@ pnpm test:e2e
 docker build --file apps/dfm/Dockerfile --target prod --tag part-viewer:local .
 ```
 
-The application uses released `@toolpath/api`, `@toolpath/ui`, and `@toolpath/viewer` packages.
-Update those versions deliberately and commit the resulting lockfile changes.
+The application uses released `@toolpath/api`, `@toolpath/ui`, and `@toolpath/viewer` NPM packages.
 
 See [the application README](apps/dfm/README.md) for architecture and request-flow
 details.
-
-## Deployment
-
-This template intentionally includes no Toolpath deployment credentials, cloud configuration, or
-deployment automation. Deploy it through your own platform and configure `APP_SESSION_SECRET` and
-`TOOLPATH_API_BASE_URL` with that platform's secret and environment-variable system.
 
 ## License
 
