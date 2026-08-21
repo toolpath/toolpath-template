@@ -116,6 +116,9 @@ importers:
       vite:
         specifier: 7.3.6
         version: 7.3.6(@types/node@24.10.1)(jiti@2.7.0)(lightningcss@1.31.1)(tsx@4.23.12)
+      vite-tsconfig-paths:
+        specifier: ^5.1.4
+        version: 5.1.4(typescript@5.9.3)(vite@7.3.6(@types/node@24.10.1)(jiti@2.7.0)(lightningcss@1.31.1)(tsx@4.23.12))
       vitest:
         specifier: 4.1.10
         version: 4.1.10(@types/node@24.10.1)(jsdom@30.0.1)(vite@7.3.6(@types/node@24.10.1)(jiti@2.7.0)(lightningcss@1.31.1)(tsx@4.23.12))
@@ -2147,6 +2150,12 @@ packages:
       }
     engines: { node: '>=6.9.0' }
 
+  globrex@0.1.2:
+    resolution:
+      {
+        integrity: sha512-uHJgbwAMwNFf5mLst7IWLNg14x1CkeqglJb/K3doi4dw6q2IvAAmM/Y81kevy83wP+Sst+nutFTYOGg3d1lsxg==,
+      }
+
   glsl-noise@0.0.0:
     resolution:
       {
@@ -3096,6 +3105,20 @@ packages:
         integrity: sha512-W1CpvTHykaPH5brv5VHLfQo9D1OYuo0cSBEUQFFT/nBUzM8iD6Lq2/tgG/f1OelbAS1WtaTPQzE5uM49egnngw==,
       }
 
+  tsconfck@3.1.6:
+    resolution:
+      {
+        integrity: sha512-ks6Vjr/jEw0P1gmOVwutM3B7fWxoWBL2KRDb1JfqGVawBmO5UsvmWOQFGHBPl5yxYz4eERr19E6L7NMv+Fej4w==,
+      }
+    engines: { node: ^18 || >=20 }
+    deprecated: unmaintained
+    hasBin: true
+    peerDependencies:
+      typescript: ^5.0.0
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   tsx@4.23.12:
     resolution:
       {
@@ -3180,6 +3203,17 @@ packages:
       }
     engines: { node: ^18.0.0 || ^20.0.0 || >=22.0.0 }
     hasBin: true
+
+  vite-tsconfig-paths@5.1.4:
+    resolution:
+      {
+        integrity: sha512-cYj0LRuLV2c2sMqhqhGpaO3LretdtMn/BVX4cPLanIZuwwrkVl+lK84E/miEXkCHWXuq65rhNN4rXsBcOB3S4w==,
+      }
+    peerDependencies:
+      vite: '*'
+    peerDependenciesMeta:
+      vite:
+        optional: true
 
   vite@7.3.6:
     resolution:
@@ -4592,6 +4626,8 @@ snapshots:
 
   gensync@1.0.0-beta.2: {}
 
+  globrex@0.1.2: {}
+
   glsl-noise@0.0.0: {}
 
   graceful-fs@4.2.11: {}
@@ -5079,6 +5115,10 @@ snapshots:
 
   troika-worker-utils@0.52.0: {}
 
+  tsconfck@3.1.6(typescript@5.9.3):
+    optionalDependencies:
+      typescript: 5.9.3
+
   tsx@4.23.12:
     dependencies:
       esbuild: 0.28.2
@@ -5144,6 +5184,17 @@ snapshots:
       - terser
       - tsx
       - yaml
+
+  vite-tsconfig-paths@5.1.4(typescript@5.9.3)(vite@7.3.6(@types/node@24.10.1)(jiti@2.7.0)(lightningcss@1.31.1)(tsx@4.23.12)):
+    dependencies:
+      debug: 4.4.3
+      globrex: 0.1.2
+      tsconfck: 3.1.6(typescript@5.9.3)
+    optionalDependencies:
+      vite: 7.3.6(@types/node@24.10.1)(jiti@2.7.0)(lightningcss@1.31.1)(tsx@4.23.12)
+    transitivePeerDependencies:
+      - supports-color
+      - typescript
 
   vite@7.3.6(@types/node@24.10.1)(jiti@2.7.0)(lightningcss@1.31.1)(tsx@4.23.12):
     dependencies:

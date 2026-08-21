@@ -28,7 +28,8 @@ describe('direct CAD upload', () => {
         await expect(request.text()).resolves.toBe('STEP fixture')
         return new Response(null, { status: 200 })
       }
-      if (request.url === 'http://part-viewer.test/api/parts/part-1/analyze') {
+      if (request.url === 'http://part-viewer.test/api/parts/part-1?featureDetails=true') {
+        expect(request.method).toBe('PATCH')
         return Response.json({ partId: 'part-1', jobId: 'job-1' }, { status: 202 })
       }
       throw new Error(`Unexpected request: ${request.url}`)

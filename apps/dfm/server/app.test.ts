@@ -189,8 +189,8 @@ describe('DFM Hono API', () => {
     })
     expect(requests).toHaveLength(1)
 
-    const analysis = await app.request('/api/parts/part-1/analyze', {
-      method: 'POST',
+    const analysis = await app.request('/api/parts/part-1?featureDetails=true', {
+      method: 'PATCH',
       headers: { Cookie: await cookieFor(), 'Sec-Fetch-Site': 'same-origin' },
     })
     expect(analysis.status).toBe(202)

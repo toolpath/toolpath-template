@@ -23,4 +23,4 @@ jobs:
       - run: pnpm check
       - run: pnpm --filter @toolpath/dfm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
-      - run: docker build --file apps/dfm/Dockerfile --target prod --tag part-viewer:ci .
+      - run: pnpm --filter @toolpath/dfm docker:build

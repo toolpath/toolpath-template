@@ -101,7 +101,7 @@ export const openInspector = async (page: Page) => {
         status: 201,
         json: { partId: 'part-1', uploadUrl: 'https://upload.test/source' },
       })
-    if (url.pathname === '/api/parts/part-1/analyze' && request.method() === 'POST')
+    if (url.pathname === '/api/parts/part-1' && request.method() === 'PATCH')
       return route.fulfill({ status: 202, json: { partId: 'part-1', jobId: 'job-1' } })
     if (url.pathname === '/api/parts/part-1/events')
       return route.fulfill({

@@ -12,7 +12,7 @@ See https://developers.toolpath.com/ for documentation on using the Toolpath API
    ![Selecting the Toolpath template on GitHub](assets/make-template.png)
 2. Install Node.js 24.18 or newer. Node.js is the program that runs this
    application on your computer. Download and install it from
-   [nodejs.org](https://nodejs.org/). Then open **Terminal** on macOS or Linux,
+   [nodejs.org](https://nodejs.org/en/download). Then open **Terminal** on macOS or Linux,
    or **PowerShell** on Windows, and run:
 
    ```sh
@@ -33,8 +33,7 @@ See https://developers.toolpath.com/ for documentation on using the Toolpath API
    This creates `apps/dfm/.env`, a private file that stays on your computer and
    is not added to GitHub. It generates the session secret without displaying it
    and sets the standard Toolpath API URL. It also installs the application
-   files it needs. You can ask an AI coding agent to run this command for you;
-   it does not need any keys or values from you.
+   files it needs.
 
 4. Start the application:
 
@@ -49,9 +48,9 @@ See https://developers.toolpath.com/ for documentation on using the Toolpath API
 ## Development
 
 ```sh
-pnpm check
-pnpm test:e2e
-docker build --file apps/dfm/Dockerfile --target prod --tag part-viewer:local .
+pnpm check # Run all quality checks
+pnpm test:e2e # Run playwright E2E tests
+pnpm --filter @toolpath/dfm docker:build # Build DFM app docker container
 ```
 
 The application uses released `@toolpath/api`, `@toolpath/ui`, and `@toolpath/viewer` NPM packages.

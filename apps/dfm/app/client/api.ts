@@ -78,9 +78,9 @@ export const uploadPart = async (
   await uploadToEngine(file, uploadUrl)
   onPhaseChange?.('starting-analysis')
   return api<{ partId: string; jobId: string }>(
-    `/api/parts/${encodeURIComponent(partId)}/analyze`,
+    `/api/parts/${encodeURIComponent(partId)}?featureDetails=true`,
     {
-      method: 'POST',
+      method: 'PATCH',
     },
   )
 }

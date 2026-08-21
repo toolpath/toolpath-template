@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ToolButton } from './tool-button'
+import { ToolButton } from 'components/tool-button'
 
 /**
  * The toolbar is icons only, so the label is the whole of what these controls

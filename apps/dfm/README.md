@@ -8,17 +8,14 @@ the part-analysis job's queued and running progress until it succeeds or fails w
 ## Run locally
 
 ```sh
-cp apps/dfm/.env.example apps/dfm/.env
-# Generate a value, paste it after APP_SESSION_SECRET= in apps/dfm/.env, then:
-openssl rand -base64 32
-pnpm install
+pnpm setup:local
 pnpm --filter @toolpath/dfm dev
 ```
 
 `APP_SESSION_SECRET` and `TOOLPATH_API_BASE_URL` are required in every environment.
 `APP_SESSION_SECRET` is the encryption key for the BYOK session cookie and must remain stable
-across restarts. `TOOLPATH_API_BASE_URL` is the server-only API URL; this reference app has
-no default environment.
+across restarts. `TOOLPATH_API_BASE_URL` is the server-only API URL. `pnpm setup:local` sets it
+to `https://api.toolpath.com`; change it in `apps/dfm/.env` when using another Engine environment.
 
 ## Architecture
 
@@ -40,14 +37,17 @@ no default environment.
    returns only whether a connection exists.
 2. `POST /api/session` seals a submitted API key in an encrypted, eight-hour `HttpOnly`, `Secure`,
    `SameSite=Lax` cookie.
-3. `POST /api/parts` calls `POST /v1/parts` and returns its short-lived, single-object PUT URL.
-   The browser uploads directly to that URL, then `POST /api/parts/:partId/analyze` calls
-   `PATCH /v1/parts/{id}` through `@toolpath/api`.
+3. `POST /api/parts` calls `POST /v1/parts?filename=...` and returns its short-lived,
+   single-object PUT URL. The browser uploads directly to that URL, then
+   `PATCH /api/parts/:partId?featureDetails=true` calls
+   `PATCH /v1/parts/{id}?featureDetails=true` through `@toolpath/api`.
 4. `GET /api/parts/:partId/events` opens an app-owned SSE connection to monitor the part-analysis
-   job's queued and running progress. The server forwards Toolpath API job SSE updates as
-   `analysis` events, then fetches and emits a report when the job succeeds.
-5. `GET /api/parts/:partId/mesh` reads a report solely to obtain an artifact URL, streams it, and
-   retries once with a fresh report if the URL has expired.
+   job's queued and running progress. The server forwards `GET /v1/jobs/{id}/events` updates as
+   redacted `analysis` events, then reads `GET /v1/parts/{id}?jobId=...` when the job succeeds.
+   Missing feature datasheets are fetched in batches from
+   `GET /v1/parts/{id}/features?ids=...` before the public part result is emitted.
+5. `GET /api/parts/:partId/mesh` reads the part result solely to obtain an artifact URL, streams
+   it, and retries once with a fresh part result if the URL has expired.
 
 To keep the application simple there is deliberately no application-level API-response cache. Every upstream request has one clear owner.
 

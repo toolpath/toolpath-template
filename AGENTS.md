@@ -20,10 +20,10 @@ Toolpath should be able to help you answer these three questions.
   documentation. If it would help the user understand things link them directly to the documentation or reference it (only do this if necessary).
 - Fetch the current full API contract from
   `https://api.toolpath.com/v1/openapi.json` before implementing or changing
-  Toolpath API calls, request payloads, responses, or client generation. This endpoint does not need API key authentication so you can hit it using curl at any time to get the up to date API documentatoin.
+  Toolpath API calls, request payloads, responses, or client generation. This endpoint does not need API key authentication so you can hit it using curl at any time to get the up to date API documentation.
 - Treat the OpenAPI document as the source of truth for the current API shape;
 
-## Toolpath API DatamModel and Flow
+## Toolpath API Data Model and Flow
 
 - A **part** is an uploaded CAD source. Creating one returns a `partId` and a
   short-lived presigned URL for a direct upload.
@@ -75,7 +75,8 @@ template's Hono routes or UI structure when a user reworks the application.
 - Never use `function functionName() {}` syntax for function definitions. Always use `const functionName = () => {}` syntax instead.
 - Always import parts of React individually, e.g. `ReactNode`, `FC`, etc. instead of writing `React.ReactNode`, `React.FC`. The only exception is in cases like `MouseEvent` where there is already a `MouseEvent` on the global namespace, so `React.MouseEvent` is more explicit.
 - When possible, do not use style props. Always use Tailwind CSS classes.
-- Avoid importing components with relative paths like `../../component` or `./component` - instead import from full path `components/page/form/component`.
+- Use the supported `components/*`, `client/*`, `routes/*`, `shared/*`, and
+  `server/*` aliases instead of relative imports when one applies.
 
 ## Project Map
 
@@ -129,17 +130,16 @@ After editing:
 
 Run commands from the repository root unless noted otherwise.
 
-| Purpose                         | Command                                                                           |
-| ------------------------------- | --------------------------------------------------------------------------------- |
-| Install dependencies            | `pnpm install --frozen-lockfile`                                                  |
-| Run the development app         | `pnpm dev`                                                                        |
-| Build, typecheck, and unit test | `pnpm check`                                                                      |
-| Run end-to-end tests            | `pnpm test:e2e`                                                                   |
-| Check formatting                | `pnpm format:check`                                                               |
-| Format files                    | `pnpm format`                                                                     |
-| Build the production image      | `docker build --file apps/dfm/Dockerfile --target prod --tag part-viewer:local .` |
+| Purpose                         | Command                                    |
+| ------------------------------- | ------------------------------------------ |
+| Install dependencies            | `pnpm install --frozen-lockfile`           |
+| Run the development app         | `pnpm dev`                                 |
+| Build, typecheck, and unit test | `pnpm check`                               |
+| Run end-to-end tests            | `pnpm test:e2e`                            |
+| Check formatting                | `pnpm format:check`                        |
+| Format files                    | `pnpm format`                              |
 
-`pnpm check` is the normal fast gate. Before publishing a significant change,
+`pnpm check` is the normal fast gate. Before pushing a significant change,
 also run formatting, the dependency audit, end-to-end tests, and the production
 Docker build when the affected area makes those checks relevant. Only run docker build if it is absolutely necessary, most of the time it is not needed.
 
