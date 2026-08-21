@@ -130,18 +130,24 @@ After editing:
 
 Run commands from the repository root unless noted otherwise.
 
-| Purpose                         | Command                                    |
-| ------------------------------- | ------------------------------------------ |
-| Install dependencies            | `pnpm install --frozen-lockfile`           |
-| Run the development app         | `pnpm dev`                                 |
-| Build, typecheck, and unit test | `pnpm check`                               |
-| Run end-to-end tests            | `pnpm test:e2e`                            |
-| Check formatting                | `pnpm format:check`                        |
-| Format files                    | `pnpm format`                              |
+| Purpose                         | Command                          |
+| ------------------------------- | -------------------------------- |
+| Install dependencies            | `pnpm install --frozen-lockfile` |
+| Run the development app         | `pnpm dev`                       |
+| Build, typecheck, and unit test | `pnpm check`                     |
+| Run end-to-end tests            | `pnpm test:e2e`                  |
 
 `pnpm check` is the normal fast gate. Before pushing a significant change,
-also run formatting, the dependency audit, end-to-end tests, and the production
+also run the dependency audit, end-to-end tests, and the production
 Docker build when the affected area makes those checks relevant. Only run docker build if it is absolutely necessary, most of the time it is not needed.
+
+## Formatting
+
+`pnpm setup:local` installs the Husky pre-commit hook. The hook runs Prettier on
+staged files automatically and stages the formatted results. Agents do not need
+to run `pnpm format` or `pnpm format:check` as part of normal work. Run either
+command only when the user explicitly asks for formatting or when the commit
+hook cannot be used.
 
 ## Git Workflow
 

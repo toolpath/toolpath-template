@@ -35,6 +35,9 @@ See https://developers.toolpath.com/ for documentation on using the Toolpath API
    and sets the standard Toolpath API URL. It also installs the application
    files it needs.
 
+   This also installs the Husky pre-commit hook. It formats staged files automatically before each
+   commit so you can have nice formatting without having to think about it.
+
 4. Start the application:
 
    ```sh

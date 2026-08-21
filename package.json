@@ -10,7 +10,8 @@
   },
   "packageManager": "pnpm@10.6.5",
   "scripts": {
-    "setup:local": "node scripts/setup-local.mjs && pnpm install --frozen-lockfile",
+    "setup:local": "node scripts/setup-local.mjs && pnpm install --frozen-lockfile && pnpm exec husky",
+    "prepare": "husky",
     "dev": "pnpm --filter @toolpath/dfm dev",
     "build": "turbo run build --output-logs=errors-only",
     "check-types": "turbo run check-types --output-logs=errors-only",
@@ -21,7 +22,12 @@
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
+  "lint-staged": {
+    "*": "prettier --write --ignore-unknown"
+  },
   "devDependencies": {
+    "husky": "9.1.7",
+    "lint-staged": "17.3.0",
     "prettier": "3.6.2",
     "turbo": "2.10.10"
   }
