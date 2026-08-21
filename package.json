@@ -2,7 +2,7 @@
   "name": "toolpath-template",
   "version": "0.0.0",
   "private": true,
-  "description": "Toolpath Part Viewer reference application",
+  "description": "Toolpath DFM reference application",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -10,11 +10,11 @@
   },
   "packageManager": "pnpm@10.6.5",
   "scripts": {
-    "dev": "pnpm --filter @toolpath/part-viewer dev",
+    "dev": "pnpm --filter @toolpath/dfm dev",
     "build": "turbo run build --output-logs=errors-only",
     "check-types": "turbo run check-types --output-logs=errors-only",
     "test": "turbo run test --output-logs=errors-only",
-    "test:e2e": "pnpm --filter @toolpath/part-viewer test:e2e",
+    "test:e2e": "pnpm --filter @toolpath/dfm test:e2e",
     "check": "pnpm build && pnpm check-types && pnpm test",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

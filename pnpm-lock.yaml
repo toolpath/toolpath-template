@@ -14,7 +14,7 @@ importers:
         specifier: 2.10.10
         version: 2.10.10
 
-  apps/part-viewer:
+  apps/dfm:
     dependencies:
       '@hono/node-server':
         specifier: 1.19.15

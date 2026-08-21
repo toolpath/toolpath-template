@@ -64,6 +64,6 @@ what the part cannot.
 
 ## Testing
 
-`pnpm --filter @toolpath/part-viewer test` — vitest, no network.
-`pnpm --filter @toolpath/part-viewer test:e2e` — Playwright, which is the only
+`pnpm --filter @toolpath/dfm test` — vitest, no network.
+`pnpm --filter @toolpath/dfm test:e2e` — Playwright, which is the only
 place the shader-based highlighting can actually be observed working.

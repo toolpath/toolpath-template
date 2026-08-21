@@ -1,4 +1,4 @@
-# Part Viewer
+# DFM
 
 A public, bring-your-own-key reference application for inspecting Toolpath Engine part features
 and meshes. It keeps the `@toolpath/api` workflow visible and delegates HTTP,
@@ -8,11 +8,11 @@ the part-analysis job's queued and running progress until it succeeds or fails w
 ## Run locally
 
 ```sh
-cp apps/part-viewer/.env.example apps/part-viewer/.env
-# Generate a value, paste it after APP_SESSION_SECRET= in apps/part-viewer/.env, then:
+cp apps/dfm/.env.example apps/dfm/.env
+# Generate a value, paste it after APP_SESSION_SECRET= in apps/dfm/.env, then:
 openssl rand -base64 32
 pnpm install
-pnpm --filter @toolpath/part-viewer dev
+pnpm --filter @toolpath/dfm dev
 ```
 
 `APP_SESSION_SECRET` and `TOOLPATH_API_BASE_URL` are required in every environment.
@@ -54,8 +54,8 @@ To keep the application simple there is deliberately no application-level API-re
 ## Checks
 
 ```sh
-pnpm --filter @toolpath/part-viewer check-types
-pnpm --filter @toolpath/part-viewer test
-pnpm --filter @toolpath/part-viewer build
-pnpm --filter @toolpath/part-viewer test:e2e
+pnpm --filter @toolpath/dfm check-types
+pnpm --filter @toolpath/dfm test
+pnpm --filter @toolpath/dfm build
+pnpm --filter @toolpath/dfm test:e2e
 ```

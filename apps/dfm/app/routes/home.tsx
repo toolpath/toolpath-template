@@ -14,9 +14,7 @@ export default function HomeRoute() {
       <Card className="mx-auto w-full max-w-3xl p-6 shadow-sm sm:p-10">
         <AppHeader>
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-info">Toolpath</p>
-          <h1 className="font-display text-4xl font-bold text-gray-900 dark:text-white">
-            Part Viewer
-          </h1>
+          <h1 className="font-display text-4xl font-bold text-gray-900 dark:text-white">DFM</h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-zinc-400">
             Upload a CAD part and inspect its recognized features in 3D. Your API key stays in an
             encrypted, short-lived server session.

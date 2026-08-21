@@ -339,7 +339,7 @@ export const PartInspector = ({
         }
       >
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-info">Toolpath</p>
-        <h1 className="font-display text-xl font-bold">Part Viewer</h1>
+        <h1 className="font-display text-xl font-bold">DFM</h1>
       </AppHeader>
 
       <Panels.Group className="min-h-0 flex-1" orientation="horizontal">

@@ -21,6 +21,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
-      - run: pnpm --filter @toolpath/part-viewer exec playwright install --with-deps chromium
+      - run: pnpm --filter @toolpath/dfm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
-      - run: docker build --file apps/part-viewer/Dockerfile --target prod --tag part-viewer:ci .
+      - run: docker build --file apps/dfm/Dockerfile --target prod --tag part-viewer:ci .

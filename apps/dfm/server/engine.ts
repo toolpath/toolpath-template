@@ -10,9 +10,7 @@ const DATASHEET_BATCH_SIZE = 50
 const apiBaseUrl = (): string => {
   const baseUrl = process.env.TOOLPATH_API_BASE_URL
   if (!baseUrl) {
-    throw new Error(
-      'TOOLPATH_API_BASE_URL must be set. Add the Engine API URL to apps/part-viewer/.env.',
-    )
+    throw new Error('TOOLPATH_API_BASE_URL must be set. Add the Engine API URL to apps/dfm/.env.')
   }
   return baseUrl
 }

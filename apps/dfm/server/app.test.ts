@@ -64,7 +64,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('Part Viewer Hono API', () => {
+describe('DFM Hono API', () => {
   test('serves an unauthenticated health probe', async () => {
     const response = await createApp().request('/health')
 
