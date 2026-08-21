@@ -24,17 +24,27 @@ See https://developers.toolpath.com/ for documentation on using the Toolpath API
    Corepack comes with Node.js and turns on the exact version of `pnpm` that
    this project needs to install and run its files.
 
-3. Create a local environment file and set the required values:
+3. Create your private local settings file:
 
-```sh
-cp apps/dfm/.env.example apps/dfm/.env
-openssl rand -base64 32
-pnpm install --frozen-lockfile
-pnpm dev
-```
+   ```sh
+   pnpm setup:local
+   ```
 
-Set the generated value as `APP_SESSION_SECRET` and set `TOOLPATH_API_BASE_URL` in
-`apps/dfm/.env`.
+   This creates `apps/dfm/.env`, a private file that stays on your computer and
+   is not added to GitHub. It generates the session secret without displaying it
+   and sets the standard Toolpath API URL. It also installs the application
+   files it needs. You can ask an AI coding agent to run this command for you;
+   it does not need any keys or values from you.
+
+4. Start the application:
+
+   ```sh
+   pnpm dev
+   ```
+
+   Open the local address shown in the terminal, usually
+   [http://localhost:5173](http://localhost:5173). You are ready when the
+   Toolpath connection screen appears.
 
 ## Development
 

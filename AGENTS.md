@@ -29,7 +29,7 @@ Toolpath should be able to help you answer these three questions.
   short-lived presigned URL for a direct upload.
 - An asynchronous **job** processes a part or enriches selected features. Its
   states are `queued`, `running`, `succeeded`, and `failed`. Processing state can be obtained from an SSE events endpoint.
-- A successful processing job produces an immutable **report** containing
+- A successful processing job produces an immutable **part result** containing
   regions, recognized features, candidate machining directions, mesh metadata,
   and short-lived artifact URLs.
 - A **region** is one recognized CAD surface piece, such as a planar face or a
@@ -43,8 +43,30 @@ Toolpath should be able to help you answer these three questions.
 
 The normal flow is: authenticate server-side, create the part, upload CAD
 directly to the presigned URL, start processing, stream job events, then read
-artifact URLs out of the browser; the browser uploads CAD bytes directly to
+the completed part result. This template's Hono server keeps the API key and
+raw artifact URLs out of the browser; the browser uploads CAD bytes directly to
 object storage and receives only app-owned responses.
+
+## Toolpath Integration Guidelines
+
+These are API and security constraints, not a requirement to preserve this
+template's Hono routes or UI structure when a user reworks the application.
+
+- Fetch the current OpenAPI document before changing an API integration, and
+  validate upstream inputs and responses at the application's boundary.
+- Keep long-lived API keys out of browser code. If a product needs browser API
+  requests, explicitly follow the API documentation for origin restrictions,
+  key scope, and read-only access.
+- Use presigned URLs for direct CAD uploads when the API provides them; do not
+  relay large CAD bytes through an application server without a concrete need.
+- Model part processing and feature enrichment as asynchronous jobs. Use job
+  events or the documented status endpoint instead of assuming immediate
+  results.
+- Treat presigned upload and artifact URLs as short-lived credentials. Do not
+  persist or log them; proxy or relay them when a browser should not receive the
+  upstream URL.
+- Update focused unit or end-to-end tests whenever an app-owned API contract or
+  Toolpath integration behavior changes.
 
 ## Code Styling
 
@@ -72,6 +94,10 @@ object storage and receives only app-owned responses.
   private URL into chat.
 - Never read, print, summarize, stage, or commit `.env` files. Checking that a
   file exists is safe; reading its contents is not.
+- During initial setup, agents may run `pnpm setup:local` to create
+  `apps/dfm/.env` and install dependencies. It generates the session secret
+  directly in the file without displaying it and leaves an existing file
+  unchanged.
 - `APP_SESSION_SECRET` and `TOOLPATH_API_BASE_URL` belong only in
   `apps/dfm/.env` locally and in the deployment platform's secret store.
 

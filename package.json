@@ -10,6 +10,7 @@
   },
   "packageManager": "pnpm@10.6.5",
   "scripts": {
+    "setup:local": "node scripts/setup-local.mjs && pnpm install --frozen-lockfile",
     "dev": "pnpm --filter @toolpath/dfm dev",
     "build": "turbo run build --output-logs=errors-only",
     "check-types": "turbo run check-types --output-logs=errors-only",
