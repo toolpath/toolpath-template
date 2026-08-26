@@ -475,3 +475,34 @@ describe('reading a field off whatever reports it', () => {
     expect(sharpCorner(sheet({ facts: { kind: 'Pocket' } }))).toBeNull()
   })
 })
+
+describe('a measurement carries the other unit too', () => {
+  /*
+   * Shops read in one unit and buy tooling in the other, and the sum between
+   * them is exactly the kind somebody gets wrong once and trusts afterwards.
+   * 25.4 mm is 1.000 in, so a conversion out by any factor shows in the number
+   * rather than in the last decimal.
+   */
+  // 25.4 deep, which is 1.000 in exactly.
+  const pocket = feature({ datasheet: { zMax: 0, zMin: -25.4 } })
+  const rows = (unit: 'mm' | 'in') => rowsFor(pocket, [], unit)
+
+  it('reads a length both ways round', () => {
+    const inMm = rows('mm').find((row) => row.key === 'featureDepth')
+    const inInches = rows('in').find((row) => row.key === 'featureDepth')
+
+    expect(inMm?.value).toBe('25.40 mm')
+    expect(inMm?.alt).toBe('1.000 in')
+    // And the other way, so neither is the special case.
+    expect(inInches?.value).toBe('1.000 in')
+    expect(inInches?.alt).toBe('25.40 mm')
+  })
+
+  it('says nothing on a row that does not convert', () => {
+    // A ratio and a count of faces are the same number in either unit, and a
+    // second reading of them would be noise dressed as precision.
+    const faces = rows('mm').find((row) => row.key === 'faces')
+
+    expect(faces?.alt).toBeUndefined()
+  })
+})

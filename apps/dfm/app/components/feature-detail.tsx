@@ -62,7 +62,7 @@ function flatten(value: unknown, prefix = ''): [string, string][] {
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <section className="mt-5">
-    <h3 className="mb-1.5 text-2xs font-bold uppercase tracking-wider text-zinc-500">{title}</h3>
+    <h3 className="mb-1.5 text-2xs font-bold uppercase tracking-wider text-ink-dim">{title}</h3>
     {children}
   </section>
 )
@@ -179,7 +179,7 @@ export const FeatureDetail = ({
   const built = planned === null ? [] : addedFrom(planned)
 
   return (
-    <aside className="flex size-full min-h-0 flex-col overflow-y-auto bg-zinc-900">
+    <aside className="flex size-full min-h-0 flex-col overflow-y-auto bg-surface">
       {feature ? (
         <div className="p-3">
           <header className="flex flex-col gap-1.5">
@@ -191,7 +191,7 @@ export const FeatureDetail = ({
                   : featureSummary(feature).type}
                 {siblings.length > 1 ? (
                   <span
-                    className="rounded bg-zinc-800 px-1.5 py-0.5 font-sans text-sm font-semibold text-zinc-300"
+                    className="rounded bg-raised px-1.5 py-0.5 font-sans text-sm font-semibold text-ink-body"
                     title={`${String(siblings.length)} identical holes — same diameter, depth and way up`}
                   >
                     ×{siblings.length}
@@ -232,8 +232,8 @@ export const FeatureDetail = ({
             single reading is the one most worth mapping, because nothing else
             can cut it. So the same three presses live here too.
           */}
-            <div className="flex items-center gap-2 rounded border border-zinc-800 bg-zinc-950/40 px-2 py-1.5">
-              <span className="text-2xs font-bold uppercase tracking-wider text-zinc-500">
+            <div className="flex items-center gap-2 rounded border border-edge bg-ground/40 px-2 py-1.5">
+              <span className="text-2xs font-bold uppercase tracking-wider text-ink-dim">
                 Cut from
               </span>
               <span
@@ -241,7 +241,7 @@ export const FeatureDetail = ({
                 className="size-1.5 shrink-0 rounded-full"
                 style={{ background: directionCss(directionOf(report, feature)) }}
               />
-              <span className="flex-1 truncate text-xs font-medium text-zinc-300">
+              <span className="flex-1 truncate text-xs font-medium text-ink-body">
                 {directionLabel(feature.machiningDirection)}
               </span>
               <PassButtons
@@ -272,7 +272,7 @@ export const FeatureDetail = ({
                 {...faceCounts(plan, feature)}
                 onShow={() => onShowFaces(feature.featureTag)}
               />
-              <span className="ml-auto font-mono text-2xs text-zinc-500" title={feature.featureTag}>
+              <span className="ml-auto font-mono text-2xs text-ink-dim" title={feature.featureTag}>
                 {shortTag(feature.featureTag)}
               </span>
             </div>
@@ -296,12 +296,12 @@ export const FeatureDetail = ({
                   {built.map((source) => (
                     <li
                       key={source.featureTag}
-                      className="flex items-center gap-2 text-2xs text-zinc-400"
+                      className="flex items-center gap-2 text-2xs text-ink-muted"
                     >
                       <span aria-hidden="true">└</span>
                       <span className="flex-1 truncate">{typeLabel(source.featureType)}</span>
-                      <span className="shrink-0 text-zinc-500">{source.from}</span>
-                      <span className="shrink-0 tabular-nums text-zinc-500">{source.faces}f</span>
+                      <span className="shrink-0 text-ink-dim">{source.from}</span>
+                      <span className="shrink-0 tabular-nums text-ink-dim">{source.faces}f</span>
                     </li>
                   ))}
                 </ul>
@@ -339,12 +339,12 @@ export const FeatureDetail = ({
                 }),
               ).map((row) => (
                 <span key={row.key} className="flex items-center gap-1.5">
-                  <span className="text-zinc-500">
+                  <span className="text-ink-dim">
                     <MeasurementIcon measurement={row.key} />
                   </span>
                   <span className="flex flex-col">
-                    <span className="font-semibold tabular-nums text-zinc-100">{row.value}</span>
-                    <span className="text-2xs text-zinc-500">
+                    <span className="font-semibold tabular-nums text-ink">{row.value}</span>
+                    <span className="text-2xs text-ink-dim">
                       {STRIP_LABELS[row.key] ?? row.label}
                     </span>
                   </span>
@@ -373,33 +373,41 @@ export const FeatureDetail = ({
               }).map((row) => (
                 <div key={row.key} className="flex items-baseline justify-between gap-4 py-1">
                   <dt
-                    className="flex items-center gap-2 whitespace-pre text-zinc-400"
+                    className="flex items-center gap-2 whitespace-pre text-ink-muted"
                     // Every row says where it came from: a number a shop cannot
                     // trace is one they have to take on faith.
                     title={row.note ? `${row.from} — ${row.note}` : row.from}
                   >
-                    <span className="text-zinc-500">
+                    <span className="text-ink-dim">
                       <MeasurementIcon measurement={row.key} />
                     </span>
                     <span>
-                      {row.label} <span className="text-zinc-500">ⓘ</span>
+                      {row.label} <span className="text-ink-dim">ⓘ</span>
                     </span>
                   </dt>
-                  <dd className="text-right font-medium tabular-nums text-zinc-200">{row.value}</dd>
+                  <dd className="text-right font-medium tabular-nums text-ink-strong">
+                    {row.value}
+                    {/* The other unit, quietly. A shop reads in one and buys
+                        tooling in the other, and the sum between them is the
+                        kind somebody gets wrong once and then trusts. */}
+                    {row.alt === undefined ? null : (
+                      <span className="ml-1.5 font-normal text-ink-dim">{row.alt}</span>
+                    )}
+                  </dd>
                 </div>
               ))}
             </dl>
           </Section>
 
-          <details className="mt-5 border-t border-zinc-800 pt-3">
-            <summary className="cursor-pointer text-2xs font-bold uppercase tracking-wider text-zinc-500">
+          <details className="mt-5 border-t border-edge pt-3">
+            <summary className="cursor-pointer text-2xs font-bold uppercase tracking-wider text-ink-dim">
               {isDerived(feature) ? 'All fields (worked out here)' : 'All datasheet fields'}
             </summary>
             <dl className="mt-2 text-2xs">
               {flatten(feature.datasheet).map(([path, value]) => (
                 <div key={path} className="flex items-baseline justify-between gap-4 py-0.5">
-                  <dt className="font-mono text-zinc-500">{path}</dt>
-                  <dd className="flex shrink-0 items-center gap-1 text-right font-mono tabular-nums text-zinc-300">
+                  <dt className="font-mono text-ink-dim">{path}</dt>
+                  <dd className="flex shrink-0 items-center gap-1 text-right font-mono tabular-nums text-ink-body">
                     <span>{value}</span>
                     <CopyButton value={value} label={`${path} value`} />
                   </dd>
@@ -408,8 +416,8 @@ export const FeatureDetail = ({
             </dl>
           </details>
 
-          <details className="mt-3 border-t border-zinc-800 pt-3">
-            <summary className="cursor-pointer text-2xs font-bold uppercase tracking-wider text-zinc-500">
+          <details className="mt-3 border-t border-edge pt-3">
+            <summary className="cursor-pointer text-2xs font-bold uppercase tracking-wider text-ink-dim">
               {isDerived(feature) ? 'Raw record — ours, not the API’s' : 'Raw API record'}
             </summary>
             <div className="mt-2">
@@ -419,7 +427,7 @@ export const FeatureDetail = ({
                   label={isDerived(feature) ? 'raw record' : 'raw API record'}
                 />
               </div>
-              <pre className="max-h-80 overflow-auto rounded bg-transparent p-2 text-2xs leading-5 text-zinc-400">
+              <pre className="max-h-80 overflow-auto rounded bg-transparent p-2 text-2xs leading-5 text-ink-muted">
                 {rawDatasheet(feature)}
               </pre>
             </div>
@@ -434,7 +442,7 @@ export const FeatureDetail = ({
           nothing at all until a way up is held, so the panel was inviting a
           press it would ignore.
         */
-        <p className="p-4 text-sm text-zinc-500">
+        <p className="p-4 text-sm text-ink-dim">
           {mode === 'direction'
             ? 'Click an arrow to define your machining direction, then select faces to map features to it.'
             : 'Click a face on the part, or a feature in the list, to read it.'}

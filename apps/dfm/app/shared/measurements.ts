@@ -21,6 +21,15 @@ export interface Measurement {
   readonly key: string
   readonly label: string
   readonly value: string
+  /**
+   * The same number in the other unit.
+   *
+   * Shops read in one unit and buy tooling in the other, and the arithmetic
+   * between them is exactly the kind somebody gets wrong once and trusts
+   * afterwards. Absent on rows that are not a length or an area — a ratio and a
+   * count of faces do not convert.
+   */
+  readonly alt?: string
   /** The raw fields and arithmetic behind it, as they read in the JSON. */
   readonly from: string
   /** Longer than a label, where the field needs a sentence. */
@@ -83,8 +92,17 @@ export function measurements({
   regions: readonly { idx: number; shapeKind: string }[]
   unit: Unit
 }): Measurement[] {
-  const length = (value: number) => formatLength(value, unit)
-  const area = (value: number) => formatArea(value, unit)
+  // Both readings, so a row carries its conversion rather than the caller
+  // working it out again from a string it would have to parse first.
+  const other: Unit = unit === 'mm' ? 'in' : 'mm'
+  const length = (value: number) => ({
+    value: formatLength(value, unit),
+    alt: formatLength(value, other),
+  })
+  const area = (value: number) => ({
+    value: formatArea(value, unit),
+    alt: formatArea(value, other),
+  })
 
   const rows: Measurement[] = []
   const sheet = feature.datasheet
@@ -108,7 +126,7 @@ export function measurements({
     rows.push({
       key: 'depthBelowTop',
       label: 'Depth below top of part',
-      value: length(top - zBottom),
+      ...length(top - zBottom),
       from: 'part top − zMin',
       note: 'the part top is the highest extendedZMax of any feature cut from this same direction',
     })
@@ -120,7 +138,7 @@ export function measurements({
     rows.push({
       key: 'featureDepth',
       label: 'Feature depth',
-      value: length(zTop - zBottom),
+      ...length(zTop - zBottom),
       from: 'zMax − zMin',
     })
   }
@@ -140,7 +158,7 @@ export function measurements({
     rows.push({
       key: 'maxTool',
       label: 'Largest tool diameter',
-      value: length(cutter),
+      ...length(cutter),
       from: 'facts.cd.ignore.min',
       note: 'the widest cutter that still reaches the tightest corner',
     })
@@ -149,7 +167,7 @@ export function measurements({
     rows.push({
       key: 'minRadius',
       label: 'Required cutter radius',
-      value: length(cutter / 2),
+      ...length(cutter / 2),
       from: 'facts.cd.ignore.min ÷ 2',
       note: 'half the tool above: the tightest internal radius this feature leaves room for',
     })
@@ -163,7 +181,7 @@ export function measurements({
     rows.push({
       key: 'maxEndmill',
       label: 'Largest endmill',
-      value: length(endmill),
+      ...length(endmill),
       from: 'facts.maxEndmillDiameter',
       note: 'the widest endmill the Engine says this feature admits',
     })
@@ -174,7 +192,7 @@ export function measurements({
     rows.push({
       key: 'maxDrill',
       label: 'Largest drill',
-      value: length(drill),
+      ...length(drill),
       from: 'facts.maxDrillDiameter',
       note: 'the widest drill the Engine says this feature admits',
     })
@@ -188,7 +206,7 @@ export function measurements({
     rows.push({
       key: 'entryCutter',
       label: 'Largest tool that gets in',
-      value: length(entry),
+      ...length(entry),
       from: 'facts.maxEntryCd',
       note: 'the widest cutter that reaches the undercut through its opening',
     })
@@ -217,14 +235,14 @@ export function measurements({
     rows.push({
       key: 'area',
       label: 'Surface area',
-      value: area((walls ?? 0) + (floors ?? 0)),
+      ...area((walls ?? 0) + (floors ?? 0)),
       from: 'wallishArea + floorishArea',
     })
-    rows.push({ key: 'walls', label: '  as walls', value: area(walls ?? 0), from: 'wallishArea' })
+    rows.push({ key: 'walls', label: '  as walls', ...area(walls ?? 0), from: 'wallishArea' })
     rows.push({
       key: 'floors',
       label: '  as floors',
-      value: area(floors ?? 0),
+      ...area(floors ?? 0),
       from: 'floorishArea',
     })
   }
@@ -245,7 +263,7 @@ export function measurements({
     rows.push({
       key: 'diameter',
       label: 'Diameter',
-      value: length(diameter),
+      ...length(diameter),
       from: 'facts.diameter',
     })
   }
@@ -256,7 +274,7 @@ export function measurements({
     rows.push({
       key: 'floorFillet',
       label: 'Floor fillet radius',
-      value: length(filletRadius),
+      ...length(filletRadius),
       from: 'facts.filletRadius',
     })
   }
