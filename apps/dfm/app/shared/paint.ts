@@ -17,8 +17,14 @@ export const PAINT_MODES: readonly PaintMode[] = ['plain', 'directions', 'diffic
 /**
  * The modes, in the order they are offered.
  *
- * Words rather than icons, unlike the rest of the toolbar: these are the
- * question the part is answering, and "no standing opinion" has no picture.
+ * Words **and** icons. The words carry it — these are the question the part is
+ * answering, and a picture of "no standing opinion" is not one anybody reads
+ * cold — but they sit at the top left away from the rest of the toolbar now,
+ * and a shelf of bare words over there read as a heading rather than a control.
+ * The glyph is what says *press me*; the word still says what pressing does.
+ *
+ * The icons live in `components/panel-icons`, because an icon is a component
+ * and this file is one a test can import without a DOM.
  */
 const ALL_PAINT_MODE_LABELS: readonly (readonly [PaintMode, string])[] = [
   ['plain', 'Plain'],

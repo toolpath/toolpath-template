@@ -636,3 +636,176 @@ test('orbiting the part does not end a keyboard walk', async ({ page }) => {
   await expect(page.locator(':focus')).toHaveAttribute('data-row', /.+/)
   await expect(page.locator(':focus')).not.toHaveAttribute('data-row', before!)
 })
+
+test('a banana stands beside the part, for scale', async ({ page }) => {
+  /*
+   * The part fills the viewport whatever its size, so nothing on screen says
+   * whether it is a bracket or a keyway. The grid answers in numbers somebody
+   * has to stop and read; this answers at a glance.
+   *
+   * Asserted through the mesh arriving and the part surviving rather than by
+   * looking at the scene: the first build of this shipped a GLB with its JSON
+   * chunk padded with NULs instead of spaces, which loads as far as the parser
+   * and then takes the whole viewer down with it — the part was replaced by
+   * "The mesh could not be loaded" and the banana was nowhere.
+   */
+  const mesh = page.waitForResponse((r) => r.url().endsWith('/banana.glb') && r.status() === 200)
+
+  await page.getByRole('button', { name: 'Banana for scale' }).click()
+  await mesh
+
+  await expect(page.getByRole('button', { name: 'Banana for scale (on)' })).toBeVisible()
+  // The part is still there. A banana that eats the model is worse than none.
+  await expect(page.getByText(/mesh could not be loaded/)).toHaveCount(0)
+  await expect(page.locator('canvas')).toBeVisible()
+})
+
+test('the banana is remembered, the way the grid and the zoom target are', async ({ page }) => {
+  // Furniture, not a control: it says something about the part rather than
+  // doing something to it, so it stays put across parts and reloads.
+  await page.getByRole('button', { name: 'Banana for scale' }).click()
+  await expect(page.getByRole('button', { name: 'Banana for scale (on)' })).toBeVisible()
+
+  await openCube(page)
+
+  await expect(page.getByRole('button', { name: 'Banana for scale (on)' })).toBeVisible()
+})
+
+test('the part says how big it is, and the reading changes unit on a press', async ({ page }) => {
+  /*
+   * Nothing else on screen said. A part fills the viewport whatever its size,
+   * and the report describes features rather than stock — so the only honest
+   * source is the geometry itself, measured off the scene.
+   *
+   * The cube fixture is 50.8 mm on every side, which is 2 inches exactly: a
+   * conversion wrong by a factor of anything would be obvious in the number
+   * rather than in the third decimal.
+   */
+  const size = page.getByRole('button', { name: /^Part size/ })
+
+  await expect(size).toHaveText('50.80 × 50.80 × 50.80 mm')
+
+  await size.click()
+  await expect(size).toHaveText('2.000 × 2.000 × 2.000 in')
+
+  // The whole page follows, not just this corner. A reading that disagreed
+  // with the datasheet beside it would be worse than no reading.
+  await expect(page.getByRole('button', { name: /Show millimetres|in/ }).first()).toBeVisible()
+
+  await size.click()
+  await expect(size).toHaveText('50.80 × 50.80 × 50.80 mm')
+})
+
+test('the size reading and the view controls do not sit on each other', async ({ page }) => {
+  /*
+   * They were two absolute corners, and on a narrow viewport the readout
+   * covered the toolbar — hiding grid, banana and section behind a number.
+   * They share one row now, so the shelf stays centred and the reading stays
+   * right of it whatever the width.
+   */
+  await page.setViewportSize({ width: 1000, height: 700 })
+
+  const size = page.getByRole('button', { name: /^Part size/ })
+  const view = page.getByRole('group', { name: 'View controls' })
+
+  const reading = (await size.boundingBox())!
+  const shelf = (await view.boundingBox())!
+
+  /*
+   * They must not intersect — which is the whole point, and says nothing about
+   * where either of them is. They have been beside each other and stacked, and
+   * the version that broke was the one asserting a side.
+   */
+  const apart =
+    reading.x >= shelf.x + shelf.width ||
+    shelf.x >= reading.x + reading.width ||
+    reading.y >= shelf.y + shelf.height ||
+    shelf.y >= reading.y + reading.height
+  expect(apart).toBe(true)
+
+  // And on one line. One row is 34px with its border and padding; the four it
+  // wrapped to before this were nearer a hundred.
+  expect(reading.height).toBeLessThan(50)
+})
+
+test('the theme takes the model window with it', async ({ page }) => {
+  /*
+   * An earlier pass kept the window dark in both themes, on the reasoning that
+   * the direction cycle and the difficulty ramp are tuned against a dark ground.
+   * Paul asked for it to flip, and on a real part it reads: the faces carry
+   * their own shading and their edges are drawn, so the part does not need a
+   * dark ground to be a part. A light shell around a dark rectangle looked like
+   * a page that had not finished loading.
+   */
+  const html = page.locator('html')
+  const viewport = page.locator('section.viewport')
+
+  await expect(html).toHaveClass(/dark/)
+  const whenDark = await viewport.evaluate((node) => getComputedStyle(node).backgroundColor)
+
+  await page.getByRole('button', { name: /press for light/ }).click()
+
+  await expect(html).not.toHaveClass(/dark/)
+  const whenLight = await viewport.evaluate((node) => getComputedStyle(node).backgroundColor)
+
+  expect(whenLight).not.toBe(whenDark)
+  // And it lands on the same ground as the page, rather than a shade of its own.
+  const shell = await page
+    .locator('body')
+    .evaluate((node) => getComputedStyle(node).backgroundColor)
+  expect(whenLight).toBe(shell)
+})
+
+test('the theme is remembered, and set before the page is drawn', async ({ page }) => {
+  /*
+   * The class is written by a script in the head rather than after mount:
+   * reading it in React is a flash of the wrong theme on every load, which is
+   * exactly what somebody who chose dark does not want to see.
+   */
+  await page.getByRole('button', { name: /press for light/ }).click()
+  await expect(page.locator('html')).not.toHaveClass(/dark/)
+
+  await openCube(page)
+
+  await expect(page.locator('html')).not.toHaveClass(/dark/)
+  await expect(page.getByRole('button', { name: /press for dark/ })).toBeVisible()
+})
+
+test('every colour in the app answers to the theme', async ({ page }) => {
+  /*
+   * The conversion was 445 hardcoded greys across 28 files, and the failure
+   * mode of missing one is a panel that stays near-black on a white page. This
+   * catches the class of mistake rather than any one instance: nothing visible
+   * should still be dark once the shell is light.
+   */
+  await page.getByRole('button', { name: /press for light/ }).click()
+  await page.waitForTimeout(300)
+
+  const dark = await page.evaluate(() => {
+    /*
+     * Only solid `rgb()` backgrounds, which is exactly the shape a missed
+     * conversion takes: `bg-zinc-900` computes opaque and near-black. Tints are
+     * skipped on purpose — they arrive as `oklab(… / 0.1)` and are a wash over
+     * whatever is behind them, not a surface that failed to flip.
+     */
+    const solidShade = (colour: string): number | null => {
+      const rgb = /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/.exec(colour)
+      if (!rgb) return null
+      const [r, g, b] = [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])]
+      return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+    }
+
+    return [...document.querySelectorAll('*')]
+      .filter((node) => {
+        const box = node.getBoundingClientRect()
+        if (box.width < 40 || box.height < 20) return false
+        const shade = solidShade(getComputedStyle(node).backgroundColor)
+        return shade !== null && shade < 0.25
+      })
+      .map(
+        (node) => `${node.tagName.toLowerCase()}.${(node.className || '').toString().slice(0, 80)}`,
+      )
+  })
+
+  expect(dark).toEqual([])
+})

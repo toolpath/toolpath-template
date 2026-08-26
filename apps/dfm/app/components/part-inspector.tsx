@@ -1862,7 +1862,7 @@ export const PartInspector = ({
     tab === 'directions' ? (
       directionsPanel
     ) : tab === 'inspector' ? (
-      <aside className="flex size-full min-h-0 flex-col overflow-y-auto bg-zinc-900">
+      <aside className="flex size-full min-h-0 flex-col overflow-y-auto bg-ground">
         <PartSummary
           report={part}
           features={features}
@@ -1874,8 +1874,6 @@ export const PartInspector = ({
           candidateTags={candidateTags}
           onChoose={choose}
           onHover={setHoveredTags}
-          unit={unit}
-          onUnit={chooseUnit}
           query={query}
           onQuery={setQuery}
           scores={scores}
@@ -1915,9 +1913,9 @@ export const PartInspector = ({
     )
 
   return (
-    <main className="flex h-screen min-h-0 flex-col overflow-hidden bg-zinc-950 text-zinc-100">
+    <main className="flex h-screen min-h-0 flex-col overflow-hidden bg-ground text-ink">
       <AppHeader
-        className="border-b border-zinc-800 px-4 py-3"
+        className="border-b border-edge px-4 py-3"
         navigation={
           <Tabs value={tab} onValueChange={(value) => setTab(value as ViewerTab)}>
             <Tabs.List>
@@ -1929,12 +1927,12 @@ export const PartInspector = ({
         }
         actions={
           <div className="flex items-center gap-4">
-            <div className="text-right text-xs text-zinc-500">
+            <div className="text-right text-xs text-ink-dim">
               <p>{part.features.length} recognized features</p>
               <p className="font-mono">{report.partId}</p>
             </div>
             <Link
-              className="rounded border border-zinc-700 bg-transparent px-3 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-900"
+              className="rounded border border-edge-strong bg-transparent px-3 py-2 text-sm font-semibold text-ink transition hover:bg-surface"
               to="/"
             >
               Upload another part
@@ -2034,6 +2032,8 @@ export const PartInspector = ({
               arrowContext,
             )}
             paintMode={paintMode}
+            unit={unit}
+            onUnit={chooseUnit}
             showingPass={showingPass}
             onShowingPass={setShowingPass}
             cutBy={cutBy}
@@ -2280,8 +2280,8 @@ export const PartInspector = ({
                 the work, and clicking a face used to change it.
               */}
               {draft !== null ? (
-                <aside className="flex size-full min-h-0 flex-col overflow-y-auto bg-zinc-900">
-                  <p className="p-4 text-sm leading-6 text-zinc-500">
+                <aside className="flex size-full min-h-0 flex-col overflow-y-auto bg-ground">
+                  <p className="p-4 text-sm leading-6 text-ink-dim">
                     Drawing a reading. Its faces are listed above, and the part shows what is chosen
                     — nothing is being read.
                   </p>

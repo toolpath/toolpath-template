@@ -241,13 +241,24 @@ test('shows the limits it judges by, and what they made of a feature', async ({ 
   await expect(page.getByText('∞ – 3.0').first()).toBeVisible()
 
   await page.getByRole('tab', { name: 'Inspector' }).click()
-  const unitBottom = await page
-    .getByRole('button', { name: /Units: mm\. Switch to in/ })
-    .evaluate((element) => element.getBoundingClientRect().bottom)
+  /*
+   * The unit switch used to sit in the Geometry panel, and this guarded it
+   * against the counts under it. It lives in the viewer's bottom bar now — it
+   * is true of every number on every tab, so it belongs somewhere all of them
+   * can reach — and what it must not crowd is the size reading beside it.
+   */
+  const units = page.getByRole('button', { name: /Units: mm\. Switch to in/ })
+  await expect(units).toBeVisible()
+
+  // Below the counts now rather than above them, which is the whole of the
+  // move. No size reading beside it here: this report carries no mesh, and a
+  // part with no geometry has no size to report.
+  const switchTop = (await units.boundingBox())!.y
   const featuresTop = await page
     .getByText('Features', { exact: true })
     .evaluate((element) => element.getBoundingClientRect().top)
-  expect(featuresTop - unitBottom).toBeGreaterThanOrEqual(12)
+  expect(switchTop).toBeGreaterThan(featuresTop)
+  await expect(page.getByRole('button', { name: /^Part size/ })).toHaveCount(0)
   await page.getByRole('button', { name: /BlindHole/ }).click()
   await page
     .getByRole('button', { name: /hole-1/ })
@@ -828,4 +839,70 @@ test('the wheel zooms to the cursor, or to the middle, and remembers which', asy
   // Kept across a reload, like the paint mode and the scene aids.
   await page.reload()
   await expect(page.getByRole('button', { name: 'Zoom to centre' })).toBeVisible()
+})
+
+test('the two toolbars ask two different questions, and sit apart', async ({ page }) => {
+  /*
+   * One shelf used to carry both. *What is the part coloured by* is about the
+   * report and is the first thing anybody reaches for; arrows, zoom, grid and
+   * section are about how you are looking at it. Splitting them put the washes
+   * in the corner the eye starts in and the view tools under the model, clear
+   * of the view cube in the opposite corner.
+   */
+  await openInspector(page)
+
+  const washes = page.getByRole('group', { name: 'Colour the part by' })
+  const view = page.getByRole('group', { name: 'View controls' })
+
+  await expect(washes).toBeVisible()
+  await expect(view).toBeVisible()
+
+  // Each control belongs to exactly one of them.
+  await expect(washes.getByRole('button', { name: 'Difficulty' })).toBeVisible()
+  await expect(view.getByRole('button', { name: /Zoom to/ })).toBeVisible()
+  await expect(washes.getByRole('button', { name: /Zoom to/ })).toHaveCount(0)
+  await expect(view.getByRole('button', { name: 'Difficulty' })).toHaveCount(0)
+
+  // The view shelf is below the washes, and to the right of them.
+  const top = (await washes.boundingBox())!
+  const bottom = (await view.boundingBox())!
+  expect(bottom.y).toBeGreaterThan(top.y + top.height)
+  expect(bottom.x).toBeGreaterThan(top.x)
+})
+
+test('the wash buttons still answer to their words, now they wear a glyph', async ({ page }) => {
+  /*
+   * The glyph is decoration beside the word, so it is hidden from the
+   * accessible name rather than read out alongside it. A button that started
+   * announcing itself as "cube Plain" is one every test and every screen
+   * reader addresses by a name nobody chose.
+   */
+  await openInspector(page)
+
+  const washes = page.getByRole('group', { name: 'Colour the part by' })
+
+  for (const name of ['Plain', 'Directions', 'Difficulty']) {
+    await expect(washes.getByRole('button', { name, exact: true })).toHaveCount(1)
+  }
+})
+
+test('which pass the colours mean is asked only while they mean something', async ({ page }) => {
+  // On Plain there is no pass to be showing, so the row is not there to press.
+  await openInspector(page)
+
+  const passes = page.getByRole('group', { name: 'Which pass the colours mean' })
+  const washes = page.getByRole('group', { name: 'Colour the part by' })
+
+  await washes.getByRole('button', { name: 'Plain', exact: true }).click()
+  await expect(passes).toHaveCount(0)
+
+  await washes.getByRole('button', { name: 'Directions', exact: true }).click()
+  await expect(passes.getByRole('button', { name: 'rough' })).toBeVisible()
+
+  // Under the modes rather than beside them: together they ran off the canvas
+  // and the clipped control was the one saying what you were looking at.
+  const above = (await washes.boundingBox())!
+  const below = (await passes.boundingBox())!
+  expect(below.y).toBeGreaterThan(above.y)
+  expect(below.x + below.width).toBeLessThanOrEqual(above.x + above.width + 1)
 })

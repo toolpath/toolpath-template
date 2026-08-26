@@ -42,6 +42,7 @@
     "@types/node": "24.10.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/three": "0.185.4",
     "@vitejs/plugin-react": "^5.0.4",
     "hono-react-router-adapter": "0.6.5",
     "jsdom": "30.0.1",
