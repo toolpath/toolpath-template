@@ -6,14 +6,14 @@ plan for how the part gets held.
 
 ## Start here
 
-| Page                                                           | Covers                                                                                       |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| [interactions.md](interactions.md)                             | Every state, every input, and what each one does — **as built here**                         |
-| [highlighting.md](highlighting.md)                             | Every colour on the part: modes, layers, what overrides what                                 |
-| [directions-replay.md](directions-replay.md)                   | **Rebuilding the directions work, in the right order.** Read this if you are doing it        |
-| [directions-parity-plan.md](directions-parity-plan.md)         | What the Directions page _is_ — the interaction inventory, and what is built                 |
-| [directions-parity-findings.md](directions-parity-findings.md) | F1–F67: why each instruction in the replay exists, each one a bug or a wrong turn first      |
-| [staging.md](staging.md)                                       | **How to land this in another part viewer** — what to take, in what order, and what to leave |
+| Page                                                           | Covers                                                                                  |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [interactions.md](interactions.md)                             | Every state, every input, and what each one does — **as built here**                    |
+| [highlighting.md](highlighting.md)                             | Every colour on the part: modes, layers, what overrides what                            |
+| [directions-replay.md](directions-replay.md)                   | **Rebuilding the directions work, in the right order.** Read this if you are doing it   |
+| [directions-parity-plan.md](directions-parity-plan.md)         | What the Directions page _is_ — the interaction inventory, and what is built            |
+| [directions-parity-findings.md](directions-parity-findings.md) | F1–F67: why each instruction in the replay exists, each one a bug or a wrong turn first |
+| [migration.md](migration.md)                                   | **How this work got here, and what is still outstanding** — read this before the PR     |
 
 The three `directions-*` pages are one set and are read in that order: the replay
 says what to do, the plan says what the thing is, the findings say why. They live
@@ -21,9 +21,15 @@ here rather than in top-level `docs/`, because a cleanup of that folder took the
 first version of all three (`441b7bc`, 855 lines, in a commit about something
 else). Recover any of the originals with `git show 441b7bc^:docs/<name>`.
 
-`staging.md` answers a different question: moving this work into a codebase that
-has its own history. Read it **instead of** the replay if you are not rebuilding
-from scratch.
+`migration.md` answers a different question: how this work moved out of the
+sandbox and into this repository, what it cost, and what is left. Read it
+**instead of** the replay — the replay rebuilds from scratch, and that is not
+what happened here. It also carries the parity checklist — ticked against the
+tests and then by hand on a real part, with what that turned up.
+
+`staging.md` is referenced by the sandbox's own copy of this index and was
+deliberately not ported: it aimed the work at `toolpath/apps/part-viewer`, a
+directory PR #50 deleted. `migration.md` replaces it.
 
 ## Where these specs came from
 

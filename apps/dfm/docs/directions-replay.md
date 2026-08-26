@@ -15,7 +15,8 @@ sixteen identical holes on one face. **Steps 11–15 are past the plan
 altogether** — the plan assumes a reading is cut whole from one way up, and
 everything from 11 on is what happens when that stops being true. Each is
 shippable on its own, and 15 is where staging into another codebase should start
-rather than end. See [staging.md](staging.md).
+rather than end. See [migration.md](migration.md) — that staging already happened,
+into this repository, and it records what it actually cost.
 
 > **The patches in `~/dev/directions-patches/` are not this order.** They are the
 > history including its mistakes: `0003` adds a Directions route and `0004`
