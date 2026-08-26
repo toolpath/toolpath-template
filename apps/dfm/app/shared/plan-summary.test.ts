@@ -5,6 +5,7 @@ import { setFaceCut } from './faces'
 import {
   cutByDirection,
   cutRegionsByDirection,
+  cutRegionsByFeature,
   planCoverage,
   setupGroups,
   uncutFaces,
@@ -192,6 +193,17 @@ describe('a reading that cuts only part of what it covers', () => {
     // The test part has six faces. These two readings cover three between them
     // and cut all three; the rest were never covered by either.
     expect(uncutFaces(part, features, split)).toEqual([3, 4, 5])
+  })
+
+  it('says which reading cuts each face, so difficulty can colour them too', () => {
+    // The direction layer answers "which way up"; difficulty needs "which
+    // reading", because the band belongs to the feature and not to the setup.
+    expect(cutRegionsByFeature(features, split, 'rough')).toEqual(
+      new Map([
+        [1, 'profile-1'],
+        [2, 'profile-1'],
+      ]),
+    )
   })
 
   it('paints face by face, so the face it gave up takes the other colour', () => {

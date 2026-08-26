@@ -140,6 +140,7 @@ export const FeatureViewer = ({
   onShowingPass,
   cutBy,
   cutByRegion,
+  cutRegionsBy,
   faceLayer,
   proposed,
   proposedFrom,
@@ -190,6 +191,8 @@ export const FeatureViewer = ({
   cutBy: ReadonlyMap<string, number>
   /** Which way up cuts each face, for readings that cut only part of themselves. */
   cutByRegion: ReadonlyMap<number, number>
+  /** Which reading cuts each face, for the difficulty wash. */
+  cutRegionsBy: ReadonlyMap<number, string>
   /**
    * Faces named directly, over the wash — the reading whose faces are being
    * listed. Under the picked colour, so the row under the pointer still stands
@@ -271,8 +274,8 @@ export const FeatureViewer = ({
    * face is cut once.
    */
   const faceWash = useMemo(
-    () => [...regionWash(paintMode, cutByRegion), ...faceLayer],
-    [paintMode, cutByRegion, faceLayer],
+    () => [...regionWash(paintMode, cutByRegion, cutRegionsBy, verdicts), ...faceLayer],
+    [paintMode, cutByRegion, cutRegionsBy, verdicts, faceLayer],
   )
 
   const pickInViewport = (pick: PartPick) => {

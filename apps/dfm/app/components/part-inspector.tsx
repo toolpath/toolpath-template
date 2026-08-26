@@ -24,6 +24,7 @@ import { byDirection } from '../shared/map-features'
 import {
   cutByDirection,
   cutRegionsByDirection,
+  cutRegionsByFeature,
   planCoverage,
   uncutRows,
 } from '../shared/plan-summary'
@@ -1173,6 +1174,11 @@ export const PartInspector = ({
     () => cutRegionsByDirection(part.features, painting, showingPass),
     [part.features, painting, showingPass],
   )
+  /* The same faces, said as *which reading* cuts them, for the difficulty wash. */
+  const cutRegionsBy = useMemo(
+    () => cutRegionsByFeature(part.features, painting, showingPass),
+    [part.features, painting, showingPass],
+  )
 
   const proposed = useMemo(
     () =>
@@ -2032,6 +2038,7 @@ export const PartInspector = ({
             onShowingPass={setShowingPass}
             cutBy={cutBy}
             cutByRegion={cutByRegion}
+            cutRegionsBy={cutRegionsBy}
             faceLayer={listedFaces}
             proposed={proposed}
             proposedFrom={proposal?.direction}

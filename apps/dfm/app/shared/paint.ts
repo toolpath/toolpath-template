@@ -65,16 +65,28 @@ export interface RegionWash {
 }
 
 /**
- * The direction wash for readings that cut only part of what they cover.
+ * The wash for readings that cut only part of what they cover.
  *
  * Painted face by face rather than by feature, because the feature's other
  * faces belong to somebody else now — see `cutRegionsByDirection`. Disjoint
  * from {@link paintWash} by cut-once, so the two layers cannot disagree.
+ *
+ * **Both washes need this layer, not just directions.** A split reading drops
+ * out of the by-tag map on purpose, so a mode without a face-by-face layer
+ * paints it with nothing at all: difficulty showed a hole exactly where a
+ * reading had been divided, which is often where the hardest work is and
+ * always where somebody has been making decisions.
  */
 export function regionWash(
   mode: PaintMode,
+  /** Which way up cuts each face, for `directions`. */
   cutByRegion: ReadonlyMap<number, number> = new Map(),
+  /** Which reading cuts each face, for `difficulty`. */
+  cutRegionsBy: ReadonlyMap<number, string> = new Map(),
+  /** What the rules made of each feature, for `difficulty`. */
+  verdicts: readonly { tag: string; band: Band | null }[] = [],
 ): RegionWash[] {
+  if (mode === 'difficulty') return difficultyRegionWash(cutRegionsBy, verdicts)
   if (mode !== 'directions') return []
 
   return [...cutByRegion].map(([region, direction]) => ({
@@ -82,6 +94,32 @@ export function regionWash(
     color: DIRECTION_COLORS[direction % DIRECTION_COLORS.length] ?? 0x64748b,
     weight: PAINT_WEIGHT,
   }))
+}
+
+/**
+ * A split reading's faces, in the band of the reading cutting them.
+ *
+ * No sort, unlike {@link difficultyWash}: cut-once means a face is cut by one
+ * reading in a pass, so there is nothing here for a gentler band to win.
+ *
+ * A face whose reading the rules never judged paints in the unjudged colour
+ * rather than not at all — the same answer the by-tag layer gives it. What is
+ * left grey is a face nothing cuts, which is a different statement and one the
+ * page depends on being able to make.
+ */
+function difficultyRegionWash(
+  cutRegionsBy: ReadonlyMap<number, string>,
+  verdicts: readonly { tag: string; band: Band | null }[],
+): RegionWash[] {
+  const bands = new Map(verdicts.map((verdict) => [verdict.tag, verdict.band]))
+
+  return [...cutRegionsBy]
+    .filter(([, tag]) => bands.has(tag))
+    .map(([region, tag]) => ({
+      region,
+      color: bandHex(bands.get(tag) ?? null),
+      weight: PAINT_WEIGHT,
+    }))
 }
 
 /**

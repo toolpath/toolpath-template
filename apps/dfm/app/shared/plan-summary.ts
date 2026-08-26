@@ -324,6 +324,43 @@ export const cutRegionsByDirection = (
 }
 
 /**
+ * Which reading cuts each face, for the readings that paint face by face.
+ *
+ * The difficulty twin of {@link cutRegionsByDirection}, and it exists for the
+ * same reason: a reading that gave a face up or was handed one cannot be
+ * painted by tag, because the viewer expands a tag to the faces the Engine
+ * reported rather than to the faces the plan gave it. Difficulty had no such
+ * layer, so a split reading was painted by neither — it dropped out of
+ * {@link cutByDirection} and there was nothing else to catch it, and the part
+ * showed a hole where the hardest work often is.
+ *
+ * The band comes from the feature the face is cut by *here*, which is the only
+ * honest answer available today: the Engine judged the reading as it reported
+ * it, and nobody has asked it what a reading cut down to four of its six faces
+ * would cost. When edited features go back for analysis, this is where their
+ * answer arrives.
+ */
+export const cutRegionsByFeature = (
+  features: ReadonlyArray<PartFeature>,
+  plan: SetupPlan,
+  pass: Pass,
+): Map<number, string> => {
+  const setups = new Set(plan.setups.map((setup) => setup.id))
+  const cutBy = new Map<number, string>()
+
+  for (const feature of features) {
+    if (exactlyItsOwn(plan, feature, pass)) continue
+    const setupId = plan.assigned[feature.featureTag]?.[pass]
+    // Held by a setup the plan no longer has is not held. Guarded the same way
+    // as the direction layer so the two modes agree about what is mapped.
+    if (setupId === undefined || !setups.has(setupId)) continue
+    for (const idx of cutRegions(plan, feature, pass)) cutBy.set(idx, feature.featureTag)
+  }
+
+  return cutBy
+}
+
+/**
  * Whether this reading cuts precisely the faces the Engine reported in it.
  *
  * The question every by-tag paint has to ask first. The viewer colours a

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  PAINT_WEIGHT,
   loadPaintMode,
   paintWash,
+  regionWash,
   savePaintMode,
   PAINTED_HEX,
   PROPOSED_HEX,
@@ -163,5 +165,45 @@ describe('how hard the part is once a plan exists', () => {
     const finished = paintWash('difficulty', verdicts, new Map([['easy-alternative', 0]]))
 
     expect(roughed.at(-1)?.tag).not.toBe(finished.at(-1)?.tag)
+  })
+})
+
+describe('the difficulty wash on a reading that was split', () => {
+  /*
+   * Paul, running it: a feature cut down to only some of its faces lost its
+   * difficulty colour entirely. Such a reading drops out of the by-tag map on
+   * purpose — the viewer would expand its tag to faces the plan has given
+   * away — and difficulty had no face-by-face layer to catch it, so the part
+   * went grey exactly where a reading had been divided.
+   */
+  const cut = new Map([
+    [1, 'profile-1'],
+    [2, 'profile-1'],
+  ])
+
+  it('paints the faces it still cuts, in the band of the reading cutting them', () => {
+    expect(regionWash('difficulty', new Map(), cut, [{ tag: 'profile-1', band: 'rats' }])).toEqual([
+      { region: 1, color: BAND_HEX.rats, weight: PAINT_WEIGHT },
+      { region: 2, color: BAND_HEX.rats, weight: PAINT_WEIGHT },
+    ])
+  })
+
+  it('paints a reading no rule reached in the unjudged colour, not in nothing', () => {
+    const [face] = regionWash('difficulty', new Map(), cut, [{ tag: 'profile-1', band: null }])
+
+    expect(face?.color).toBe(UNJUDGED_HEX)
+  })
+
+  it('leaves a face grey when nothing judged the reading at all', () => {
+    // Grey means "nothing cuts this", which the page depends on being able to
+    // say — so a tag with no verdict of any kind is not painted over it.
+    expect(regionWash('difficulty', new Map(), cut, [])).toEqual([])
+  })
+
+  it('still paints directions face by face, and does not cross the two', () => {
+    expect(regionWash('directions', new Map([[1, 0]]), cut, []).map((face) => face.region)).toEqual(
+      [1],
+    )
+    expect(regionWash('plain', new Map([[1, 0]]), cut, [])).toEqual([])
   })
 })
