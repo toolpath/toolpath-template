@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MapFeaturesPanel } from './map-features'
 import { EMPTY_PLAN } from '../shared/setups'
+import { lockSetup, setPassFor } from '../shared/plan-actions'
 import { TEST_DIRECTIONS, testFeature, testPart } from '../shared/test-part'
 import type { FeatureScore } from '../shared/feature-score'
 import type { PartFeature } from '../shared/contracts'
@@ -649,5 +650,73 @@ describe('the rows survive a re-render', () => {
     rerender(<MapFeaturesPanel {...props} focusedTag="pocket" />)
 
     expect(document.activeElement).toBe(screen.getAllByRole('button', { name: /Pocket/ })[0])
+  })
+})
+
+describe('a row whose work a settled setup is holding', () => {
+  /*
+   * Paul, on a real part: a face mapped and settled from one way up, and the
+   * R/F/Both on every *other* reading of that same face still lit. Pressing
+   * them did nothing — `setPassFor` refused, correctly — but nothing said so
+   * before the press.
+   *
+   * The pieces were both right and the wiring was not: the refusal asked
+   * "would this press move settled work", the row asked "is *this* reading
+   * settled", and those are different questions wherever cut-once is. This is
+   * the test at the layer that was actually wrong.
+   */
+  const settledOnPocket = () => {
+    const mapped = setPassFor(EMPTY_PLAN, TEST_DIRECTIONS, features, [pocket], ['rough'])
+    return lockSetup(mapped, mapped.setups[0]!.id, true)
+  }
+
+  const rowFor = (name: string) => {
+    const row = screen.getByText(name).closest('li')
+    if (row === null) throw new Error(`no row for ${name}`)
+    return within(row)
+  }
+
+  it('shuts the reading the lock holds outright', () => {
+    panel({ candidates: [pocket, profile], plan: settledOnPocket() })
+
+    expect(
+      (rowFor('Pocket').getByRole('button', { name: 'R' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+  })
+
+  it('shuts a reading nobody settled, whose faces the lock is cutting', () => {
+    // The profile covers face 0, which the settled pocket is cutting. This is
+    // the row that stayed lit, and the one the bug was reported against.
+    panel({ candidates: [pocket, profile], plan: settledOnPocket() })
+
+    expect(
+      (rowFor('Profile').getByRole('button', { name: 'R' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+  })
+
+  it('names the lock to open rather than only refusing', () => {
+    panel({ candidates: [pocket, profile], plan: settledOnPocket() })
+
+    expect(rowFor('Profile').getByRole('button', { name: 'R' }).getAttribute('title')).toMatch(
+      /^Settled in /,
+    )
+  })
+
+  it('leaves a reading the lock never touches alone', () => {
+    // The wall holds face 1, which the settled pocket does not cut.
+    panel({ candidates: [pocket, wall], plan: settledOnPocket() })
+
+    expect((rowFor('Wall').getByRole('button', { name: 'R' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    )
+  })
+
+  it('leaves every row alone when nothing is settled', () => {
+    const mapped = setPassFor(EMPTY_PLAN, TEST_DIRECTIONS, features, [pocket], ['rough'])
+    panel({ candidates: [pocket, profile], plan: mapped })
+
+    expect(
+      (rowFor('Profile').getByRole('button', { name: 'R' }) as HTMLButtonElement).disabled,
+    ).toBe(false)
   })
 })

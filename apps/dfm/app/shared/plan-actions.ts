@@ -7,6 +7,98 @@ import type { Pass, Setup, SetupPlan } from './setups'
 import { PASSES, cutOnce, cutRegions, cutsFace, setupFor, withoutEmptied } from './setups'
 
 /**
+ * What settled setups are holding, gathered once.
+ *
+ * `disturbsLocked` answers for a single press by walking every feature on the
+ * part. That is the right shape for a guard called on a click and the wrong one
+ * for a list that must ask the same question of every row it draws, three times
+ * over — so the walk happens once and the rows read the result.
+ */
+export type LockedClaims = {
+  /** Readings a settled setup holds, and which setup holds each. */
+  readonly readings: ReadonlyMap<string, Setup>
+  /** Per pass, the regions a settled reading is cutting, and by whose lock. */
+  readonly cutting: ReadonlyMap<Pass, ReadonlyMap<number, Setup>>
+}
+
+export const lockedClaims = (
+  plan: SetupPlan,
+  allFeatures: ReadonlyArray<PartFeature>,
+): LockedClaims => {
+  const readings = new Map<string, Setup>()
+  const cutting = new Map<Pass, Map<number, Setup>>(PASSES.map((pass) => [pass, new Map()]))
+
+  const locked = new Map(
+    plan.setups.filter((setup) => setup.locked === true).map((setup) => [setup.id, setup]),
+  )
+  if (locked.size === 0) return { readings, cutting }
+
+  for (const [tag, assignment] of Object.entries(plan.assigned)) {
+    for (const pass of PASSES) {
+      const setupId = assignment[pass]
+      const setup = setupId === undefined ? undefined : locked.get(setupId)
+      if (setup !== undefined) readings.set(tag, setup)
+    }
+  }
+
+  /*
+   * A settled reading's faces, per pass — read from `cutRegions` rather than
+   * `regionIdxs`, because a reading is no longer cut whole and the question is
+   * what it is *cutting*, not what it covers.
+   */
+  for (const feature of allFeatures) {
+    const held = readings.get(feature.featureTag)
+    if (held === undefined) continue
+    for (const pass of PASSES) {
+      const regions = cutting.get(pass)
+      for (const idx of cutRegions(plan, feature, pass)) regions?.set(idx, held)
+    }
+  }
+
+  return { readings, cutting }
+}
+
+/**
+ * The settled setup that would refuse this press, if one would.
+ *
+ * The same two routes `disturbsLocked` describes, answered with the setup
+ * instead of a boolean so that whatever goes inert can name the lock to open.
+ *
+ * Asking this *before* the press is the whole point. The refusal already works;
+ * what did not was saying so, and a control that refuses in silence is exactly
+ * the press that looks like it did what was asked.
+ */
+export const blockedBy = (
+  claims: LockedClaims,
+  features: ReadonlyArray<PartFeature>,
+  /** Empty means "take it off both passes", which claims nothing. */
+  passes: ReadonlyArray<Pass>,
+): Setup | null => {
+  if (claims.readings.size === 0) return null
+
+  for (const feature of features) {
+    const held = claims.readings.get(feature.featureTag)
+    if (held !== undefined) return held
+  }
+
+  // Letting go claims no faces, so it cannot take one from anybody.
+  if (passes.length === 0) return null
+
+  for (const pass of passes) {
+    const regions = claims.cutting.get(pass)
+    if (regions === undefined) continue
+    for (const feature of features) {
+      for (const idx of feature.regionIdxs) {
+        const cutter = regions.get(idx)
+        if (cutter !== undefined) return cutter
+      }
+    }
+  }
+
+  return null
+}
+
+/**
  * Whether a press would move work off a setup somebody has settled.
  *
  * The lock's own promise is that *anything* which would move work off it says
@@ -30,6 +122,11 @@ import { PASSES, cutOnce, cutRegions, cutsFace, setupFor, withoutEmptied } from 
  * of it. Skipping only the locked reading would leave two setups cutting one
  * face, which breaks cut-once — a worse state than the one being prevented, and
  * one nothing else in the app is written to expect.
+ *
+ * Delegates to `blockedBy` rather than deciding for itself, because the rows
+ * that go inert have to reach the same verdict and reaching it twice is how
+ * they came apart the first time: this refused correctly while the buttons
+ * stayed lit, so the press looked live and did nothing.
  */
 export const disturbsLocked = (
   plan: SetupPlan,
@@ -37,23 +134,7 @@ export const disturbsLocked = (
   features: ReadonlyArray<PartFeature>,
   /** Empty means "take it off both passes", which claims nothing. */
   passes: ReadonlyArray<Pass>,
-): boolean => {
-  const settled = lockedReadings(plan)
-  if (settled.size === 0) return false
-
-  if (features.some((feature) => settled.has(feature.featureTag))) return true
-
-  // Letting go claims no faces, so it cannot take one from anybody.
-  if (passes.length === 0) return false
-
-  const claimed = new Set(features.flatMap((feature) => feature.regionIdxs))
-
-  return allFeatures.some(
-    (other) =>
-      settled.has(other.featureTag) &&
-      passes.some((pass) => cutRegions(plan, other, pass).some((idx) => claimed.has(idx))),
-  )
-}
+): boolean => blockedBy(lockedClaims(plan, allFeatures), features, passes) !== null
 
 /**
  * Assigning readings to the way up they are read from.

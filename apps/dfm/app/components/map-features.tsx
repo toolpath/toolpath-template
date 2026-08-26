@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import type { Vec3 } from '@toolpath/api'
 
 import { FaceCount } from './face-count'
@@ -15,7 +15,8 @@ import { isMade } from '../shared/make-feature'
 import { moveThroughList } from '../shared/list-keys'
 import { byDirection, offersFor } from '../shared/map-features'
 import { groupAcrossPart, groupHoles, holeDiameter } from '../shared/hole-groups'
-import { settledSetup, setupForReading } from '../shared/plan-actions'
+import { blockedBy, lockedClaims, settledSetup, setupForReading } from '../shared/plan-actions'
+import type { LockedClaims } from '../shared/plan-actions'
 import type { UncutFace } from '../shared/plan-summary'
 import { PASSES, cutState, directionOf, faceCounts, groupCutState } from '../shared/setups'
 import type { PartFaces, Pass, SetupPlan } from '../shared/setups'
@@ -227,6 +228,7 @@ const GroupHeader = ({
   readings,
   trailing,
   plan,
+  claims,
   directions,
   highlighted,
   onHighlightDirection,
@@ -237,6 +239,7 @@ const GroupHeader = ({
   readings: ReadonlyArray<PartFeature>
   trailing?: string
   plan: SetupPlan
+  claims: LockedClaims
   directions: readonly Vec3[]
   highlighted: number | null
   onHighlightDirection: (index: number, tags: readonly string[]) => void
@@ -289,6 +292,7 @@ const GroupHeader = ({
         rough={allRough}
         finish={allFinish}
         onSetPass={(passes) => onSetPass(readings, passes)}
+        blockedBy={(passes) => blockedBy(claims, readings, passes)?.name ?? null}
       />
     </header>
   )
@@ -311,6 +315,7 @@ const HoleRow = ({
   hole,
   label,
   plan,
+  claims,
   directions,
   scores,
   focusedTag,
@@ -321,6 +326,7 @@ const HoleRow = ({
   hole: PartFeature
   label: string
   plan: SetupPlan
+  claims: LockedClaims
   directions: readonly Vec3[]
   scores: ReadonlyMap<string, FeatureScore>
   focusedTag: string | null
@@ -360,6 +366,7 @@ const HoleRow = ({
         rough={cutState(plan, hole, 'rough', setup)}
         finish={cutState(plan, hole, 'finish', setup)}
         onSetPass={(passes) => onSetPass([hole], passes)}
+        blockedBy={(passes) => blockedBy(claims, [hole], passes)?.name ?? null}
       />
     </li>
   )
@@ -505,6 +512,7 @@ const Reading = ({
   inOffer = false,
   trailing,
   plan,
+  claims,
   showingPass,
   directions,
   scores,
@@ -549,6 +557,7 @@ const Reading = ({
    */
   handed?: boolean
   plan: SetupPlan
+  claims: LockedClaims
   /** Which pass the row's face count is reading. */
   showingPass: Pass
   directions: readonly Vec3[]
@@ -750,13 +759,14 @@ const Reading = ({
           rough={groupCutState(plan, group, 'rough', setup)}
           finish={groupCutState(plan, group, 'finish', setup)}
           onSetPass={(passes) => onSetPass(group, passes)}
-          settled={settled?.name ?? null}
+          blockedBy={(passes) => blockedBy(claims, group, passes)?.name ?? null}
         />
         {trailing}
       </li>
       {grouped && open
         ? group.map((hole) => (
             <HoleRow
+              claims={claims}
               key={hole.featureTag}
               hole={hole}
               label={label}
@@ -911,6 +921,15 @@ export const MapFeaturesPanel = ({
   onShowFaces: (featureTag: string) => void
   onHover: (tags: string[]) => void
 }) => {
+  /*
+   * What the locks hold, worked out once for the whole panel.
+   *
+   * Every row asks whether its press would be refused, and the answer is the
+   * same walk over every feature on the part each time. Done per row it is the
+   * list's own N+1; done here it is one pass, and the rows read it.
+   */
+  const claims = useMemo(() => lockedClaims(plan, features), [plan, features])
+
   /*
    * One way up, not four.
    *
@@ -1100,6 +1119,7 @@ export const MapFeaturesPanel = ({
               rough={false}
               finish={false}
               onSetPass={(passes) => onSetPass(proposed, passes)}
+              blockedBy={(passes) => blockedBy(claims, proposed, passes)?.name ?? null}
             />
             <button
               type="button"
@@ -1129,6 +1149,7 @@ export const MapFeaturesPanel = ({
           >
             {holeGroups(proposed, false).map((holes) => (
               <Reading
+                claims={claims}
                 flagElsewhere
                 key={holes.key}
                 feature={holes.holes[0]!}
@@ -1319,6 +1340,7 @@ export const MapFeaturesPanel = ({
                         return (
                           <li key={group.index}>
                             <GroupHeader
+                              claims={claims}
                               index={group.index}
                               label={group.label}
                               readings={groups.flatMap((holes) => holes.holes)}
@@ -1331,6 +1353,7 @@ export const MapFeaturesPanel = ({
                             <ul className="ml-2 border-l border-zinc-800">
                               {groups.map((holes) => (
                                 <Reading
+                                  claims={claims}
                                   key={holes.key}
                                   feature={holes.holes[0]!}
                                   report={report}
@@ -1395,6 +1418,7 @@ export const MapFeaturesPanel = ({
                       that reaches most of a group is a real answer, and
                       pretending otherwise is how a plan loses a face quietly. */}
                   <GroupHeader
+                    claims={claims}
                     index={offer.index}
                     label={offer.label}
                     readings={offer.readings}
@@ -1410,6 +1434,7 @@ export const MapFeaturesPanel = ({
                   <ul className="ml-2 border-l border-zinc-800">
                     {holeGroups(offer.readings, false).map((holes) => (
                       <Reading
+                        claims={claims}
                         key={holes.key}
                         feature={holes.holes[0]!}
                         flagElsewhere
@@ -1469,6 +1494,7 @@ export const MapFeaturesPanel = ({
               return (
                 <li key={group.index}>
                   <GroupHeader
+                    claims={claims}
                     index={group.index}
                     label={group.label}
                     readings={readings}
@@ -1481,6 +1507,7 @@ export const MapFeaturesPanel = ({
                   <ul className="ml-2 border-l border-zinc-800">
                     {groups.map((holes) => (
                       <Reading
+                        claims={claims}
                         key={holes.key}
                         feature={holes.holes[0]!}
                         report={report}

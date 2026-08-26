@@ -107,7 +107,13 @@ describe('a reading a settled setup holds', () => {
   const settled = (rough: boolean | 'some' = true) => {
     const onSetPass = vi.fn<(passes: ReadonlyArray<Pass>) => void>()
     render(
-      <PassButtons label="+Z" rough={rough} finish={false} onSetPass={onSetPass} settled="Op 1" />,
+      <PassButtons
+        label="+Z"
+        rough={rough}
+        finish={false}
+        onSetPass={onSetPass}
+        blockedBy={() => 'Op 1'}
+      />,
     )
     return onSetPass
   }
@@ -144,5 +150,104 @@ describe('a reading a settled setup holds', () => {
 
     expect(screen.getByRole('button', { name: 'R' }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.getByRole('button', { name: 'F' }).getAttribute('aria-pressed')).toBe('false')
+  })
+})
+
+describe('a lock that holds only one of the two passes', () => {
+  /*
+   * Paul, on a real part: every reading of a settled face had its buttons lit,
+   * because the row asked whether *it* was settled rather than whether the
+   * press would be refused. Widening that has a trap of its own — a setup
+   * settled on rough has not settled the finish, and shutting the whole row
+   * would be the lock claiming ground it never took.
+   *
+   * So the question is asked per button, with the passes that button sends.
+   */
+  const roughOnly = () => {
+    const onSetPass = vi.fn<(passes: ReadonlyArray<Pass>) => void>()
+    render(
+      <PassButtons
+        label="+Z"
+        rough={false}
+        finish={false}
+        onSetPass={onSetPass}
+        blockedBy={(passes) => (passes.includes('rough') ? 'Op 1' : null)}
+      />,
+    )
+    return onSetPass
+  }
+
+  const button = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement
+
+  it('shuts the pass it holds and leaves the other alone', () => {
+    roughOnly()
+
+    expect(button('R').disabled).toBe(true)
+    expect(button('F').disabled).toBe(false)
+  })
+
+  it('shuts Both, which would claim the settled pass along with the free one', () => {
+    roughOnly()
+
+    expect(button('Both').disabled).toBe(true)
+  })
+
+  it('still lets the free pass through', () => {
+    const onSetPass = roughOnly()
+
+    fireEvent.click(button('F'))
+
+    expect(onSetPass).toHaveBeenCalledWith(['finish'])
+  })
+
+  it('names the lock on the button it shut, and not on the one it did not', () => {
+    roughOnly()
+
+    expect(button('R').getAttribute('title')).toBe(
+      'Settled in Op 1. Unlock it to change what it cuts.',
+    )
+    expect(button('F').getAttribute('title')).toBe('Finish this reading from +Z')
+  })
+})
+
+describe('a settled reading still says what it holds', () => {
+  /*
+   * Paul, on a real part: once every refused button greyed the same way, the
+   * one reading that *was* mapped and settled looked as empty as the four
+   * refused on its behalf — and which passes the lock is holding is the thing
+   * somebody opened the row to find out.
+   *
+   * So the state decides the colour and the block decides only whether it can
+   * be pressed. Greyed means holding nothing, not merely refused.
+   */
+  const settledHoldingRough = () => {
+    render(
+      <PassButtons label="+Z" rough finish={false} onSetPass={vi.fn()} blockedBy={() => 'Op 1'} />,
+    )
+  }
+
+  const button = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement
+
+  it('keeps the colour on the pass it holds', () => {
+    settledHoldingRough()
+
+    expect(button('R').className).toContain('text-info')
+    expect(button('R').disabled).toBe(true)
+  })
+
+  it('greys only the pass it is not holding', () => {
+    settledHoldingRough()
+
+    expect(button('F').className).toContain('text-zinc-600')
+    expect(button('F').className).not.toContain('text-info')
+  })
+
+  it('reports what is held to a screen reader either way', () => {
+    // The colour is the sighted half of this; `aria-pressed` is the rest, and
+    // a disabled button still has a state worth reporting.
+    settledHoldingRough()
+
+    expect(button('R').getAttribute('aria-pressed')).toBe('true')
+    expect(button('F').getAttribute('aria-pressed')).toBe('false')
   })
 })

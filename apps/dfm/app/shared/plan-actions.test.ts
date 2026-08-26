@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 
 import type { PartFeature } from './contracts'
 import {
+  blockedBy,
+  disturbsLocked,
   easiestReading,
+  lockedClaims,
   readingForFace,
   lockSetup,
   setPassFor,
@@ -423,5 +426,85 @@ describe('a setup somebody has settled', () => {
     const freed = lockSetup(held, held.setups[0]!.id, false)
 
     expect(assign(freed, [pocket], ['finish']).assigned.pocket?.finish).toBeDefined()
+  })
+})
+
+describe('what a row can say before it is pressed', () => {
+  /*
+   * Paul, on a real part: a face mapped and settled in −Z, and the R/F/Both on
+   * every *other* reading of that same face still lit. `setPassFor` refused
+   * them, so the plan was never in danger — but nothing said so, and the press
+   * looked live and did nothing.
+   *
+   * That is the same bug the lock was fixed for once already, one layer out:
+   * the refusal was taught about cut-once and the buttons were not, because
+   * they asked a narrower question — "is *this* reading settled" — than the one
+   * the refusal answers.
+   */
+  const settled = (plan: SetupPlan) => lockSetup(plan, plan.setups[0]!.id, true)
+  const claimsFor = (plan: SetupPlan) => lockedClaims(plan, all)
+
+  it('names the lock holding a reading outright', () => {
+    const held = settled(assign(EMPTY_PLAN, [pocket], ['rough']))
+
+    expect(blockedBy(claimsFor(held), [pocket], ['rough'])?.id).toBe(held.setups[0]!.id)
+  })
+
+  it('names the lock for a reading nobody settled, whose faces it cuts', () => {
+    // The profile is not settled and never was. Pressing it would take face 0
+    // from the settled pocket, so the row has to carry the lock's name too.
+    const held = settled(assign(EMPTY_PLAN, [pocket], ['rough']))
+
+    expect(blockedBy(claimsFor(held), [profile], ['rough'])?.id).toBe(held.setups[0]!.id)
+  })
+
+  it('says nothing about a reading that touches nothing settled', () => {
+    // The wall holds face 1, which the settled pocket never cuts.
+    const held = settled(assign(EMPTY_PLAN, [pocket], ['rough']))
+
+    expect(blockedBy(claimsFor(held), [wall], ['rough'])).toBeNull()
+  })
+
+  it('shuts only the pass the lock actually holds', () => {
+    /*
+     * The pocket is settled on rough alone. Finishing the profile takes nothing
+     * the lock is cutting, so F is still a real press — which is why the row
+     * asks per button rather than once for itself.
+     */
+    const held = settled(assign(EMPTY_PLAN, [pocket], ['rough']))
+    const claims = claimsFor(held)
+
+    expect(blockedBy(claims, [profile], ['rough'])).not.toBeNull()
+    expect(blockedBy(claims, [profile], ['finish'])).toBeNull()
+  })
+
+  it('lets go without asking, because letting go claims nothing', () => {
+    const held = settled(assign(EMPTY_PLAN, [pocket], ['rough']))
+
+    expect(blockedBy(claimsFor(held), [profile], [])).toBeNull()
+  })
+
+  it('agrees with the refusal, press for press', () => {
+    /*
+     * The guard on the way in and the look of the button are one answer asked
+     * twice, and the first time they were written apart they came apart. This
+     * is the test that says they cannot again.
+     */
+    const held = settled(assign(EMPTY_PLAN, [pocket], ['rough']))
+    const claims = claimsFor(held)
+    const presses: Array<Array<'rough' | 'finish'>> = [
+      ['rough'],
+      ['finish'],
+      ['rough', 'finish'],
+      [],
+    ]
+
+    for (const features of [[pocket], [wall], [profile]]) {
+      for (const passes of presses) {
+        expect(blockedBy(claims, features, passes) !== null).toBe(
+          disturbsLocked(held, all, features, passes),
+        )
+      }
+    }
   })
 })

@@ -19,7 +19,7 @@ export const PassButtons = ({
   rough,
   finish,
   onSetPass,
-  settled = null,
+  blockedBy,
 }: {
   /** The way up these would assign to, for the title text. */
   label: string
@@ -32,13 +32,19 @@ export const PassButtons = ({
   finish: boolean | 'some'
   onSetPass: (passes: ReadonlyArray<Pass>) => void
   /**
-   * The setup that has settled this reading, if one has.
+   * The settled setup that would refuse a press, asked per button with the
+   * passes that button sends.
    *
    * Named rather than a boolean, because the buttons go inert and the only
    * useful thing to say next is *which* lock to open — and a control that
    * refuses without saying why is the half-rule people learn not to trust.
+   *
+   * Asked per press rather than once for the row, because R and F are separate
+   * claims: a setup settled holding the rough of a face has not settled its
+   * finish, and shutting F on that row would be the lock claiming ground it
+   * never took.
    */
-  settled?: string | null
+  blockedBy?: (passes: ReadonlyArray<Pass>) => string | null
 }) => {
   const base =
     'rounded px-1.5 py-0.5 text-2xs font-bold uppercase tracking-wide transition focus:outline-none focus-visible:ring-1 focus-visible:ring-info'
@@ -47,16 +53,28 @@ export const PassButtons = ({
   // Outlined rather than filled: it is on, and it is not finished.
   const part = 'border border-dashed border-info text-info'
 
-  // Settled: still legible, plainly not pressable. Greying it to nothing would
-  // hide which passes the settled setup actually holds, which is the thing
-  // somebody is looking at the row to find out.
+  // Shut, and holding nothing: the press is refused on somebody else's behalf.
   const shut = 'cursor-not-allowed border border-zinc-800 text-zinc-600'
+  // Shut, but holding this pass. Reason enough not to grey it.
+  const stop = 'cursor-not-allowed'
 
-  const look = (state: boolean | 'some') => {
-    if (settled) return state === false ? shut : `${shut} bg-zinc-800/40`
-    if (state === true) return on
-    if (state === 'some') return part
-    return off
+  /*
+   * A refused press keeps whatever it is holding.
+   *
+   * Settled work is exactly the work somebody is reading the row to find out
+   * about, and greying its passes to nothing hides it. Only two of these
+   * buttons refuse *because they are settled*; the rest refuse on behalf of a
+   * lock somewhere else and are genuinely holding nothing, which is what the
+   * flat grey is for.
+   *
+   * So the state decides the colour and the block decides only whether it can
+   * be pressed. A locked reading's R and F stay lit, the way the datasheet
+   * beside them shows the same claim.
+   */
+  const look = (state: boolean | 'some', blocked: string | null) => {
+    if (state === true) return blocked !== null ? `${on} ${stop}` : on
+    if (state === 'some') return blocked !== null ? `${part} ${stop}` : part
+    return blocked !== null ? shut : off
   }
   const pressed = (state: boolean | 'some') => (state === 'some' ? 'mixed' : state)
 
@@ -72,8 +90,18 @@ export const PassButtons = ({
   const both: boolean | 'some' =
     rough === true && finish === true ? true : rough !== false && finish !== false ? 'some' : false
 
-  const says = (state: boolean | 'some', verb: string) => {
-    if (settled) return `Settled in ${settled}. Unlock it to change what it cuts.`
+  /*
+   * What each button would send, asked of the lock before it is drawn. Both
+   * sends the empty list where it would let go, and letting go claims nothing,
+   * so a settled setup has no reason to refuse it.
+   */
+  const bothPasses: ReadonlyArray<Pass> = both === true ? [] : ['rough', 'finish']
+  const roughBlocked = blockedBy?.(['rough']) ?? null
+  const finishBlocked = blockedBy?.(['finish']) ?? null
+  const bothBlocked = blockedBy?.(bothPasses) ?? null
+
+  const says = (state: boolean | 'some', verb: string, blocked: string | null) => {
+    if (blocked !== null) return `Settled in ${blocked}. Unlock it to change what it cuts.`
     if (state === 'some') return `${verb} the rest of this reading from ${label}`
     return `${verb} this reading from ${label}`
   }
@@ -83,32 +111,32 @@ export const PassButtons = ({
       <button
         type="button"
         aria-pressed={pressed(rough)}
-        disabled={settled !== null && settled !== undefined}
-        title={says(rough, 'Rough')}
+        disabled={roughBlocked !== null}
+        title={says(rough, 'Rough', roughBlocked)}
         onClick={() => onSetPass(['rough'])}
-        className={`${base} ${look(rough)}`}
+        className={`${base} ${look(rough, roughBlocked)}`}
       >
         R
       </button>
       <button
         type="button"
         aria-pressed={pressed(finish)}
-        disabled={settled !== null && settled !== undefined}
-        title={says(finish, 'Finish')}
+        disabled={finishBlocked !== null}
+        title={says(finish, 'Finish', finishBlocked)}
         onClick={() => onSetPass(['finish'])}
-        className={`${base} ${look(finish)}`}
+        className={`${base} ${look(finish, finishBlocked)}`}
       >
         F
       </button>
       <button
         type="button"
         aria-pressed={pressed(both)}
-        disabled={settled !== null && settled !== undefined}
-        title={says(both, 'Rough and finish')}
+        disabled={bothBlocked !== null}
+        title={says(both, 'Rough and finish', bothBlocked)}
         // Only a whole claim lets go. Where either pass is part-cut, this takes
         // the rest back instead — the same two-press shape as R and F.
-        onClick={() => onSetPass(both === true ? [] : ['rough', 'finish'])}
-        className={`${base} ${look(both)}`}
+        onClick={() => onSetPass(bothPasses)}
+        className={`${base} ${look(both, bothBlocked)}`}
       >
         Both
       </button>
