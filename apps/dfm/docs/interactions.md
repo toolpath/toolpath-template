@@ -20,15 +20,28 @@ do not change between them.
 | Tab            | Left column holds                                                    |
 | -------------- | -------------------------------------------------------------------- |
 | **Inspector**  | The part summary, then every feature, searchable and grouped by type |
-| **Directions** | Today: the focused feature's machining axis. See the plan below      |
+| **Directions** | The ways up the plan holds, and the work mapped to each              |
 | **Rules**      | The set in force, what it made of each feature, and the editor       |
 
-**The Directions tab is a placeholder.** It prints the axis of whatever is being
-read. What it is meant to become — holding the part a way up, assigning work to
-it, coverage, painting by direction — is specified in the picker's
-`docs/build/directions.md` and planned here in
-[`docs/directions-plan.md`](../../../docs/directions-plan.md). Everything below
-describes what exists now.
+**The Directions tab is where a part is planned**, and it is the largest thing
+in the app. It was a placeholder that printed the axis of whatever was being
+read; it now holds:
+
+- **Choosing the ways up** — five generators (Pick directions, From the rules,
+  Required filled, Required only, From Toolpath) with Fill all beside them, a
+  chooser that previews on the part before anything is accepted, run order, and
+  locking a setup so a generator leaves it alone
+- **Mapping** — by feature, by direction, rough and finish as separate passes,
+  under cut-once: a face is cut by one reading per pass, and giving one up is
+  recorded
+- **What is not cut yet** — a list of _faces_, biggest gap first, opening onto
+  the readings that would cut them
+- **Making a reading the Engine never reported**, and re-pointing it
+
+Sections 9 to 16 below describe all of it. The specification it was built
+against is [directions-parity-plan.md](directions-parity-plan.md), and what
+building it turned up is in
+[directions-parity-findings.md](directions-parity-findings.md).
 
 ---
 
@@ -214,8 +227,9 @@ The picker has four — filtering, holding, looking at, and naming — and tells
 them apart with a flag pinned under the paint controls, because a scope you can
 switch on from the part and only switch off from another view is one people get
 stuck in. **This app has no such flag**, which is safe only while there is
-exactly one such state and the arrow that set it is still on screen. It stops
-being safe in PR 7 of the directions plan.
+exactly one such state and the arrow that set it is still on screen. That is
+still true, and it is still the thing to watch: a second scope arriving without
+a flag is how people get stuck.
 
 ### Holding one narrows what is left
 
