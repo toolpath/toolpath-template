@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { CaretDownIcon, PencilSimpleIcon } from '@phosphor-icons/react'
 import { Button, Input, TextArea } from '@toolpath/ui'
 import { bandCss } from '../shared/bands'
+import { COMPLETE, Caption, NumberBox } from './number-box'
 import { KindIcon } from './feature-icons'
 import { METRICS } from '../shared/metrics'
 import type { RuleHit } from '../shared/rule-text'
@@ -42,149 +43,7 @@ import { decimalsFor } from '../shared/units'
  */
 
 const SELECT =
-  'h-7 rounded border border-zinc-700 bg-transparent px-1.5 text-2xs text-zinc-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-info'
-
-/** A number somebody has finished typing: digits, optionally signed, one point. */
-const COMPLETE = /^-?(\d+\.?\d*|\.\d+)$/
-
-/**
- * The caption over a control.
- *
- * Every control in a row of limits carries one, and that is what lines the row
- * up: mixing a captioned box with a bare one leaves the two sitting at
- * different heights, and the row reads as a staircase rather than a sentence.
- *
- * One line, always. A caption that wrapped would push its own control down and
- * step the row again, so this truncates instead.
- */
-const Caption = ({ band, children }: { band?: Band | undefined; children: ReactNode }) => (
-  <span className="flex items-center gap-1 truncate whitespace-nowrap text-2xs text-zinc-400">
-    {band ? (
-      <span
-        aria-hidden="true"
-        className="size-1.5 shrink-0 rounded-full"
-        style={{ background: bandCss(band) }}
-      />
-    ) : null}
-    {children}
-  </span>
-)
-
-/**
- * A number being typed, which is not the same thing as a number.
- *
- * A controlled box that re-renders the parsed value cannot hold what somebody
- * is halfway through typing: `0.` parses to 0 and comes back as "0", taking the
- * point with it, so `0.156` is unreachable — the box eats the keystroke that
- * would have got there. And rounding the value for display fights the same
- * fight, turning `0.156` into `0.2` between one digit and the next.
- *
- * So while a box has focus it shows exactly what was typed, and only the parsed
- * value leaves. On blur the draft is dropped and the stored number comes back
- * formatted, which is where rounding belongs.
- *
- * Three rules keep that honest:
- *
- * - **Only complete numbers leave while typing.** `Number` reads `0.` as 0 and
- *   `.` as nothing, so propagating every parse writes a 0 into the rule between
- *   the point and the digits after it — which recolours the part against a
- *   limit nobody set. A half-typed number is not a change of mind: the stored
- *   one stands until the next digit lands.
- * - **Blur commits what is there.** `5.` is 5 to everybody except a parser, so
- *   leaving the box takes it rather than silently restoring the old number.
- * - **An emptied box is not a zero.** Clearing one is how retyping it starts.
- *   Only a box given `onClear` treats empty as an answer; the rest keep the
- *   stored number, which comes back on blur.
- */
-const NumberBox = ({
-  id,
-  label,
-  band,
-  placeholder,
-  value,
-  metric,
-  unit,
-  raw = false,
-  width = 'w-24',
-  onChange,
-  onClear,
-}: {
-  id: string
-  label: string
-  band?: Band | undefined
-  /** What an empty box says, where empty is a real answer. */
-  placeholder?: string | undefined
-  value: number | undefined
-  metric: Rule['metric']
-  unit: Unit
-  /** Unitless — a weight or a count, which no conversion touches. */
-  raw?: boolean
-  width?: string
-  onChange: (value: number) => void
-  /**
-   * What an emptied box means, where empty is a real answer. Without it,
-   * clearing the box is the first half of retyping it.
-   */
-  onClear?: (() => void) | undefined
-}) => {
-  const [draft, setDraft] = useState<string | null>(null)
-  const shown = raw ? undefined : metric
-
-  // Four decimals, trailing zeros stripped: enough for a thousandth of an inch
-  // with room under it, and never more digits than the number has.
-  const settled =
-    value === undefined ? '' : String(Number(toDisplay(value, shown, unit).toFixed(raw ? 0 : 4)))
-
-  /**
-   * A raw box is a weight or a count and is shown to no decimals, so it rounds
-   * on the way in too. Storing 2.5 under a box reading "3" is a number nobody
-   * typed and nobody can see.
-   */
-  const commit = (typed: number) => {
-    onChange(raw ? Math.round(typed) : fromDisplay(typed, shown, unit))
-  }
-
-  return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      {/* A div rather than a label: the caption names a control that labels
-          itself, and two labels on one box is one too many for a screen reader. */}
-      <Caption band={band}>{label}</Caption>
-      <Input
-        aria-label={label}
-        className={`${width} tabular-nums`}
-        id={id}
-        inputMode="decimal"
-        name={id}
-        placeholder={placeholder}
-        size="md"
-        suffix={raw ? undefined : unitSuffix(metric, unit)}
-        type="text"
-        value={draft ?? settled}
-        onBlur={() => {
-          // `5.` and `.5` are numbers to everybody but a parser, so leaving the
-          // box takes what is in it rather than restoring the old number.
-          const typed = draft?.trim()
-          if (typed && COMPLETE.test(typed)) commit(Number(typed))
-
-          setDraft(null)
-        }}
-        onChange={(event) => {
-          const typed = event.target.value
-          setDraft(typed)
-
-          const trimmed = typed.trim()
-
-          if (trimmed === '') {
-            onClear?.()
-            return
-          }
-
-          if (COMPLETE.test(trimmed)) commit(Number(trimmed))
-        }}
-      />
-    </div>
-  )
-}
+  'h-7 rounded border border-edge-strong bg-transparent px-1.5 text-2xs text-ink-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-info'
 
 /**
  * The sizes a shop holds, as one comma-separated line.
@@ -250,7 +109,7 @@ const SizeList = ({
 const ThresholdColumn = ({ range, children }: { range?: string; children: ReactNode }) => (
   <div className="flex w-24 flex-col gap-0.5">
     {children}
-    <span className="truncate text-2xs italic tabular-nums text-zinc-500" title={range}>
+    <span className="truncate text-2xs italic tabular-nums text-ink-dim" title={range}>
       {range}
     </span>
   </div>
@@ -267,7 +126,7 @@ const BandDots = ({ rule, unit }: { rule: Rule; unit: Unit }) => {
       {limits.map((limit) => (
         <li
           key={limit.band}
-          className="flex shrink-0 items-center gap-1 rounded bg-zinc-950/60 px-1.5 py-0.5 text-2xs tabular-nums text-zinc-300"
+          className="flex shrink-0 items-center gap-1 rounded bg-ground/60 px-1.5 py-0.5 text-2xs tabular-nums text-ink-body"
           title={`${limit.name} ${limit.range}`}
         >
           <span
@@ -423,7 +282,7 @@ const Limits = ({
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       {Object.entries(rule.bands).map(([type, band]) => (
-        <span key={type} className="flex items-center gap-1 text-2xs text-zinc-400">
+        <span key={type} className="flex items-center gap-1 text-2xs text-ink-muted">
           {type.replaceAll('_', ' ')}
           <BandSelect
             id={`${rule.id}-baseline-${type}`}
@@ -470,7 +329,7 @@ const BandSelect = ({
       value={value}
     >
       {BANDS.map((band) => (
-        <option key={band} className="text-zinc-200" value={band}>
+        <option key={band} className="text-ink-strong" value={band}>
           {band}
         </option>
       ))}
@@ -610,7 +469,7 @@ const Settings = ({
         <div className="flex flex-col gap-1">
           {rule.spans.map((span, at) => (
             <div key={BANDS[at]} className="flex items-center gap-2">
-              <span className="flex w-16 items-center gap-1 text-2xs text-zinc-300">
+              <span className="flex w-16 items-center gap-1 text-2xs text-ink-body">
                 <span
                   aria-hidden="true"
                   className="size-1.5 rounded-full"
@@ -630,7 +489,7 @@ const Settings = ({
                 unit={unit}
                 value={span[0]}
               />
-              <span className="text-2xs text-zinc-500">to</span>
+              <span className="text-2xs text-ink-dim">to</span>
               <NumberBox
                 id={`${rule.id}-span-${at}-to`}
                 label={`${BANDS[at]} to`}
@@ -645,7 +504,7 @@ const Settings = ({
               />
             </div>
           ))}
-          <label className="flex items-center gap-1.5 text-2xs text-zinc-300">
+          <label className="flex items-center gap-1.5 text-2xs text-ink-body">
             <input
               checked={rule.refuseOutside}
               className="size-3 accent-info"
@@ -684,7 +543,7 @@ const Settings = ({
                   />
                   <button
                     aria-label={`Remove size ${at + 1}`}
-                    className="flex h-7 items-center px-0.5 text-2xs text-zinc-500 hover:text-danger"
+                    className="flex h-7 items-center px-0.5 text-2xs text-ink-dim hover:text-danger"
                     onClick={() =>
                       onChange({ ...rule, standards: rule.standards.filter((_, i) => i !== at) })
                     }
@@ -788,7 +647,7 @@ const Settings = ({
         <div className="flex flex-col gap-1">
           {Object.entries(rule.bands).map(([type, band]) => (
             <div key={type} className="flex items-center gap-2">
-              <span className="flex-1 text-2xs text-zinc-300">{type.replaceAll('_', ' ')}</span>
+              <span className="flex-1 text-2xs text-ink-body">{type.replaceAll('_', ' ')}</span>
               <BandSelect
                 id={`${rule.id}-baseline-${type}`}
                 label={`Where ${type} starts`}
@@ -797,7 +656,7 @@ const Settings = ({
               />
               <button
                 aria-label={`Stop judging ${type}`}
-                className="px-0.5 text-2xs text-zinc-500 hover:text-danger"
+                className="px-0.5 text-2xs text-ink-dim hover:text-danger"
                 onClick={() => {
                   const bands = { ...rule.bands }
                   delete bands[type as keyof typeof bands]
@@ -838,12 +697,12 @@ const Settings = ({
         app is broken.
       */}
       {judgesPlan(rule) ? (
-        <p className="text-2xs leading-4 text-zinc-500">
+        <p className="text-2xs leading-4 text-ink-dim">
           Judged once, over the whole plan — not against any one feature.
         </p>
       ) : (
         <div className="flex flex-col gap-1">
-          <span className="text-2xs text-zinc-400">
+          <span className="text-2xs text-ink-muted">
             Applies to {chosen.size === 0 ? 'every feature type' : `${chosen.size} types`}
           </span>
           <div className="flex flex-wrap gap-1">
@@ -852,7 +711,7 @@ const Settings = ({
                 key={type}
                 aria-pressed={chosen.has(plainType(type))}
                 className={`rounded px-1.5 py-0.5 text-2xs ${
-                  chosen.has(type) ? 'bg-info/25 text-info' : 'bg-zinc-800 text-zinc-400'
+                  chosen.has(type) ? 'bg-info/25 text-info' : 'bg-raised text-ink-muted'
                 }`}
                 onClick={() =>
                   onChange({
@@ -870,7 +729,7 @@ const Settings = ({
             <button
               aria-pressed={chosen.size === 0}
               className={`rounded px-1.5 py-0.5 text-2xs ${
-                chosen.size === 0 ? 'bg-info/25 text-info' : 'bg-zinc-800 text-zinc-400'
+                chosen.size === 0 ? 'bg-info/25 text-info' : 'bg-raised text-ink-muted'
               }`}
               onClick={() => onChange({ ...rule, featureTypes: [] })}
               type="button"
@@ -956,12 +815,12 @@ export const RuleCard = ({
   const shown = showAll ? hits : hits.slice(0, 4)
 
   return (
-    <li className="border-b border-zinc-800/60 py-1.5 last:border-b-0">
+    <li className="border-b border-edge/60 py-1.5 last:border-b-0">
       <div className="flex items-center gap-1.5">
         <button
           aria-expanded={open}
           aria-label={`${rule.name}: limits and what it caught`}
-          className="shrink-0 text-zinc-500 hover:text-zinc-200"
+          className="shrink-0 text-ink-dim hover:text-ink-strong"
           data-row={rule.id}
           onClick={onOpen}
           type="button"
@@ -970,7 +829,7 @@ export const RuleCard = ({
         </button>
 
         <span
-          className={`min-w-0 flex-1 truncate ${rule.enabled ? 'text-zinc-200' : 'text-zinc-500'}`}
+          className={`min-w-0 flex-1 truncate ${rule.enabled ? 'text-ink-strong' : 'text-ink-dim'}`}
         >
           {rule.name}
         </span>
@@ -988,9 +847,9 @@ export const RuleCard = ({
           and will not be asked about any feature at all.
         */}
         {judgesPlan(rule) ? (
-          <span className="shrink-0 text-2xs italic text-zinc-500">judged over the plan</span>
+          <span className="shrink-0 text-2xs italic text-ink-dim">judged over the plan</span>
         ) : hits.length === 0 ? (
-          <span className="shrink-0 text-2xs italic text-zinc-500">nothing to measure</span>
+          <span className="shrink-0 text-2xs italic text-ink-dim">nothing to measure</span>
         ) : (
           <>
             <span
@@ -1005,7 +864,7 @@ export const RuleCard = ({
               {bandName(worstOf(hits) ?? 'easy')}
             </span>
             <span
-              className="shrink-0 tabular-nums text-zinc-500"
+              className="shrink-0 tabular-nums text-ink-dim"
               title="Readings a shop would mind, of the readings it made"
             >
               {costlyCount(hits)} costly · {hits.length}
@@ -1017,7 +876,7 @@ export const RuleCard = ({
           aria-label={`Edit ${rule.name}`}
           aria-pressed={editing}
           className={`shrink-0 rounded p-1 ${
-            editing ? 'bg-info/20 text-info' : 'text-zinc-500 hover:text-zinc-200'
+            editing ? 'bg-info/20 text-info' : 'text-ink-dim hover:text-ink-strong'
           }`}
           onClick={onEdit}
           title="What it reads, who it judges, its shape"
@@ -1048,7 +907,7 @@ export const RuleCard = ({
               unit={unit}
             />
           ) : (
-            <div className="ml-4 mt-1 rounded border border-zinc-800 bg-transparent p-2">
+            <div className="ml-4 mt-1 rounded border border-edge bg-transparent p-2">
               <Limits onChange={onChange} rule={rule} unit={unit} />
             </div>
           )}
@@ -1096,7 +955,7 @@ export const RuleCard = ({
                     className={`flex w-full items-center gap-2 rounded py-0.5 pl-4 pr-1 text-left text-2xs ${
                       hit.tag === focusedTag
                         ? 'bg-info/15 text-info'
-                        : 'text-zinc-400 hover:bg-zinc-950/60'
+                        : 'text-ink-muted hover:bg-ground/60'
                     }`}
                     data-row={hit.tag}
                     onClick={() => onChoose(hit.tag)}
@@ -1110,12 +969,12 @@ export const RuleCard = ({
                     {/* The drawing of the type, as every other list of
                         features in the app shows it — the band is already on
                         the score at the other end of the row. */}
-                    <span className="shrink-0 text-zinc-500">
+                    <span className="shrink-0 text-ink-dim">
                       <KindIcon featureType={hit.featureType} kind="Other" />
                     </span>
                     <span className="min-w-0 flex-1 truncate">{hit.label}</span>
-                    <span className="shrink-0 text-zinc-500">{hit.direction}</span>
-                    <span className="shrink-0 tabular-nums text-zinc-500">{hit.regions}f</span>
+                    <span className="shrink-0 text-ink-dim">{hit.direction}</span>
+                    <span className="shrink-0 tabular-nums text-ink-dim">{hit.regions}f</span>
                     <ScoreBadge score={scores.get(hit.tag)} />
                   </button>
                 </li>
@@ -1127,7 +986,7 @@ export const RuleCard = ({
               {hits.length > 4 ? (
                 <li>
                   <button
-                    className="pl-4 text-3xs text-zinc-500 underline decoration-dotted"
+                    className="pl-4 text-3xs text-ink-dim underline decoration-dotted"
                     onClick={() => setShowAll((all) => !all)}
                     type="button"
                   >
