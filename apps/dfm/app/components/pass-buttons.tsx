@@ -19,6 +19,7 @@ export const PassButtons = ({
   rough,
   finish,
   onSetPass,
+  settled = null,
 }: {
   /** The way up these would assign to, for the title text. */
   label: string
@@ -30,6 +31,14 @@ export const PassButtons = ({
   rough: boolean | 'some'
   finish: boolean | 'some'
   onSetPass: (passes: ReadonlyArray<Pass>) => void
+  /**
+   * The setup that has settled this reading, if one has.
+   *
+   * Named rather than a boolean, because the buttons go inert and the only
+   * useful thing to say next is *which* lock to open — and a control that
+   * refuses without saying why is the half-rule people learn not to trust.
+   */
+  settled?: string | null
 }) => {
   const base =
     'rounded px-1.5 py-0.5 text-2xs font-bold uppercase tracking-wide transition focus:outline-none focus-visible:ring-1 focus-visible:ring-info'
@@ -38,7 +47,17 @@ export const PassButtons = ({
   // Outlined rather than filled: it is on, and it is not finished.
   const part = 'border border-dashed border-info text-info'
 
-  const look = (state: boolean | 'some') => (state === true ? on : state === 'some' ? part : off)
+  // Settled: still legible, plainly not pressable. Greying it to nothing would
+  // hide which passes the settled setup actually holds, which is the thing
+  // somebody is looking at the row to find out.
+  const shut = 'cursor-not-allowed border border-zinc-800 text-zinc-600'
+
+  const look = (state: boolean | 'some') => {
+    if (settled) return state === false ? shut : `${shut} bg-zinc-800/40`
+    if (state === true) return on
+    if (state === 'some') return part
+    return off
+  }
   const pressed = (state: boolean | 'some') => (state === 'some' ? 'mixed' : state)
 
   /*
@@ -54,6 +73,7 @@ export const PassButtons = ({
     rough === true && finish === true ? true : rough !== false && finish !== false ? 'some' : false
 
   const says = (state: boolean | 'some', verb: string) => {
+    if (settled) return `Settled in ${settled}. Unlock it to change what it cuts.`
     if (state === 'some') return `${verb} the rest of this reading from ${label}`
     return `${verb} this reading from ${label}`
   }
@@ -63,6 +83,7 @@ export const PassButtons = ({
       <button
         type="button"
         aria-pressed={pressed(rough)}
+        disabled={settled !== null && settled !== undefined}
         title={says(rough, 'Rough')}
         onClick={() => onSetPass(['rough'])}
         className={`${base} ${look(rough)}`}
@@ -72,6 +93,7 @@ export const PassButtons = ({
       <button
         type="button"
         aria-pressed={pressed(finish)}
+        disabled={settled !== null && settled !== undefined}
         title={says(finish, 'Finish')}
         onClick={() => onSetPass(['finish'])}
         className={`${base} ${look(finish)}`}
@@ -81,6 +103,7 @@ export const PassButtons = ({
       <button
         type="button"
         aria-pressed={pressed(both)}
+        disabled={settled !== null && settled !== undefined}
         title={says(both, 'Rough and finish')}
         // Only a whole claim lets go. Where either pass is part-cut, this takes
         // the rest back instead — the same two-press shape as R and F.

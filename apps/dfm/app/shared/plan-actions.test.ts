@@ -4,6 +4,7 @@ import type { PartFeature } from './contracts'
 import {
   easiestReading,
   readingForFace,
+  lockSetup,
   setPassFor,
   setupForReading,
   isMapped,
@@ -365,5 +366,62 @@ describe('which reading a first click on a face opens', () => {
     )
 
     expect(readingForFace(readings, plan, 0, scores)).toBe('easy')
+  })
+})
+
+describe('a setup somebody has settled', () => {
+  /*
+   * Paul, mapping: a reading held by a locked setup moved anyway. The lock was
+   * drawn by the panel, explained by the face list and recorded in the plan,
+   * and read by nothing but the generators — so every manual gesture walked
+   * straight through it.
+   */
+  const settled = (plan: SetupPlan) => lockSetup(plan, plan.setups[0]!.id, true)
+
+  it('does not let a reading it holds be moved', () => {
+    const held = settled(assign(EMPTY_PLAN, [pocket], ['rough']))
+
+    expect(assign(held, [pocket], ['finish'])).toEqual(held)
+  })
+
+  it('does not let a reading it holds be taken off either', () => {
+    // Pressing the pass it already holds is how somebody unsays a decision.
+    // On settled work that is still a change to what the setup cuts.
+    const held = settled(assign(EMPTY_PLAN, [pocket], ['rough']))
+
+    expect(assign(held, [pocket], ['rough'])).toEqual(held)
+  })
+
+  it('refuses a press that would quietly take one of its faces', () => {
+    // The profile covers face 0, which the settled pocket is cutting. Cut-once
+    // would strip it from the pocket without the press ever naming it.
+    const held = settled(assign(EMPTY_PLAN, [pocket], ['rough']))
+
+    expect(assign(held, [profile], ['rough'])).toEqual(held)
+  })
+
+  it('refuses the whole press rather than the safe half of it', () => {
+    // Applying it to the free face and skipping the settled one would leave
+    // two setups cutting face 0, which breaks cut-once — worse than refusing.
+    const held = settled(assign(EMPTY_PLAN, [pocket], ['rough']))
+    const after = assign(held, [profile], ['rough'])
+
+    expect(after.assigned.profile).toBeUndefined()
+    expect(after.assigned.pocket).toEqual(held.assigned.pocket)
+  })
+
+  it('leaves work that touches nothing settled alone', () => {
+    // The wall holds face 1, which the settled pocket never cuts.
+    const held = settled(assign(EMPTY_PLAN, [pocket], ['rough']))
+    const after = assign(held, [wall], ['rough'])
+
+    expect(after.assigned.wall?.rough).toBeDefined()
+  })
+
+  it('lets everything move again once it is unlocked', () => {
+    const held = settled(assign(EMPTY_PLAN, [pocket], ['rough']))
+    const freed = lockSetup(held, held.setups[0]!.id, false)
+
+    expect(assign(freed, [pocket], ['finish']).assigned.pocket?.finish).toBeDefined()
   })
 })

@@ -12,7 +12,7 @@ import { typeLabel } from '../shared/part-summary'
 import { isMade, readsAs } from '../shared/make-feature'
 import { moveThroughList } from '../shared/list-keys'
 import { cutElsewhere, facesOf, type FacePart, type FaceRow } from '../shared/faces'
-import { setupForReading } from '../shared/plan-actions'
+import { settledSetup, setupForReading } from '../shared/plan-actions'
 import { FACE_COLORS } from '../shared/selection-colors'
 import { PASSES, cutsFace, faceCounts } from '../shared/setups'
 import type { Pass, SetupPlan } from '../shared/setups'
@@ -348,11 +348,7 @@ export const FaceList = ({
    * to change this" is almost always "then unsettle it", and making somebody go
    * and find the row to do that is the app being obstructive rather than clear.
    */
-  const settled = plan.setups.find(
-    (setup) =>
-      setup.locked === true &&
-      PASSES.some((pass) => plan.assigned[feature.featureTag]?.[pass] === setup.id),
-  )
+  const settled = settledSetup(plan, feature.featureTag)
 
   return (
     <aside
@@ -481,7 +477,7 @@ export const FaceList = ({
         */}
         <div
           className="flex flex-col gap-1.5 rounded border border-info/40 bg-info/10 px-2 py-1.5"
-          inert={settled !== undefined}
+          inert={settled !== null}
         >
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-2xs font-bold uppercase tracking-wider text-info/80">
@@ -667,7 +663,7 @@ export const FaceList = ({
             .
           </p>
         )}
-        {settled === undefined ? null : (
+        {settled === null ? null : (
           /*
            * Settled, so the editor is read-only until somebody says otherwise.
            *

@@ -97,3 +97,52 @@ describe('assigning a reading', () => {
     )
   })
 })
+
+describe('a reading a settled setup holds', () => {
+  /*
+   * Paul, mapping: a reading held by a locked setup moved anyway. The buttons
+   * have to refuse before the press, not silently swallow it — a control that
+   * looks pressable and does nothing is worse than the move it prevents.
+   */
+  const settled = (rough: boolean | 'some' = true) => {
+    const onSetPass = vi.fn<(passes: ReadonlyArray<Pass>) => void>()
+    render(
+      <PassButtons label="+Z" rough={rough} finish={false} onSetPass={onSetPass} settled="Op 1" />,
+    )
+    return onSetPass
+  }
+
+  it('offers no press at all', () => {
+    settled()
+
+    for (const name of ['R', 'F', 'Both']) {
+      expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true)
+    }
+  })
+
+  it('does not move the work when pressed anyway', () => {
+    const onSetPass = settled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'R' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Both' }))
+
+    expect(onSetPass).not.toHaveBeenCalled()
+  })
+
+  it('names the setup to unlock rather than only refusing', () => {
+    settled()
+
+    expect(screen.getByRole('button', { name: 'R' }).getAttribute('title')).toBe(
+      'Settled in Op 1. Unlock it to change what it cuts.',
+    )
+  })
+
+  it('still says which passes the settled setup holds', () => {
+    // Greying it to nothing would hide the thing somebody opened the row to
+    // find out.
+    settled(true)
+
+    expect(screen.getByRole('button', { name: 'R' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'F' }).getAttribute('aria-pressed')).toBe('false')
+  })
+})

@@ -3,8 +3,57 @@ import type { Vec3 } from '@toolpath/api'
 import type { PartFeature } from './contracts'
 import { directionKey } from './report'
 import { isAxisAligned } from './directions'
-import type { Pass, SetupPlan } from './setups'
-import { PASSES, cutOnce, cutsFace, setupFor, withoutEmptied } from './setups'
+import type { Pass, Setup, SetupPlan } from './setups'
+import { PASSES, cutOnce, cutRegions, cutsFace, setupFor, withoutEmptied } from './setups'
+
+/**
+ * Whether a press would move work off a setup somebody has settled.
+ *
+ * The lock's own promise is that *anything* which would move work off it says
+ * so first, and until now nothing did: `lockedReadings` was read by the
+ * generators and by nothing else, so every manual gesture walked straight
+ * through a lock that the panel drew, the face list explained, and the plan
+ * recorded.
+ *
+ * Two ways a press reaches settled work, and the second is the one that hurts:
+ *
+ * - **Moving the reading itself** — pressing R, F or Both on a reading a locked
+ *   setup holds, whether that assigns it elsewhere or takes it off. Both are
+ *   changes to what the settled setup cuts.
+ * - **Taking its faces** — cut-once means claiming a face removes it from
+ *   whoever held it, and that can be a locked reading nobody named in the
+ *   press. A profile claimed from +Z quietly stripping a wall a settled setup
+ *   was holding is precisely the silent change the lock exists to stop, and it
+ *   is invisible: the press looks like it did what was asked.
+ *
+ * The answer is to refuse the **whole** press rather than apply the safe half
+ * of it. Skipping only the locked reading would leave two setups cutting one
+ * face, which breaks cut-once — a worse state than the one being prevented, and
+ * one nothing else in the app is written to expect.
+ */
+export const disturbsLocked = (
+  plan: SetupPlan,
+  allFeatures: ReadonlyArray<PartFeature>,
+  features: ReadonlyArray<PartFeature>,
+  /** Empty means "take it off both passes", which claims nothing. */
+  passes: ReadonlyArray<Pass>,
+): boolean => {
+  const settled = lockedReadings(plan)
+  if (settled.size === 0) return false
+
+  if (features.some((feature) => settled.has(feature.featureTag))) return true
+
+  // Letting go claims no faces, so it cannot take one from anybody.
+  if (passes.length === 0) return false
+
+  const claimed = new Set(features.flatMap((feature) => feature.regionIdxs))
+
+  return allFeatures.some(
+    (other) =>
+      settled.has(other.featureTag) &&
+      passes.some((pass) => cutRegions(plan, other, pass).some((idx) => claimed.has(idx))),
+  )
+}
 
 /**
  * Assigning readings to the way up they are read from.
@@ -27,6 +76,9 @@ export const setPassFor = (
 ): SetupPlan => {
   const first = features[0]
   if (!first) return plan
+
+  // Settled work does not move, and does not lose faces to work that does.
+  if (disturbsLocked(plan, allFeatures, features, passes)) return plan
 
   const index = directions.findIndex(
     (direction) => directionKey(direction) === directionKey(first.machiningDirection),
@@ -278,6 +330,21 @@ export const lockedReadings = (plan: SetupPlan): ReadonlySet<string> => {
 
   return held
 }
+
+/**
+ * The settled setup holding a reading, if one is.
+ *
+ * Returns the setup rather than a boolean because every caller needs its name:
+ * "this is settled" is an unhelpful thing to tell somebody who then has to go
+ * and find out *which* setup, and the offer to unlock has to name what it would
+ * unlock.
+ */
+export const settledSetup = (plan: SetupPlan, featureTag: string): Setup | null =>
+  plan.setups.find(
+    (setup) =>
+      setup.locked === true &&
+      PASSES.some((pass) => plan.assigned[featureTag]?.[pass] === setup.id),
+  ) ?? null
 
 /** Whether a reading is held by a setup somebody has settled. */
 export const isLocked = (plan: SetupPlan, featureTag: string): boolean =>

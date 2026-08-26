@@ -15,10 +15,11 @@ import { isMade } from '../shared/make-feature'
 import { moveThroughList } from '../shared/list-keys'
 import { byDirection, offersFor } from '../shared/map-features'
 import { groupAcrossPart, groupHoles, holeDiameter } from '../shared/hole-groups'
-import { setupForReading } from '../shared/plan-actions'
+import { settledSetup, setupForReading } from '../shared/plan-actions'
 import type { UncutFace } from '../shared/plan-summary'
 import { PASSES, cutState, directionOf, faceCounts, groupCutState } from '../shared/setups'
 import type { PartFaces, Pass, SetupPlan } from '../shared/setups'
+import { LockIcon } from '@phosphor-icons/react'
 import type { PartFeature } from '../shared/contracts'
 import type { FeatureScore } from '../shared/feature-score'
 import type { PickMode } from '../shared/pick-mode'
@@ -589,6 +590,16 @@ const Reading = ({
     { faces: 0, cut: 0 },
   )
 
+  /*
+   * The setup that has settled this reading, if one has.
+   *
+   * Read from the first of the group: identical holes are one row and are
+   * mapped together, so they settle together — a group half-settled would
+   * already be a bug somewhere else, and drawing it per hole would say the row
+   * can be part-pressed when the press acts on all of them.
+   */
+  const settled = settledSetup(plan, feature.featureTag)
+
   return (
     <>
       <li
@@ -715,12 +726,31 @@ const Reading = ({
             added
           </span>
         ) : null}
+        {/*
+         * Settled, and said so on the row rather than only when a press fails.
+         *
+         * By direction lists readings a *different* way up may already hold,
+         * and pressing R there is moving work — so a row whose setup somebody
+         * has settled has to carry that before the press, not after it. The
+         * setup is named because "this is locked" leaves somebody hunting for
+         * which lock to open.
+         */}
+        {settled ? (
+          <span
+            className="flex shrink-0 items-center gap-0.5 rounded bg-info/15 px-1 py-0.5 text-2xs font-semibold text-info"
+            title={`Settled in ${settled.name}. Unlock that setup to change what it cuts.`}
+          >
+            <LockIcon aria-hidden="true" className="size-2.5" />
+            <span className="max-w-16 truncate">{settled.name}</span>
+          </span>
+        ) : null}
         <FaceCount faces={faces} cut={cut} onShow={() => onShowFaces(feature.featureTag)} />
         <PassButtons
           label={label}
           rough={groupCutState(plan, group, 'rough', setup)}
           finish={groupCutState(plan, group, 'finish', setup)}
           onSetPass={(passes) => onSetPass(group, passes)}
+          settled={settled?.name ?? null}
         />
         {trailing}
       </li>
