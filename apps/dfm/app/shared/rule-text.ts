@@ -132,6 +132,8 @@ export function unitSuffix(metric: MetricId | undefined, unit: Unit): string {
       return `${unit}²`
     case 'angle':
       return '°'
+    case 'percent':
+      return '%'
     // A ratio and a count are bare. ":1" reads well in a sentence and badly in
     // a box, where it eats the room the number needs.
     default:

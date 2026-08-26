@@ -18,7 +18,16 @@ import {
   unitSuffix,
 } from '../shared/rule-text'
 import type { Band, FlagRule, MatchRule, Rule, RuleType, ThresholdRule } from '../shared/rules'
-import { BANDS, FLAG_TESTS, RULE_TYPES, asType, bandName, plainType } from '../shared/rules'
+import {
+  BANDS,
+  FLAG_TESTS,
+  PLAN_RULE_IDS,
+  RULE_TYPES,
+  asType,
+  bandName,
+  judgesPlan,
+  plainType,
+} from '../shared/rules'
 import type { Unit } from '../shared/units'
 import { decimalsFor } from '../shared/units'
 
@@ -541,8 +550,21 @@ const Settings = ({
           {/* A baseline reads the kind of feature rather than a measurement.
               Saying so here beats hiding the control: "what does this rule
               read" is asked of every rule, and a gap where the answer should be
-              reads as a control somebody forgot to fill in. */}
-          {rule.type === 'baseline' ? (
+              reads as a control somebody forgot to fill in.
+
+              A **part** rule reads the arrangement, and there are exactly two
+              things it can read — which is why it is named rather than chosen.
+              Offering the feature metrics here would be offering a rule about
+              setups a choice of hole diameters. */}
+          {judgesPlan(rule) ? (
+            <select aria-label="Measurement" className={`${SELECT} max-w-64`} disabled value="plan">
+              <option value="plan">
+                {rule.id === PLAN_RULE_IDS.setups
+                  ? 'How many setups the plan runs'
+                  : 'Faces per operation, averaged over the plan'}
+              </option>
+            </select>
+          ) : rule.type === 'baseline' ? (
             <select aria-label="Measurement" className={`${SELECT} max-w-64`} disabled value="type">
               <option value="type">The kind of feature</option>
             </select>
@@ -807,43 +829,57 @@ const Settings = ({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-1">
-        <span className="text-2xs text-zinc-400">
-          Applies to {chosen.size === 0 ? 'every feature type' : `${chosen.size} types`}
-        </span>
-        <div className="flex flex-wrap gap-1">
-          {types.map((type) => (
+      {/*
+        A part rule has no audience.
+        
+        It is judged **once, over the plan** rather than against a pocket, so a
+        list of feature types here would be a control that changes nothing —
+        and the commonest reading of a control that changes nothing is that the
+        app is broken.
+      */}
+      {judgesPlan(rule) ? (
+        <p className="text-2xs leading-4 text-zinc-500">
+          Judged once, over the whole plan — not against any one feature.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-1">
+          <span className="text-2xs text-zinc-400">
+            Applies to {chosen.size === 0 ? 'every feature type' : `${chosen.size} types`}
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {types.map((type) => (
+              <button
+                key={type}
+                aria-pressed={chosen.has(plainType(type))}
+                className={`rounded px-1.5 py-0.5 text-2xs ${
+                  chosen.has(type) ? 'bg-info/25 text-info' : 'bg-zinc-800 text-zinc-400'
+                }`}
+                onClick={() =>
+                  onChange({
+                    ...rule,
+                    featureTypes: chosen.has(plainType(type))
+                      ? rule.featureTypes.filter((each) => plainType(each) !== plainType(type))
+                      : [...rule.featureTypes, type],
+                  })
+                }
+                type="button"
+              >
+                {type.replaceAll('_', ' ')}
+              </button>
+            ))}
             <button
-              key={type}
-              aria-pressed={chosen.has(plainType(type))}
+              aria-pressed={chosen.size === 0}
               className={`rounded px-1.5 py-0.5 text-2xs ${
-                chosen.has(type) ? 'bg-info/25 text-info' : 'bg-zinc-800 text-zinc-400'
+                chosen.size === 0 ? 'bg-info/25 text-info' : 'bg-zinc-800 text-zinc-400'
               }`}
-              onClick={() =>
-                onChange({
-                  ...rule,
-                  featureTypes: chosen.has(plainType(type))
-                    ? rule.featureTypes.filter((each) => plainType(each) !== plainType(type))
-                    : [...rule.featureTypes, type],
-                })
-              }
+              onClick={() => onChange({ ...rule, featureTypes: [] })}
               type="button"
             >
-              {type.replaceAll('_', ' ')}
+              Every type
             </button>
-          ))}
-          <button
-            aria-pressed={chosen.size === 0}
-            className={`rounded px-1.5 py-0.5 text-2xs ${
-              chosen.size === 0 ? 'bg-info/25 text-info' : 'bg-zinc-800 text-zinc-400'
-            }`}
-            onClick={() => onChange({ ...rule, featureTypes: [] })}
-            type="button"
-          >
-            Every type
-          </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <Field label="Custom arithmetic">
         <Input
@@ -943,7 +979,17 @@ export const RuleCard = ({
             shop would mind: the two numbers somebody scans a list of limits
             for. A rule with nothing to say says so, rather than showing a zero
             that reads like a verdict. */}
-        {hits.length === 0 ? (
+        {/*
+          A part rule measured nothing because it is about the plan.
+
+          "nothing to measure" is the right answer for a rule aimed at a feature
+          type this part has none of, and exactly the wrong one here — it reads
+          as a rule that failed to fire, when this one has not been asked yet
+          and will not be asked about any feature at all.
+        */}
+        {judgesPlan(rule) ? (
+          <span className="shrink-0 text-2xs italic text-zinc-500">judged over the plan</span>
+        ) : hits.length === 0 ? (
           <span className="shrink-0 text-2xs italic text-zinc-500">nothing to measure</span>
         ) : (
           <>
@@ -1006,6 +1052,39 @@ export const RuleCard = ({
               <Limits onChange={onChange} rule={rule} unit={unit} />
             </div>
           )}
+
+          {/*
+            Where the mapped work landed, in one line.
+
+            The rows below name each feature and the badge at the top names the
+            worst of them — neither answers *how much of my part is in trouble
+            under this limit*, which is the question a threshold is argued with.
+            One chip per band that has anything in it, so a rule that put two
+            features in `rats` and thirty in `easy` reads as a rule worth
+            keeping rather than one worth turning off.
+
+            Bands with nothing in them are left out rather than drawn as zero: a
+            row of five with three zeroes is four things to read to find one.
+          */}
+          {hits.length > 0 ? (
+            <div className="ml-4 mt-1.5 flex flex-wrap items-center gap-1">
+              {BANDS.filter((each) => hits.some((hit) => hit.band === each)).map((each) => (
+                <span
+                  key={each}
+                  className="flex items-center gap-1 rounded px-1 py-px text-3xs font-semibold tabular-nums"
+                  style={{ background: `${bandCss(each)}22`, color: bandCss(each) }}
+                  title={`${String(hits.filter((hit) => hit.band === each).length)} of the mapped features are ${bandName(each)} under this rule`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="size-1.5 rounded-full"
+                    style={{ background: bandCss(each) }}
+                  />
+                  {hits.filter((hit) => hit.band === each).length} {bandName(each)}
+                </span>
+              ))}
+            </div>
+          ) : null}
 
           {/* What the limit actually cost, which is what somebody looks at
               before deciding whether the limit or the part is wrong. */}

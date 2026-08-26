@@ -38,6 +38,28 @@ const rules = [
 describe('rulesSummary', () => {
   const summary = rulesSummary(verdicts, features, rules)
 
+  test('scores only the features it was handed', () => {
+    /*
+     * The score and the band counts were computed over every verdict while the
+     * worst list was filtered — two answers to one question, and the visible
+     * one was wrong: the headline never moved as the plan changed, and read the
+     * same on a part with nothing mapped as on one mapped end to end.
+     */
+    const onlyTheHole = rulesSummary(verdicts, [features[0]!], rules)
+
+    expect(onlyTheHole.readings).toBe(2)
+    expect(onlyTheHole.score).not.toBe(summary.score)
+  })
+
+  test('says nothing about a part with nothing mapped', () => {
+    // Not a low score — no score. There is no work yet for a rule to judge.
+    const nothing = rulesSummary(verdicts, [], rules)
+
+    expect(nothing.readings).toBe(0)
+    expect(nothing.spoke).toBe(0)
+    expect(Object.values(nothing.counts).every((count) => count === 0)).toBe(true)
+  })
+
   test('counts readings rather than features', () => {
     // One rule speaking about one feature is one reading, and a feature three
     // rules looked at is three — which is what the score averages over.

@@ -1,6 +1,17 @@
 @import 'tailwindcss';
 @import '@toolpath/ui/theme.css';
 
+@theme {
+  /*
+   * The colour an offer is painted in — the picker's own violet.
+   *
+   * Deliberately outside the direction cycle and the difficulty ramp: proposed
+   * work is not a direction and not a verdict, and borrowing either colour
+   * would make the app look like it had decided something.
+   */
+  --color-proposed: #8b5cf6;
+}
+
 :root {
   color-scheme: dark;
   font-family: var(--font-body);

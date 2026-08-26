@@ -46,10 +46,24 @@ export const directionLabel = ({ x, y, z }: Vec3): string => {
   return `(${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)})`
 }
 
+/**
+ * A stable key for a machining direction, for grouping features cut the same
+ * way up. Rounded, because two directions the Engine reports as the same way up
+ * differ in the last bits of a float.
+ */
+export const directionKey = ({ x, y, z }: Vec3): string =>
+  `${x.toFixed(4)},${y.toFixed(4)},${z.toFixed(4)}`
+
 const millimeters = (value: number): string => `${value.toFixed(value < 10 ? 2 : 1)} mm`
 
 export const facts = (feature: PartFeature): FeatureDatasheetFacts | null =>
   feature.datasheet?.facts ?? null
+
+/** The Engine's own family for a feature, for the drawing that stands for it. */
+export const kindOf = (feature: PartFeature): string => {
+  const kind = facts(feature)?.kind
+  return typeof kind === 'string' ? kind : 'Other'
+}
 
 export const featureHeadline = (feature: PartFeature): string | undefined => {
   const featureFacts = facts(feature)

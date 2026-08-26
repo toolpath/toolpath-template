@@ -1,3 +1,4 @@
+import { ToolpathIcon } from '../components/panel-icons'
 import { AppHeader } from '../components/app-header'
 import { ConnectionPanel } from '../components/connection-panel'
 import { UploadPanel } from '../components/upload-panel'
@@ -13,8 +14,13 @@ export default function HomeRoute() {
     <main className="flex min-h-screen items-center bg-gray-50 p-6 dark:bg-zinc-950">
       <Card className="mx-auto w-full max-w-3xl p-6 shadow-sm sm:p-10">
         <AppHeader>
-          <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-info">Toolpath</p>
-          <h1 className="font-display text-4xl font-bold text-gray-900 dark:text-white">DFM</h1>
+          <div className="mb-2 flex items-center gap-3">
+            <ToolpathIcon className="size-10" />
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-info">Toolpath</p>
+              <h1 className="font-display text-4xl font-bold text-gray-900 dark:text-white">DFM</h1>
+            </div>
+          </div>
           <p className="mt-3 max-w-xl text-sm leading-6 text-zinc-400">
             Upload a CAD part and inspect its recognized features in 3D. Your API key stays in an
             encrypted, short-lived server session.

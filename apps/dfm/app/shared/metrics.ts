@@ -1,13 +1,6 @@
 import type { CdData, FeatureDatasheet, FeatureDatasheetFacts } from '@toolpath/api'
 import type { PartFeature } from './contracts'
-
-/**
- * A stable key for a machining direction, for grouping features cut the same
- * way up. Rounded, because two directions the Engine reports as the same way up
- * differ in the last bits of a float.
- */
-const directionKey = ({ x, y, z }: { x: number; y: number; z: number }): string =>
-  `${x.toFixed(4)},${y.toFixed(4)},${z.toFixed(4)}`
+import { directionKey } from './report'
 
 /** The travel a machine has, which the part has to fit inside. */
 export interface MachineEnvelope {
@@ -44,7 +37,7 @@ export interface MachineEnvelope {
  * Ratios and flags are unitless.
  */
 
-export type Quantity = 'angle' | 'area' | 'count' | 'length' | 'ratio'
+export type Quantity = 'angle' | 'area' | 'count' | 'length' | 'percent' | 'ratio'
 
 /**
  * The prototype's vocabulary, kept name for name where the Engine can answer.
@@ -61,6 +54,7 @@ export type MetricId =
   | 'cuspHeight'
   | 'depth'
   | 'depthBelowPartTop'
+  | 'faceCount'
   | 'drillConeAngle'
   | 'drillingLD'
   | 'entryCutter'
@@ -83,6 +77,7 @@ export type MetricId =
   | 'partOverMachine'
   | 'partLongestSide'
   | 'partShortestSide'
+  | 'setups'
   | 'sharpCorners'
   | 'smallestCutter'
   | 'surfaceArea'
@@ -127,9 +122,16 @@ export interface MetricContext {
    * every feature on it shares, so it is carried here with the part's top.
    */
   partSides: ReadonlyArray<number> | null
+  /**
+   * How many faces this feature is made of.
+   *
+   * Carried here because it is not in the datasheet: the Engine describes the
+   * *shape*, and how many regions it was cut into is the report's own answer,
+   * on `PartFeature.regionIdxs`. Same reason `partTopZ` is here — a fact about
+   * the feature that the sheet describing it does not hold.
+   */
+  faces: number | null
 }
-
-export const NO_CONTEXT: MetricContext = { partTopZ: null, partSides: null }
 
 /**
  * The top of the part, per machining direction.
@@ -151,18 +153,6 @@ export interface PartContext {
   topByDirection: Map<string, number>
   /** The part's own bounding box, longest side first, when the mesh is known. */
   sides: ReadonlyArray<number> | null
-}
-
-/**
- * The part's top in this feature's direction, as the Engine reports it.
- *
- * The Engine reports a feature's bounds but not a separate stock top. The
- * highest `extendedZMax` among features cut in the same direction is therefore
- * the top from which reach is measured.
- */
-export const NO_PART: PartContext = {
-  topByDirection: new Map(),
-  sides: null,
 }
 
 /**
@@ -204,6 +194,7 @@ export const partContext = (
 /** The part-level facts as they apply to one feature. */
 export const contextFor = (feature: PartFeature, part: PartContext): MetricContext => ({
   partTopZ: part.topByDirection.get(directionKey(feature.machiningDirection)) ?? null,
+  faces: feature.regionIdxs.length,
   partSides: part.sides,
   ...(part.machine ? { machine: part.machine } : {}),
 })
@@ -275,8 +266,22 @@ const flag = (value: boolean | undefined): number | null =>
  * as "no measurement" is honest — the reach rule has nothing to say about a
  * feature no tool reaches, and the rule that catches it is the cutter rule.
  */
-const ratio = (top: number | null, bottom: number | null): number | null =>
-  top === null || bottom === null || bottom === 0 ? null : top / bottom
+/*
+ * A ratio, where a zero denominator is **unbounded** rather than unknown.
+ *
+ * Dividing by zero used to answer `null` — "nobody measured this" — which is
+ * the one thing it is not. A reach of 5 mm against a cutter of nothing is not
+ * an unmeasured feature, it is a feature no tool reaches, and the rules above
+ * have a band for that at the far end of every scale.
+ *
+ * `null` is still the answer where either side was never reported.
+ */
+const ratio = (top: number | null, bottom: number | null): number | null => {
+  if (top === null || bottom === null) return null
+  if (bottom === 0) return top === 0 ? null : Number.POSITIVE_INFINITY
+
+  return top / bottom
+}
 
 const factsOf = (datasheet: FeatureDatasheet): FeatureDatasheetFacts => datasheet.facts
 
@@ -386,8 +391,33 @@ const cutterFromBand = (
 const requiredCutter = (datasheet: FeatureDatasheet): number | null => {
   const { cd, path } = cdAt(datasheet)
 
-  // The bands or nothing. There is no third thing here that says what fits.
-  return cutterFromBand(cd, path)?.value ?? null
+  const band = cutterFromBand(cd, path)
+  if (band) return band.value
+
+  /*
+   * **Every band reported, and every one of them zero.**
+   *
+   * `cutterFromBand` walks the bands looking for a diameter and skips any that
+   * is zero, because a zero-width cutter cannot be divided by. Where *all* of
+   * them are zero it found nothing and answered `null` — and null reads as "the
+   * Engine did not say", so every rule taking a ratio against the cutter went
+   * quiet on exactly the features that most deserve one.
+   *
+   * That is backwards. A cutter of zero is the Engine saying no tool fits, and
+   * the reach-against-cutter ratio of a feature no tool fits is not unknown —
+   * it is unbounded. Paul's, off a `Wall` whose `facts.cd.ignore.min` is 0: the
+   * L/D requirement is infinite, which is the worst answer there is, and the
+   * panel showed nothing at all.
+   *
+   * Zero rather than `null`, so `ratio` turns it into `Infinity` and every
+   * threshold above lands past its last limit.
+   */
+  const stated0 = [cd?.ignore?.min, cd?.deviate?.min, cd?.effectiveAdaptive?.min].map((raw) =>
+    stated(raw),
+  )
+  if (stated0.some((value) => value === 0)) return 0
+
+  return null
 }
 
 const requiredCutterSources = (datasheet: FeatureDatasheet): Array<Reading> => {
@@ -532,19 +562,24 @@ const nested = (
         path,
       }
     case 'filletRadius':
-      return {
-        value:
-          source.kind === 'Boss' ||
-          source.kind === 'Dovetail' ||
-          source.kind === 'Hole' ||
-          source.kind === 'Pocket' ||
-          source.kind === 'Three'
-            ? source.filletRadius
-            : undefined,
-        path,
-      }
+      /*
+       * Whatever carries one, rather than a list of kinds that do.
+       *
+       * The list was `Boss | Dovetail | Hole | Pocket | Three`, and a kind
+       * outside it reported `undefined` — *nobody measured this* — however
+       * plainly the datasheet stated a blend. That is the shape F69 records:
+       * `hasSharpCorner` was read only off `Three` and went silent on every
+       * other family, and the rule that needed it said nothing for months.
+       *
+       * The `featureType` is an open set the kernel adds to, so an allow-list
+       * of kinds is a list that goes out of date without anything failing.
+       * Asking whether the field is there cannot.
+       */
+      return { value: 'filletRadius' in source ? source.filletRadius : undefined, path }
     case 'hasSharpCorner':
-      return { value: source.kind === 'Three' ? source.hasSharpCorner : undefined, path }
+      // Same reasoning as `filletRadius` above: the field where it is reported,
+      // not the kinds that were known to report it.
+      return { value: 'hasSharpCorner' in source ? source.hasSharpCorner : undefined, path }
     case 'maxBottomDiameter':
       return {
         value:
@@ -939,6 +974,12 @@ export const METRICS: ReadonlyArray<MetricSpec> = [
      *
      * `null` where the band is absent entirely, which is a different statement
      * — nobody measured, rather than nothing fits.
+     *
+     * **Zero is not the only sharp corner**, and this metric does not try to
+     * decide which are. A band of 0.2 mm is a tool nobody owns, so the feature
+     * is sharp in every sense that matters on a machine — but *where* that line
+     * falls is a shop's to draw, and it draws it with the rule's operator
+     * rather than in here. See `sharp-corners` in the presets.
      */
     read: (datasheet) => {
       const { cd } = cdAt(datasheet)
@@ -960,6 +1001,42 @@ export const METRICS: ReadonlyArray<MetricSpec> = [
         },
       ]
     },
+  },
+  /*
+   * The two the **plan** is judged by.
+   *
+   * They read nothing off a datasheet — `read` returns null and always will,
+   * because there is no pocket to ask. They are here so a plan rule's
+   * thresholds are formatted like every other rule's: a count of setups is a
+   * count, and a share of the part is a per cent. Without an entry the editor
+   * fell back to the shipped default and wrote **mm²** beside a number of
+   * setups.
+   */
+  {
+    id: 'setups',
+    label: 'Setups the plan runs',
+    field: 'the plan',
+    quantity: 'count',
+    note: 'How many times the part is held. A property of the arrangement, not of any one feature.',
+    formula: 'the setups the plan holds',
+    read: () => null,
+    sources: () => [],
+  },
+  {
+    id: 'faceCount',
+    label: 'Faces in the feature',
+    field: 'the report',
+    quantity: 'count',
+    /*
+     * No shipped rule reads this. It stays because it is an honest measurement
+     * and an inert one — a metric decides nothing until a rule asks it — so
+     * the rule that priced small splits can be written again from the Reads
+     * dropdown without touching the code.
+     */
+    note: 'How many faces the Engine cut this feature into. A one-face reading is a whole operation for one face — a tool change, a lead in and a lead out, for almost nothing.',
+    formula: 'the regions this feature covers',
+    read: (_datasheet, context) => context.faces,
+    sources: (_datasheet, context) => [{ path: 'regionIdxs.length', value: context.faces }],
   },
   {
     id: 'sharpCorners',
@@ -1228,9 +1305,6 @@ export const METRICS: ReadonlyArray<MetricSpec> = [
 export const METRIC_BY_ID: ReadonlyMap<MetricId, MetricSpec> = new Map(
   METRICS.map((metric) => [metric.id, metric]),
 )
-
-export const metricLabel = (id: MetricId): string => METRIC_BY_ID.get(id)?.label ?? id
-
 export const metricQuantity = (id: MetricId | undefined): Quantity | null =>
   id === undefined ? null : (METRIC_BY_ID.get(id)?.quantity ?? null)
 
@@ -1304,6 +1378,10 @@ export const PART_METRICS: ReadonlySet<MetricId> = new Set<MetricId>([
 ])
 
 export const NO_METRICS: FeatureMetrics = {
+  faceCount: null,
+  // The one the plan is judged by. Never read off a feature — there is no
+  // pocket to ask how many setups the plan runs.
+  setups: null,
   chamferAngle: null,
   cornerRadius: null,
   minRadius: null,

@@ -118,7 +118,9 @@ test('connects, uploads, opens a redacted inspector, and focuses a feature', asy
   // The summary counts the types; opening one lists its features, and choosing
   // one reads it on the right. Nothing is read until somebody asks for it —
   // the panel opens on an invitation rather than on a guess.
-  await expect(page.getByText('Click a face on the part')).toBeVisible()
+  // The datasheet's own invitation, not the mapping panel's — both say "click a
+  // face" now, and this test is about the one below.
+  await expect(page.getByText('Click a face on the part, or a feature in the list')).toBeVisible()
   await page.getByRole('button', { name: /BlindHole/ }).click()
   await page
     .getByRole('button', { name: /wall-1|hole-1/ })

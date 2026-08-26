@@ -3,6 +3,10 @@ import { KindIcon } from './feature-icons'
 import { duration, partSummary } from '../shared/part-summary'
 import { directionLabel } from '../shared/report'
 import { directionCss } from '../shared/direction-colors'
+import { groupHoles } from '../shared/hole-groups'
+import type { SetupPlan } from '../shared/setups'
+import { coverageOf } from '../shared/setups'
+import { directionRows } from '../shared/direction-rows'
 import { moveThroughList } from '../shared/list-keys'
 import { Heading } from './heading'
 import type { FeatureScore } from '../shared/feature-score'
@@ -26,6 +30,7 @@ const Count = ({ label, value }: { label: string; value: string | number }) => (
 export const PartSummary = ({
   report,
   features,
+  plan,
   activeDirection,
   onPickDirection,
   expandedType,
@@ -44,6 +49,8 @@ export const PartSummary = ({
   /** The features to list, already filtered by whatever search is running. */
   features: readonly PartFeature[]
   activeDirection: number | null
+  /** The mapping so far, so each way up can say what it has been given. */
+  plan: SetupPlan
   onPickDirection: (index: number) => void
   expandedType: string | null
   onExpandType: (type: string | null) => void
@@ -59,6 +66,7 @@ export const PartSummary = ({
   scores: ReadonlyMap<string, FeatureScore>
 }) => {
   const summary = partSummary(report, activeDirection)
+  const reach = directionRows(report)
 
   return (
     <div className="p-3 text-xs">
@@ -83,30 +91,51 @@ export const PartSummary = ({
       <Count label="Points" value={summary.points.toLocaleString()} />
 
       <Heading>Machining directions</Heading>
-      <div className="flex flex-wrap gap-1">
-        {summary.directions.map((direction) => (
-          <button
-            key={direction.index}
-            type="button"
-            aria-pressed={activeDirection === direction.index}
-            title={`Only features cut from ${direction.label}`}
-            onClick={() => onPickDirection(direction.index)}
-            className={`flex items-center gap-1.5 rounded border px-1.5 py-0.5 transition ${
-              activeDirection === direction.index
-                ? 'border-info bg-info/20 text-info'
-                : 'border-zinc-800 text-zinc-300 hover:border-zinc-600'
-            }`}
-          >
-            <span
-              aria-hidden="true"
-              className="size-1.5 rounded-full"
-              style={{ background: directionCss(direction.index) }}
-            />
-            {direction.label}
-            <span className="tabular-nums text-zinc-500">{direction.features}</span>
-          </button>
-        ))}
-      </div>
+      {/*
+        The direction list. Each way up says what it could reach and, once
+        something has been mapped to it, what it has actually been given —
+        de-duplicated by area, because forty fillets mapped and the face they sit
+        on missed is nearly nothing mapped.
+      */}
+      <ul className="flex flex-col gap-0.5">
+        {reach.map((row) => {
+          const setup = plan.setups.find((entry) => entry.directionIndex === row.index)
+          const mapped = setup ? coverageOf(report, features, plan, 'rough', setup.id) : null
+          return (
+            <li key={row.index}>
+              <button
+                type="button"
+                data-direction={row.label}
+                aria-pressed={activeDirection === row.index}
+                title={`Only features cut from ${row.label}`}
+                onClick={() => onPickDirection(row.index)}
+                className={`grid w-full grid-cols-[auto_1fr_auto_auto] items-center gap-x-2 rounded border px-1.5 py-1 text-left transition ${
+                  activeDirection === row.index
+                    ? 'border-info bg-info/20 text-info'
+                    : 'border-transparent text-zinc-300 hover:border-zinc-700 hover:bg-zinc-950/40'
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className="size-1.5 rounded-full"
+                  style={{ background: directionCss(row.index) }}
+                />
+                <span className="font-medium">{row.label}</span>
+                <span className="tabular-nums text-zinc-500">{row.features}</span>
+                {mapped ? (
+                  <span className="tabular-nums text-2xs font-semibold text-info">
+                    {Math.round(mapped.mapped * 100)}% mapped
+                  </span>
+                ) : (
+                  <span className="tabular-nums text-2xs text-zinc-600">
+                    reaches {Math.round(row.share * 100)}%
+                  </span>
+                )}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
 
       <Heading>Candidate features</Heading>
       <label className="sr-only" htmlFor="feature-search">
@@ -170,10 +199,14 @@ export const PartSummary = ({
                       None match the current search.
                     </li>
                   ) : (
-                    ofType.map((feature) => {
+                    groupHoles(ofType).map((holes) => {
+                      // Identical holes are one job: same diameter, depth and
+                      // way up. Listing them apart is fifty rows somebody has
+                      // to read to find out they are all the same row.
+                      const feature = holes.holes[0]!
                       const chosen = feature.featureTag === focusedTag
                       return (
-                        <li key={feature.featureTag}>
+                        <li key={holes.key}>
                           <button
                             type="button"
                             data-row={feature.featureTag}
@@ -198,6 +231,14 @@ export const PartSummary = ({
                             <span className="flex-1 truncate font-mono">
                               {feature.featureTag.slice(-6)}
                             </span>
+                            {holes.holes.length > 1 ? (
+                              <span
+                                className="rounded bg-zinc-800 px-1 font-semibold text-zinc-300"
+                                title={`${String(holes.holes.length)} identical holes`}
+                              >
+                                ×{holes.holes.length}
+                              </span>
+                            ) : null}
                             <span className="text-zinc-500">
                               {directionLabel(feature.machiningDirection)}
                             </span>

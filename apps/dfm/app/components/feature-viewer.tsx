@@ -8,18 +8,33 @@ import {
   sectionFromPick,
 } from '@toolpath/viewer'
 import { EnginePart } from '@toolpath/viewer/engine'
-import { CrosshairSimpleIcon, GridFourIcon, SquareHalfIcon } from '@phosphor-icons/react'
+import {
+  CrosshairSimpleIcon,
+  GridFourIcon,
+  MagnifyingGlassPlusIcon,
+  SquareHalfIcon,
+} from '@phosphor-icons/react'
 import { Component, Suspense, useMemo, useRef, useState } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 import type { PartPick, SectionPlacement, SectionState } from '@toolpath/viewer'
 import { type Arrows, nextArrows } from '../shared/arrows'
-import { READING_COLORS } from '../shared/selection-colors'
+import { READING_COLORS, SETUP_COLORS } from '../shared/selection-colors'
 import { loadShowAids, saveShowAids } from '../shared/scene-aids'
+import { loadZoomTo, saveZoomTo, type ZoomTo } from '../shared/zoom-to'
 import { directionLabel } from '../shared/report'
-import { PAINT_MODE_LABELS, type PaintMode, paintWash } from '../shared/paint'
+import {
+  PAINT_MODE_LABELS,
+  type PaintMode,
+  paintWash,
+  paintedWash,
+  proposedWash,
+  regionWash,
+} from '../shared/paint'
 import type { Band } from '../shared/rules'
+import type { Pass } from '../shared/setups'
 import { Button } from '@toolpath/ui'
 import { ToolButton } from './tool-button'
+import { barButtonClass } from './panel-button'
 import type { PartReport, PublicInspectionReport } from '../shared/contracts'
 
 class MeshErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -73,6 +88,32 @@ const ArrowGlyph = () => (
 )
 
 /**
+ * What the arrows button says it is doing, in each of its three states.
+ *
+ * A word beside the glyph rather than a third colour: the shelf already spends
+ * its one tint on "this is on", and asking a single hue to separate *all of
+ * them* from *the ones I am using* is asking a colour to carry a distinction it
+ * cannot.
+ */
+const ARROW_STATES: Record<Arrows, { label: string; said: string; note: string }> = {
+  all: {
+    label: 'All',
+    said: 'every candidate way up',
+    note: 'Every way up the part has — click for only the ones the plan holds',
+  },
+  confirmed: {
+    label: 'Confirmed',
+    said: 'only the ways up the plan holds',
+    note: 'Only the ways up the plan holds — none are drawn until one is. Click to turn them off',
+  },
+  off: {
+    label: 'Off',
+    said: 'no arrows',
+    note: 'No arrows — one appears on its own while a feature is selected. Click for all of them',
+  },
+}
+
+/**
  * The part, showing the one reading being read.
  *
  * The viewer can paint every feature a click could have meant, and this
@@ -86,7 +127,7 @@ const ArrowGlyph = () => (
 export const FeatureViewer = ({
   report,
   jobId,
-  selectedFeatureTag,
+  selectedFeatureTags,
   highlightedFeatureTags,
   heldRegions,
   activeDirection,
@@ -95,17 +136,27 @@ export const FeatureViewer = ({
   onArrows,
   arrowsVisible,
   paintMode,
+  showingPass,
+  onShowingPass,
+  cutBy,
+  cutByRegion,
+  faceLayer,
+  proposed,
+  proposedFrom,
+  painted,
   onPaintMode,
   verdicts,
   focusFeature,
   onPickDirection,
   onPick,
   onHoverPart,
+  onAdjacency,
   onClearSelection,
 }: {
   report: PublicInspectionReport
   jobId: string
-  selectedFeatureTag: string | null
+  /** The readings painted as selected: ticked, plus whatever is being read. */
+  selectedFeatureTags: readonly string[]
   /** Features under the pointer in the feature list. */
   highlightedFeatureTags: readonly string[]
   /**
@@ -123,14 +174,40 @@ export const FeatureViewer = ({
    * A part has up to ten candidate directions and the arrows are large; once
    * one feature is being read, the other nine answer a question nobody asked.
    */
-  shownDirection: number | null
-  /** Whether every arrow is drawn, or only whatever the selection implies. */
+  /** `null` for every arrow, an index for one, a list for a set, `-1` for none. */
+  shownDirection: number | readonly number[] | null
+  /** Every arrow, only the ways up the plan holds, or only what the selection implies. */
   arrows: Arrows
   onArrows: (arrows: Arrows) => void
   /** Whether any arrow is drawn at all. */
   arrowsVisible: boolean
   /** The standing wash: what the part is coloured by while nothing is selected. */
   paintMode: PaintMode
+  /** Which pass the standing wash means. */
+  showingPass: Pass
+  onShowingPass: (pass: Pass) => void
+  /** Which way up cuts each feature in that pass, for the directions wash. */
+  cutBy: ReadonlyMap<string, number>
+  /** Which way up cuts each face, for readings that cut only part of themselves. */
+  cutByRegion: ReadonlyMap<number, number>
+  /**
+   * Faces named directly, over the wash — the reading whose faces are being
+   * listed. Under the picked colour, so the row under the pointer still stands
+   * out of the set it belongs to.
+   */
+  faceLayer: readonly { region: number; color: number; weight: number }[]
+  /** Readings the app is offering, painted over everything else. */
+  proposed: readonly { featureTag: string }[]
+  /**
+   * Which way up the offer came from, so it is painted in that colour.
+   *
+   * An offer *is* a direction's claim — "these are the faces +Z would take" —
+   * and painting it the colour that way up already wears says which one is
+   * asking. Absent falls back to violet.
+   */
+  proposedFrom?: number | undefined
+  /** Readings gathered by painting, in their own orange. */
+  painted: readonly { featureTag: string }[]
   onPaintMode: (mode: PaintMode) => void
   /** What the rules made of each feature, for the difficulty wash. */
   verdicts: readonly { tag: string; band: Band | null }[]
@@ -140,6 +217,8 @@ export const FeatureViewer = ({
   onPick: (pick: PartPick) => void
   /** Whether the pointer is over the part itself, rather than empty space. */
   onHoverPart: (over: boolean) => void
+  /** Which faces touch which, once the mesh is in — the viewer works it out. */
+  onAdjacency: (adjacency: ReadonlyMap<number, ReadonlySet<number>>) => void
   /** A click that hit nothing in the scene. */
   onClearSelection: () => void
 }) => {
@@ -156,6 +235,9 @@ export const FeatureViewer = ({
   const [showAids, setShowAids] = useState(() =>
     loadShowAids(typeof window === 'undefined' ? null : window.localStorage),
   )
+  const [zoomTo, setZoomTo] = useState<ZoomTo>(() =>
+    loadZoomTo(typeof window === 'undefined' ? null : window.localStorage),
+  )
 
   const toggleAids = () => {
     setShowAids((shown) => {
@@ -164,7 +246,34 @@ export const FeatureViewer = ({
     })
   }
 
-  const wash = useMemo(() => paintWash(paintMode, verdicts), [paintMode, verdicts])
+  // The offer goes on last, so while it stands it is what the part is saying.
+  /*
+   * Weakest first, so the newest question is the one on screen.
+   *
+   * The standing wash for the mode, then what is painted in its own orange,
+   * then a standing offer in violet over the top — an offer is the app asking
+   * something, and it has to be impossible to mistake for work already placed.
+   */
+  const wash = useMemo(
+    () => [
+      ...paintWash(paintMode, verdicts, cutBy),
+      ...paintedWash(painted),
+      ...proposedWash(proposed, proposedFrom),
+    ],
+    [paintMode, verdicts, cutBy, painted, proposed, proposedFrom],
+  )
+
+  /*
+   * The faces of a part-cut reading, over the feature layer.
+   *
+   * The viewer's region layer exists for exactly this — "which part of a
+   * feature it is talking about" — and the two sets never overlap, because a
+   * face is cut once.
+   */
+  const faceWash = useMemo(
+    () => [...regionWash(paintMode, cutByRegion), ...faceLayer],
+    [paintMode, cutByRegion, faceLayer],
+  )
 
   const pickInViewport = (pick: PartPick) => {
     if (armed) {
@@ -223,15 +332,32 @@ export const FeatureViewer = ({
                 type="button"
                 aria-pressed={paintMode === mode}
                 onClick={() => onPaintMode(mode)}
-                className={`rounded px-2 py-1 text-xs font-medium transition ${
-                  paintMode === mode
-                    ? 'bg-info/20 text-info'
-                    : 'text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100'
-                } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/75`}
+                className={barButtonClass(paintMode === mode)}
               >
                 {label}
               </button>
             ))}
+            {/*
+              Which pass the colours mean, beside the modes and only while they
+              mean something (row 40). Roughing and finishing are separate
+              claims on a face, so a part painted by direction is painting one
+              of two answers and has to say which.
+            */}
+            {paintMode === 'plain' ? null : (
+              <span className="ml-1 flex items-center gap-0.5 border-l border-zinc-700 pl-1.5">
+                {(['rough', 'finish'] as const).map((pass) => (
+                  <button
+                    key={pass}
+                    type="button"
+                    aria-pressed={showingPass === pass}
+                    onClick={() => onShowingPass(pass)}
+                    className={barButtonClass(showingPass === pass, 'within')}
+                  >
+                    {pass}
+                  </button>
+                ))}
+              </span>
+            )}
             {/* In the same shelf as the modes: it is another thing to do to the
               part in front of you, and it is the arrows' only home. Divided off
               them by the toolbar's own separator rather than by a border on the
@@ -240,23 +366,43 @@ export const FeatureViewer = ({
             <span aria-hidden="true" className="mx-0.5 h-5 w-px bg-zinc-700" />
             <button
               type="button"
-              aria-pressed={arrows === 'all'}
-              aria-label={`Direction arrows: ${arrows === 'all' ? 'all arrows' : 'no arrows'}`}
-              title={
-                arrows === 'off'
-                  ? 'No arrows — one appears on its own while a feature is selected'
-                  : 'All arrows — click to turn them off'
-              }
+              // Three states, so `aria-pressed` cannot carry it — the label says
+              // which one outright, and the word beside the glyph does the same
+              // for anybody looking at it. A colour alone can only say two
+              // things, and there are three.
+              aria-pressed={arrows !== 'off'}
+              aria-label={`Direction arrows: ${ARROW_STATES[arrows].said}`}
+              title={ARROW_STATES[arrows].note}
               onClick={() => onArrows(nextArrows(arrows))}
-              className={`grid size-6 place-items-center rounded transition ${
-                arrows === 'all'
-                  ? 'bg-info/20 text-info'
-                  : 'text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100'
+              className={`ml-0.5 flex items-center gap-1 rounded border-l border-zinc-800 px-1.5 py-1 transition ${
+                arrows === 'off'
+                  ? 'text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100'
+                  : 'bg-info/20 text-info'
               } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/75`}
             >
               <ArrowGlyph />
+              <span className="text-2xs font-medium">{ARROW_STATES[arrows].label}</span>
             </button>
             <span aria-hidden="true" className="mx-0.5 h-5 w-px bg-zinc-700" />
+            {/*
+              What the wheel zooms toward.
+              
+              A preference rather than a right answer: zooming to the cursor is
+              what Fusion does and what most people reach for, and on a
+              trackpad it can walk the model off screen. Double click re-frames
+              either way, which is what makes the cursor one safe to leave on.
+            */}
+            <ToolButton
+              label={zoomTo === 'cursor' ? 'Zoom to cursor' : 'Zoom to centre'}
+              pressed={zoomTo === 'cursor'}
+              onClick={() => {
+                const next: ZoomTo = zoomTo === 'cursor' ? 'centre' : 'cursor'
+                setZoomTo(next)
+                saveZoomTo(globalThis.localStorage ?? null, next)
+              }}
+            >
+              <MagnifyingGlassPlusIcon />
+            </ToolButton>
             <ToolButton
               label={showAids ? 'Grid and axes (on)' : 'Grid and axes'}
               pressed={showAids}
@@ -329,17 +475,22 @@ export const FeatureViewer = ({
               </div>
             }
           >
-            <Viewer ref={viewerRef} onPointerMissed={onClearSelection}>
+            <Viewer ref={viewerRef} zoomTo={zoomTo} onPointerMissed={onClearSelection}>
               <EnginePart
                 report={viewerReport}
-                selection={selectedFeatureTag ? [selectedFeatureTag] : []}
+                selection={selectedFeatureTags}
                 hoveredFeatureIds={highlightedFeatureTags}
                 pickedRegions={heldRegions}
-                theme={READING_COLORS}
+                // Warm over the cool direction cycle, cool over the warm
+                // difficulty ramp (§3.5). A blue selection over the directions
+                // is one more direction rather than an answer.
+                theme={paintMode === 'directions' ? SETUP_COLORS : READING_COLORS}
                 highlights={wash}
+                regionHighlights={faceWash}
                 focusFeature={focusFeature}
                 onPick={pickInViewport}
                 onHover={(pick) => onHoverPart(pick !== null)}
+                onAdjacency={onAdjacency}
                 activeDirection={activeDirection}
                 // No plane, no cut. A section that starts by lopping off an
                 // arbitrary half of the part hides the face you were about to

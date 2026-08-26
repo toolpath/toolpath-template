@@ -11,8 +11,6 @@
  */
 export type Unit = 'in' | 'mm'
 
-export const UNITS: readonly Unit[] = ['mm', 'in']
-
 /** The unit the report itself is in, whatever the file was drawn in. */
 export const MODEL_UNIT: Unit = 'mm'
 

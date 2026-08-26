@@ -1,0 +1,284 @@
+import type { Vec3 } from '@toolpath/api'
+
+import type { PartFeature } from './contracts'
+import { directionKey } from './report'
+import { isAxisAligned } from './directions'
+import type { Pass, SetupPlan } from './setups'
+import { PASSES, cutOnce, cutsFace, setupFor, withoutEmptied } from './setups'
+
+/**
+ * Assigning readings to the way up they are read from.
+ *
+ * The one action the mapping page is made of. A reading already names a
+ * direction — the Engine reported it from one — so pressing R on it does not
+ * ask which setup to use: it uses the setup for that reading's own direction,
+ * making one if the plan has none yet.
+ *
+ * Ported from `feature-picker.tsx` `setPassFor`, kept pure so the rules below
+ * can be tested without a page.
+ */
+export const setPassFor = (
+  plan: SetupPlan,
+  directions: ReadonlyArray<Vec3>,
+  allFeatures: ReadonlyArray<PartFeature>,
+  features: ReadonlyArray<PartFeature>,
+  /** Empty means "take it off both passes" — see below. */
+  passes: ReadonlyArray<Pass>,
+): SetupPlan => {
+  const first = features[0]
+  if (!first) return plan
+
+  const index = directions.findIndex(
+    (direction) => directionKey(direction) === directionKey(first.machiningDirection),
+  )
+  if (index < 0) return plan
+
+  const held = plan.setups.find((entry) => entry.directionIndex === index)
+  const setup = held ?? setupFor(directions, index, plan.setups.length)
+
+  // Empty means "take it off both": pressing the pass it is already cut in is
+  // how somebody unsays it.
+  const wanted = passes.length === 0 ? PASSES : passes
+  const off = passes.length === 0
+
+  let assigned = plan.assigned
+
+  /*
+   * "Already there" is a property of the whole press — every reading, and every
+   * pass the press asked for.
+   *
+   * **Across the group**, because pressing Rough all where every reading is
+   * already roughed there takes them all off, while a group only half done gets
+   * the rest put on. Deciding it feature by feature would make one press both
+   * assign and unassign.
+   *
+   * **And across the passes**, which is the half this got wrong. Judged per
+   * pass, Both on a reading already roughed read "rough is already there" and
+   * took roughing *off* while putting finishing on — one press that assigned one
+   * pass and unassigned the other, which is not a thing anybody asked for. Both
+   * means both: it lets go only when both are already held.
+   *
+   * **And wholly there.** A reading that gave faces up is cut here on some of
+   * itself, and a press on it takes the rest back rather than letting go —
+   * otherwise the only gesture that repairs a split claim is the one that
+   * destroys it.
+   */
+  const already = features.every((entry) =>
+    wanted.every(
+      (pass) =>
+        plan.assigned[entry.featureTag]?.[pass] === setup.id &&
+        (plan.assigned[entry.featureTag]?.without?.[pass] ?? []).length === 0,
+    ),
+  )
+
+  for (const feature of features) {
+    for (const pass of wanted) {
+      assigned = cutOnce(
+        { ...plan, assigned },
+        allFeatures,
+        feature,
+        pass,
+        off || already ? undefined : setup.id,
+      )
+    }
+  }
+
+  /*
+   * One plan, one update.
+   *
+   * `wanted` is a list rather than two calls, because two `setState` calls from
+   * one snapshot lose the first — "Both" fired twice and only finishing landed.
+   */
+  return withoutEmptied(
+    plan,
+    {
+      setups: held ? plan.setups : [...plan.setups, setup],
+      assigned,
+    },
+    allFeatures,
+  )
+}
+
+/** Which setup, if any, holds the direction a reading is read from. */
+export const setupForReading = (
+  plan: SetupPlan,
+  directions: ReadonlyArray<Vec3>,
+  feature: PartFeature,
+) => {
+  const index = directions.findIndex(
+    (direction) => directionKey(direction) === directionKey(feature.machiningDirection),
+  )
+  if (index < 0) return null
+  return plan.setups.find((entry) => entry.directionIndex === index) ?? null
+}
+
+/** Whether any setup cuts this reading, in either pass. */
+export const isMapped = (plan: SetupPlan, featureTag: string): boolean =>
+  PASSES.some((pass) => plan.assigned[featureTag]?.[pass] !== undefined)
+
+/**
+ * The readings of a face, with the ones already being cut first.
+ *
+ * Clicking a face that is already being cut is nearly always a question about
+ * **that** cut — "what did I put here", not "what else could go here". Ranking
+ * the plan's own readings above the alternatives is what makes the answer the
+ * thing somebody was asking about; otherwise a face lands on whichever unmapped
+ * candidate the geometry happened to rank first.
+ *
+ * Stable within each half, so the ranking a click arrived with is kept among
+ * equals rather than replaced by a second opinion.
+ */
+export const mappedFirst = <T extends { featureTag: string }>(
+  readings: ReadonlyArray<T>,
+  plan: SetupPlan,
+): Array<T> => {
+  const mine: Array<T> = []
+  const rest: Array<T> = []
+
+  for (const reading of readings) {
+    if (isMapped(plan, reading.featureTag)) mine.push(reading)
+    else rest.push(reading)
+  }
+
+  return [...mine, ...rest]
+}
+
+/**
+ * The readings of a face, in the order a click should offer them.
+ *
+ * Three bands, and stable within each so the ranking a click arrived with
+ * survives among equals:
+ *
+ * 1. **What the plan already cuts.** Clicking a face being cut is nearly always
+ *    a question about that cut.
+ * 2. **Ordinary ways up** — ±X, ±Y, ±Z. A part square in the vice is what a
+ *    three-axis machine does and what most shops reach for first.
+ * 3. **Everything else.** Off-axis is a real answer and a more expensive one:
+ *    it wants a fifth axis or a fixture built for it, so it is not what a click
+ *    lands on before anybody has asked for it.
+ */
+export const readingOrder = (
+  readings: ReadonlyArray<PartFeature>,
+  plan: SetupPlan,
+): Array<PartFeature> => {
+  const mapped: Array<PartFeature> = []
+  const square: Array<PartFeature> = []
+  const askew: Array<PartFeature> = []
+
+  for (const reading of readings) {
+    if (isMapped(plan, reading.featureTag)) mapped.push(reading)
+    else if (isAxisAligned(reading.machiningDirection)) square.push(reading)
+    else askew.push(reading)
+  }
+
+  return [...mapped, ...square, ...askew]
+}
+
+/**
+ * The easiest of a face's readings, by what the rules made of each.
+ *
+ * The score is 0–100 with 100 meaning every rule sitting in `easy`, so the
+ * highest is the one a shop has least trouble with — which is the one a first
+ * click should open. An unjudged reading loses to any judged one: "nobody
+ * looked" is not a recommendation.
+ *
+ * Ties keep the order they arrived in, which is the order the click ranked
+ * them, so two equally easy readings still resolve the way the geometry said.
+ */
+export const easiestReading = (
+  tags: readonly string[],
+  scores: ReadonlyMap<string, { score: number | null }>,
+): string | null => {
+  let best: string | null = null
+  let bestScore = -1
+
+  for (const tag of tags) {
+    const score = scores.get(tag)?.score ?? -1
+    if (score > bestScore) {
+      best = tag
+      bestScore = score
+    }
+  }
+
+  return best ?? tags[0] ?? null
+}
+
+/**
+ * The reading a first click on a face should open.
+ *
+ * Two answers, and which one depends on whether the plan has anything to say
+ * about this face yet:
+ *
+ * - **Something cuts it** — that reading, whatever its score. A click on a face
+ *   already being cut is nearly always a question about that cut: where it is
+ *   machined from, whether it is roughed as well as finished, what else it came
+ *   with. Opening a different reading of the same face answers a question
+ *   nobody asked and hides the one that matters.
+ * - **Nothing cuts it** — the **easiest**, by what the rules made of each. The
+ *   score is 0–100 with 100 meaning every rule sitting in `easy`, so the
+ *   highest is the one a shop has least trouble with, and an unjudged reading
+ *   loses to any judged one because "nobody looked" is not a recommendation.
+ *
+ * The order the readings arrive in decides ties, and it is the order the click
+ * ranked them — so two equally easy readings still resolve the way the geometry
+ * said.
+ *
+ * "Cuts it" means in **either** pass, like everything else that asks whether a
+ * face is in a reading: a face this reading finishes is one it is machining,
+ * even while roughing is the pass on screen.
+ */
+export const readingForFace = (
+  readings: ReadonlyArray<PartFeature>,
+  plan: SetupPlan,
+  region: number,
+  scores: ReadonlyMap<string, { score: number | null }>,
+): string | null => {
+  const cutting = readings.find((reading) =>
+    PASSES.some((pass) => cutsFace(plan, reading, pass, region)),
+  )
+  if (cutting) return cutting.featureTag
+
+  return easiestReading(
+    readings.map((reading) => reading.featureTag),
+    scores,
+  )
+}
+
+/**
+ * Settle a setup, or unsettle it.
+ *
+ * A lock says *this part of the plan is a decision, not a suggestion*. It is
+ * the answer to the one place the app's own rule broke down: **generate
+ * composes, the two modes correct** — except that a generator wrote a whole
+ * arrangement over the top of ten minutes of correcting, with no warning.
+ */
+export const lockSetup = (plan: SetupPlan, setupId: string, locked: boolean): SetupPlan => ({
+  ...plan,
+  setups: plan.setups.map((setup) => (setup.id === setupId ? { ...setup, locked } : setup)),
+})
+
+/**
+ * The readings a locked setup is holding, which nothing may quietly move.
+ *
+ * Whole readings rather than faces: a lock is about a *setup* — "this is how I
+ * am holding the part and this is what it cuts" — and half of a locked reading
+ * moving elsewhere is exactly the silent change it exists to prevent.
+ */
+export const lockedReadings = (plan: SetupPlan): ReadonlySet<string> => {
+  const settled = new Set(plan.setups.filter((setup) => setup.locked === true).map((s) => s.id))
+  if (settled.size === 0) return new Set()
+
+  const held = new Set<string>()
+  for (const [tag, assignment] of Object.entries(plan.assigned)) {
+    for (const pass of PASSES) {
+      const setupId = assignment[pass]
+      if (setupId !== undefined && settled.has(setupId)) held.add(tag)
+    }
+  }
+
+  return held
+}
+
+/** Whether a reading is held by a setup somebody has settled. */
+export const isLocked = (plan: SetupPlan, featureTag: string): boolean =>
+  lockedReadings(plan).has(featureTag)

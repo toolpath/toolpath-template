@@ -4,15 +4,21 @@ import type { FlagRule, Rule, ThresholdRule } from './rules'
 import {
   BANDS,
   DEFAULT_BAND_NAMES,
+  PLAN_RULE_IDS,
   bandName,
   bandRank,
   evaluateFeature,
+  judgesFeatures,
+  judgesPlan,
   readEveryRule,
+  scaleFor,
   scoreFeature,
   scorePart,
   worstBand,
 } from './rules'
-import { readMetrics } from './metrics'
+import { PRESET_SETS } from './rule-presets'
+import { TEST_DIRECTIONS, testFeature } from './test-part'
+import { NO_METRICS, readMetrics } from './metrics'
 
 /**
  * A rule reads one measurement and places it in a band. What is pinned here is
@@ -228,5 +234,113 @@ describe('a refusal is optional', () => {
 
     // 200 in a 6.35 bore is past 20:1.
     expect(refused.band).toBe('no go')
+  })
+})
+
+describe('rules that judge the arrangement rather than a feature', () => {
+  /*
+   * Two questions replaced six prices in three currencies. A shop could move
+   * any of the six, press generate, and get the same plan back — and there was
+   * no way to tell a wrong number from an irrelevant one.
+   *
+   * These are rules in every sense the rest are, which is the point: four
+   * thresholds and an optional refusal, in the vocabulary a set is already
+   * written in.
+   */
+  const setups = (thresholds: [number, number, number, number], noGo?: number): Rule =>
+    ({
+      id: PLAN_RULE_IDS.setups,
+      type: 'threshold',
+      scope: 'part',
+      name: 'Setups the plan runs',
+      metric: 'surfaceArea',
+      direction: 'higher is harder',
+      thresholds,
+      ...(noGo === undefined ? {} : { noGo }),
+      weight: 20,
+      enabled: true,
+      featureTypes: [],
+      note: '',
+    }) as Rule
+
+  test('never speaks about a feature', () => {
+    const rule = setups([2, 3, 4, 5])
+
+    expect(judgesPlan(rule)).toBe(true)
+    expect(judgesFeatures(rule)).toBe(false)
+  })
+
+  /*
+   * The bug this exists for. A part rule left in the per-feature walk shows up
+   * in a datasheet as "no measurement" — the app claiming to have looked at
+   * something it was never about — and worse, could reach a feature's score.
+   */
+  test('is left out of a feature verdict entirely', () => {
+    const feature = testFeature('wall', 'wall', TEST_DIRECTIONS[0]!, [0])
+    const verdict = evaluateFeature([setups([2, 3, 4, 5])], feature)
+
+    expect(verdict.results).toHaveLength(0)
+    expect(verdict.band).toBeNull()
+  })
+
+  test('reads its scale off the rule, so there is no second copy to disagree', () => {
+    const scale = scaleFor({ planRules: [setups([2, 3, 4, 5], 6)] }, 'setups')
+
+    expect(scale?.thresholds).toEqual([2, 3, 4, 5])
+    expect(scale?.noGo).toBe(6)
+  })
+
+  // Off is off, the same as it is for a rule that judges a feature: a shop
+  // switching this off is saying it does not care how many setups the plan
+  // runs, and charging it anyway is the app disagreeing quietly.
+  test('charges nothing at all when switched off', () => {
+    expect(
+      scaleFor({ planRules: [{ ...setups([2, 3, 4, 5]), enabled: false }] }, 'setups'),
+    ).toBeNull()
+  })
+
+  test('ships in every preset, so a set is never silently priceless', () => {
+    for (const preset of PRESET_SETS) {
+      const plan = preset.rules.filter(judgesPlan)
+
+      expect(plan.map((rule) => rule.id)).toEqual([PLAN_RULE_IDS.setups])
+    }
+  })
+})
+
+describe('why a rule said nothing', () => {
+  /*
+   * A wrong reason is worse than no reason: it sends somebody to edit the
+   * audience of a rule whose audience was never the problem.
+   *
+   * The silence reason asked `featureTypes.includes(type)` — a strict string
+   * match — while `evaluateRule` compares the normalised forms. So a rule that
+   * had been firing correctly on `Wall` all along reported every *other* kind
+   * of silence as "other feature types".
+   */
+  const aimedAtWalls: Rule = {
+    id: 'reach',
+    type: 'threshold',
+    name: 'Reach',
+    metric: 'millingLD',
+    direction: 'higher is harder',
+    thresholds: [3, 5, 6, 8],
+    weight: 10,
+    enabled: true,
+    // The stored form a set can carry, which is not the form the Engine emits.
+    featureTypes: ['wall' as never],
+    note: '',
+  }
+
+  test('does not blame the audience when the audience matches', () => {
+    const [reading] = readEveryRule([aimedAtWalls], 'Wall' as never, { ...NO_METRICS })
+
+    expect(reading?.silence).toBe('no measurement')
+  })
+
+  test('still blames the audience when it genuinely does not match', () => {
+    const [reading] = readEveryRule([aimedAtWalls], 'Pocket' as never, { ...NO_METRICS })
+
+    expect(reading?.silence).toBe('other feature types')
   })
 })

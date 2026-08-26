@@ -9,8 +9,6 @@ export interface FeatureScore {
   readonly score: number | null
 }
 
-export const UNJUDGED: FeatureScore = { band: null, score: null }
-
 /**
  * Every feature's verdict, by tag, ready for a list to show.
  *

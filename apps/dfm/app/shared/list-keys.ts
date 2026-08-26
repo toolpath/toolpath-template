@@ -13,8 +13,15 @@
 export interface ListKeyActions {
   /** Called for Right on a row that can open, with the row's own value. */
   onOpen?: (value: string) => void
-  /** Called for Left, to close whatever is open. */
-  onClose?: () => void
+  /**
+   * Called for Left, to close whatever is open, with the row's own value.
+   *
+   * Left knows which row it is on, and a list with two kinds of openable row —
+   * a face that opens onto its readings, a hole group that opens onto its holes
+   * — has to be told which one is being closed, or closing the inner one takes
+   * the outer one with it.
+   */
+  onClose?: (value: string) => void
 }
 
 const ROWS = '[data-row]'
@@ -65,11 +72,12 @@ export function moveThroughList(
       actions.onOpen(value)
       return true
     }
-    case 'ArrowLeft':
+    case 'ArrowLeft': {
       if (!actions.onClose) return false
       event.preventDefault()
-      actions.onClose()
+      actions.onClose(rows[at]?.dataset.row ?? '')
       return true
+    }
     default:
       return false
   }
