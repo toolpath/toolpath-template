@@ -4,11 +4,14 @@ import type { PartFeature } from './contracts'
 import { readExpression } from './expression'
 import {
   type FeatureMetrics,
+  type MachineSizes,
   type MetricId,
   type PartContext,
   partContext,
   readMetrics,
 } from './metrics'
+
+export type { MachineEnvelope, MachineSizes } from './metrics'
 
 /**
  * DFM rules: how hard a feature is to cut, judged against thresholds a shop
@@ -420,23 +423,6 @@ export const asType = (rule: Rule, type: RuleType): Rule => {
  * shop with a pallet changer buys a setup far more cheaply than one with a vice.
  */
 /**
- * The machine the part has to fit in, in millimetres.
- *
- * Three numbers rather than one, because a machine is three numbers: 30 × 16 ×
- * 20 is what a shop says, and "the longest side" throws away the fact that a
- * long thin part fits a machine a cube of the same length does not.
- *
- * Compared side for side, largest against largest: the part can be turned in
- * the vice, so what matters is whether its three dimensions can be matched up
- * with the machine's, not how it happened to be drawn.
- */
-export interface MachineEnvelope {
-  x: number
-  y: number
-  z: number
-}
-
-/**
  * What a **part** rule can read: properties of the arrangement, not of a
  * feature.
  *
@@ -586,12 +572,17 @@ export interface PlanLimits {
    */
   bandFirst?: boolean
   /**
-   * The biggest part the shop can hold.
+   * The part sizes the shop takes, largest and smallest.
    *
    * Part-wide rather than per-feature: nothing about a pocket is wrong when the
-   * part does not fit the machine.
+   * part itself is not one this shop takes.
+   *
+   * Three numbers at each end rather than one, because a machine is three
+   * numbers — 30 × 16 × 20 is what a shop says, and "the longest side" throws
+   * away the fact that a long thin part fits a machine a cube of the same
+   * length does not.
    */
-  machine?: MachineEnvelope
+  machine?: MachineSizes
 }
 
 /**
@@ -1337,8 +1328,8 @@ export const evaluatePart = (
   features: ReadonlyArray<PartFeature>,
   /** The part's bounding box, for the rules that judge the part itself. */
   boundingBox?: ReadonlyArray<number>,
-  /** The machine the part has to fit, from the rule set. */
-  machine?: MachineEnvelope,
+  /** The part sizes the shop takes, from the rule set. */
+  machine?: MachineSizes,
 ): Array<FeatureVerdict> => {
   const context = partContext(features, boundingBox, machine)
 

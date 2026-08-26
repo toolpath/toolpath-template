@@ -143,7 +143,7 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
     direction: 'higher is harder',
     thresholds: [3, 5, 6, 8],
     noGo: 12,
-    weight: 14,
+    weight: 15,
     enabled: true,
     // Everything an endmill makes, and the holes one makes too: a bore
     // bottomed at 180° is flat, and a flat bottom is not something a drill
@@ -160,7 +160,7 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
     metric: 'drillingLD',
     direction: 'higher is harder',
     thresholds: [3, 5, 8, 12],
-    weight: 14,
+    weight: 15,
     enabled: true,
     featureTypes: HOLES,
     note: 'Reach down to the bottom of the hole over its diameter. Past about 4:1 a standard drill wants pecking or a longer series.',
@@ -175,7 +175,7 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
     // 7/64, 3/32 and 1/16. A shop that has to sharpen a 3 mm drill twice a
     // shift does not call a 3 mm hole easy.
     thresholds: [3.969, 2.778, 2.381, 1.5875],
-    weight: 2,
+    weight: 5,
     enabled: true,
     featureTypes: HOLES,
     note: "Below the smallest drill on the shelf, a hole is somebody's special order.",
@@ -189,7 +189,7 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
     // A cavity is only as narrow as the tool that clears it, and a tool that
     // small is fragile before it is unavailable. Eighth, sixteenth, and down.
     thresholds: [6.35, 4.7625, 3.175, 2],
-    weight: 2,
+    weight: 5,
     // Off in the prototype because the footprint it read was not trustworthy on
     // every shape; off here for a harder reason — the Engine does not report a
     // footprint at all. Kept because a rule set is a shop's document.
@@ -240,7 +240,7 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
     // the inch it came from survives being read back.
     against: 0.01 * 25.4,
     raises: 'no go',
-    weight: 10,
+    weight: 15,
     enabled: true,
     /*
      * **Every type.** It was aimed at cavities and profiles, on the reasoning
@@ -275,7 +275,7 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
      * tightening end costs anything, so only the tightening end is scored.
      */
     thresholds: [6.35, 3.175, 1.6002, 1.27],
-    weight: 2,
+    weight: 5,
     enabled: true,
     featureTypes: CAVITIES,
     note: 'The tightest internal radius the feature leaves room for — half the cutter diameter the Engine reports. The smaller it gets, the more slowly it has to be cut and the more fragile the tool.',
@@ -291,7 +291,7 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
     tolerance: 0.0254,
     matched: 'easy',
     unmatched: 'meh',
-    weight: 2,
+    weight: 10,
     enabled: true,
     featureTypes: HOLES,
     note: 'A hole on a stocked drill size is one pass with a tool already in the cabinet. Anything else is a reamer, an interpolated bore, or an order.',
@@ -349,7 +349,7 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
     tolerance: 1,
     matched: 'easy',
     unmatched: 'meh',
-    weight: 2,
+    weight: 3,
     enabled: true,
     featureTypes: BEVELLED,
     note: 'A chamfer at an angle the shop already grinds for is one pass with a chamfer mill.',
@@ -381,37 +381,12 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
     // No hard limit. Surfacing is expensive, never impossible: a big surfaced
     // area is a quote nobody likes, not a part that cannot be made, and calling
     // it a no go put parts past a limit the shop had not actually set.
-    weight: 4,
+    weight: 5,
     enabled: true,
     // Only the kinds that need a ball or bull nose driven over the whole
     // surface. A flat floor of the same area is one facing pass.
     featureTypes: CONTOURED,
     note: 'How much 3D surfacing there is, from two square inches to eight. That any at all is rats is set by the feature type baseline; this is how much of it there is.',
-  },
-  {
-    id: 'part-size',
-    type: 'threshold',
-    name: 'Part size against the machine',
-    metric: 'partOverMachine',
-    direction: 'higher is harder',
-    /*
-     * How far past the machine, not how big.
-     *
-     * The machine is three numbers and is set beside the rules — a shop says
-     * "30 × 16 × 20", and a single longest-side limit throws away the fact that
-     * a long thin part fits a machine a cube of the same length does not. This
-     * reads the overhang: zero fits, and each threshold is how far past you are
-     * willing to be before it stops being a job for this shop.
-     *
-     * A quarter inch of overhang might be re-fixturing; four inches is a
-     * different machine. Refused past that.
-     */
-    thresholds: [0, 6.35, 25.4, 101.6],
-    noGo: 101.6,
-    weight: 3,
-    enabled: true,
-    featureTypes: [],
-    note: 'How far the part exceeds the machine, side for side. Set the machine beside the rules; zero means it fits.',
   },
   {
     id: 'kind-baseline',

@@ -265,3 +265,71 @@ describe('which reach ratio a hole gets', () => {
     expect(readMetrics(pocket).millingLD).toBeCloseTo(4, 6)
   })
 })
+
+describe('the part sizes a shop takes', () => {
+  /*
+   * One number for two bounds. Too big and too small are both "not a part we
+   * take", so the metric answers *how far outside* and zero means it fits.
+   *
+   * Matched largest against largest, because the part is turned to suit: what
+   * matters is whether its three sides can be lined up with the shop's, not how
+   * it happened to be drawn. Every box below is written out of order for that
+   * reason.
+   */
+  const size = (box: Array<number>, machine?: Parameters<typeof partContext>[2]) =>
+    readMetrics(hole(), partContext([hole()], box, machine)).partOverMachine
+
+  const MACHINE = { max: { x: 30, y: 16, z: 20 }, min: { x: 10, y: 8, z: 4 } }
+
+  test('says nothing at all until a shop has said', () => {
+    // Not zero. Nobody has stated a limit, so there is nothing to be outside
+    // of, and a rule reading this has to stand down rather than pass the part.
+    expect(size([40, 20, 25])).toBeNull()
+    expect(size([40, 20, 25], {})).toBeNull()
+  })
+
+  test('fits a part inside both ends', () => {
+    expect(size([25, 14, 10], MACHINE)).toBe(0)
+  })
+
+  test('measures how far the biggest side is past the largest taken', () => {
+    // 36 against a 30 machine, once the sides are matched largest to largest.
+    expect(size([36, 14, 10], MACHINE)).toBe(6)
+  })
+
+  test('measures how far the smallest side falls short of the smallest taken', () => {
+    // 1 against a floor of 4 on the shortest side.
+    expect(size([25, 14, 1], MACHINE)).toBe(3)
+  })
+
+  test('turns the part to suit rather than reading it as drawn', () => {
+    // Drawn 10 × 30 × 14, which fits a 30 × 16 × 20 machine turned round. Read
+    // axis for axis it would be 14 past on the first side and refuse a part the
+    // shop can hold.
+    expect(size([10, 30, 14], MACHINE)).toBe(0)
+  })
+
+  test('reports the worst of the two ends, not their sum', () => {
+    // 6 past at the top and 3 short at the bottom is a part that is 6 out.
+    expect(size([36, 14, 1], MACHINE)).toBe(6)
+  })
+
+  test('judges one end where only one was given', () => {
+    // A shop that only cares about the big end says so and the small end
+    // judges nothing — rather than judging against zero and passing everything.
+    expect(size([2, 2, 2], { max: MACHINE.max })).toBe(0)
+    expect(size([2, 2, 2], { min: MACHINE.min })).toBe(8)
+    expect(size([40, 20, 25], { min: MACHINE.min })).toBe(0)
+  })
+
+  test('says what it compared against, or that nothing was set', () => {
+    const said = (machine?: Parameters<typeof partContext>[2]) =>
+      metricSources('partOverMachine', hole(), partContext([hole()], [25, 14, 10], machine))[0]
+        ?.note
+
+    expect(said(MACHINE)).toContain('10 × 8 × 4 mm to 30 × 16 × 20 mm')
+    expect(said({ max: MACHINE.max })).toContain('largest of 30 × 16 × 20 mm')
+    expect(said({ min: MACHINE.min })).toContain('smallest of 10 × 8 × 4 mm')
+    expect(said()).toContain('no part sizes have been set')
+  })
+})

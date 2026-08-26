@@ -105,7 +105,7 @@ export const RulesPanel = ({
   }, [pending, set.rules])
 
   return (
-    <aside className="size-full overflow-y-auto bg-zinc-900 p-3 text-xs">
+    <aside className="size-full overflow-y-auto bg-surface p-3 text-xs">
       <Heading>Rule set</Heading>
 
       <div className="mb-2 flex items-center gap-4">
@@ -113,7 +113,7 @@ export const RulesPanel = ({
             temporary way to explore what those assumptions change. */}
         <select
           aria-label="Rule set"
-          className="h-8 min-w-0 flex-1 rounded border border-zinc-700 bg-transparent px-2 text-xs text-zinc-100"
+          className="h-8 min-w-0 flex-1 rounded border border-edge-strong bg-transparent px-2 text-xs text-ink"
           onChange={(event) => rules.loadPreset(event.target.value)}
           value={rules.presetId}
         >
@@ -151,7 +151,7 @@ export const RulesPanel = ({
           operation on this part would ever meet.
         */}
         {features.length === 0 ? (
-          <p className="mb-2 rounded border border-zinc-800 px-2 py-1.5 text-2xs leading-4 text-zinc-500">
+          <p className="mb-2 rounded border border-edge px-2 py-1.5 text-2xs leading-4 text-ink-dim">
             No directions are mapped. The rules below are what will be applied — what they make of
             this part appears here once something is mapped.
           </p>
@@ -178,7 +178,7 @@ export const RulesPanel = ({
         <Heading>What it cost</Heading>
         <select
           aria-label="Feature type"
-          className="ml-auto h-6 rounded border border-zinc-700 bg-transparent px-1 text-2xs text-zinc-400"
+          className="ml-auto h-6 rounded border border-edge-strong bg-transparent px-1 text-2xs text-ink-muted"
           onChange={(event) => setType(event.target.value)}
           value={type}
         >
@@ -214,7 +214,7 @@ export const RulesPanel = ({
           judged a *feature*, and these judged none.
         */}
         {set.rules.filter(judgesPlan).length === 0 ? null : (
-          <li className="mb-1 mt-2 text-2xs font-bold uppercase tracking-wider text-zinc-500 first:mt-0">
+          <li className="mb-1 mt-2 text-2xs font-bold uppercase tracking-wider text-ink-dim first:mt-0">
             The plan itself
           </li>
         )}
@@ -234,14 +234,14 @@ export const RulesPanel = ({
           A threshold with no reading beside it is a rule somebody has to go and
           check somewhere else — and the somewhere else is another tab.
         */}
-        <li className="mb-1 flex items-center gap-2 rounded border border-zinc-800 px-1.5 py-1 text-2xs text-zinc-500">
+        <li className="mb-1 flex items-center gap-2 rounded border border-edge px-1.5 py-1 text-2xs text-ink-dim">
           <span>
-            <span className="font-semibold tabular-nums text-zinc-300">{now.setups}</span>{' '}
+            <span className="font-semibold tabular-nums text-ink-body">{now.setups}</span>{' '}
             {now.setups === 1 ? 'setup' : 'setups'}
           </span>
           <span aria-hidden="true">·</span>
           <span>
-            <span className="font-semibold tabular-nums text-zinc-300">
+            <span className="font-semibold tabular-nums text-ink-body">
               {(now.mapped * 100).toFixed(0)}%
             </span>{' '}
             of the part cut
@@ -289,10 +289,16 @@ export const RulesPanel = ({
           choice of ranking — with the two that are. They were a separate panel
           below the list, which is where nobody found them.
         */}
-        <PlanChoices limits={set.plan} refused={bit?.worstBand} onChange={rules.updatePlan} />
+        <PlanChoices
+          limits={set.plan}
+          onChange={rules.updatePlan}
+          refused={bit?.worstBand}
+          revision={rules.revision}
+          unit={unit}
+        />
 
         {set.rules.filter(judgesPlan).length === 0 ? null : (
-          <li className="mb-1 mt-3 text-2xs font-bold uppercase tracking-wider text-zinc-500">
+          <li className="mb-1 mt-3 text-2xs font-bold uppercase tracking-wider text-ink-dim">
             Every feature
           </li>
         )}
@@ -333,7 +339,7 @@ export const RulesPanel = ({
           ))}
       </ul>
 
-      <div className="mt-4 flex items-center gap-2 border-t border-zinc-800 pt-3 text-xs text-zinc-400">
+      <div className="mt-4 flex items-center gap-2 border-t border-edge pt-3 text-xs text-ink-muted">
         <span className="flex-1">
           Rule changes are temporary and reset on reload or when choosing another preset.
         </span>

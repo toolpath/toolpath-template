@@ -2,11 +2,58 @@ import type { CdData, FeatureDatasheet, FeatureDatasheetFacts } from '@toolpath/
 import type { PartFeature } from './contracts'
 import { directionKey } from './report'
 
-/** The travel a machine has, which the part has to fit inside. */
+/** Three sides, in millimetres. */
 export interface MachineEnvelope {
   x: number
   y: number
   z: number
+}
+
+/**
+ * The part sizes a shop will take, either end.
+ *
+ * Both ends are optional and mean different things by their absence: a shop
+ * that only cares about the big end sets `max` and leaves `min` alone, and a
+ * bound nobody set judges nothing rather than judging zero. A rule reading an
+ * unset pair stands down, which is what every metric here does when the shop
+ * has not said.
+ */
+export interface MachineSizes {
+  /** The biggest part the shop can hold. */
+  max?: MachineEnvelope | undefined
+  /** The smallest part it is worth their while to hold. */
+  min?: MachineEnvelope | undefined
+}
+
+/**
+ * The worst of the part's three sides against three limits.
+ *
+ * Matched largest to largest, because the part can be turned in the vice: what
+ * matters is whether its three dimensions can be lined up with the limit's, not
+ * how it happened to be drawn. `sides` arrives sorted; the limit is sorted here.
+ *
+ * `by` decides which way the comparison runs, so the same matching serves both
+ * ends — a maximum asks how far past, a minimum how far short.
+ */
+const worstAgainst = (
+  sides: ReadonlyArray<number>,
+  limit: MachineEnvelope,
+  by: (side: number, allowed: number) => number,
+): number => {
+  const sorted = [limit.x, limit.y, limit.z].sort((a: number, b: number) => b - a)
+
+  return sides.reduce((worst, side, at) => Math.max(worst, by(side, sorted[at] ?? 0)), 0)
+}
+
+/** What the panel says it compared against, which is nothing until a shop says. */
+const sizesNote = (machine: MachineSizes | undefined): string => {
+  const say = (e: MachineEnvelope) => `${String(e.x)} × ${String(e.y)} × ${String(e.z)} mm`
+
+  if (machine?.max && machine.min) return `against ${say(machine.min)} to ${say(machine.max)}`
+  if (machine?.max) return `against a largest of ${say(machine.max)}`
+  if (machine?.min) return `against a smallest of ${say(machine.min)}`
+
+  return 'no part sizes have been set, so nothing to compare against'
 }
 
 /**
@@ -110,7 +157,7 @@ export interface Reading {
  */
 export interface MetricContext {
   /** The machine the part has to fit, when the shop has said. */
-  machine?: MachineEnvelope | undefined
+  machine?: MachineSizes | undefined
   /** The top of the part **in this feature's own machining direction**. */
   partTopZ: number | null
   /**
@@ -149,7 +196,7 @@ export interface MetricContext {
  */
 export interface PartContext {
   /** The machine the part has to fit, from the rule set. */
-  machine?: MachineEnvelope | undefined
+  machine?: MachineSizes | undefined
   topByDirection: Map<string, number>
   /** The part's own bounding box, longest side first, when the mesh is known. */
   sides: ReadonlyArray<number> | null
@@ -169,8 +216,8 @@ export const partContext = (
   features: ReadonlyArray<PartFeature>,
   /** The part's bounding box, in any order — sorted here. */
   boundingBox?: ReadonlyArray<number>,
-  /** The machine the part has to fit, from the rule set. */
-  machine?: MachineEnvelope,
+  /** The part sizes the shop takes, from the rule set. */
+  machine?: MachineSizes,
 ): PartContext => {
   const topByDirection = new Map<string, number>()
 
@@ -889,39 +936,50 @@ export const METRICS: ReadonlyArray<MetricSpec> = [
     ],
   },
   {
-    id: 'partOverMachine',
-    label: 'Past the machine',
-    field: 'mesh bounding box vs the machine',
-    quantity: 'length',
-    note: 'How far the part exceeds the biggest one the shop can hold, side for side. Zero means it fits.',
-    formula: "the part's sides against the machine's, largest against largest",
     /*
-     * Compared side for side, largest against largest.
+     * The id stays `partOverMachine` although it now reads both ends. It is
+     * what a shop's saved rule points back at, and renaming it would orphan
+     * every set that names it — the same reasoning the SendCutSend preset's own
+     * id carries. What a metric is called is a label; what it is, is its id.
+     */
+    id: 'partOverMachine',
+    label: 'Outside the sizes taken',
+    field: 'mesh bounding box vs the sizes taken',
+    quantity: 'length',
+    note: 'How far the part falls outside the sizes the shop takes, side for side. Zero means it fits.',
+    formula: "the part's sides against the shop's, largest against largest, either end",
+    /*
+     * One number for two bounds.
      *
-     * The part can be turned in the vice, so what matters is whether its three
-     * dimensions can be matched up with the machine's — not how it happened to
-     * be drawn. The worst overhang of the three is the answer, because that is
-     * the one that stops it going in.
+     * Too big and too small are both "this is not a part we take", and a shop
+     * grading them apart wants two rules rather than one metric that reports a
+     * direction it cannot band. So this answers *how far outside*, whichever
+     * end, and zero means it fits.
+     *
+     * Either bound alone is a complete answer. Unset means the shop has not
+     * said, which is not the same as a limit of zero — with neither set there
+     * is nothing to compare and the rule stands down.
      */
     read: (_datasheet, context) => {
       const machine = context.machine
       const sides = context.partSides
 
-      if (!machine || !sides) {
+      if (!machine || !sides || (!machine.max && !machine.min)) {
         return null
       }
 
-      const envelope = [machine.x, machine.y, machine.z].sort((a: number, b: number) => b - a)
+      const over = machine.max ? worstAgainst(sides, machine.max, (side, most) => side - most) : 0
+      const under = machine.min
+        ? worstAgainst(sides, machine.min, (side, least) => least - side)
+        : 0
 
-      return sides.reduce((worst, side, at) => Math.max(worst, side - (envelope[at] ?? 0)), 0)
+      return Math.max(0, over, under)
     },
     sources: (_datasheet, context) => [
       {
         path: 'mesh bounding box',
         value: context.partSides?.[0] ?? null,
-        note: context.machine
-          ? `against a machine of ${String(context.machine.x)} × ${String(context.machine.y)} × ${String(context.machine.z)} mm`
-          : 'no machine size has been set, so nothing to compare against',
+        note: sizesNote(context.machine),
       },
     ],
   },

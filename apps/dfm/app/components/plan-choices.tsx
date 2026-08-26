@@ -1,7 +1,9 @@
 import { CaretDownIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
 
-import type { PlanLimits } from '../shared/rules'
+import { NumberBox } from './number-box'
+import type { MachineEnvelope, MachineSizes, PlanLimits } from '../shared/rules'
+import type { Unit } from '../shared/units'
 
 /**
  * The two decisions about a plan that are **not scales**.
@@ -44,7 +46,7 @@ const Card = ({
   const [open, setOpen] = useState(false)
 
   return (
-    <li className="border-b border-zinc-800/60 py-1.5 last:border-b-0">
+    <li className="border-b border-edge/60 py-1.5 last:border-b-0">
       <div className="flex items-center gap-1.5">
         <button
           aria-expanded={open}
@@ -55,7 +57,7 @@ const Card = ({
              have no features under them. Claiming one puts a stop in the walk
              that leads nowhere.
           */
-          className="shrink-0 text-zinc-500 hover:text-zinc-200"
+          className="shrink-0 text-ink-dim hover:text-ink-strong"
           onClick={() => setOpen((shown) => !shown)}
           type="button"
         >
@@ -63,21 +65,21 @@ const Card = ({
         </button>
 
         <button
-          className="min-w-0 flex-1 truncate text-left text-zinc-200"
+          className="min-w-0 flex-1 truncate text-left text-ink-strong"
           onClick={() => setOpen((shown) => !shown)}
           type="button"
         >
           {title}
         </button>
 
-        <span className="shrink-0 rounded bg-zinc-800 px-1.5 py-0.5 text-2xs text-zinc-300">
+        <span className="shrink-0 rounded bg-raised px-1.5 py-0.5 text-2xs text-ink-body">
           {state}
         </span>
       </div>
 
       {open ? (
         <div className="ml-5 mt-1 flex flex-col gap-1.5">
-          <p className="text-2xs leading-4 text-zinc-500">{note}</p>
+          <p className="text-2xs leading-4 text-ink-dim">{note}</p>
           {children}
         </div>
       ) : null}
@@ -85,17 +87,106 @@ const Card = ({
   )
 }
 
+const AXES = ['x', 'y', 'z'] as const
+
+/**
+ * One end of the sizes taken: three boxes that only mean something together.
+ *
+ * A machine is three numbers, and the comparison matches the part's sides to
+ * them largest against largest — so two of the three is not a smaller answer,
+ * it is no answer. An end counts as set once all three are filled, and emptying
+ * any of them puts the end back to unsaid.
+ *
+ * That is why the half-filled triple lives here rather than in the rule set:
+ * somebody typing the second of three numbers has not yet said anything the
+ * judge could read, and writing it down would have the rule half-judging on it.
+ * Re-keyed by the caller when a preset loads, which is the one time the stored
+ * numbers change underneath.
+ */
+const SizeRow = ({
+  end,
+  label,
+  hint,
+  sizes,
+  unit,
+  onChange,
+}: {
+  end: 'min' | 'max'
+  label: string
+  hint: string
+  sizes: MachineEnvelope | undefined
+  unit: Unit
+  onChange: (sizes: MachineEnvelope | undefined) => void
+}) => {
+  const [draft, setDraft] = useState<Partial<MachineEnvelope>>(() => sizes ?? {})
+
+  const set = (axis: (typeof AXES)[number], value: number | undefined) => {
+    const merged = { ...draft, [axis]: value }
+    setDraft(merged)
+
+    const { x, y, z } = merged
+    const whole = typeof x === 'number' && typeof y === 'number' && typeof z === 'number'
+
+    onChange(whole ? { x, y, z } : undefined)
+  }
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-2xs text-ink-muted">{label}</span>
+      <div className="flex items-end gap-1" role="group" aria-label={label}>
+        {AXES.map((axis) => (
+          <NumberBox
+            key={axis}
+            id={`machine-${end}-${axis}`}
+            label={`${label}, ${axis.toUpperCase()}`}
+            metric="partLongestSide"
+            onChange={(value) => set(axis, value)}
+            onClear={() => set(axis, undefined)}
+            placeholder={axis.toUpperCase()}
+            unit={unit}
+            value={draft[axis]}
+            width="w-16"
+          />
+        ))}
+      </div>
+      <p className="text-2xs leading-4 text-ink-faint">{hint}</p>
+    </div>
+  )
+}
+
+/** What the row says on its card, without opening it. */
+const sizesState = (machine: MachineSizes | undefined): string => {
+  if (machine?.min && machine.max) return 'both ends'
+  if (machine?.max) return 'largest only'
+  if (machine?.min) return 'smallest only'
+
+  return 'any size'
+}
+
 export const PlanChoices = ({
   limits,
   refused,
+  revision,
+  unit,
   onChange,
 }: {
   limits: PlanLimits | undefined
   /** How many faces the floor kept from a refused reading, on the last plan. */
   refused?: number
+  /** Bumped when a preset loads, which re-keys the size boxes onto its numbers. */
+  revision: number
+  unit: Unit
   onChange: (limits: PlanLimits) => void
 }) => {
   const current: PlanLimits = limits ?? {}
+  const machine: MachineSizes = current.machine ?? {}
+
+  const setEnd = (end: 'min' | 'max', sizes: MachineEnvelope | undefined) => {
+    const next: MachineSizes = { ...machine, [end]: sizes }
+    const empty = !next.min && !next.max
+
+    onChange({ ...current, ...(empty ? { machine: undefined } : { machine: next }) })
+  }
 
   return (
     <>
@@ -112,7 +203,7 @@ export const PlanChoices = ({
         note="The worst band a reading may still be cut in. A last resort rather than a ban: one below the floor may still cut a face nothing else can reach, because leaving it uncut is not an improvement — it just can never take a face off a reading above the floor."
       >
         {refused === undefined ? null : (
-          <p className={`text-2xs leading-4 ${refused === 0 ? 'text-zinc-600' : 'text-info'}`}>
+          <p className={`text-2xs leading-4 ${refused === 0 ? 'text-ink-faint' : 'text-info'}`}>
             {refused === 0
               ? 'Nothing was refused on this part — either nothing fell below the floor, or nothing below it wanted a face.'
               : `${String(refused)} face${refused === 1 ? '' : 's'} were kept from a refused reading on this part.`}
@@ -138,7 +229,7 @@ export const PlanChoices = ({
                 className={`rounded border px-1.5 py-0.5 text-2xs font-semibold transition ${
                   held
                     ? 'border-info bg-info/20 text-info'
-                    : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                    : 'border-edge-strong text-ink-muted hover:border-edge-hover'
                 }`}
               >
                 {band ?? 'Anything'}
@@ -185,7 +276,7 @@ export const PlanChoices = ({
                 className={`rounded border px-1.5 py-0.5 text-2xs font-semibold transition ${
                   held
                     ? 'border-info bg-info/20 text-info'
-                    : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                    : 'border-edge-strong text-ink-muted hover:border-edge-hover'
                 }`}
               >
                 {option.label}
@@ -193,7 +284,7 @@ export const PlanChoices = ({
             )
           })}
         </div>
-        <p className="text-2xs leading-4 text-zinc-500">
+        <p className="text-2xs leading-4 text-ink-dim">
           A generator press can still override it for that run — this is the shop's usual answer,
           not a wall.
         </p>
@@ -238,7 +329,7 @@ export const PlanChoices = ({
                 className={`rounded border px-1.5 py-0.5 text-2xs font-semibold transition ${
                   held
                     ? 'border-info bg-info/20 text-info'
-                    : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                    : 'border-edge-strong text-ink-muted hover:border-edge-hover'
                 }`}
               >
                 {option.label}
@@ -246,6 +337,42 @@ export const PlanChoices = ({
             )
           })}
         </div>
+      </Card>
+
+      {/*
+        The sizes this shop takes, either end.
+
+        A part outside them is not a feature problem — nothing about a pocket is
+        wrong when the part itself is one nobody here would hold — so it is a
+        part-wide answer sitting with the other two.
+
+        Both ends unset until somebody says, and the rule stands down rather
+        than judging against zero. It had no control at all before this, so the
+        rule that reads it had never once fired.
+      */}
+      <Card
+        title="What part sizes do you take?"
+        state={sizesState(current.machine)}
+        note="Three numbers at each end, because a machine is three numbers: a long thin part fits one a cube of the same length does not. The part is turned to suit, so its sides are matched to yours largest against largest, and how far it falls outside — either end — is what the rule reads."
+      >
+        <SizeRow
+          end="min"
+          hint="Under this, it is not worth setting up. Leave empty to take anything small."
+          key={`min-${String(revision)}`}
+          label="Smallest"
+          onChange={(sizes) => setEnd('min', sizes)}
+          sizes={machine.min}
+          unit={unit}
+        />
+        <SizeRow
+          end="max"
+          hint="Over this, it does not go in the machine. Leave empty to take anything big."
+          key={`max-${String(revision)}`}
+          label="Largest"
+          onChange={(sizes) => setEnd('max', sizes)}
+          sizes={machine.max}
+          unit={unit}
+        />
       </Card>
     </>
   )

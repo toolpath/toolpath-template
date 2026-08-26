@@ -13,9 +13,9 @@ import { PlanChoices } from './plan-choices'
  */
 afterEach(cleanup)
 
-const choices = () => {
+const choices = (limits: Parameters<typeof PlanChoices>[0]['limits'] = {}) => {
   const onChange = vi.fn()
-  render(<PlanChoices limits={{}} onChange={onChange} />)
+  render(<PlanChoices limits={limits} onChange={onChange} revision={0} unit="mm" />)
   return { onChange }
 }
 
@@ -77,7 +77,7 @@ describe('what a shop will not cut, and how readings are ranked', () => {
 
   it('says what the floor did on this part, when there is a plan to say it about', () => {
     const onChange = vi.fn()
-    render(<PlanChoices limits={{}} refused={3} onChange={onChange} />)
+    render(<PlanChoices revision={0} unit="mm" limits={{}} refused={3} onChange={onChange} />)
     open('What is a no-go feature for op-planning?')
 
     expect(screen.getByText(/3 faces were kept from a refused reading/)).toBeTruthy()
@@ -99,5 +99,108 @@ describe('what a shop will not cut, and how readings are ranked', () => {
     open('May the plan split a feature?')
     fireEvent.click(screen.getByRole('button', { name: 'Whole or not at all' }))
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ splitFeatures: false }))
+  })
+})
+
+describe('the part sizes a shop takes', () => {
+  /*
+   * Not a rule. A part outside the sizes is not a feature problem — nothing
+   * about a pocket is wrong when the part itself is one nobody here would hold
+   * — so banding it once per feature said the same thing about every pocket on
+   * the part. It is a shop's answer, sitting with the other two that are not
+   * scales.
+   */
+  const SIZES = 'What part sizes do you take?'
+  const box = (label: string) => screen.getByRole('textbox', { name: label })
+
+  const type = (label: string, value: string) => {
+    fireEvent.change(box(label), { target: { value } })
+    fireEvent.blur(box(label))
+  }
+
+  const fill = (end: 'Smallest' | 'Largest', x: string, y: string, z: string) => {
+    type(`${end}, X`, x)
+    type(`${end}, Y`, y)
+    type(`${end}, Z`, z)
+  }
+
+  it('takes any size until somebody says otherwise', () => {
+    choices()
+
+    expect(screen.getByText('any size')).toBeTruthy()
+  })
+
+  it('says nothing to the plan until all three of an end are in', () => {
+    /*
+     * A machine is three numbers, and the sides are matched largest against
+     * largest — so two of the three is not a smaller answer, it is no answer.
+     * Writing it down would have the rule half-judging on a number nobody had
+     * finished giving.
+     */
+    const { onChange } = choices()
+    open(SIZES)
+
+    type('Largest, X', '30')
+    type('Largest, Y', '16')
+
+    expect(onChange).not.toHaveBeenCalledWith(
+      expect.objectContaining({ machine: expect.anything() }),
+    )
+  })
+
+  it('takes a maximum on its own', () => {
+    const { onChange } = choices()
+    open(SIZES)
+
+    fill('Largest', '30', '16', '20')
+
+    expect(onChange).toHaveBeenLastCalledWith({ machine: { max: { x: 30, y: 16, z: 20 } } })
+  })
+
+  it('takes a minimum on its own', () => {
+    // A shop that only cares about the small end says so, and the big end
+    // judges nothing rather than judging against zero.
+    const { onChange } = choices()
+    open(SIZES)
+
+    fill('Smallest', '10', '8', '4')
+
+    expect(onChange).toHaveBeenLastCalledWith({ machine: { min: { x: 10, y: 8, z: 4 } } })
+  })
+
+  it('takes both ends together', () => {
+    const { onChange } = choices({ machine: { min: { x: 10, y: 8, z: 4 } } })
+    open(SIZES)
+
+    fill('Largest', '30', '16', '20')
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      machine: { min: { x: 10, y: 8, z: 4 }, max: { x: 30, y: 16, z: 20 } },
+    })
+  })
+
+  it('says which ends have been given, without opening the card', () => {
+    cleanup()
+    choices({ machine: { max: { x: 30, y: 16, z: 20 } } })
+    expect(screen.getByText('largest only')).toBeTruthy()
+
+    cleanup()
+    choices({ machine: { min: { x: 10, y: 8, z: 4 } } })
+    expect(screen.getByText('smallest only')).toBeTruthy()
+
+    cleanup()
+    choices({ machine: { min: { x: 10, y: 8, z: 4 }, max: { x: 30, y: 16, z: 20 } } })
+    expect(screen.getByText('both ends')).toBeTruthy()
+  })
+
+  it('puts an end back to unsaid when one of its three is emptied', () => {
+    // Clearing is how somebody takes a limit off, and two thirds of a limit is
+    // not one — so the end goes, rather than judging on what is left.
+    const { onChange } = choices({ machine: { max: { x: 30, y: 16, z: 20 } } })
+    open(SIZES)
+
+    type('Largest, Y', '')
+
+    expect(onChange).toHaveBeenLastCalledWith({ machine: undefined })
   })
 })

@@ -29,10 +29,16 @@ const feature = (over: Record<string, unknown> = {}) =>
 
 describe('the shipped set', () => {
   test('ships the prototype’s own rules, rule for rule', () => {
-    // Sixteen, since the outer fillet radii joined: the same question the
-    // floor radii ask, of the blend on the outside of the part.
-    expect(DEFAULT_RULES).toHaveLength(16)
-    expect(DEFAULT_RULES.filter((rule) => rule.type === 'threshold')).toHaveLength(9)
+    /*
+     * Fifteen. The outer fillet radii joined — the same question the floor
+     * radii ask, of the blend on the outside of the part — and the part size
+     * left: it is not a property of a feature, so banding it once per feature
+     * said the same thing about every pocket on a part that does not fit. It
+     * is a shop's answer now, under *What part sizes do you take?*, beside the
+     * other two decisions about a plan that are not scales.
+     */
+    expect(DEFAULT_RULES).toHaveLength(15)
+    expect(DEFAULT_RULES.filter((rule) => rule.type === 'threshold')).toHaveLength(8)
     expect(DEFAULT_RULES.filter((rule) => rule.type === 'match')).toHaveLength(5)
   })
 
