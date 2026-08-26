@@ -15,17 +15,17 @@ import type { Page } from '@playwright/test'
  * ways up, twenty-four readings, and a real GLB — served through the same API
  * routes the app calls. It is slower than a hand-built report and it is the only
  * thing that tests what a click means.
+ *
+ * The two files are vendored into `tests/fixtures/` rather than read out of
+ * `packages/viewer/fixtures/`, which is where they live in the monorepo this app
+ * came from. `@toolpath/viewer` publishes `dist` only, so there is nothing to
+ * reach for here — copies are the only way to keep this spec running.
  */
 const cube = JSON.parse(
-  readFileSync(
-    new URL('../../../packages/viewer/fixtures/reports/local-0.3.0-cube.json', import.meta.url),
-    'utf8',
-  ),
+  readFileSync(new URL('./fixtures/local-0.3.0-cube.json', import.meta.url), 'utf8'),
 ) as Record<string, unknown>
 
-const mesh = readFileSync(
-  new URL('../../../packages/viewer/fixtures/mesh/local-0.3.0-cube.glb', import.meta.url),
-)
+const mesh = readFileSync(new URL('./fixtures/local-0.3.0-cube.glb', import.meta.url))
 
 /** The report as the app's own boundary hands it over — URLs redacted to flags. */
 const report = {
