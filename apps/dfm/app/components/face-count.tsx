@@ -76,7 +76,7 @@ export const FaceCount = ({
        * marking and is not worth shouting: the **count** carries it, in amber,
        * and the button stays a button.
        */
-      className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded border border-zinc-700 px-1.5 py-px text-2xs tabular-nums text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+      className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded border border-edge-strong px-1.5 py-px text-2xs tabular-nums text-ink-muted transition hover:border-edge-hover hover:text-ink"
     >
       <Pencil />
       {/* One element, not three text nodes around a span: the row is a flex

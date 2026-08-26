@@ -27,7 +27,7 @@ export const ConnectionPanel = ({
 
   return (
     <form ref={form} onSubmit={submit} className="mt-8 space-y-4">
-      <label className="block text-sm font-semibold text-zinc-100" htmlFor="apiKey">
+      <label className="block text-sm font-semibold text-ink" htmlFor="apiKey">
         Toolpath Engine API key
         <input
           id="apiKey"
@@ -40,7 +40,7 @@ export const ConnectionPanel = ({
           spellCheck={false}
           data-1p-ignore="true"
           data-lpignore="true"
-          className="api-key-input mt-2 block w-full rounded-lg border border-zinc-700 bg-transparent px-3 py-3 font-mono text-sm text-zinc-100 outline-none focus-visible:ring-2 focus-visible:ring-info/75"
+          className="api-key-input mt-2 block w-full rounded-lg border border-edge-strong bg-transparent px-3 py-3 font-mono text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-info/75"
         />
       </label>
       {error ? (

@@ -56,7 +56,7 @@ const FaceHomes = ({ feature, row }: { feature: PartFeature; row: FaceRow }) => 
     // Not cut in either pass by anything: the honest answer, and a different
     // one from "cut, but somewhere else".
     if (homes.every(({ cutBy }) => cutBy === null)) {
-      return <span className="shrink-0 text-2xs text-zinc-600">not cut</span>
+      return <span className="shrink-0 text-2xs text-ink-faint">not cut</span>
     }
     return null
   }
@@ -70,7 +70,7 @@ const FaceHomes = ({ feature, row }: { feature: PartFeature; row: FaceRow }) => 
           return (
             <span
               key={pass}
-              className="rounded border border-zinc-800 px-1 text-2xs font-semibold text-zinc-600"
+              className="rounded border border-edge px-1 text-2xs font-semibold text-ink-faint"
               title={`${word} nowhere — no reading in the plan cuts this face in this pass`}
             >
               {pass === 'rough' ? 'R' : 'F'} —
@@ -362,15 +362,15 @@ export const FaceList = ({
        * rows inherit; this one did not, which is why its readings were drawn
        * half again the size of the same readings everywhere else.
        */
-      className="flex size-full min-h-0 flex-col overflow-y-auto bg-zinc-900 text-xs"
+      className="flex size-full min-h-0 flex-col overflow-y-auto bg-surface text-xs"
       onMouseLeave={() => onHoverFace(null)}
     >
-      <header className="flex flex-col gap-2 border-b border-zinc-800 p-3">
+      <header className="flex flex-col gap-2 border-b border-edge p-3">
         <div className="flex items-start justify-between gap-2">
           <h2 className="flex flex-wrap items-center gap-2 font-display text-lg font-bold leading-tight">
             <KindIcon featureType={feature.featureType} kind="Other" />
             {typeLabel(feature.featureType)}
-            <span className="font-sans text-sm font-normal text-zinc-500">
+            <span className="font-sans text-sm font-normal text-ink-dim">
               {/* Its faces, and how many of them this reading is actually
                   cutting — the number that was pressed to get here. */}
               {cut === rows.length
@@ -540,7 +540,7 @@ export const FaceList = ({
             className="flex flex-wrap items-center gap-x-3 gap-y-1"
           >
             {groups.map((group) => (
-              <li key={group.key} className="flex items-center gap-1.5 text-2xs text-zinc-400">
+              <li key={group.key} className="flex items-center gap-1.5 text-2xs text-ink-muted">
                 <span
                   aria-hidden="true"
                   className="size-2 shrink-0 rounded-sm"
@@ -613,13 +613,13 @@ export const FaceList = ({
           speak about the reading and therefore what it scores, so this is a
           real edit rather than a label.
         */}
-        <label className="flex items-center gap-2 text-2xs text-zinc-500">
+        <label className="flex items-center gap-2 text-2xs text-ink-dim">
           <span className="shrink-0">Read as</span>
           <select
             aria-label="Feature type"
             value={feature.featureType}
             onChange={(event) => onRetype(feature.featureTag, event.target.value)}
-            className="min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-950 px-1.5 py-1 text-2xs text-zinc-200"
+            className="min-w-0 flex-1 rounded border border-edge-strong bg-ground px-1.5 py-1 text-2xs text-ink-strong"
           >
             {/*
               Its own type first even where the part has no other reading of
@@ -635,7 +635,7 @@ export const FaceList = ({
           </select>
         </label>
         {reads.length === 0 ? null : (
-          <p className="text-2xs leading-4 text-zinc-500">
+          <p className="text-2xs leading-4 text-ink-dim">
             {/*
               What the faces themselves vote for, from this way up — the same
               reading `Create` offers while a set is being drawn. It is the
@@ -650,7 +650,7 @@ export const FaceList = ({
                   type="button"
                   onClick={() => onRetype(feature.featureTag, guess.featureType)}
                   className={`rounded underline decoration-dotted underline-offset-2 transition hover:text-info ${
-                    feature.featureType === guess.featureType ? 'text-info' : 'text-zinc-300'
+                    feature.featureType === guess.featureType ? 'text-info' : 'text-ink-body'
                   }`}
                 >
                   {typeLabel(guess.featureType)}
@@ -686,7 +686,7 @@ export const FaceList = ({
             </button>
           </div>
         )}
-        <p className="text-2xs leading-4 text-zinc-500">
+        <p className="text-2xs leading-4 text-ink-dim">
           Every face this reading covers. Ticking one cuts it from{' '}
           {directionLabel(feature.machiningDirection)}, roughing and finishing — open it to see what
           else could.
@@ -730,14 +730,14 @@ export const FaceList = ({
                 list is also the key to the model — rather than a separate
                 legend that has to be kept in step with it.
               */}
-              <li className="mt-1 flex items-center gap-1.5 px-1 pb-0.5 pt-1 text-2xs font-bold uppercase tracking-wider text-zinc-500 first:mt-0">
+              <li className="mt-1 flex items-center gap-1.5 px-1 pb-0.5 pt-1 text-2xs font-bold uppercase tracking-wider text-ink-dim first:mt-0">
                 <span
                   aria-hidden="true"
                   className="size-2 rounded-sm"
                   style={{ background: `#${group.hex.toString(16).padStart(6, '0')}` }}
                 />
                 <span>{group.label}</span>
-                <span className="tabular-nums text-zinc-600">{group.rows.length}</span>
+                <span className="tabular-nums text-ink-faint">{group.rows.length}</span>
               </li>
               {group.rows.map((row) => (
                 <li key={row.idx}>
@@ -755,7 +755,7 @@ export const FaceList = ({
                      * the row, unambiguously. So the fill is free to mean the other
                      * thing, which is the one the list cannot otherwise show.
                      */
-                    className={`flex items-center gap-1 rounded border-l-2 pr-1 hover:bg-zinc-950/40 ${
+                    className={`flex items-center gap-1 rounded border-l-2 pr-1 hover:bg-ground/40 ${
                       open === row.idx ? 'border-info bg-info/20' : 'border-transparent'
                     }`}
                     onMouseEnter={() => onHoverFace(row.idx)}
@@ -785,7 +785,7 @@ export const FaceList = ({
                           : `Show what else covers face ${String(row.idx)}`
                       }
                       onClick={() => toggle(row.idx)}
-                      className="w-4 shrink-0 text-2xs text-zinc-500 transition hover:text-zinc-200"
+                      className="w-4 shrink-0 text-2xs text-ink-dim transition hover:text-ink-strong"
                     >
                       {open === row.idx ? '▾' : '▸'}
                     </button>
@@ -843,7 +843,7 @@ export const FaceList = ({
                       className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1 text-left"
                     >
                       <span
-                        className={`flex-1 truncate ${row.passes.length > 0 ? 'text-zinc-200' : 'text-zinc-500'}`}
+                        className={`flex-1 truncate ${row.passes.length > 0 ? 'text-ink-strong' : 'text-ink-dim'}`}
                       >
                         Face {row.idx}
                       </span>
@@ -865,7 +865,7 @@ export const FaceList = ({
                             className={`grid size-3.5 place-items-center rounded-sm text-2xs font-bold ${
                               row.passes.includes(pass)
                                 ? 'bg-info/25 text-info'
-                                : 'border border-zinc-800 text-zinc-600'
+                                : 'border border-edge text-ink-faint'
                             }`}
                           >
                             {pass === 'rough' ? 'R' : 'F'}
@@ -885,15 +885,15 @@ export const FaceList = ({
                           added
                         </span>
                       ) : null}
-                      <span className="shrink-0 text-zinc-500">{row.shape}</span>
-                      <span className="shrink-0 tabular-nums text-zinc-500">
+                      <span className="shrink-0 text-ink-dim">{row.shape}</span>
+                      <span className="shrink-0 tabular-nums text-ink-dim">
                         {formatArea(row.area, unit)}
                       </span>
                       <FaceHomes feature={feature} row={row} />
                       {/* How many ways this face could be cut. One means the plan has
                     no choice about it, which is worth seeing at a glance. */}
                       <span
-                        className="shrink-0 rounded bg-zinc-800 px-1 text-2xs font-semibold text-zinc-400"
+                        className="shrink-0 rounded bg-raised px-1 text-2xs font-semibold text-ink-muted"
                         title={`${String(row.owners.length)} readings cover this face`}
                       >
                         {row.owners.length}
@@ -908,7 +908,7 @@ export const FaceList = ({
                 find that face on the part.
               */
                     <ul
-                      className="mb-1 ml-5 border-l border-zinc-800"
+                      className="mb-1 ml-5 border-l border-edge"
                       // The face stays lit while its readings are worked. Hovering one
                       // of them is still a question about *that face* — which of these
                       // cuts it — so lighting the reading's other faces would answer a

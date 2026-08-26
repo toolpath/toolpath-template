@@ -37,14 +37,14 @@ export interface ReadingRowProps {
 /** The classes the row wears, shared for the same reason its markup is. */
 export function readingRowClass(chosen: boolean): string {
   return `flex min-w-0 flex-1 items-center gap-2 rounded-r px-2 py-1 text-left text-2xs transition ${
-    chosen ? 'bg-info/15 text-info' : 'text-zinc-400 hover:bg-zinc-950/60'
+    chosen ? 'bg-info/15 text-info' : 'text-ink-muted hover:bg-ground/60'
   }`
 }
 
 export function ReadingRow({ reading, score, showDirection = false }: ReadingRowProps) {
   return (
     <>
-      <span className="shrink-0 text-zinc-500">
+      <span className="shrink-0 text-ink-dim">
         <KindIcon featureType={reading.featureType} kind={kindOf(reading)} />
       </span>
       <span className="flex-1 truncate">{typeLabel(reading.featureType)}</span>
@@ -59,7 +59,7 @@ export function ReadingRow({ reading, score, showDirection = false }: ReadingRow
         </span>
       ) : null}
       {showDirection ? (
-        <span className="shrink-0 text-zinc-500">{directionLabel(reading.machiningDirection)}</span>
+        <span className="shrink-0 text-ink-dim">{directionLabel(reading.machiningDirection)}</span>
       ) : null}
       <ScoreBadge score={score} />
     </>

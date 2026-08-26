@@ -238,7 +238,7 @@ describe('a settled reading still says what it holds', () => {
   it('greys only the pass it is not holding', () => {
     settledHoldingRough()
 
-    expect(button('F').className).toContain('text-zinc-600')
+    expect(button('F').className).toContain('text-ink-faint')
     expect(button('F').className).not.toContain('text-info')
   })
 

@@ -48,13 +48,13 @@ export const PassButtons = ({
 }) => {
   const base =
     'rounded px-1.5 py-0.5 text-2xs font-bold uppercase tracking-wide transition focus:outline-none focus-visible:ring-1 focus-visible:ring-info'
-  const off = 'border border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-200'
+  const off = 'border border-edge-strong text-ink-dim hover:border-edge-hover hover:text-ink-strong'
   const on = 'border border-info bg-info/25 text-info'
   // Outlined rather than filled: it is on, and it is not finished.
   const part = 'border border-dashed border-info text-info'
 
   // Shut, and holding nothing: the press is refused on somebody else's behalf.
-  const shut = 'cursor-not-allowed border border-zinc-800 text-zinc-600'
+  const shut = 'cursor-not-allowed border border-edge text-ink-faint'
   // Shut, but holding this pass. Reason enough not to grey it.
   const stop = 'cursor-not-allowed'
 

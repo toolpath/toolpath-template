@@ -48,8 +48,8 @@ const Step = ({
   done: boolean
   children: React.ReactNode
 }) => (
-  <section className="border-t border-zinc-800 px-3 py-2 first:border-t-0">
-    <h3 className="mb-1.5 flex items-center gap-2 text-2xs font-bold uppercase tracking-wider text-zinc-500">
+  <section className="border-t border-edge px-3 py-2 first:border-t-0">
+    <h3 className="mb-1.5 flex items-center gap-2 text-2xs font-bold uppercase tracking-wider text-ink-dim">
       {/*
         Numbered because this genuinely is a sequence — the way up decides what
         the faces read as, and the faces decide what the type is guessed to be.
@@ -57,7 +57,7 @@ const Step = ({
       */}
       <span
         className={`grid size-4 place-items-center rounded-full text-2xs font-semibold ${
-          done ? 'bg-info/25 text-info' : 'bg-zinc-800 text-zinc-500'
+          done ? 'bg-info/25 text-info' : 'bg-raised text-ink-dim'
         }`}
       >
         {done ? '✓' : n}
@@ -184,7 +184,7 @@ export const CreateFeature = ({
 
     return (
       <div className="text-xs">
-        <section className="border-b border-zinc-800 px-3 py-2">
+        <section className="border-b border-edge px-3 py-2">
           <p className="mb-2 text-2xs leading-4 text-info">
             Made. It is a reading like any other now — say where it is cut from.
           </p>
@@ -200,17 +200,17 @@ export const CreateFeature = ({
               onCutFrom={(index) => onCutFrom(made.featureTag, index)}
             />
           </div>
-          <div className="flex items-center gap-1 rounded border border-zinc-800 bg-zinc-950/40 pr-1">
-            <span className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1 text-2xs text-zinc-400">
-              <span className="shrink-0 text-zinc-500">
+          <div className="flex items-center gap-1 rounded border border-edge bg-ground/40 pr-1">
+            <span className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1 text-2xs text-ink-muted">
+              <span className="shrink-0 text-ink-dim">
                 <KindIcon featureType={made.featureType} kind={kindOf(made)} />
               </span>
               <span className="flex-1 truncate">{typeLabel(made.featureType)}</span>
               <span className="shrink-0 rounded bg-proposed/20 px-1 text-2xs font-semibold text-proposed">
                 made
               </span>
-              <span className="shrink-0 text-zinc-500">{made.regionIdxs.length}f</span>
-              <span className="shrink-0 text-zinc-500">
+              <span className="shrink-0 text-ink-dim">{made.regionIdxs.length}f</span>
+              <span className="shrink-0 text-ink-dim">
                 {directionLabel(made.machiningDirection)}
               </span>
             </span>
@@ -254,7 +254,7 @@ export const CreateFeature = ({
   return (
     <div className="text-xs" onMouseLeave={() => onHoverFace(null)}>
       <Step n={1} title="Which way up" done={draft.direction !== null}>
-        <p className="mb-1.5 text-2xs leading-4 text-zinc-500">
+        <p className="mb-1.5 text-2xs leading-4 text-ink-dim">
           Press an arrow on the part, or pick one here.
         </p>
         <div className="flex flex-wrap gap-1">
@@ -269,7 +269,7 @@ export const CreateFeature = ({
               className={`flex items-center gap-1.5 rounded border px-1.5 py-0.5 text-2xs font-semibold transition ${
                 draft.direction === index
                   ? 'border-info bg-info/20 text-info'
-                  : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+                  : 'border-edge-strong text-ink-muted hover:border-edge-hover hover:text-ink-strong'
               }`}
             >
               <span
@@ -285,7 +285,7 @@ export const CreateFeature = ({
 
       <Step n={2} title="Which faces" done={draft.faces.length > 0}>
         {draft.direction === null ? (
-          <p className="text-2xs leading-4 text-zinc-500">Choose a way up first.</p>
+          <p className="text-2xs leading-4 text-ink-dim">Choose a way up first.</p>
         ) : (
           <>
             <div className="mb-1.5 flex flex-wrap items-center gap-1">
@@ -302,7 +302,7 @@ export const CreateFeature = ({
                 className={`rounded border px-1.5 py-0.5 text-2xs font-semibold transition ${
                   draft.chaining
                     ? 'border-info bg-info/20 text-info'
-                    : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+                    : 'border-edge-strong text-ink-muted hover:border-edge-hover hover:text-ink-strong'
                 }`}
               >
                 Chain
@@ -323,7 +323,7 @@ export const CreateFeature = ({
                       : 'Choose a face first, and this follows the surface it sits in'
                 }
                 onClick={() => onDraft({ ...draft, faces: profile, anchor: null })}
-                className="rounded border border-zinc-700 px-1.5 py-0.5 text-2xs font-semibold text-zinc-400 transition enabled:hover:border-zinc-500 enabled:hover:text-zinc-200 disabled:opacity-40"
+                className="rounded border border-edge-strong px-1.5 py-0.5 text-2xs font-semibold text-ink-muted transition enabled:hover:border-edge-hover enabled:hover:text-ink-strong disabled:opacity-40"
               >
                 {/* The count, because a greyed button that says only "Profile"
                     is one somebody reads as broken rather than as empty. */}
@@ -333,13 +333,13 @@ export const CreateFeature = ({
                 <button
                   type="button"
                   onClick={() => onDraft({ ...draft, faces: [], anchor: null })}
-                  className="ml-auto rounded border border-zinc-700 px-1.5 py-0.5 text-2xs font-medium text-zinc-400 transition hover:border-danger hover:text-danger"
+                  className="ml-auto rounded border border-edge-strong px-1.5 py-0.5 text-2xs font-medium text-ink-muted transition hover:border-danger hover:text-danger"
                 >
                   Clear
                 </button>
               ) : null}
             </div>
-            <p className="mb-1 text-2xs leading-4 text-zinc-500">
+            <p className="mb-1 text-2xs leading-4 text-ink-dim">
               {draft.chaining
                 ? 'Click a face, then another, to take the run between them.'
                 : 'Click faces on the part to add them, and again to take them off.'}
@@ -348,7 +348,7 @@ export const CreateFeature = ({
                 // press and nobody can find out why is one that reads as broken.
                 <>
                   {' '}
-                  <span className="text-zinc-400">Profile</span> follows the surface a chosen face
+                  <span className="text-ink-muted">Profile</span> follows the surface a chosen face
                   sits in, so choose one first.
                 </>
               ) : null}
@@ -372,7 +372,7 @@ export const CreateFeature = ({
               </p>
             ) : null}
             {draft.faces.length === 0 ? (
-              <p className="rounded border border-zinc-800 px-2 py-1 text-2xs text-zinc-600">
+              <p className="rounded border border-edge px-2 py-1 text-2xs text-ink-faint">
                 No faces yet.
               </p>
             ) : (
@@ -380,15 +380,15 @@ export const CreateFeature = ({
                 {draft.faces.map((idx) => (
                   <li
                     key={idx}
-                    className="flex items-center gap-2 rounded px-1 py-0.5 text-2xs text-zinc-400 hover:bg-zinc-950/40"
+                    className="flex items-center gap-2 rounded px-1 py-0.5 text-2xs text-ink-muted hover:bg-ground/40"
                     onMouseEnter={() => onHoverFace(idx)}
                     onMouseLeave={() => onHoverFace(null)}
                   >
                     <span className="flex-1 truncate">Face {idx}</span>
-                    <span className="shrink-0 text-zinc-500">
+                    <span className="shrink-0 text-ink-dim">
                       {byIdx.get(idx)?.shapeKind ?? 'unknown'}
                     </span>
-                    <span className="shrink-0 tabular-nums text-zinc-500">
+                    <span className="shrink-0 tabular-nums text-ink-dim">
                       {formatArea(byIdx.get(idx)?.area ?? 0, unit)}
                     </span>
                     <button
@@ -397,7 +397,7 @@ export const CreateFeature = ({
                       onClick={() =>
                         onDraft({ ...draft, faces: draft.faces.filter((each) => each !== idx) })
                       }
-                      className="shrink-0 rounded px-1 font-bold text-zinc-600 transition hover:text-danger"
+                      className="shrink-0 rounded px-1 font-bold text-ink-faint transition hover:text-danger"
                     >
                       ✕
                     </button>
@@ -422,7 +422,7 @@ export const CreateFeature = ({
           onChange={(event) =>
             onDraft({ ...draft, featureType: event.target.value || null, named: true })
           }
-          className="w-full rounded border border-zinc-700 bg-zinc-950 px-1.5 py-1 text-2xs text-zinc-200"
+          className="w-full rounded border border-edge-strong bg-ground px-1.5 py-1 text-2xs text-ink-strong"
         >
           <option value="">Choose a type…</option>
           {types.map((type) => (
@@ -432,7 +432,7 @@ export const CreateFeature = ({
           ))}
         </select>
         {guesses.length === 0 ? null : (
-          <p className="mt-1.5 text-2xs leading-4 text-zinc-500">
+          <p className="mt-1.5 text-2xs leading-4 text-ink-dim">
             {draft.named ? 'These faces read as' : 'Guessed —'}{' '}
             {guesses.slice(0, 3).map((guess, at) => (
               <span key={guess.featureType}>
@@ -441,7 +441,7 @@ export const CreateFeature = ({
                   type="button"
                   onClick={() => onDraft({ ...draft, featureType: guess.featureType, named: true })}
                   className={`rounded underline decoration-dotted underline-offset-2 transition hover:text-info ${
-                    draft.featureType === guess.featureType ? 'text-info' : 'text-zinc-300'
+                    draft.featureType === guess.featureType ? 'text-info' : 'text-ink-body'
                   }`}
                 >
                   {typeLabel(guess.featureType)}
@@ -516,13 +516,13 @@ export const CreateFeature = ({
                       type="button"
                       data-row={feature.featureTag}
                       onClick={() => onChoose(feature.featureTag)}
-                      className="flex min-w-0 flex-1 items-center gap-2 rounded-r px-2 py-1 text-left text-2xs text-zinc-400 transition hover:bg-zinc-950/60"
+                      className="flex min-w-0 flex-1 items-center gap-2 rounded-r px-2 py-1 text-left text-2xs text-ink-muted transition hover:bg-ground/60"
                     >
-                      <span className="shrink-0 text-zinc-500">
+                      <span className="shrink-0 text-ink-dim">
                         <KindIcon featureType={feature.featureType} kind={kindOf(feature)} />
                       </span>
                       <span className="flex-1 truncate">{typeLabel(feature.featureType)}</span>
-                      <span className="shrink-0 text-zinc-500">
+                      <span className="shrink-0 text-ink-dim">
                         {directionLabel(feature.machiningDirection)}
                       </span>
                       {vector ? (
@@ -530,7 +530,7 @@ export const CreateFeature = ({
                           className={`shrink-0 rounded px-1 text-2xs font-semibold ${
                             relationTo(vector, feature.machiningDirection) === 'same'
                               ? 'bg-warning/20 text-warning'
-                              : 'bg-zinc-800 text-zinc-400'
+                              : 'bg-raised text-ink-muted'
                           }`}
                         >
                           {relationTo(vector, feature.machiningDirection) === 'same'
@@ -559,8 +559,8 @@ export const CreateFeature = ({
         yet mapped, which is a real state and the one the next screen offers to
         fix.
       */}
-      <div className="flex items-center gap-2 border-t border-zinc-800 px-3 py-2">
-        <span className="text-2xs font-bold uppercase tracking-wider text-zinc-500">Cut it</span>
+      <div className="flex items-center gap-2 border-t border-edge px-3 py-2">
+        <span className="text-2xs font-bold uppercase tracking-wider text-ink-dim">Cut it</span>
         <PassButtons
           label={vector ? directionLabel(vector) : 'this way up'}
           rough={draft.passes.includes('rough')}

@@ -30,12 +30,12 @@ export function panelButtonClass({
   const base =
     'rounded border px-2 py-1 text-2xs font-bold uppercase tracking-wider transition disabled:opacity-40'
 
-  if (pressed) return `${base} border-info bg-info/10 text-zinc-200`
+  if (pressed) return `${base} border-info bg-info/10 text-ink-strong`
   if (tone === 'danger') {
-    return `${base} border-zinc-800 text-zinc-400 enabled:hover:border-danger enabled:hover:text-danger`
+    return `${base} border-edge text-ink-muted enabled:hover:border-danger enabled:hover:text-danger`
   }
 
-  return `${base} border-zinc-800 text-zinc-400 enabled:hover:border-zinc-600 enabled:hover:bg-zinc-950/40 enabled:hover:text-zinc-200`
+  return `${base} border-edge text-ink-muted enabled:hover:border-edge-strong enabled:hover:bg-ground/40 enabled:hover:text-ink-strong`
 }
 
 /**
@@ -63,11 +63,11 @@ export function barButtonClass(pressed: boolean, level: 'view' | 'within' = 'vie
    */
   if (level === 'within') {
     return pressed
-      ? `${base} bg-zinc-100/15 text-zinc-100`
-      : `${base} text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300`
+      ? `${base} bg-ink/15 text-ink`
+      : `${base} text-ink-dim hover:bg-surface hover:text-ink-body`
   }
 
   return pressed
     ? `${base} bg-info/20 text-info`
-    : `${base} text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100`
+    : `${base} text-ink-muted hover:bg-surface hover:text-ink`
 }

@@ -28,7 +28,7 @@ export const CutFrom = ({
 
   return (
     <div className="flex flex-wrap items-center gap-1">
-      <span className="mr-1 text-2xs font-bold uppercase tracking-wider text-zinc-500">
+      <span className="mr-1 text-2xs font-bold uppercase tracking-wider text-ink-dim">
         Cut from
       </span>
       {directions.map((direction, index) => {
@@ -44,7 +44,7 @@ export const CutFrom = ({
             className={`flex items-center gap-1.5 rounded border px-1.5 py-0.5 text-2xs font-semibold transition ${
               holds
                 ? 'border-info bg-info/20 text-info'
-                : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+                : 'border-edge-strong text-ink-muted hover:border-edge-hover hover:text-ink-strong'
             }`}
           >
             <span

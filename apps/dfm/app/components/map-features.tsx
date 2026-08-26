@@ -132,7 +132,7 @@ const ModeToggle = ({
 }
 
 const Hint = ({ children }: { children: ReactNode }) => (
-  <p className="px-1 py-3 text-2xs leading-4 text-zinc-500">{children}</p>
+  <p className="px-1 py-3 text-2xs leading-4 text-ink-dim">{children}</p>
 )
 
 /**
@@ -166,14 +166,14 @@ const PanelGuide = ({ mode }: { mode: PickMode }) => {
   ]
 
   return (
-    <div className="flex flex-col gap-2 px-1 py-3 text-2xs leading-4 text-zinc-500">
+    <div className="flex flex-col gap-2 px-1 py-3 text-2xs leading-4 text-ink-dim">
       {rows.map((row) => (
         <p key={row.key} className="flex gap-1.5">
-          <span className={`mt-px shrink-0 ${row.key === mode ? 'text-info' : 'text-zinc-600'}`}>
+          <span className={`mt-px shrink-0 ${row.key === mode ? 'text-info' : 'text-ink-faint'}`}>
             {row.icon}
           </span>
           <span>
-            <span className={`font-semibold ${row.key === mode ? 'text-info' : 'text-zinc-300'}`}>
+            <span className={`font-semibold ${row.key === mode ? 'text-info' : 'text-ink-body'}`}>
               {row.name}
             </span>{' '}
             — {row.note}
@@ -189,13 +189,13 @@ const PanelGuide = ({ mode }: { mode: PickMode }) => {
         unmentioned because there was nowhere to mention it — a row is not a
         place for a sentence about rows.
       */}
-      <p className="mt-1 border-t border-zinc-800 pt-2 text-zinc-600">
+      <p className="mt-1 border-t border-edge pt-2 text-ink-faint">
         Press the pencil on any row to edit that feature: its faces open below, and clicking a face
         on the part adds it or takes it out.
       </p>
 
-      <p className="text-zinc-600">
-        <span className="font-semibold text-zinc-500">Create</span> draws a feature the Engine did
+      <p className="text-ink-faint">
+        <span className="font-semibold text-ink-dim">Create</span> draws a feature the Engine did
         not report. Rarely needed — try the two above first.
       </p>
     </div>
@@ -257,7 +257,7 @@ const GroupHeader = ({
   const tags = readings.map((feature) => feature.featureTag)
 
   return (
-    <header className="flex items-center gap-2 border-b border-zinc-800 pb-0.5">
+    <header className="flex items-center gap-2 border-b border-edge pb-0.5">
       <button
         type="button"
         /*
@@ -276,7 +276,7 @@ const GroupHeader = ({
         onFocus={() => onHighlightDirection(index, tags)}
         onClick={() => onHighlightDirection(index, tags)}
         className={`flex min-w-0 flex-1 items-center gap-2 rounded text-left transition ${
-          highlighted === index ? 'text-info' : 'text-zinc-200 hover:text-zinc-50'
+          highlighted === index ? 'text-info' : 'text-ink-strong hover:text-ink'
         }`}
       >
         <span
@@ -285,7 +285,7 @@ const GroupHeader = ({
           style={{ background: directionCss(index) }}
         />
         <span className="flex-1 text-2xs font-semibold">{label}</span>
-        <span className="text-2xs tabular-nums text-zinc-500">{trailing ?? readings.length}</span>
+        <span className="text-2xs tabular-nums text-ink-dim">{trailing ?? readings.length}</span>
       </button>
       <PassButtons
         label={`${label}, all ${String(readings.length)}`}
@@ -340,7 +340,7 @@ const HoleRow = ({
   return (
     <li
       className={`flex items-center gap-1 rounded pr-1 ${
-        isFocused ? 'bg-info/15' : 'hover:bg-zinc-950/40'
+        isFocused ? 'bg-info/15' : 'hover:bg-ground/40'
       }`}
       onMouseEnter={() => onHover([hole.featureTag])}
       onMouseLeave={() => onHover([])}
@@ -354,7 +354,7 @@ const HoleRow = ({
         onBlur={() => onHover([])}
         onClick={() => onChoose(hole.featureTag, true)}
         className={`flex min-w-0 flex-1 items-center gap-2 rounded-r py-0.5 pl-6 pr-1 text-left text-2xs transition ${
-          isFocused ? 'text-info' : 'text-zinc-500'
+          isFocused ? 'text-info' : 'text-ink-dim'
         }`}
       >
         <span className="flex-1 truncate font-mono">{hole.featureTag.slice(-6)}</span>
@@ -442,7 +442,7 @@ const ElsewhereFlag = ({
   const dot = (index: number | null) => (
     <span
       aria-hidden="true"
-      className="size-2 shrink-0 rounded-full ring-1 ring-zinc-950"
+      className="size-2 shrink-0 rounded-full ring-1 ring-ground"
       style={{ background: index === null ? '#71717a' : directionCss(index) }}
     />
   )
@@ -471,7 +471,7 @@ const ElsewhereFlag = ({
           {homes.map(({ pass, label, index }) =>
             label === null ? null : (
               <span key={pass} className="flex items-center gap-0.5">
-                <span className="text-2xs font-semibold text-zinc-500">
+                <span className="text-2xs font-semibold text-ink-dim">
                   {pass === 'rough' ? 'R' : 'F'}
                 </span>
                 {dot(index)}
@@ -619,7 +619,7 @@ const Reading = ({
          * answer it.
          */
         className={`flex items-center gap-1 rounded pr-1 ${
-          isFocused ? (inOffer ? 'bg-success/20' : 'bg-info/15') : 'hover:bg-zinc-950/40'
+          isFocused ? (inOffer ? 'bg-success/20' : 'bg-info/15') : 'hover:bg-ground/40'
         }`}
         onMouseEnter={() => onHover(tags)}
         // Paired with the enter above. Left unpaired, the part keeps a face lit
@@ -637,7 +637,7 @@ const Reading = ({
             }
             title={open ? 'Hide these holes' : 'Show these holes'}
             onClick={() => onToggle(feature.featureTag)}
-            className="w-3 shrink-0 text-2xs text-zinc-500 transition hover:text-zinc-200"
+            className="w-3 shrink-0 text-2xs text-ink-dim transition hover:text-ink-strong"
           >
             {open ? '▾' : '▸'}
           </button>
@@ -664,10 +664,10 @@ const Reading = ({
           onBlur={() => onHover([])}
           onClick={() => onChoose(feature.featureTag, false)}
           className={`flex min-w-0 flex-1 items-center gap-2 rounded-r px-1 py-1 text-left text-2xs transition ${
-            isFocused ? 'text-info' : 'text-zinc-400'
+            isFocused ? 'text-info' : 'text-ink-muted'
           } ${grouped && onToggle ? '' : 'ml-3'}`}
         >
-          <span className="shrink-0 text-zinc-500">
+          <span className="shrink-0 text-ink-dim">
             <KindIcon featureType={feature.featureType} kind="Other" />
           </span>
           {/* The count sits against the name, not out at the end of the row:
@@ -681,7 +681,7 @@ const Reading = ({
             </span>
             {grouped ? (
               <span
-                className="shrink-0 rounded bg-zinc-800 px-1 text-2xs font-semibold text-zinc-300"
+                className="shrink-0 rounded bg-raised px-1 text-2xs font-semibold text-ink-body"
                 title={`${String(group.length)} identical holes — same diameter, depth and way up`}
               >
                 ×{group.length}
@@ -701,7 +701,7 @@ const Reading = ({
           {diameter === null ? null : (
             // The tool, because it is the only thing that tells two groups of
             // the same type apart in a list.
-            <span className="shrink-0 tabular-nums text-zinc-500">
+            <span className="shrink-0 tabular-nums text-ink-dim">
               ⌀ {formatLength(diameter, unit)}
             </span>
           )}
@@ -1040,9 +1040,9 @@ export const MapFeaturesPanel = ({
    * reading by reading would make one press both assign and unassign.
    */
   return (
-    <section className="border-b border-zinc-800 bg-zinc-900 px-3 py-2 text-xs">
+    <section className="border-b border-edge bg-surface px-3 py-2 text-xs">
       <header className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-2xs font-bold uppercase tracking-wider text-zinc-400">Map features</h2>
+        <h2 className="text-2xs font-bold uppercase tracking-wider text-ink-muted">Map features</h2>
       </header>
 
       {/*
@@ -1172,7 +1172,7 @@ export const MapFeaturesPanel = ({
                     // Prunes the row, which is the group: an offer of sixteen
                     // identical holes is one suggestion to say no to.
                     onClick={() => onPrune(holes.holes)}
-                    className="shrink-0 rounded px-1 text-2xs font-bold text-zinc-500 transition hover:text-danger"
+                    className="shrink-0 rounded px-1 text-2xs font-bold text-ink-dim transition hover:text-danger"
                   >
                     ✕
                   </button>
@@ -1277,14 +1277,14 @@ export const MapFeaturesPanel = ({
                     if (openFace !== face.idx) onPickFace(face.idx)
                   }}
                   aria-expanded={openFace === face.idx}
-                  className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-2xs transition hover:bg-zinc-900"
+                  className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-2xs transition hover:bg-surface"
                   title={faceSaid(face, unit)}
                 >
-                  <span className="w-10 shrink-0 font-mono tabular-nums text-zinc-400">
+                  <span className="w-10 shrink-0 font-mono tabular-nums text-ink-muted">
                     {face.idx}
                   </span>
-                  <span className="flex-1 truncate text-zinc-500">{face.shape}</span>
-                  <span className="shrink-0 tabular-nums text-zinc-500">
+                  <span className="flex-1 truncate text-ink-dim">{face.shape}</span>
+                  <span className="shrink-0 tabular-nums text-ink-dim">
                     {formatArea(face.area, unit)}
                   </span>
                   {/*
@@ -1295,7 +1295,7 @@ export const MapFeaturesPanel = ({
                     reaches is not this list's problem to solve.
                   */}
                   {face.from.length === 0 ? (
-                    <span className="shrink-0 rounded bg-zinc-800 px-1 font-semibold text-zinc-500">
+                    <span className="shrink-0 rounded bg-raised px-1 font-semibold text-ink-dim">
                       unreached
                     </span>
                   ) : (
@@ -1304,7 +1304,7 @@ export const MapFeaturesPanel = ({
                         <span
                           key={index}
                           aria-hidden="true"
-                          className="size-2 rounded-full ring-1 ring-zinc-950"
+                          className="size-2 rounded-full ring-1 ring-ground"
                           style={{ background: directionCss(index) }}
                         />
                       ))}
@@ -1323,7 +1323,7 @@ export const MapFeaturesPanel = ({
                 */}
                 {openFace === face.idx ? (
                   face.owners.length === 0 ? (
-                    <p className="ml-10 py-1 text-2xs leading-4 text-zinc-600">
+                    <p className="ml-10 py-1 text-2xs leading-4 text-ink-faint">
                       No reading reaches this face from any way up. Nothing here can place it — it
                       is a gap in the analysis rather than in the plan.
                     </p>
@@ -1332,7 +1332,7 @@ export const MapFeaturesPanel = ({
                       // A scoping hook: the readings under one face, told apart
                       // from the face rows around them.
                       data-owners={String(face.idx)}
-                      className="mb-1 ml-10 flex flex-col gap-2 border-l border-zinc-800"
+                      className="mb-1 ml-10 flex flex-col gap-2 border-l border-edge"
                     >
                       {byDirection(directions, face.owners).map((group) => {
                         const groups = holeGroups(group.readings, true)
@@ -1350,7 +1350,7 @@ export const MapFeaturesPanel = ({
                               onHighlightDirection={onHighlightDirection}
                               onSetPass={onSetPass}
                             />
-                            <ul className="ml-2 border-l border-zinc-800">
+                            <ul className="ml-2 border-l border-edge">
                               {groups.map((holes) => (
                                 <Reading
                                   claims={claims}
@@ -1395,9 +1395,9 @@ export const MapFeaturesPanel = ({
           </Hint>
         ) : (
           <div className="mt-2">
-            <p className="mb-1 text-2xs text-zinc-500">
-              <span className="font-semibold tabular-nums text-zinc-200">{painted.size}</span> faces
-              painted · what {holdingLabel} cuts of them
+            <p className="mb-1 text-2xs text-ink-dim">
+              <span className="font-semibold tabular-nums text-ink-strong">{painted.size}</span>{' '}
+              faces painted · what {holdingLabel} cuts of them
             </p>
             {heldOffer === null ? (
               /* Said plainly rather than shown as an empty list: a way up that
@@ -1431,7 +1431,7 @@ export const MapFeaturesPanel = ({
                     onHighlightDirection={onHighlightDirection}
                     onSetPass={onSetPass}
                   />
-                  <ul className="ml-2 border-l border-zinc-800">
+                  <ul className="ml-2 border-l border-edge">
                     {holeGroups(offer.readings, false).map((holes) => (
                       <Reading
                         claims={claims}
@@ -1466,11 +1466,12 @@ export const MapFeaturesPanel = ({
       ) : (
         <>
           {faces > 1 ? (
-            <p className="mt-2 text-2xs text-zinc-500">
+            <p className="mt-2 text-2xs text-ink-dim">
               {/* Gathered, not narrowed: the faces do not have to belong to one
                   feature — see `picks.ts`. */}
               Every reading of{' '}
-              <span className="font-semibold tabular-nums text-zinc-200">{faces}</span> picked faces
+              <span className="font-semibold tabular-nums text-ink-strong">{faces}</span> picked
+              faces
             </p>
           ) : null}
           <ul
@@ -1504,7 +1505,7 @@ export const MapFeaturesPanel = ({
                     onHighlightDirection={onHighlightDirection}
                     onSetPass={onSetPass}
                   />
-                  <ul className="ml-2 border-l border-zinc-800">
+                  <ul className="ml-2 border-l border-edge">
                     {groups.map((holes) => (
                       <Reading
                         claims={claims}

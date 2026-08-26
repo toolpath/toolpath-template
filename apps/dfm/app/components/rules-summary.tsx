@@ -51,10 +51,10 @@ export const RulesSummaryPanel = ({
   return (
     <section>
       <div className="flex items-baseline gap-2">
-        <span className="font-display text-3xl font-bold leading-none text-zinc-100 tabular-nums">
+        <span className="font-display text-3xl font-bold leading-none text-ink tabular-nums">
           {summary.score}
         </span>
-        <span className="text-2xs text-zinc-400">across {summary.readings} readings</span>
+        <span className="text-2xs text-ink-muted">across {summary.readings} readings</span>
       </div>
 
       <ul className="mt-2">
@@ -63,7 +63,7 @@ export const RulesSummaryPanel = ({
             <button
               aria-pressed={band === each}
               className={`flex w-full items-center gap-2 rounded px-1 py-0.5 text-left transition ${
-                band === each ? 'bg-info/15' : 'hover:bg-zinc-950/60'
+                band === each ? 'bg-info/15' : 'hover:bg-ground/60'
               } ${summary.counts[each] === 0 ? 'opacity-40' : ''}`}
               // A count nobody can act on is a fact printed at somebody.
               onClick={() => onPickBand(band === each ? null : each)}
@@ -79,8 +79,8 @@ export const RulesSummaryPanel = ({
                 className="size-1.5 shrink-0 rounded-full"
                 style={{ background: bandCss(each) }}
               />
-              <span className="flex-1 text-zinc-300">{bandName(each)}</span>
-              <span className="font-medium tabular-nums text-zinc-100">{summary.counts[each]}</span>
+              <span className="flex-1 text-ink-body">{bandName(each)}</span>
+              <span className="font-medium tabular-nums text-ink">{summary.counts[each]}</span>
             </button>
 
             {/*
@@ -93,18 +93,18 @@ export const RulesSummaryPanel = ({
               feature say what to argue with about it.
             */}
             {band === each ? (
-              <ul className="mb-1 ml-3 border-l border-zinc-800" onMouseLeave={() => onHover([])}>
+              <ul className="mb-1 ml-3 border-l border-edge" onMouseLeave={() => onHover([])}>
                 {summary.byBand[each].map((feature) => (
                   <li key={feature.tag}>
                     <button
-                      className="flex w-full items-center gap-2 rounded py-0.5 pl-2 pr-1 text-left text-2xs text-zinc-400 transition hover:bg-zinc-950/60"
+                      className="flex w-full items-center gap-2 rounded py-0.5 pl-2 pr-1 text-left text-2xs text-ink-muted transition hover:bg-ground/60"
                       data-row={feature.tag}
                       onClick={() => onChoose(feature.tag)}
                       onFocus={() => onChoose(feature.tag)}
                       onMouseEnter={() => onHover([feature.tag])}
                       type="button"
                     >
-                      <span className="shrink-0 text-zinc-500">
+                      <span className="shrink-0 text-ink-dim">
                         <KindIcon featureType={feature.featureType} kind="Other" />
                       </span>
                       <span className="min-w-0 flex-1 truncate">{feature.label}</span>
@@ -132,7 +132,7 @@ export const RulesSummaryPanel = ({
                   </li>
                 ))}
                 {summary.byBand[each].length === 0 ? (
-                  <li className="py-0.5 pl-2 text-2xs text-zinc-600">
+                  <li className="py-0.5 pl-2 text-2xs text-ink-faint">
                     Nothing mapped landed here.
                   </li>
                 ) : null}
@@ -143,9 +143,9 @@ export const RulesSummaryPanel = ({
       </ul>
 
       <div className="mt-2 flex items-baseline gap-2 px-1">
-        <span className="flex-1 text-zinc-400">Rules that spoke</span>
+        <span className="flex-1 text-ink-muted">Rules that spoke</span>
         {/* A rule that never fired is not a rule that passed. */}
-        <span className="font-medium tabular-nums text-zinc-100">
+        <span className="font-medium tabular-nums text-ink">
           {summary.spoke} of {summary.rules}
         </span>
       </div>
@@ -164,7 +164,7 @@ export const RulesSummaryPanel = ({
             <button
               type="button"
               onClick={() => setAll((shownAll) => !shownAll)}
-              className="mt-0.5 px-1 text-2xs font-medium text-zinc-500 transition hover:text-zinc-200"
+              className="mt-0.5 px-1 text-2xs font-medium text-ink-dim transition hover:text-ink-strong"
             >
               {all ? 'Show fewer' : `Show all ${String(summary.worst.length)}`}
             </button>
@@ -187,7 +187,7 @@ const WorstRow = ({
   onHover: (tags: string[]) => void
 }) => (
   <button
-    className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-2xs text-zinc-300 hover:bg-zinc-950/60"
+    className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-2xs text-ink-body hover:bg-ground/60"
     data-row={reading.tag}
     onClick={() => onChoose(reading.tag)}
     onFocus={() => onChoose(reading.tag)}
@@ -199,13 +199,13 @@ const WorstRow = ({
       className="size-1.5 shrink-0 rounded-full"
       style={{ background: bandCss(reading.band) }}
     />
-    <span className="shrink-0 text-zinc-500">
+    <span className="shrink-0 text-ink-dim">
       <KindIcon featureType={reading.featureType} kind="Other" />
     </span>
     <span className="shrink-0 truncate">{reading.label}</span>
     {/* Which limit cost it, because the next question is always that. */}
-    <span className="min-w-0 flex-1 truncate text-zinc-500">{reading.rule}</span>
-    <span className="shrink-0 tabular-nums text-zinc-400">
+    <span className="min-w-0 flex-1 truncate text-ink-dim">{reading.rule}</span>
+    <span className="shrink-0 tabular-nums text-ink-muted">
       {reading.value === null ? '' : formatMetric(reading.value, reading.metric, unit)}
     </span>
   </button>
