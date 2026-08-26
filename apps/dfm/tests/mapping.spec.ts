@@ -126,7 +126,7 @@ test('the directions tab lists what is held, and lets a way up be dropped', asyn
   // Nothing is decided yet, so there are no confirmed directions — only the
   // invitation. Candidates are what the part offers; setups are what has been
   // chosen, and showing the two as one list would claim decisions nobody made.
-  await expect(page.getByText('Nothing is held yet')).toBeVisible()
+  await expect(page.getByText(/No features have been mapped/)).toBeVisible()
   await uncutSays(page, 4, 4)
 
   await page.getByRole('tab', { name: 'Inspector' }).click()
@@ -150,7 +150,7 @@ test('the directions tab lists what is held, and lets a way up be dropped', asyn
   // Dropping the way up gives its readings back rather than leaving them
   // pointing at a setup that no longer exists.
   await held.getByRole('button', { name: 'Remove' }).click()
-  await expect(page.getByText('Nothing is held yet')).toBeVisible()
+  await expect(page.getByText(/No features have been mapped/)).toBeVisible()
   await uncutSays(page, 4, 4)
 })
 
@@ -167,7 +167,7 @@ test('rough and finish are counted separately', async ({ page }) => {
 
 test('an arrangement arrives from one press, and clears again', async ({ page }) => {
   await page.getByRole('tab', { name: 'Directions' }).click()
-  await expect(page.getByText('Nothing is held yet')).toBeVisible()
+  await expect(page.getByText(/No features have been mapped/)).toBeVisible()
 
   await page.getByRole('button', { name: /Required, filled/ }).click()
 
@@ -180,12 +180,12 @@ test('an arrangement arrives from one press, and clears again', async ({ page })
    * cut a second time: an arrangement that took both would machine that face
    * twice and the estimate would pay for both.
    */
-  await expect(page.getByText('Nothing is held yet')).toHaveCount(0)
+  await expect(page.getByText(/No features have been mapped/)).toHaveCount(0)
   await expect(page.locator('[data-setup="−Y"]')).toContainText('1 · 50%')
   await uncutSays(page, 2, 4)
 
   await page.getByRole('button', { name: 'Clear all' }).click()
-  await expect(page.getByText('Nothing is held yet')).toBeVisible()
+  await expect(page.getByText(/No features have been mapped/)).toBeVisible()
 })
 
 test('required only takes what the part forces and leaves the rest open', async ({ page }) => {
@@ -343,12 +343,12 @@ test('a shortcut never fires while something is being typed', async ({ page }) =
   await search.press('f')
 
   await page.getByRole('tab', { name: 'Directions' }).click()
-  await expect(page.getByText('Nothing is held yet')).toBeVisible()
+  await expect(page.getByText(/No features have been mapped/)).toBeVisible()
 })
 
 test('from the rules cuts each face the way the limits like best', async ({ page }) => {
   await page.getByRole('tab', { name: 'Directions' }).click()
-  await expect(page.getByText('Nothing is held yet')).toBeVisible()
+  await expect(page.getByText(/No features have been mapped/)).toBeVisible()
 
   await page.getByRole('button', { name: /From the rules/ }).click()
   // It asks which ways up to hold before it decides anything — see the chooser
@@ -392,7 +392,7 @@ test('fill from current works the ways up already held, and buys none', async ({
 
 test('fill all is off until there is something to fill', async ({ page }) => {
   await page.getByRole('tab', { name: 'Directions' }).click()
-  await expect(page.getByText('Nothing is held yet')).toBeVisible()
+  await expect(page.getByText(/No features have been mapped/)).toBeVisible()
 
   /*
    * It works the ways up you hold, so with none held its honest answer is to
@@ -461,7 +461,7 @@ test('everything nothing cuts is one press away, and mappable from there', async
     .click()
 
   await page.getByRole('tab', { name: 'Directions' }).click()
-  await expect(page.getByText('Nothing is held yet')).toHaveCount(0)
+  await expect(page.getByText(/No features have been mapped/)).toHaveCount(0)
 })
 
 test('the arrows narrow from every way up, to the plan, to none', async ({ page }) => {
@@ -1533,10 +1533,13 @@ test('the chooser paints what the choice would cut, and repaints as it changes',
    * faces, and a forced way up is a fact rather than a recommendation. Adding
    * +Z makes it two, and the order is the order they were said in.
    */
-  await expect(page.getByText(/^1 way up$/)).toBeVisible()
+  // The count is read off the press that will spend it, which is where it is
+  // about to matter, rather than off a caption beside it.
+  await expect(page.getByRole('button', { name: 'Map features from 1 way up' })).toBeVisible()
 
   await page.getByRole('button', { name: /\+Z/ }).first().click()
-  await expect(page.getByText(/^2 ways up, in the order shown$/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Map features from 2 ways up' })).toBeVisible()
+  await expect(page.getByText(/^in the order shown$/)).toBeVisible()
 })
 
 test('the chooser draws the ticked ways up on the part', async ({ page }) => {
@@ -1606,4 +1609,85 @@ test('a settled way up is left alone by an offer', async ({ page }) => {
   await page.locator('summary', { hasText: 'Generate directions' }).click()
   await page.getByRole('button', { name: /From the rules/ }).click()
   await expect(row).toContainText('1 · 25%')
+})
+
+test('Pick directions chooses nothing for you, which is the whole of its point', async ({
+  page,
+}) => {
+  /*
+   * It shares a branch with `From the rules`, and the two differ only in what
+   * starts ticked: the rules pre-tick what the geometry forces, this starts
+   * from none — the press for somebody who already knows how they will hold
+   * the part.
+   *
+   * That made it a one-line ternary with two meaningful arms and only one of
+   * them ever exercised, so a regression in this arm would have looked exactly
+   * like the other one working.
+   */
+  await page.getByRole('tab', { name: 'Directions' }).click()
+  await page.getByRole('button', { name: /Pick directions/ }).click()
+
+  await expect(page.getByText('Which ways up will you hold?')).toBeVisible()
+
+  const rows = page.getByRole('button', { name: /% of part/ })
+  expect(await rows.count()).toBeGreaterThan(1)
+  // The difference from `From the rules`, which arrives with the required ones held.
+  await expect(page.getByRole('button', { name: /% of part/, pressed: true })).toHaveCount(0)
+
+  // And nothing has been mapped by asking.
+  await expect(page.locator('[data-setup]')).toHaveCount(0)
+})
+
+test('the chooser runs the ways up in the order it was given, and re-sorts to match', async ({
+  page,
+}) => {
+  /*
+   * A plan is a sequence a shop works through. Before the arrows it came out in
+   * the Engine's own direction order, which means nothing to anybody holding
+   * the part — and the order lived only in a badge, so the row stayed where it
+   * was while the badge claimed something else.
+   */
+  await page.getByRole('tab', { name: 'Directions' }).click()
+  await page.getByRole('button', { name: /Pick directions/ }).click()
+
+  const rows = page.getByRole('button', { name: /% of part/ })
+  await rows.nth(0).click()
+  await rows.nth(1).click()
+
+  /** The held rows, in the order they will run, read off the arrows. */
+  const runOrder = async () => {
+    const held = page.locator('li').filter({ has: page.locator('button[aria-pressed="true"]') })
+    const labels: Array<string> = []
+    for (const row of await held.all()) {
+      const move = row.locator('button[aria-label^="Run "]').first()
+      const name = (await move.getAttribute('aria-label')) ?? ''
+      labels.push(name.replace(/^Run /, '').replace(/ earlier$/, ''))
+    }
+    return labels
+  }
+
+  const before = await runOrder()
+  expect(before).toHaveLength(2)
+
+  await page.getByRole('button', { name: `Run ${before[0]!} later` }).click()
+
+  // They swap, and the list itself re-sorts rather than only the badge changing.
+  await expect(async () => {
+    expect(await runOrder()).toEqual([before[1]!, before[0]!])
+  }).toPass()
+})
+
+test('the run order the chooser was given is the order the plan comes out in', async ({ page }) => {
+  // Ticking builds an order, and confirming has to honour it — otherwise the
+  // arrows are a control over something nobody downstream reads.
+  await page.getByRole('tab', { name: 'Directions' }).click()
+  await page.getByRole('button', { name: /Pick directions/ }).click()
+
+  const rows = page.getByRole('button', { name: /% of part/ })
+  await rows.nth(0).click()
+  await rows.nth(1).click()
+
+  await page.getByRole('button', { name: 'Map features' }).click()
+
+  await expect(page.locator('[data-setup]')).toHaveCount(2)
 })

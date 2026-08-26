@@ -55,12 +55,12 @@ export const SetupChooser = ({
   onRecommend: () => void
   onCancel: () => void
 }) => (
-  <section className="mt-2 flex flex-col gap-2 rounded border border-zinc-800 bg-zinc-950/40 p-2 text-xs">
+  <section className="mt-2 flex flex-col gap-2 rounded border border-edge bg-ground/40 p-2 text-xs">
     <div>
-      <h3 className="text-2xs font-bold uppercase tracking-wider text-zinc-400">
+      <h3 className="text-2xs font-bold uppercase tracking-wider text-ink-muted">
         Which ways up will you hold?
       </h3>
-      <p className="mt-0.5 text-2xs leading-4 text-zinc-500">
+      <p className="mt-0.5 text-2xs leading-4 text-ink-dim">
         Ticking builds the order you will run them in; the arrows change it. The rules decide what
         each one cuts. Say no to a required one and the ground only it reaches stays uncut.
       </p>
@@ -96,7 +96,7 @@ export const SetupChooser = ({
                 aria-pressed={held}
                 onClick={() => onToggle(offer.index)}
                 className={`flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-2xs transition ${
-                  held ? 'bg-info/15 text-zinc-200' : 'text-zinc-500 hover:bg-zinc-900'
+                  held ? 'bg-info/15 text-ink-strong' : 'text-ink-dim hover:bg-surface'
                 }`}
               >
                 {/*
@@ -110,7 +110,7 @@ export const SetupChooser = ({
                 <span
                   aria-hidden="true"
                   className={`grid size-3.5 shrink-0 place-items-center rounded-sm border text-2xs tabular-nums ${
-                    held ? 'border-info bg-info/30 text-info' : 'border-zinc-700'
+                    held ? 'border-info bg-info/30 text-info' : 'border-edge-strong'
                   }`}
                 >
                   {held ? at + 1 : ''}
@@ -133,7 +133,7 @@ export const SetupChooser = ({
                   </span>
                 ) : null}
 
-                <span className="ml-auto shrink-0 tabular-nums text-zinc-500">
+                <span className="ml-auto shrink-0 tabular-nums text-ink-dim">
                   {offer.features} {offer.features === 1 ? 'reading' : 'readings'}
                 </span>
                 <span className="w-14 shrink-0 text-right tabular-nums">
@@ -157,7 +157,7 @@ export const SetupChooser = ({
                     onClick={() => onMove(offer.index, by)}
                     aria-label={`Run ${offer.label} ${by === -1 ? 'earlier' : 'later'}`}
                     title={`Run ${offer.label} ${by === -1 ? 'earlier' : 'later'}`}
-                    className="px-1 text-2xs leading-none text-zinc-600 transition enabled:hover:text-zinc-200 disabled:opacity-0"
+                    className="px-1 text-2xs leading-none text-ink-faint transition enabled:hover:text-ink-strong disabled:opacity-0"
                   >
                     {by === -1 ? '▲' : '▼'}
                   </button>
@@ -191,7 +191,7 @@ export const SetupChooser = ({
       faces. Without this, one contested face costs a reading every face it
       covers, and they go to whatever smaller readings come after it.
     */}
-    <label className="flex items-start gap-2 text-2xs leading-4 text-zinc-400">
+    <label className="flex items-start gap-2 text-2xs leading-4 text-ink-muted">
       <input
         type="checkbox"
         checked={partial}
@@ -199,7 +199,7 @@ export const SetupChooser = ({
         className="mt-0.5 size-3 shrink-0 accent-info"
       />
       <span>
-        <span className="font-semibold text-zinc-300">
+        <span className="font-semibold text-ink-body">
           Split a feature where another way up cuts part of it better
         </span>
         <br />
@@ -212,7 +212,7 @@ export const SetupChooser = ({
       Roughing and finishing are different jobs, and the generator has never been
       able to say so — every assignment it wrote named one setup for both.
     */}
-    <label className="flex items-start gap-2 text-2xs leading-4 text-zinc-400">
+    <label className="flex items-start gap-2 text-2xs leading-4 text-ink-muted">
       <input
         type="checkbox"
         checked={splitPasses}
@@ -220,7 +220,7 @@ export const SetupChooser = ({
         className="mt-0.5 size-3 shrink-0 accent-info"
       />
       <span>
-        <span className="font-semibold text-zinc-300">
+        <span className="font-semibold text-ink-body">
           Let roughing and finishing use different ways up
         </span>
         <br />
@@ -241,30 +241,45 @@ export const SetupChooser = ({
     <button
       type="button"
       onClick={onRecommend}
-      className="rounded border border-zinc-800 px-2 py-1.5 text-left transition hover:border-zinc-600 hover:bg-zinc-900"
+      className="rounded border border-edge px-2 py-1.5 text-left transition hover:border-edge-strong hover:bg-surface"
     >
-      <span className="block text-2xs font-semibold text-zinc-200">
+      <span className="block text-2xs font-semibold text-ink-strong">
         Or use whatever ways up the rules recommend
       </span>
-      <span className="block text-2xs leading-4 text-zinc-500">
+      <span className="block text-2xs leading-4 text-ink-dim">
         They buy one at a time on what each unlocks, which tends to spend a setup or two more than
         choosing by hand
       </span>
     </button>
 
-    <div className="flex items-center gap-1.5">
-      <span className="text-2xs text-zinc-500">
-        {chosen.length} {chosen.length === 1 ? 'way up' : 'ways up'}
-        {chosen.length > 1 ? ', in the order shown' : null}
+    {/*
+      The two ends of the decision, given room to be one.
+
+      They were a pair of small buttons crowded against the running count, which
+      read as more settings rather than as the end of the panel. A rule above
+      them says the choosing is over; the count sits at the far end where it is
+      a caption on the press rather than a label competing with it.
+
+      Cancel is quiet on purpose — leaving is always available and never the
+      thing somebody came to do — and the press that acts says what it will do
+      to how many, so the count is read where it is about to be spent.
+    */}
+    <div className="-mx-2 -mb-2 mt-1 flex items-center gap-2 border-t border-edge bg-ground/60 px-2.5 py-2">
+      <button
+        type="button"
+        onClick={onCancel}
+        className="rounded px-2 py-1 text-2xs font-medium text-ink-dim transition hover:bg-surface hover:text-ink-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-info"
+      >
+        Cancel
+      </button>
+      <span className="ml-auto text-2xs text-ink-dim">
+        {chosen.length > 1 ? 'in the order shown' : null}
       </span>
-      <span className="ml-auto flex items-center gap-1.5">
-        <Button size="sm" variant="secondary" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button size="sm" disabled={chosen.length === 0} onClick={onConfirm}>
-          Map features
-        </Button>
-      </span>
+      <Button size="md" disabled={chosen.length === 0} onClick={onConfirm}>
+        {chosen.length === 0
+          ? 'Map features'
+          : `Map features from ${String(chosen.length)} ${chosen.length === 1 ? 'way up' : 'ways up'}`}
+      </Button>
     </div>
   </section>
 )

@@ -57,16 +57,16 @@ const Done = () => (
 
 const CoverageBar = ({ label, mapped }: { label: string; mapped: number }) => (
   <div className="flex items-center gap-2">
-    <span className="w-12 shrink-0 text-2xs font-semibold uppercase tracking-wider text-zinc-500">
+    <span className="w-12 shrink-0 text-2xs font-semibold uppercase tracking-wider text-ink-dim">
       {label}
     </span>
-    <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-950">
+    <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-ground">
       <span
         className="block h-full rounded-full bg-success transition-[width]"
         style={{ width: `${String(mapped * 100)}%` }}
       />
     </span>
-    <span className="w-9 shrink-0 text-right text-2xs tabular-nums text-zinc-300">
+    <span className="w-9 shrink-0 text-right text-2xs tabular-nums text-ink-body">
       {percent(mapped)}
     </span>
   </div>
@@ -99,11 +99,11 @@ const FaceLines = ({
   unit: Unit
   onHover: (tags: string[]) => void
 }) => (
-  <ul className="ml-5 flex flex-col border-l border-zinc-800">
+  <ul className="ml-5 flex flex-col border-l border-edge">
     {facesOf(report, plan, feature, showingPass).map((row) => (
       <li
         key={row.idx}
-        className="flex items-center gap-2 py-0.5 pl-2 text-2xs text-zinc-500"
+        className="flex items-center gap-2 py-0.5 pl-2 text-2xs text-ink-dim"
         onMouseEnter={() => onHover([feature.featureTag])}
       >
         <span className="flex-1 truncate">Face {row.idx}</span>
@@ -130,7 +130,7 @@ const FaceLines = ({
               className={`grid size-3.5 place-items-center rounded-sm font-bold ${
                 row.passes.includes(pass)
                   ? 'bg-info/25 text-info'
-                  : 'border border-zinc-800 text-zinc-600'
+                  : 'border border-edge text-ink-faint'
               }`}
             >
               {pass === 'rough' ? 'R' : 'F'}
@@ -268,7 +268,7 @@ export const SetupsPanel = ({
 
   return (
     <aside
-      className="flex size-full min-h-0 flex-col overflow-y-auto bg-zinc-900 px-4 py-3 text-xs"
+      className="flex size-full min-h-0 flex-col overflow-y-auto bg-surface px-4 py-3 text-xs"
       onMouseLeave={() => onHover([])}
     >
       {/*
@@ -295,7 +295,7 @@ export const SetupsPanel = ({
         press on the summary.
       */}
       <details open={groups.length === 0} className="group">
-        <summary className="flex cursor-pointer select-none list-none items-center gap-1.5 pb-2 text-2xs font-bold uppercase tracking-wider text-zinc-400 transition hover:text-zinc-200">
+        <summary className="flex cursor-pointer select-none list-none items-center gap-1.5 pb-2 text-2xs font-bold uppercase tracking-wider text-ink-muted transition hover:text-ink-strong">
           <svg
             aria-hidden="true"
             className="size-3 shrink-0 transition-transform group-open:rotate-90"
@@ -310,7 +310,7 @@ export const SetupsPanel = ({
           </svg>
           Generate directions
           {groups.length === 0 ? null : (
-            <span className="font-sans font-normal normal-case tracking-normal text-zinc-600">
+            <span className="font-sans font-normal normal-case tracking-normal text-ink-faint">
               — {groups.length} held
             </span>
           )}
@@ -440,7 +440,7 @@ export const SetupsPanel = ({
           {left.length === 0 ? (
             <Done />
           ) : (
-            <span className="shrink-0 tabular-nums text-zinc-300">({left.length})</span>
+            <span className="shrink-0 tabular-nums text-ink-body">({left.length})</span>
           )}
         </button>
       </div>
@@ -448,7 +448,7 @@ export const SetupsPanel = ({
       <Heading>Directions</Heading>
       {groups.length === 0 ? (
         <>
-          <p className="text-xs leading-5 text-zinc-500">
+          <p className="text-xs leading-5 text-ink-dim">
             {/*
             What the four offers above actually do, in one line each.
 
@@ -458,25 +458,26 @@ export const SetupsPanel = ({
             other panel's job. So it says what the presses above it are for, and
             leaves that road to the panel that owns it.
           */}
-            Nothing is held yet. Open{' '}
-            <span className="font-semibold text-zinc-300">Generate directions</span> above and pick
-            one:
+            No features have been mapped to machining directions yet. Open{' '}
+            <span className="font-semibold text-ink-body">Generate Directions</span> to
+            automatically map features to directions, or use the right hand panel to begin mapping
+            manually (by face or by direction).
           </p>
-          <ul className="mt-1.5 flex flex-col gap-1 text-2xs leading-4 text-zinc-500">
+          <ul className="mt-1.5 flex flex-col gap-1 text-2xs leading-4 text-ink-dim">
             {GENERATORS.filter((generator) => PICKS_WAYS_UP.includes(generator.how)).map(
               (generator) => (
                 <li key={generator.how} className="flex gap-1.5">
-                  <span className="mt-px shrink-0 text-zinc-600">
+                  <span className="mt-px shrink-0 text-ink-faint">
                     {GENERATOR_ICONS[generator.icon]()}
                   </span>
                   <span>
-                    <span className="font-semibold text-zinc-300">{generator.name}</span> —{' '}
+                    <span className="font-semibold text-ink-body">{generator.name}</span> —{' '}
                     {generator.note}
                   </span>
                 </li>
               ),
             )}
-            <li className="mt-1 text-zinc-600">
+            <li className="mt-1 text-ink-faint">
               Or use the panel on the right to map features directly, by selecting faces or by
               direction.
             </li>
@@ -486,7 +487,7 @@ export const SetupsPanel = ({
         <ul className="flex flex-col gap-3">
           {groups.map((group) => (
             <li key={group.setup.id} data-setup={group.label}>
-              <header className="flex items-center gap-2 border-b border-zinc-800 pb-1">
+              <header className="flex items-center gap-2 border-b border-edge pb-1">
                 {/*
                   The row lights everything this way up cuts, for as long as it
                   is the row in hand — hovered or under the keyboard. It stops
@@ -504,7 +505,7 @@ export const SetupsPanel = ({
                   title={`${isFolded(group.setup.id) ? 'Show' : 'Hide'} what ${group.label} cuts`}
                   className="flex min-w-0 flex-1 items-center gap-2 text-left"
                 >
-                  <span aria-hidden="true" className="w-2 shrink-0 text-zinc-500">
+                  <span aria-hidden="true" className="w-2 shrink-0 text-ink-dim">
                     {isFolded(group.setup.id) ? '▸' : '▾'}
                   </span>
                   <span
@@ -512,11 +513,11 @@ export const SetupsPanel = ({
                     className="size-2 shrink-0 rounded-full"
                     style={{ background: directionCss(group.setup.directionIndex) }}
                   />
-                  <span className="min-w-0 flex-1 truncate text-xs font-semibold text-zinc-200">
+                  <span className="min-w-0 flex-1 truncate text-xs font-semibold text-ink-strong">
                     {group.setup.name}
                   </span>
                 </button>
-                <span className="shrink-0 text-2xs tabular-nums text-zinc-500">
+                <span className="shrink-0 text-2xs tabular-nums text-ink-dim">
                   {group.readings.length} · {percent(group.mapped)}
                 </span>
                 {/*
@@ -544,7 +545,7 @@ export const SetupsPanel = ({
                   // info blue, which this app spends on *what is on* — and a
                   // press that is merely available reading as a state that is
                   // active made it the loudest thing in a row it does not lead.
-                  className="shrink-0 rounded border border-zinc-700 px-1.5 py-0.5 text-2xs font-medium text-zinc-400 transition enabled:hover:border-zinc-500 enabled:hover:text-zinc-100 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600"
+                  className="shrink-0 rounded border border-edge-strong px-1.5 py-0.5 text-2xs font-medium text-ink-muted transition enabled:hover:border-edge-hover enabled:hover:text-ink disabled:cursor-not-allowed disabled:border-edge disabled:text-ink-faint"
                 >
                   Fill
                 </button>
@@ -566,7 +567,7 @@ export const SetupsPanel = ({
                   className={`shrink-0 rounded border px-1.5 py-0.5 text-2xs font-medium transition ${
                     group.setup.locked === true
                       ? 'border-info bg-info/20 text-info'
-                      : 'border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300'
+                      : 'border-edge-strong text-ink-dim hover:border-edge-hover hover:text-ink-body'
                   }`}
                 >
                   {group.setup.locked === true ? <LockIcon /> : <LockOpenIcon />}
@@ -580,7 +581,7 @@ export const SetupsPanel = ({
                       ? `${group.label} is settled — unlock it first`
                       : `Stop holding ${group.label}`
                   }
-                  className="shrink-0 rounded border border-zinc-700 px-1.5 py-0.5 text-2xs font-medium text-zinc-400 transition enabled:hover:border-danger enabled:hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
+                  className="shrink-0 rounded border border-edge-strong px-1.5 py-0.5 text-2xs font-medium text-ink-muted transition enabled:hover:border-danger enabled:hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Remove
                 </button>
@@ -589,7 +590,7 @@ export const SetupsPanel = ({
               {/* The readings this way up cuts. Walked by the same keyboard the
                   other lists use. */}
               <ul
-                className={`mt-1 ml-3 flex-col border-l border-zinc-800 ${
+                className={`mt-1 ml-3 flex-col border-l border-edge ${
                   isFolded(group.setup.id) ? 'hidden' : 'flex'
                 }`}
                 onKeyDown={(event) => moveThroughList(event)}
@@ -602,7 +603,7 @@ export const SetupsPanel = ({
                     <Fragment key={holes.key}>
                       <li
                         className={`flex items-center gap-1 rounded pr-1 ${
-                          chosen ? 'bg-info/15' : 'hover:bg-zinc-950/40'
+                          chosen ? 'bg-info/15' : 'hover:bg-ground/40'
                         }`}
                         /*
                          * A group lights **all** of its holes. It is one decision
@@ -621,7 +622,7 @@ export const SetupsPanel = ({
                               openHoles.has(holes.key) ? 'Hide these holes' : 'Show these holes'
                             }
                             onClick={() => toggleHoles(holes.key)}
-                            className="w-3 shrink-0 text-2xs text-zinc-500 transition hover:text-zinc-200"
+                            className="w-3 shrink-0 text-2xs text-ink-dim transition hover:text-ink-strong"
                           >
                             {openHoles.has(holes.key) ? '▾' : '▸'}
                           </button>
@@ -645,7 +646,7 @@ export const SetupsPanel = ({
                             }
                             title={openHoles.has(holes.key) ? 'Hide its faces' : 'Show its faces'}
                             onClick={() => toggleHoles(holes.key)}
-                            className="w-3 shrink-0 text-2xs text-zinc-500 transition hover:text-zinc-200"
+                            className="w-3 shrink-0 text-2xs text-ink-dim transition hover:text-ink-strong"
                           >
                             {openHoles.has(holes.key) ? '▾' : '▸'}
                           </button>
@@ -703,7 +704,7 @@ export const SetupsPanel = ({
                         ? holes.holes.map((hole) => (
                             <li
                               key={hole.featureTag}
-                              className="ml-5 flex items-center gap-2 border-l border-zinc-800 py-0.5 pl-2 text-2xs text-zinc-500"
+                              className="ml-5 flex items-center gap-2 border-l border-edge py-0.5 pl-2 text-2xs text-ink-dim"
                               onMouseEnter={() => onHover([hole.featureTag])}
                               onMouseLeave={() => onHover(holes.holes.map((h) => h.featureTag))}
                             >
@@ -712,7 +713,7 @@ export const SetupsPanel = ({
                                 data-row={hole.featureTag}
                                 onFocus={() => onChoose(hole.featureTag)}
                                 onClick={() => onChoose(hole.featureTag)}
-                                className="flex-1 truncate text-left font-mono transition hover:text-zinc-200"
+                                className="flex-1 truncate text-left font-mono transition hover:text-ink-strong"
                               >
                                 {hole.featureTag.slice(-6)}
                               </button>
