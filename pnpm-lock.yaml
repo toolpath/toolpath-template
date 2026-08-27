@@ -63,8 +63,8 @@ importers:
         specifier: file:../../vendor/toolpath-ui-0.1.0.tgz
         version: file:vendor/toolpath-ui-0.1.0.tgz(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)
       '@toolpath/viewer':
-        specifier: file:../../vendor/toolpath-viewer-0.3.1.tgz
-        version: file:vendor/toolpath-viewer-0.3.1.tgz(@react-three/drei@10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)
+        specifier: 0.4.0
+        version: 0.4.0(@react-three/drei@10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)
       eventsource-parser:
         specifier: 4.0.0
         version: 4.0.0
@@ -1082,9 +1082,8 @@ packages:
       react-dom: ^19.2.0
       tailwindcss: ^4.0.0
 
-  '@toolpath/viewer@file:vendor/toolpath-viewer-0.3.1.tgz':
-    resolution: {integrity: sha512-q5s+vZGGhKggkhzbY1rKDA4WMa+yxRxymrPb09E2kb7G7v79RcwCT0bnAUfPnjDiSJIur2nKR06RD9bah47uOQ==, tarball: file:vendor/toolpath-viewer-0.3.1.tgz}
-    version: 0.3.1
+  '@toolpath/viewer@0.4.0':
+    resolution: {integrity: sha512-BdPF4u9enq7/2J/7TOfvl7W+u4Go4wbdDYsBy3MPzIiQPq7snN7P5sE0jKrHRr7k0e+a2O1hJfigTLs6T6Wmnw==}
     peerDependencies:
       '@react-three/drei': ^10.7.8
       '@react-three/fiber': ^9.7.0
@@ -3716,7 +3715,7 @@ snapshots:
       - '@emotion/react'
       - '@types/react'
 
-  '@toolpath/viewer@file:vendor/toolpath-viewer-0.3.1.tgz(@react-three/drei@10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)':
+  '@toolpath/viewer@0.4.0(@react-three/drei@10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)':
     dependencies:
       '@react-three/drei': 10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)
       '@react-three/fiber': 9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)

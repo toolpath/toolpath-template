@@ -21,7 +21,7 @@
     "@react-three/fiber": "9.7.0",
     "@toolpath/api": "0.2.3",
     "@toolpath/ui": "file:../../vendor/toolpath-ui-0.1.0.tgz",
-    "@toolpath/viewer": "file:../../vendor/toolpath-viewer-0.3.1.tgz",
+    "@toolpath/viewer": "0.4.0",
     "eventsource-parser": "4.0.0",
     "hono": "4.13.0",
     "isbot": "^5",

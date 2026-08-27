@@ -123,9 +123,9 @@ And a third, which everything past the parity plan is downstream of:
 | `@toolpath/viewer`                  | Painting, picking, arrows, camera, cube, section — app-agnostic      |
 
 Every path above is under `apps/dfm/`. The last row is the exception: the viewer
-is a published package, vendored into this repository as a tarball and pinned in
-`apps/dfm/package.json`. It has no source here, so a change to painting or
-picking is a change to that package rather than an edit in this tree.
+is a published npm package, version-pinned in `apps/dfm/package.json`. It has no
+source here, so a change to painting or picking is a change to that package
+rather than an edit in this tree.
 
 ## Testing
 
