@@ -27,19 +27,42 @@ const cut = (page: Page, option: string) =>
     .getByRole('group', { name: 'Clicking a face' })
     .getByRole('button', { name: option, exact: true })
 
+/**
+ * Two frames, rather than a guess at how long a render takes.
+ *
+ * A pick is a discrete event, so React commits it before the next paint; asking
+ * the browser for two frames waits exactly as long as this machine needs to
+ * draw them and no longer. The old fixed 150 ms was both slower than that here
+ * and shorter than it on a loaded CI runner.
+ */
+const drawn = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<void>((settle) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => settle()))
+      }),
+  )
+
 const at = async (page: Page, point: { x: number; y: number }, modifier?: 'Meta') => {
   const box = (await page.locator('canvas').boundingBox())!
   if (modifier) await page.keyboard.down(modifier)
   await page.mouse.click(box.x + box.width * point.x, box.y + box.height * point.y)
   if (modifier) await page.keyboard.up(modifier)
-  await page.waitForTimeout(150)
+  await drawn(page)
 }
 
 test.beforeEach(async ({ page }) => {
   await openCube(page)
   await expect(page.locator('canvas')).toBeVisible()
-  // The mesh arrives over the network and is parsed before anything is pickable.
-  await page.waitForTimeout(1200)
+  /*
+   * The mesh arrives over the network and is parsed before anything is
+   * pickable, and the size readout is the app's own word that it got there:
+   * `PartSize` measures the scene on a frame and reports only a non-empty box,
+   * so this button exists exactly when there is geometry to click on. Waiting
+   * on it costs what the mesh costs instead of a fixed 1200 ms that was a coin
+   * flip on a cold runner.
+   */
+  await expect(page.getByRole('button', { name: /^Part size,/ })).toBeVisible()
 })
 
 test('a click lists every reading that owns the face', async ({ page }) => {
@@ -89,7 +112,9 @@ test('a right click on the part opens nothing, because no list asked', async ({ 
   await page.mouse.click(box.x + box.width * FACE.x, box.y + box.height * FACE.y, {
     button: 'right',
   })
-  await page.waitForTimeout(250)
+  // Proving a thing did *not* happen needs the app given its chance to do it,
+  // and two frames is that chance measured in the browser's own terms.
+  await drawn(page)
 
   await expect(page.getByText(/Click a face on the part, or a feature in the list/)).toBeVisible()
 })
@@ -779,7 +804,17 @@ test('every colour in the app answers to the theme', async ({ page }) => {
    * should still be dark once the shell is light.
    */
   await page.getByRole('button', { name: /press for light/ }).click()
-  await page.waitForTimeout(300)
+  /*
+   * Every surface here carries a colour `transition`, and a background sampled
+   * part-way through one is neither theme. Waiting on the transitions
+   * themselves rather than on 300 ms means this reads the settled page however
+   * long the machine took to get there — and stops reading a half-faded grey as
+   * a missed conversion.
+   */
+  await expect(page.locator('html')).not.toHaveClass(/dark/)
+  await page.evaluate(() =>
+    Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => {}))),
+  )
 
   const dark = await page.evaluate(() => {
     /*

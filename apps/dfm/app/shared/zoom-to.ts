@@ -13,10 +13,9 @@ export type ZoomTo = 'centre' | 'cursor'
 
 const STORAGE_KEY = 'part-viewer.zoom-to'
 
-export function loadZoomTo(storage: Pick<Storage, 'getItem'> | null): ZoomTo {
-  return storage?.getItem(STORAGE_KEY) === 'centre' ? 'centre' : 'cursor'
-}
+export const loadZoomTo = (storage: Pick<Storage, 'getItem'> | null): ZoomTo =>
+  storage?.getItem(STORAGE_KEY) === 'centre' ? 'centre' : 'cursor'
 
-export function saveZoomTo(storage: Pick<Storage, 'setItem'> | null, zoomTo: ZoomTo): void {
+export const saveZoomTo = (storage: Pick<Storage, 'setItem'> | null, zoomTo: ZoomTo): void => {
   storage?.setItem(STORAGE_KEY, zoomTo)
 }

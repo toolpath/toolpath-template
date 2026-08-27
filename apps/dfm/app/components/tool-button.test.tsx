@@ -20,7 +20,7 @@ describe('ToolButton', () => {
     )
 
     const button = screen.getByRole('button', { name: 'Fit to part' })
-    expect(button.getAttribute('title')).toBe('Fit to part')
+    expect(button).toHaveAttribute('title', 'Fit to part')
   })
 
   it('announces a toggle rather than only colouring it', () => {
@@ -42,7 +42,7 @@ describe('ToolButton', () => {
 
     // Not `aria-pressed="false"`, which would announce an off switch where
     // there is only an action.
-    expect(screen.getByRole('button').hasAttribute('aria-pressed')).toBe(false)
+    expect(screen.getByRole('button')).not.toHaveAttribute('aria-pressed')
   })
 
   it('presses', () => {

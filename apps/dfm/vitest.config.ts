@@ -13,6 +13,6 @@ export default defineConfig({
       },
     },
     include: ['app/**/*.test.{ts,tsx}', 'server/**/*.test.ts'],
-    setupFiles: ['./test.setup.ts'],
+    setupFiles: ['./test.setup.ts', './test.matchers.ts'],
   },
 })

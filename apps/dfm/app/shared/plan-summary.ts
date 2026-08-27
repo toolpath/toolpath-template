@@ -192,13 +192,13 @@ export interface UncutFace {
  * on area rather than on face number for that reason alone: face order is the
  * Engine's, and it means nothing to the person reading.
  */
-export function uncutRows(
+export const uncutRows = (
   report: PartFaces,
   directions: ReadonlyArray<Vec3>,
   features: ReadonlyArray<PartFeature>,
   plan: SetupPlan,
   pass: Pass = 'rough',
-): Array<UncutFace> {
+): Array<UncutFace> => {
   const byIdx = new Map(report.regions.map((region) => [region.idx, region]))
   const index = new Map(directions.map((direction, at) => [directionKey(direction), at]))
 

@@ -79,28 +79,28 @@ describe('adding a face to a reading', () => {
     // Nothing to arm: in here a click has only one meaning.
     editor()
 
-    expect(screen.queryByRole('button', { name: 'Add a face' })).toBeNull()
-    expect(screen.getByRole('group', { name: 'Clicking a face' })).toBeTruthy()
-    expect(screen.getByText(/Puts it in or takes it out/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Add a face' })).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Clicking a face' })).toBeInTheDocument()
+    expect(screen.getByText(/Puts it in or takes it out/)).toBeInTheDocument()
   })
 
   it('lists the handed face, so there is a row to take it back off', () => {
     editor(handed)
 
-    expect(screen.getByRole('checkbox', { name: /face 2 /i })).toBeTruthy()
+    expect(screen.getByRole('checkbox', { name: /face 2 /i })).toBeInTheDocument()
   })
 
   it('marks it as added, because an unmarked row would read as the Engine own answer', () => {
     editor(handed)
 
-    expect(screen.getByText('added')).toBeTruthy()
+    expect(screen.getByText('added')).toBeInTheDocument()
   })
 
   it('counts it among the reading faces', () => {
     // One of the profile's own two is cut, plus the one handed to it.
     editor(handed)
 
-    expect(screen.getByText('1 of 3 faces')).toBeTruthy()
+    expect(screen.getByText('1 of 3 faces')).toBeInTheDocument()
   })
 })
 
@@ -116,7 +116,7 @@ describe('what the list highlights', () => {
   it('leaves a cut face unfilled, because the tick already says it is cut', () => {
     editor(setFaceCut(EMPTY_PLAN, TEST_DIRECTIONS, features, profile, PASSES, 0, true))
 
-    expect(screen.getByRole('checkbox', { name: /face 0 /i, checked: true })).toBeTruthy()
+    expect(screen.getByRole('checkbox', { name: /face 0 /i, checked: true })).toBeInTheDocument()
     expect(rowFor(/face 0 /i)).not.toContain('bg-info')
   })
 
@@ -144,7 +144,7 @@ describe('what the tick says', () => {
     editor(finishedOnly)
 
     expect(screen.getByRole('checkbox', { name: /face 0 /i })).toHaveProperty('checked', true)
-    expect(screen.getByText('2 faces')).toBeTruthy()
+    expect(screen.getByText('2 faces')).toBeInTheDocument()
   })
 
   it('reads mixed when only one pass holds it, like the pass buttons do', () => {
@@ -185,8 +185,8 @@ describe('the order the faces come in', () => {
     const roughed = setFaceCut(EMPTY_PLAN, TEST_DIRECTIONS, features, profile, ['rough'], 1, true)
     editor(roughed)
 
-    expect(heading('Roughed only')).toBeTruthy()
-    expect(heading('Not cut here')).toBeTruthy()
+    expect(heading('Roughed only')).toBeInTheDocument()
+    expect(heading('Not cut here')).toBeInTheDocument()
   })
 
   it('puts the faces it cuts above the ones it does not', () => {
@@ -201,8 +201,8 @@ describe('the order the faces come in', () => {
     // words mean "this is what green would mean".
     editor()
 
-    expect(heading('Roughed only')).toBeNull()
-    expect(heading('Finished only')).toBeNull()
+    expect(heading('Roughed only')).not.toBeInTheDocument()
+    expect(heading('Finished only')).not.toBeInTheDocument()
   })
 
   it('is the key to the part as well as a list', () => {
@@ -210,7 +210,7 @@ describe('the order the faces come in', () => {
     // says what colour that face is wearing without a second lookup.
     editor(setFaceCut(EMPTY_PLAN, TEST_DIRECTIONS, features, profile, PASSES, 1, true))
 
-    expect(heading('Roughed and finished')).toBeTruthy()
+    expect(heading('Roughed and finished')).toBeInTheDocument()
   })
 })
 
@@ -232,7 +232,7 @@ describe('a face handed to the reading being edited', () => {
     editor(handed)
     fireEvent.click(screen.getByRole('button', { name: /Show what else covers face 2/ }))
 
-    expect(screen.getByText('this one')).toBeTruthy()
+    expect(screen.getByText('this one')).toBeInTheDocument()
   })
 })
 
@@ -272,9 +272,9 @@ describe('the sweep that is left', () => {
   it('offers to clear, and to fill what nothing else is cutting', () => {
     editor(setFaceCut(EMPTY_PLAN, TEST_DIRECTIONS, features, profile, PASSES, 0, true))
 
-    expect(screen.queryByRole('button', { name: 'Select all' })).toBeNull()
-    expect(screen.getByRole('button', { name: /All unmapped/ })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Clear all' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Select all' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /All unmapped/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Clear all' })).toBeInTheDocument()
   })
 
   it('hands the clear back', () => {
@@ -365,8 +365,8 @@ describe('a face roughed here and finished elsewhere', () => {
     )
     editor(split)
 
-    expect(screen.getByTitle('Roughed here, as this reading')).toBeTruthy()
-    expect(screen.getByTitle(/^Finished as .* from /)).toBeTruthy()
+    expect(screen.getByTitle('Roughed here, as this reading')).toBeInTheDocument()
+    expect(screen.getByTitle(/^Finished as .* from /)).toBeInTheDocument()
   })
 })
 
@@ -480,7 +480,7 @@ describe('what the colours on the part mean', () => {
 
     const key = screen.getByRole('list', { name: 'What the colours mean' })
     for (const state of ['Roughed and finished', 'Roughed only', 'Finished only', 'Not cut here']) {
-      expect(within(key).getByText(state)).toBeTruthy()
+      expect(within(key).getByText(state)).toBeInTheDocument()
     }
   })
 
@@ -492,7 +492,11 @@ describe('what the colours on the part mean', () => {
     const arming = screen.getByRole('group', { name: 'Clicking a face' })
     const key = screen.getByRole('list', { name: 'What the colours mean' })
 
-    expect(arming.compareDocumentPosition(key) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // A bit out of a mask rather than an element, so it is compared to the bit
+    // it is testing for: `compareDocumentPosition` returns 0 or exactly this.
+    expect(arming.compareDocumentPosition(key) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
   })
 })
 
@@ -514,7 +518,7 @@ describe('a reading cut from a settled way up', () => {
   it('says which way up is settled, rather than failing quietly', () => {
     editor(settled())
 
-    expect(screen.getByText(/which is settled/)).toBeTruthy()
+    expect(screen.getByText(/which is settled/)).toBeInTheDocument()
   })
 
   // The answer to "I want to change this" is almost always "then unsettle it",
@@ -563,6 +567,6 @@ describe('a reading cut from a settled way up', () => {
   it('leaves the faces on screen', () => {
     editor(settled())
 
-    expect(screen.getByRole('list', { name: 'Faces' })).toBeTruthy()
+    expect(screen.getByRole('list', { name: 'Faces' })).toBeInTheDocument()
   })
 })

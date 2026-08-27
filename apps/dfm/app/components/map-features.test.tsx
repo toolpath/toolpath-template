@@ -128,7 +128,7 @@ describe('what the list is showing', () => {
 
     const toggle = screen.getByRole('group', { name: 'What this list shows' })
     for (const each of within(toggle).getAllByRole('button')) {
-      expect(each.getAttribute('aria-pressed')).not.toBe('true')
+      expect(each).not.toHaveAttribute('aria-pressed', 'true')
     }
   })
 
@@ -155,8 +155,8 @@ describe('by face', () => {
     // Never resolve a multi-face pick silently to a best guess (§3.8).
     panel({ candidates: [pocket, profile] })
 
-    expect(screen.getByText('Pocket')).toBeTruthy()
-    expect(screen.getByText('Profile')).toBeTruthy()
+    expect(screen.getByText('Pocket')).toBeInTheDocument()
+    expect(screen.getByText('Profile')).toBeInTheDocument()
   })
 
   it('groups the readings by the way up they are read from', () => {
@@ -166,8 +166,8 @@ describe('by face', () => {
 
     // +Z holds the pocket and the wall; −Z holds the profile. The direction is
     // said once, in the header, rather than repeated on every row.
-    expect(screen.getByText('+Z')).toBeTruthy()
-    expect(screen.getByText('−Z')).toBeTruthy()
+    expect(screen.getByText('+Z')).toBeInTheDocument()
+    expect(screen.getByText('−Z')).toBeInTheDocument()
     expect(screen.getAllByText('+Z')).toHaveLength(1)
   })
 
@@ -182,15 +182,15 @@ describe('by face', () => {
      */
     panel({ candidates: [], faces: 0 })
 
-    expect(screen.getByText(/Click a face on the part to see every feature/)).toBeTruthy()
-    expect(screen.getByText(/Click a candidate direction arrow/)).toBeTruthy()
-    expect(screen.queryByText(/Hold ⌘ or Ctrl/)).toBeNull()
+    expect(screen.getByText(/Click a face on the part to see every feature/)).toBeInTheDocument()
+    expect(screen.getByText(/Click a candidate direction arrow/)).toBeInTheDocument()
+    expect(screen.queryByText(/Hold ⌘ or Ctrl/)).not.toBeInTheDocument()
   })
 
   it('says how to edit a feature, which is the thing nobody finds', () => {
     panel({ candidates: [], faces: 0 })
 
-    expect(screen.getByText(/Press the pencil on any row to edit that feature/)).toBeTruthy()
+    expect(screen.getByText(/Press the pencil on any row to edit that feature/)).toBeInTheDocument()
   })
 
   it('keeps Create quiet, because it is rarely the answer', () => {
@@ -199,7 +199,7 @@ describe('by face', () => {
     // roads.
     panel({ candidates: [], faces: 0 })
 
-    expect(screen.getByText(/Rarely needed/)).toBeTruthy()
+    expect(screen.getByText(/Rarely needed/)).toBeInTheDocument()
   })
 
   it('gathers readings across faces rather than narrowing to a shared one', () => {
@@ -207,9 +207,9 @@ describe('by face', () => {
     // "what work is here", not "what are these both part of".
     panel({ candidates: [pocket, profile], faces: 2 })
 
-    expect(screen.getByText(/Every reading of/)).toBeTruthy()
-    expect(screen.getByText('Pocket')).toBeTruthy()
-    expect(screen.getByText('Profile')).toBeTruthy()
+    expect(screen.getByText(/Every reading of/)).toBeInTheDocument()
+    expect(screen.getByText('Pocket')).toBeInTheDocument()
+    expect(screen.getByText('Profile')).toBeInTheDocument()
   })
 })
 
@@ -217,7 +217,7 @@ describe('by direction', () => {
   it('asks for a way up before it asks for faces', () => {
     panel({ mode: 'direction' })
 
-    expect(screen.getByText(/Click a candidate direction arrow/)).toBeTruthy()
+    expect(screen.getByText(/Click a candidate direction arrow/)).toBeInTheDocument()
   })
 
   it('shows what the held way up cuts, and only that one', () => {
@@ -225,9 +225,9 @@ describe('by direction', () => {
     // asks somebody to make it twice.
     panel({ mode: 'direction', holding: 0, painted: new Set([0, 1]) })
 
-    expect(screen.getByText(/faces\s*painted/)).toBeTruthy()
-    expect(screen.getByText('+Z')).toBeTruthy()
-    expect(screen.queryByText('−Z')).toBeNull()
+    expect(screen.getByText(/faces\s*painted/)).toBeInTheDocument()
+    expect(screen.getByText('+Z')).toBeInTheDocument()
+    expect(screen.queryByText('−Z')).not.toBeInTheDocument()
   })
 
   it('says what the held way up would miss rather than hiding it', () => {
@@ -241,7 +241,7 @@ describe('by direction', () => {
     // up, and only saying so makes that obvious.
     panel({ mode: 'direction', holding: 2, painted: new Set([4]) })
 
-    expect(screen.getByText(/cannot reach any of these faces/)).toBeTruthy()
+    expect(screen.getByText(/cannot reach any of these faces/)).toBeInTheDocument()
   })
 })
 
@@ -252,13 +252,13 @@ describe('which way up is being worked', () => {
     // it would act on.
     panel({ mode: 'direction', holding: 0 })
 
-    expect(screen.getByText(/Holding \+Z/)).toBeTruthy()
+    expect(screen.getByText(/Holding \+Z/)).toBeInTheDocument()
   })
 
   it('says nothing while no way up is held', () => {
     panel({ mode: 'direction', holding: null })
 
-    expect(screen.queryByText(/Holding/)).toBeNull()
+    expect(screen.queryByText(/Holding/)).not.toBeInTheDocument()
   })
 })
 
@@ -300,7 +300,7 @@ describe('a direction row is a control, not a caption', () => {
 
     const header = screen.getByRole('button', { name: /\+Z/ }).parentElement!
     const rough = within(header).getByRole('button', { name: 'R' })
-    expect(rough.getAttribute('aria-pressed')).toBe('mixed')
+    expect(rough).toHaveAttribute('aria-pressed', 'mixed')
 
     fireEvent.click(rough)
     expect(onSetPass.mock.calls[0]![1]).toEqual(['rough'])
@@ -317,8 +317,8 @@ describe('identical holes are one row, and the row opens', () => {
      */
     panel({ candidates: [holes[0]!] })
 
-    expect(screen.getByText('×3')).toBeTruthy()
-    expect(screen.getByTitle(/3 identical holes/)).toBeTruthy()
+    expect(screen.getByText('×3')).toBeInTheDocument()
+    expect(screen.getByTitle(/3 identical holes/)).toBeInTheDocument()
   })
 
   it('names them as the several they are, with the count against the name', () => {
@@ -327,7 +327,7 @@ describe('identical holes are one row, and the row opens', () => {
     // count stops being part of the name at all.
     panel({ candidates: [holes[0]!] })
 
-    expect(screen.queryByText('Blind hole')).toBeNull()
+    expect(screen.queryByText('Blind hole')).not.toBeInTheDocument()
     // Immediately beside it, not out past the tool and the face count.
     expect(screen.getByText('Blind holes').nextElementSibling?.textContent).toBe('×3')
   })
@@ -358,8 +358,8 @@ describe('identical holes are one row, and the row opens', () => {
   it('is closed to begin with — the group is the decision somebody usually wants', () => {
     panel({ candidates: [holes[0]!] })
 
-    expect(screen.getByRole('button', { name: /Show these 3 holes/ })).toBeTruthy()
-    expect(screen.queryByText('hole-b')).toBeNull()
+    expect(screen.getByRole('button', { name: /Show these 3 holes/ })).toBeInTheDocument()
+    expect(screen.queryByText('hole-b')).not.toBeInTheDocument()
   })
 
   it('opens to the holes themselves, each pressable on its own', () => {
@@ -390,7 +390,8 @@ describe('identical holes are one row, and the row opens', () => {
     // that landed on the third still lights the row that names it.
     panel({ candidates: [holes[0]!], focusedTag: 'hole-c' })
 
-    expect(screen.getByRole('button', { name: /Blind hole/ }).getAttribute('aria-pressed')).toBe(
+    expect(screen.getByRole('button', { name: /Blind hole/ })).toHaveAttribute(
+      'aria-pressed',
       'true',
     )
   })
@@ -408,7 +409,7 @@ describe('identical holes are one row, and the row opens', () => {
   it('names the drill, because nothing else tells two groups of one type apart', () => {
     panel({ candidates: [holes[0]!] })
 
-    expect(screen.getByText(/6\.35 mm/)).toBeTruthy()
+    expect(screen.getByText(/6\.35 mm/)).toBeInTheDocument()
   })
 })
 
@@ -428,8 +429,8 @@ describe('what is not cut yet', () => {
   it('lists the faces, and says which ways up could take each', () => {
     panel(held)
 
-    expect(screen.getByRole('button', { name: /^Face 0,/ })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /^Face 4,/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Face 0,/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Face 4,/ })).toBeInTheDocument()
   })
 
   it('shows only what the held way up can reach', () => {
@@ -437,8 +438,8 @@ describe('what is not cut yet', () => {
     // This is the same rule reaching the one list that was ignoring it.
     panel({ ...held, activeDirection: 0 })
 
-    expect(screen.getByRole('button', { name: /^Face 0,/ })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /^Face 4,/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /^Face 0,/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Face 4,/ })).not.toBeInTheDocument()
   })
 
   it('says nothing about the filter itself — the viewport carries that flag', () => {
@@ -447,14 +448,14 @@ describe('what is not cut yet', () => {
     // places, which is how they come to disagree.
     panel({ ...held, activeDirection: 1 })
 
-    expect(screen.queryByText(/Only −Z/)).toBeNull()
+    expect(screen.queryByText(/Only −Z/)).not.toBeInTheDocument()
   })
 
   it('says a way up with nothing left rather than showing an empty list', () => {
     // An empty list under a flag reads as a bug in the filter.
     panel({ showingUncut: true, uncut: [uncutFace(4, [1])], activeDirection: 0 })
 
-    expect(screen.getByText(/\+Z has nothing left uncut/)).toBeTruthy()
+    expect(screen.getByText(/\+Z has nothing left uncut/)).toBeInTheDocument()
   })
 
   it('marks a face no way up reaches, because nothing here can fix it', () => {
@@ -462,7 +463,7 @@ describe('what is not cut yet', () => {
     // work somebody forgot to place, and there is no placing it.
     panel({ showingUncut: true, uncut: [uncutFace(7, [])] })
 
-    expect(screen.getByText('unreached')).toBeTruthy()
+    expect(screen.getByText('unreached')).toBeInTheDocument()
   })
 
   it('opens onto what could cut it, so the gap is closed where it is found', () => {
@@ -475,8 +476,8 @@ describe('what is not cut yet', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^Face 0,/ }))
 
-    expect(screen.getByText('Pocket')).toBeTruthy()
-    expect(screen.getByText('Wall')).toBeTruthy()
+    expect(screen.getByText('Pocket')).toBeInTheDocument()
+    expect(screen.getByText('Wall')).toBeInTheDocument()
   })
 
   it('says a face nothing reaches cannot be placed from here', () => {
@@ -486,7 +487,7 @@ describe('what is not cut yet', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^Face 7,/ }))
 
-    expect(screen.getByText(/gap in the analysis/)).toBeTruthy()
+    expect(screen.getByText(/gap in the analysis/)).toBeInTheDocument()
   })
 
   it('picks the face, so a row is the same act as a click on the part', () => {
@@ -502,7 +503,7 @@ describe('narrowing what is left to one way up', () => {
   it('leaves the other lists alone — By face is already scoped its own way', () => {
     panel({ activeDirection: 0, candidates: [pocket, profile] })
 
-    expect(screen.getByText('Profile')).toBeTruthy()
+    expect(screen.getByText('Profile')).toBeInTheDocument()
   })
 })
 
@@ -512,14 +513,14 @@ describe('a standing offer', () => {
   it('says what it is offering, and that nothing has changed yet', () => {
     panel({ mode: 'direction', holding: 0, proposal: offer, proposed: [pocket, wall] })
 
-    expect(screen.getByText(/Proposed · 2 · 2 faces/)).toBeTruthy()
+    expect(screen.getByText(/Proposed · 2 · 2 faces/)).toBeInTheDocument()
   })
 
   it('will not build a second offer while one stands', () => {
     // Switching the question abandons the inference in everything but name.
     panel({ mode: 'direction', holding: 0, proposal: offer, proposed: [pocket] })
 
-    expect(screen.getByRole('button', { name: 'Only here' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Only here' })).toHaveAttribute('disabled')
   })
 
   it('prunes one reading without touching the rest', () => {
@@ -571,7 +572,7 @@ describe('a standing offer', () => {
   it('offers the three scopes only once a way up is held', () => {
     panel({ mode: 'direction', holding: null })
 
-    expect(screen.queryByRole('button', { name: 'Infer features' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Infer features' })).not.toBeInTheDocument()
   })
 
   it('asks for a scope rather than inferring on its own', () => {
@@ -679,9 +680,7 @@ describe('a row whose work a settled setup is holding', () => {
   it('shuts the reading the lock holds outright', () => {
     panel({ candidates: [pocket, profile], plan: settledOnPocket() })
 
-    expect(
-      (rowFor('Pocket').getByRole('button', { name: 'R' }) as HTMLButtonElement).disabled,
-    ).toBe(true)
+    expect(rowFor('Pocket').getByRole('button', { name: 'R' })).toBeDisabled()
   })
 
   it('shuts a reading nobody settled, whose faces the lock is cutting', () => {
@@ -689,9 +688,7 @@ describe('a row whose work a settled setup is holding', () => {
     // the row that stayed lit, and the one the bug was reported against.
     panel({ candidates: [pocket, profile], plan: settledOnPocket() })
 
-    expect(
-      (rowFor('Profile').getByRole('button', { name: 'R' }) as HTMLButtonElement).disabled,
-    ).toBe(true)
+    expect(rowFor('Profile').getByRole('button', { name: 'R' })).toBeDisabled()
   })
 
   it('names the lock to open rather than only refusing', () => {
@@ -706,17 +703,13 @@ describe('a row whose work a settled setup is holding', () => {
     // The wall holds face 1, which the settled pocket does not cut.
     panel({ candidates: [pocket, wall], plan: settledOnPocket() })
 
-    expect((rowFor('Wall').getByRole('button', { name: 'R' }) as HTMLButtonElement).disabled).toBe(
-      false,
-    )
+    expect(rowFor('Wall').getByRole('button', { name: 'R' })).toBeEnabled()
   })
 
   it('leaves every row alone when nothing is settled', () => {
     const mapped = setPassFor(EMPTY_PLAN, TEST_DIRECTIONS, features, [pocket], ['rough'])
     panel({ candidates: [pocket, profile], plan: mapped })
 
-    expect(
-      (rowFor('Profile').getByRole('button', { name: 'R' }) as HTMLButtonElement).disabled,
-    ).toBe(false)
+    expect(rowFor('Profile').getByRole('button', { name: 'R' })).toBeEnabled()
   })
 })

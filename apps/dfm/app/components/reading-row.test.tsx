@@ -40,7 +40,7 @@ describe('a reading reads the same wherever it is drawn', () => {
   it('says what it is and how hard, always', () => {
     render(<ReadingRow reading={pocket} score={undefined} />)
 
-    expect(screen.getByText('Pocket')).toBeTruthy()
+    expect(screen.getByText('Pocket')).toBeInTheDocument()
   })
 
   it('names its way up only where the list is not already grouped by one', () => {
@@ -52,11 +52,11 @@ describe('a reading reads the same wherever it is drawn', () => {
      * drawn as `W.`.
      */
     render(<ReadingRow reading={pocket} score={undefined} showDirection />)
-    expect(screen.getByText('+Z')).toBeTruthy()
+    expect(screen.getByText('+Z')).toBeInTheDocument()
 
     cleanup()
 
     render(<ReadingRow reading={pocket} score={undefined} />)
-    expect(screen.queryByText('+Z')).toBeNull()
+    expect(screen.queryByText('+Z')).not.toBeInTheDocument()
   })
 })

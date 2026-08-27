@@ -23,10 +23,10 @@ export interface PanelButtonLook {
   tone?: 'plain' | 'danger'
 }
 
-export function panelButtonClass({
+export const panelButtonClass = ({
   pressed = false,
   tone = 'plain',
-}: PanelButtonLook = {}): string {
+}: PanelButtonLook = {}): string => {
   const base =
     'rounded border px-2 py-1 text-2xs font-bold uppercase tracking-wider transition disabled:opacity-40'
 
@@ -48,7 +48,7 @@ export function panelButtonClass({
  * sentence case, which read as a different application's toolbar sitting on top
  * of this one.
  */
-export function barButtonClass(pressed: boolean, level: 'view' | 'within' = 'view'): string {
+export const barButtonClass = (pressed: boolean, level: 'view' | 'within' = 'view'): string => {
   const base =
     'rounded px-2 py-1 text-2xs font-bold uppercase tracking-wider transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/75'
 

@@ -52,11 +52,11 @@ describe('assigning a reading', () => {
     // two have to read independently.
     setup(true, false)
 
-    expect(screen.getByRole('button', { name: 'R' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByRole('button', { name: 'F' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('button', { name: 'R' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'F' })).toHaveAttribute('aria-pressed', 'false')
     // Off, because Both reports the two passes and nothing else. Roughed and
     // not finished is not a kind of "both".
-    expect(screen.getByRole('button', { name: 'Both' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('button', { name: 'Both' })).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('reads a part-cut claim as neither on nor off', () => {
@@ -67,9 +67,9 @@ describe('assigning a reading', () => {
      */
     const onSetPass = setup('some', false)
 
-    expect(screen.getByRole('button', { name: 'R' }).getAttribute('aria-pressed')).toBe('mixed')
+    expect(screen.getByRole('button', { name: 'R' })).toHaveAttribute('aria-pressed', 'mixed')
     // And Both stays off: one pass held is not a kind of "both", part-cut or not.
-    expect(screen.getByRole('button', { name: 'Both' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('button', { name: 'Both' })).toHaveAttribute('aria-pressed', 'false')
 
     fireEvent.click(screen.getByRole('button', { name: 'Both' }))
     expect(onSetPass).toHaveBeenCalledWith(['rough', 'finish'])
@@ -78,7 +78,7 @@ describe('assigning a reading', () => {
   it('is dashed only when both passes are held and one is part-cut', () => {
     setup('some', true)
 
-    expect(screen.getByRole('button', { name: 'Both' }).getAttribute('aria-pressed')).toBe('mixed')
+    expect(screen.getByRole('button', { name: 'Both' })).toHaveAttribute('aria-pressed', 'mixed')
   })
 
   it('lets go only from a whole claim on both', () => {
@@ -92,7 +92,8 @@ describe('assigning a reading', () => {
   it('names the way up it would assign to', () => {
     setup(false, false)
 
-    expect(screen.getByRole('button', { name: 'R' }).getAttribute('title')).toBe(
+    expect(screen.getByRole('button', { name: 'R' })).toHaveAttribute(
+      'title',
       'Rough this reading from +Z',
     )
   })
@@ -122,7 +123,7 @@ describe('a reading a settled setup holds', () => {
     settled()
 
     for (const name of ['R', 'F', 'Both']) {
-      expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true)
+      expect(screen.getByRole('button', { name })).toBeDisabled()
     }
   })
 
@@ -138,7 +139,8 @@ describe('a reading a settled setup holds', () => {
   it('names the setup to unlock rather than only refusing', () => {
     settled()
 
-    expect(screen.getByRole('button', { name: 'R' }).getAttribute('title')).toBe(
+    expect(screen.getByRole('button', { name: 'R' })).toHaveAttribute(
+      'title',
       'Settled in Op 1. Unlock it to change what it cuts.',
     )
   })
@@ -148,8 +150,8 @@ describe('a reading a settled setup holds', () => {
     // find out.
     settled(true)
 
-    expect(screen.getByRole('button', { name: 'R' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByRole('button', { name: 'F' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('button', { name: 'R' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'F' })).toHaveAttribute('aria-pressed', 'false')
   })
 })
 
@@ -177,19 +179,19 @@ describe('a lock that holds only one of the two passes', () => {
     return onSetPass
   }
 
-  const button = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement
+  const button = (name: string) => screen.getByRole('button', { name })
 
   it('shuts the pass it holds and leaves the other alone', () => {
     roughOnly()
 
-    expect(button('R').disabled).toBe(true)
-    expect(button('F').disabled).toBe(false)
+    expect(button('R')).toBeDisabled()
+    expect(button('F')).toBeEnabled()
   })
 
   it('shuts Both, which would claim the settled pass along with the free one', () => {
     roughOnly()
 
-    expect(button('Both').disabled).toBe(true)
+    expect(button('Both')).toBeDisabled()
   })
 
   it('still lets the free pass through', () => {
@@ -203,10 +205,11 @@ describe('a lock that holds only one of the two passes', () => {
   it('names the lock on the button it shut, and not on the one it did not', () => {
     roughOnly()
 
-    expect(button('R').getAttribute('title')).toBe(
+    expect(button('R')).toHaveAttribute(
+      'title',
       'Settled in Op 1. Unlock it to change what it cuts.',
     )
-    expect(button('F').getAttribute('title')).toBe('Finish this reading from +Z')
+    expect(button('F')).toHaveAttribute('title', 'Finish this reading from +Z')
   })
 })
 
@@ -226,13 +229,13 @@ describe('a settled reading still says what it holds', () => {
     )
   }
 
-  const button = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement
+  const button = (name: string) => screen.getByRole('button', { name })
 
   it('keeps the colour on the pass it holds', () => {
     settledHoldingRough()
 
     expect(button('R').className).toContain('text-info')
-    expect(button('R').disabled).toBe(true)
+    expect(button('R')).toBeDisabled()
   })
 
   it('greys only the pass it is not holding', () => {
@@ -247,7 +250,7 @@ describe('a settled reading still says what it holds', () => {
     // a disabled button still has a state worth reporting.
     settledHoldingRough()
 
-    expect(button('R').getAttribute('aria-pressed')).toBe('true')
-    expect(button('F').getAttribute('aria-pressed')).toBe('false')
+    expect(button('R')).toHaveAttribute('aria-pressed', 'true')
+    expect(button('F')).toHaveAttribute('aria-pressed', 'false')
   })
 })

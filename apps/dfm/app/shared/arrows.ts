@@ -73,10 +73,10 @@ export interface ArrowContext {
  * a way of asking about that direction, and the answer is not improved by four
  * other arrows crossing the part.
  */
-export function shownArrow(
+export const shownArrow = (
   arrows: Arrows,
   context: ArrowContext,
-): number | readonly number[] | null {
+): number | readonly number[] | null => {
   if (context.choosing !== null) return context.choosing
   if (arrows === 'all') return null
   if (context.activeDirection !== null) return context.activeDirection
@@ -97,7 +97,7 @@ export function shownArrow(
  * Read off {@link shownArrow} rather than worked out again: the two used to
  * decide it separately, which is two rules to keep in step for one picture.
  */
-export function arrowsVisible(arrows: Arrows, context: ArrowContext): boolean {
+export const arrowsVisible = (arrows: Arrows, context: ArrowContext): boolean => {
   const shown = shownArrow(arrows, context)
   if (shown === null) return true
   if (typeof shown === 'number') return shown !== -1

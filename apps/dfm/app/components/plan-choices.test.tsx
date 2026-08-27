@@ -31,17 +31,17 @@ describe('what a shop will not cut, and how readings are ranked', () => {
   it('reads as a rule card, with its answer on the row', () => {
     choices()
 
-    expect(screen.getByText('What is a no-go feature for op-planning?')).toBeTruthy()
+    expect(screen.getByText('What is a no-go feature for op-planning?')).toBeInTheDocument()
     // No floor set, so the answer is that anything may be cut.
-    expect(screen.getByText('anything')).toBeTruthy()
-    expect(screen.getByText('by score')).toBeTruthy()
+    expect(screen.getByText('anything')).toBeInTheDocument()
+    expect(screen.getByText('by score')).toBeInTheDocument()
   })
 
   it('asks the refusal in the words a machinist would use', () => {
     choices()
     open('What is a no-go feature for op-planning?')
 
-    expect(screen.getByRole('group', { name: 'Worst band' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Worst band' })).toBeInTheDocument()
   })
 
   it('hands the floor back as a band', () => {
@@ -67,9 +67,7 @@ describe('what a shop will not cut, and how readings are ranked', () => {
     open('Rank a reading by its band, or by its score?')
 
     // Score first is the default, so it reads as chosen rather than as absent.
-    expect(screen.getByRole('button', { name: 'By score' }).getAttribute('aria-pressed')).toBe(
-      'true',
-    )
+    expect(screen.getByRole('button', { name: 'By score' })).toHaveAttribute('aria-pressed', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'By band' }))
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ bandFirst: true }))
@@ -80,7 +78,7 @@ describe('what a shop will not cut, and how readings are ranked', () => {
     render(<PlanChoices revision={0} unit="mm" limits={{}} refused={3} onChange={onChange} />)
     open('What is a no-go feature for op-planning?')
 
-    expect(screen.getByText(/3 faces were kept from a refused reading/)).toBeTruthy()
+    expect(screen.getByText(/3 faces were kept from a refused reading/)).toBeInTheDocument()
   })
 
   /*
@@ -91,10 +89,10 @@ describe('what a shop will not cut, and how readings are ranked', () => {
   it('asks whether a feature may come apart, as a yes or no', () => {
     const { onChange } = choices()
 
-    expect(screen.getByText('May the plan split a feature?')).toBeTruthy()
+    expect(screen.getByText('May the plan split a feature?')).toBeInTheDocument()
     // Splitting is the shipped answer, so the row reads yes before anything is
     // pressed.
-    expect(screen.getByText('yes')).toBeTruthy()
+    expect(screen.getByText('yes')).toBeInTheDocument()
 
     open('May the plan split a feature?')
     fireEvent.click(screen.getByRole('button', { name: 'Whole or not at all' }))
@@ -127,7 +125,7 @@ describe('the part sizes a shop takes', () => {
   it('takes any size until somebody says otherwise', () => {
     choices()
 
-    expect(screen.getByText('any size')).toBeTruthy()
+    expect(screen.getByText('any size')).toBeInTheDocument()
   })
 
   it('says nothing to the plan until all three of an end are in', () => {
@@ -182,15 +180,15 @@ describe('the part sizes a shop takes', () => {
   it('says which ends have been given, without opening the card', () => {
     cleanup()
     choices({ machine: { max: { x: 30, y: 16, z: 20 } } })
-    expect(screen.getByText('largest only')).toBeTruthy()
+    expect(screen.getByText('largest only')).toBeInTheDocument()
 
     cleanup()
     choices({ machine: { min: { x: 10, y: 8, z: 4 } } })
-    expect(screen.getByText('smallest only')).toBeTruthy()
+    expect(screen.getByText('smallest only')).toBeInTheDocument()
 
     cleanup()
     choices({ machine: { min: { x: 10, y: 8, z: 4 }, max: { x: 30, y: 16, z: 20 } } })
-    expect(screen.getByText('both ends')).toBeTruthy()
+    expect(screen.getByText('both ends')).toBeInTheDocument()
   })
 
   it('puts an end back to unsaid when one of its three is emptied', () => {

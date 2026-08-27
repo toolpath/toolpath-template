@@ -44,7 +44,7 @@ const STORAGE_KEY = 'part-viewer.paint'
  * first thing anybody changes, and having to change it again on every part
  * turns a preference into a chore.
  */
-export function loadPaintMode(storage: Pick<Storage, 'getItem'> | null): PaintMode {
+export const loadPaintMode = (storage: Pick<Storage, 'getItem'> | null): PaintMode => {
   const stored = storage?.getItem(STORAGE_KEY)
   const found = PAINT_MODES.find((mode) => mode === stored) ?? 'plain'
 
@@ -53,7 +53,7 @@ export function loadPaintMode(storage: Pick<Storage, 'getItem'> | null): PaintMo
   return PAINT_MODE_LABELS.some(([mode]) => mode === found) ? found : 'plain'
 }
 
-export function savePaintMode(storage: Pick<Storage, 'setItem'> | null, mode: PaintMode): void {
+export const savePaintMode = (storage: Pick<Storage, 'setItem'> | null, mode: PaintMode): void => {
   storage?.setItem(STORAGE_KEY, mode)
 }
 
@@ -83,7 +83,7 @@ export interface RegionWash {
  * reading had been divided, which is often where the hardest work is and
  * always where somebody has been making decisions.
  */
-export function regionWash(
+export const regionWash = (
   mode: PaintMode,
   /** Which way up cuts each face, for `directions`. */
   cutByRegion: ReadonlyMap<number, number> = new Map(),
@@ -91,7 +91,7 @@ export function regionWash(
   cutRegionsBy: ReadonlyMap<number, string> = new Map(),
   /** What the rules made of each feature, for `difficulty`. */
   verdicts: readonly { tag: string; band: Band | null }[] = [],
-): RegionWash[] {
+): RegionWash[] => {
   if (mode === 'difficulty') return difficultyRegionWash(cutRegionsBy, verdicts)
   if (mode !== 'directions') return []
 
@@ -134,13 +134,13 @@ function difficultyRegionWash(
  * Plain has no standing opinion; Difficulty colours every feature by the rule
  * band it landed in.
  */
-export function paintWash(
+export const paintWash = (
   mode: PaintMode,
   /** What the rules made of each feature, for `difficulty`. */
   verdicts: readonly { tag: string; band: Band | null }[] = [],
   /** Which way up cuts each feature in the pass being shown, for `directions`. */
   cutBy: ReadonlyMap<string, number> = new Map(),
-): FeatureWash[] {
+): FeatureWash[] => {
   if (mode === 'difficulty') return difficultyWash(verdicts, new Set(cutBy.keys()))
   if (mode === 'directions') return directionsWash(cutBy)
   return []
@@ -225,11 +225,11 @@ export const PAINTED_HEX = 0xf97316
  * Per reading rather than per face, which comes to the same thing: the readings
  * an offer amounts to tile exactly the faces it is offering.
  */
-export function proposedWash(
+export const proposedWash = (
   readings: readonly { featureTag: string }[],
   /** Which way up is asking. Falls back to the old violet where unknown. */
   direction?: number,
-): FeatureWash[] {
+): FeatureWash[] => {
   const color =
     direction === undefined
       ? PROPOSED_HEX
@@ -254,7 +254,7 @@ export function proposedWash(
  * faces, so the part showed two different meanings in one colour and neither
  * could be identified.
  */
-export function paintedWash(readings: readonly { featureTag: string }[]): FeatureWash[] {
+export const paintedWash = (readings: readonly { featureTag: string }[]): FeatureWash[] => {
   return readings.map((reading) => ({
     tag: reading.featureTag,
     color: PAINTED_HEX,

@@ -20,7 +20,7 @@ import type { Pass } from './setups'
  */
 export type PlanKey = { act: 'pass'; passes: ReadonlyArray<Pass> } | { act: 'remove' } | null
 
-export function planKey(key: string): PlanKey {
+export const planKey = (key: string): PlanKey => {
   switch (key.toLowerCase()) {
     case 'r':
       return { act: 'pass', passes: ['rough'] }
@@ -46,7 +46,7 @@ export function planKey(key: string): PlanKey {
  * A shortcut that fires while a name is being typed is a plan rewritten by
  * somebody spelling a word.
  */
-export function isTyping(target: EventTarget | null): boolean {
+export const isTyping = (target: EventTarget | null): boolean => {
   const element = target as HTMLElement | null
   if (!element) return false
   const tag = element.tagName

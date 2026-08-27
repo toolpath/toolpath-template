@@ -13,10 +13,9 @@ const STORAGE_KEY = 'part-viewer:banana'
  * is furniture, not a control: it says something about the part rather than
  * doing something to it.
  */
-export function loadBanana(storage: Pick<Storage, 'getItem'> | null): boolean {
-  return storage?.getItem(STORAGE_KEY) === 'on'
-}
+export const loadBanana = (storage: Pick<Storage, 'getItem'> | null): boolean =>
+  storage?.getItem(STORAGE_KEY) === 'on'
 
-export function saveBanana(storage: Pick<Storage, 'setItem'> | null, shown: boolean): void {
+export const saveBanana = (storage: Pick<Storage, 'setItem'> | null, shown: boolean): void => {
   storage?.setItem(STORAGE_KEY, shown ? 'on' : 'off')
 }

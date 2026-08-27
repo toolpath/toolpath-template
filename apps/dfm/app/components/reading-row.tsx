@@ -35,13 +35,13 @@ export interface ReadingRowProps {
 }
 
 /** The classes the row wears, shared for the same reason its markup is. */
-export function readingRowClass(chosen: boolean): string {
+export const readingRowClass = (chosen: boolean): string => {
   return `flex min-w-0 flex-1 items-center gap-2 rounded-r px-2 py-1 text-left text-2xs transition ${
     chosen ? 'bg-info/15 text-info' : 'text-ink-muted hover:bg-ground/60'
   }`
 }
 
-export function ReadingRow({ reading, score, showDirection = false }: ReadingRowProps) {
+export const ReadingRow = ({ reading, score, showDirection = false }: ReadingRowProps) => {
   return (
     <>
       <span className="shrink-0 text-ink-dim">

@@ -23,7 +23,7 @@ import { coveredRegions, cutRegions, givenUp } from './setups'
  * here on "is anything selected" would make a type opened after a click paint
  * nothing at all.
  */
-export function listHighlight({
+export const listHighlight = ({
   hovered,
   ofType,
   pointerOnPart,
@@ -34,7 +34,7 @@ export function listHighlight({
   ofType: readonly string[]
   /** Whether the pointer is over the part itself. */
   pointerOnPart: boolean
-}): string[] {
+}): string[] => {
   if (hovered.length > 0) return [...hovered]
   if (pointerOnPart) return []
   return [...ofType]
@@ -52,7 +52,7 @@ export function listHighlight({
  * orange (`paintedWash`); routing it through the picked-face highlight painted
  * two different meanings in one colour, and neither could be told apart.
  */
-export function partHighlight({
+export const partHighlight = ({
   selected,
   focused,
   picked,
@@ -63,7 +63,7 @@ export function partHighlight({
   focused: string | null
   /** Regions picked by clicking the part. */
   picked: Iterable<number>
-}): { tags: string[]; regions: number[] } {
+}): { tags: string[]; regions: number[] } => {
   const tags = new Set(selected)
   if (focused) tags.add(focused)
 
@@ -91,12 +91,12 @@ export function partHighlight({
  * in the editor's list and on none of the paint. The tag cannot say it, so such
  * a reading is painted by face too.
  */
-export function paintByCut(
+export const paintByCut = (
   tags: Iterable<string>,
   features: ReadonlyArray<PartFeature>,
   plan: SetupPlan,
   pass: Pass,
-): { whole: string[]; faces: number[] } {
+): { whole: string[]; faces: number[] } => {
   const whole: string[] = []
   const faces: number[] = []
   const byTag = new Map(features.map((feature) => [feature.featureTag, feature]))

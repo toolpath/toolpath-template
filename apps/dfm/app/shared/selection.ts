@@ -47,7 +47,7 @@ export const NOTHING_SELECTED: SelectionState = {
  * resolve to the same reading is still a click on something, and clearing there
  * makes a feature that spans two faces impossible to keep selected.
  */
-export function pickFace(
+export const pickFace = (
   state: SelectionState,
   pick: PartPick | null,
   /**
@@ -63,7 +63,7 @@ export function pickFace(
    * the second press land somewhere unpredictable.
    */
   prefer?: (tags: readonly string[]) => string | null,
-): SelectionState {
+): SelectionState => {
   if (!pick) return NOTHING_SELECTED
 
   const adding = pick.modifiers.meta || pick.modifiers.ctrl
@@ -101,7 +101,7 @@ export function pickFace(
  * stays because it is still the honest answer to "next candidate" and is used
  * to set up other tests.
  */
-export function stepCandidate(state: SelectionState, step: number): SelectionState {
+export const stepCandidate = (state: SelectionState, step: number): SelectionState => {
   if (state.candidates.length === 0) return state
 
   const at = state.focused === null ? -1 : state.candidates.indexOf(state.focused)
@@ -121,10 +121,10 @@ export function stepCandidate(state: SelectionState, step: number): SelectionSta
  * With nothing held there is nothing to re-read, and the direction is simply a
  * scope for the next click.
  */
-export function scopeToDirection(
+export const scopeToDirection = (
   state: SelectionState,
   reachable: (tag: string) => boolean,
-): SelectionState {
+): SelectionState => {
   if (state.picks.length === 0) return state
 
   const candidates = sharedReadings(state.picks).filter(reachable)
@@ -150,14 +150,12 @@ export function scopeToDirection(
  * once would throw away the scope somebody set deliberately along with the
  * click they are undoing.
  */
-export function isEmptySelection(state: SelectionState): boolean {
-  return state.picks.length === 0 && state.candidates.length === 0 && state.focused === null
-}
+export const isEmptySelection = (state: SelectionState): boolean =>
+  state.picks.length === 0 && state.candidates.length === 0 && state.focused === null
 
 /** The faces being held, for painting them so a second click has something to aim at. */
-export function heldRegions(state: SelectionState): number[] {
-  return state.picks.map((pick) => pick.region)
-}
+export const heldRegions = (state: SelectionState): number[] =>
+  state.picks.map((pick) => pick.region)
 
 /**
  * Naming a reading from **inside** the face list.
@@ -171,14 +169,12 @@ export function heldRegions(state: SelectionState): number[] {
  * Clearing them here empties the list a reading has just been chosen from,
  * which reads as the app throwing the question away the moment it is answered.
  */
-export function focusWithin(
+export const focusWithin = (
   state: SelectionState,
   featureTag: string,
   /** True only when the row named is one hole inside an opened group. */
   alone = false,
-): SelectionState {
-  return { ...state, focused: featureTag, alone }
-}
+): SelectionState => ({ ...state, focused: featureTag, alone })
 
 /**
  * The next reading in a list, wrapping at both ends.
@@ -188,11 +184,11 @@ export function focusWithin(
  * through one while looking at the other jumps around the list for no reason
  * anybody watching can see.
  */
-export function stepThrough(
+export const stepThrough = (
   tags: readonly string[],
   focused: string | null,
   step: number,
-): string | null {
+): string | null => {
   if (tags.length === 0) return null
   const at = focused === null ? -1 : tags.indexOf(focused)
   return tags[(at + step + tags.length) % tags.length] ?? null
@@ -212,7 +208,7 @@ export function stepThrough(
  * viewer. A list has no viewpoint to rank from, and inventing one here would be
  * a second answer to a question the part already answers.
  */
-export function pickForRegion(region: number, owners: readonly string[]): PartPick {
+export const pickForRegion = (region: number, owners: readonly string[]): PartPick => {
   return {
     region,
     owners,

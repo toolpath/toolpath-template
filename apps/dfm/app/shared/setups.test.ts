@@ -9,7 +9,16 @@ import {
   assign,
   coverageOf,
   cutOnce,
+  claimedRegions,
+  areaOfRegions,
+  coveredRegions,
+  cutRegions,
+  cutState,
+  cutsFace,
   cutsFrom,
+  givenUp,
+  groupCutState,
+  noting,
   faceCounts,
   partArea,
   scoreSetups,
@@ -418,5 +427,265 @@ describe('the count three lists show', () => {
     const roughOnly = setFaceCut(EMPTY_PLAN, TEST_DIRECTIONS, both, wall, ['rough'], 0, true)
 
     expect(faceCounts(roughOnly, wall)).toEqual({ faces: 2, cut: 1 })
+  })
+})
+
+/**
+ * What the plan has a reading cutting, as against what the Engine reported.
+ *
+ * `reported-regions.test.ts` records what confusing the two has cost: F51, F58,
+ * F62 and the direction wash, four bugs weeks apart that all read as different
+ * kinds of bug. These are the functions that hold the distinction, and until
+ * now they were reached only through their callers — so a caller that stopped
+ * asking them would have been the only thing to notice.
+ */
+describe('what a partly-claimed reading covers', () => {
+  const part = testPart()
+  const profile = part.features.find((f) => f.featureTag === 'down-profile')!
+  const wall = part.features.find((f) => f.featureTag === 'up-wall')!
+  const setup = setupFor(TEST_DIRECTIONS, 1)
+
+  /** The profile assigned whole, in both passes. */
+  const whole: SetupPlan = {
+    setups: [setup],
+    assigned: { 'down-profile': { rough: setup.id, finish: setup.id } },
+  }
+
+  /** The same, having given face 4 up for roughing only. */
+  const partial: SetupPlan = {
+    setups: [setup],
+    assigned: {
+      'down-profile': { rough: setup.id, finish: setup.id, without: { rough: [4] } },
+    },
+  }
+
+  /** And the same, handed face 0, which the Engine never reported there. */
+  const handed: SetupPlan = {
+    setups: [setup],
+    assigned: { 'down-profile': { rough: setup.id, finish: setup.id, also: { rough: [0] } } },
+  }
+
+  describe('the faces it actually cuts', () => {
+    it('is nothing at all while nothing is assigned', () => {
+      // Not the Engine's list. An unassigned reading cuts no faces, and
+      // answering with `regionIdxs` here is what painted the whole part.
+      expect(cutRegions(EMPTY_PLAN, profile, 'rough')).toEqual([])
+    })
+
+    it('is the reading own faces when it holds all of them', () => {
+      expect(cutRegions(whole, profile, 'rough')).toEqual(profile.regionIdxs)
+    })
+
+    it('drops a face that was given up', () => {
+      expect(cutRegions(partial, profile, 'rough')).toEqual([2, 3, 5])
+    })
+
+    it('leaves the other pass holding it, because a claim is per pass', () => {
+      // The same surface roughed from above and finished from the side is one
+      // plan, not a conflict.
+      expect(cutRegions(partial, profile, 'finish')).toEqual(profile.regionIdxs)
+    })
+
+    it('adds a face handed to it, which the Engine never put there', () => {
+      expect(cutRegions(handed, profile, 'rough')).toEqual([...profile.regionIdxs, 0])
+    })
+  })
+
+  describe('every face it is about', () => {
+    it('counts a handed face even in the pass that does not cut it', () => {
+      /*
+       * The narrower question is what one pass cuts; this is what the editor
+       * lists and what the part paints. A face taken on for finishing alone is
+       * still one of this reading's faces while roughing is on screen — it is
+       * simply not roughed.
+       */
+      const forFinishOnly: SetupPlan = {
+        setups: [setup],
+        assigned: { 'down-profile': { finish: setup.id, also: { finish: [0] } } },
+      }
+
+      expect(coveredRegions(forFinishOnly, profile)).toContain(0)
+      expect(cutRegions(forFinishOnly, profile, 'rough')).toEqual([])
+    })
+  })
+
+  describe('which faces it let go of', () => {
+    it('is nothing when the reading is not assigned at all', () => {
+      // An unassigned reading has not given anything up; it never held it.
+      expect(givenUp(EMPTY_PLAN, profile, 'rough')).toEqual([])
+    })
+
+    it('is nothing when it holds everything it was reported with', () => {
+      expect(givenUp(whole, profile, 'rough')).toEqual([])
+    })
+
+    it('names the faces, in the pass that lost them', () => {
+      expect(givenUp(partial, profile, 'rough')).toEqual([4])
+      expect(givenUp(partial, profile, 'finish')).toEqual([])
+    })
+  })
+
+  describe('whether a face is cut here', () => {
+    it('follows the claim rather than the report', () => {
+      expect(cutsFace(whole, profile, 'rough', 4)).toBe(true)
+      expect(cutsFace(partial, profile, 'rough', 4)).toBe(false)
+      // Given up for roughing only, so finishing still has it.
+      expect(cutsFace(partial, profile, 'finish', 4)).toBe(true)
+    })
+
+    it('counts a handed face, which is not in the report at all', () => {
+      expect(profile.regionIdxs).not.toContain(0)
+      expect(cutsFace(handed, profile, 'rough', 0)).toBe(true)
+    })
+  })
+
+  describe('how pressed a pass button should read', () => {
+    it('is off where the setup does not cut it', () => {
+      expect(cutState(EMPTY_PLAN, profile, 'rough', setup)).toBe(false)
+    })
+
+    it('is on where it holds every face it was reported with', () => {
+      expect(cutState(whole, profile, 'rough', setup)).toBe(true)
+    })
+
+    /*
+     * The three-state answer this exists for. A button that reads fully pressed
+     * on a reading holding three of its four faces is the app claiming more
+     * than the plan says — and `'some'` is what makes the next press mean
+     * something rather than silently doing one of two things.
+     */
+    it('is part-cut where it gave a face up', () => {
+      expect(cutState(partial, profile, 'rough', setup)).toBe('some')
+    })
+
+    it('is on for a reading handed a face, which took nothing away', () => {
+      // Handing a face *to* a reading is not a partial claim: it still cuts
+      // everything the Engine said it would.
+      expect(cutState(handed, profile, 'rough', setup)).toBe(true)
+    })
+  })
+
+  describe('how pressed a whole group should read', () => {
+    const both: SetupPlan = {
+      setups: [setup],
+      assigned: {
+        'down-profile': { rough: setup.id },
+        'up-wall': { rough: setup.id },
+      },
+    }
+
+    it('is off for a group with nothing in it', () => {
+      // A way up holding no readings, or a hole group filtered down to none.
+      expect(groupCutState(both, [], 'rough', setup)).toBe(false)
+    })
+
+    it('is on only when every one of them is whole', () => {
+      expect(groupCutState(both, [profile, wall], 'rough', setup)).toBe(true)
+    })
+
+    it('is off only when none of them is cut here', () => {
+      expect(groupCutState(EMPTY_PLAN, [profile, wall], 'rough', setup)).toBe(false)
+    })
+
+    it('is part-cut for a group only some of which is claimed', () => {
+      const one: SetupPlan = { setups: [setup], assigned: { 'up-wall': { rough: setup.id } } }
+
+      expect(groupCutState(one, [profile, wall], 'rough', setup)).toBe('some')
+    })
+
+    it('is part-cut for a group whose members are themselves part-cut', () => {
+      // A group half of which has given faces up is not a group that reads done.
+      const mixed: SetupPlan = {
+        setups: [setup],
+        assigned: {
+          'down-profile': { rough: setup.id, without: { rough: [4] } },
+          'up-wall': { rough: setup.id },
+        },
+      }
+
+      expect(groupCutState(mixed, [profile, wall], 'rough', setup)).toBe('some')
+    })
+  })
+
+  describe('every face the plan claims', () => {
+    it('counts a face once however many readings cut it', () => {
+      /*
+       * The denominator of coverage. Region 2 is reachable from three ways up,
+       * which is the ambiguity the whole mapping exists to resolve — counting
+       * it per reading would let a plan claim more of the part than it has.
+       */
+      const twice: SetupPlan = {
+        setups: [setup],
+        assigned: {
+          'down-profile': { rough: setup.id },
+          'left-wall': { rough: setup.id },
+        },
+      }
+
+      expect([...claimedRegions(part.features, twice, 'rough')].sort()).toEqual([2, 3, 4, 5])
+    })
+
+    it('answers per pass, and defaults to roughing', () => {
+      expect(claimedRegions(part.features, whole, 'finish')).toEqual(
+        claimedRegions(part.features, whole, 'rough'),
+      )
+      expect(claimedRegions(part.features, partial)).toEqual(
+        claimedRegions(part.features, partial, 'rough'),
+      )
+    })
+  })
+
+  describe('the area of a named set of faces', () => {
+    it('sums what a part-cut reading holds', () => {
+      // Six faces of 100 mm² apiece, so three of them is half the part.
+      expect(areaOfRegions(part, [0, 1, 2])).toBe(300)
+    })
+
+    it('ignores a face the part does not have, rather than reading NaN', () => {
+      // A handed face index out of range would otherwise poison every area on
+      // screen, and `NaN%` is a coverage bar that renders as nothing.
+      expect(areaOfRegions(part, [0, 99])).toBe(100)
+    })
+
+    it('is nothing for nothing', () => {
+      expect(areaOfRegions(part, [])).toBe(0)
+    })
+  })
+
+  describe('writing down what a reading kept', () => {
+    it('records the faces it let go, in the part own order', () => {
+      const note = noting(undefined, profile, [5, 2], 'rough')
+
+      // `regionIdxs` order, not the order they were handed in, so a panel
+      // reading it back does not reshuffle as faces are taken one at a time.
+      expect(note.without?.rough).toEqual([3, 4])
+    })
+
+    it('records a face it was handed, which is not its own', () => {
+      const note = noting(undefined, profile, [...profile.regionIdxs, 0], 'rough')
+
+      expect(note.also?.rough).toEqual([0])
+      expect(note.without).toBeUndefined()
+    })
+
+    it('drops the note entirely once the reading is whole again', () => {
+      const partly = noting(undefined, profile, [2, 3], 'rough')
+      const restored = noting(partly, profile, profile.regionIdxs, 'rough')
+
+      // Not an empty list left behind: `cutRegions` takes a short cut when
+      // there is no note at all, and an empty one is a slower way to say the
+      // same thing that every reader then has to handle.
+      expect(partly.without?.rough).toEqual([4, 5])
+      expect(restored.without).toBeUndefined()
+      expect(restored.also).toBeUndefined()
+    })
+
+    it('leaves the other pass note alone', () => {
+      const roughed = noting(undefined, profile, [2, 3], 'rough')
+      const both = noting(roughed, profile, [2], 'finish')
+
+      expect(both.without?.rough).toEqual([4, 5])
+      expect(both.without?.finish).toEqual([3, 4, 5])
+    })
   })
 })

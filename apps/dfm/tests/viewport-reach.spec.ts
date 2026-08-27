@@ -1,83 +1,27 @@
 import { type Page, expect, test } from '@playwright/test'
 
-const readyEvent = {
-  status: 'ready',
-  report: {
-    partId: 'part-1',
-    reportId: 'report-1',
-    jobId: 'job-1',
-    kernelVersion: 'test',
-    units: { length: 'mm', angle: 'deg' },
-    /*
-     * Two faces and the two ways up that reach them.
-     *
-     * It had neither, which was fine while every test here was about the
-     * viewport's edges — but the rules page judges the readings **the plan
-     * cuts**, and a part with no candidate directions can hold no plan, so
-     * those tests were asking what the rules made of nothing.
-     */
-    regions: [
-      { idx: 0, splitOrigin: 0, shapeKind: 'Plane', area: 100, triangleStart: 0, triangleEnd: 1 },
-      { idx: 1, splitOrigin: 0, shapeKind: 'Plane', area: 100, triangleStart: 1, triangleEnd: 2 },
-    ],
-    candidateDirections: [
-      { x: 0, y: 0, z: 1 },
-      { x: -1, y: 0, z: 0 },
-    ],
-    meshPointCount: 0,
-    meshTriangleCount: 0,
-    hasMeshGlb: false,
-    hasMeshStl: false,
-    hasThumbnail: false,
-    downloadMs: 1,
-    analysisMs: 2,
-    totalMs: 3,
-    features: [
-      {
-        featureTag: 'hole-1',
-        featureType: 'BlindHole',
-        regionIdxs: [0],
-        machiningDirection: { x: 0, y: 0, z: 1 },
-        axis: { x: 0, y: 0, z: 1 },
-        // A current Engine datasheet with enough on it for a rule to have an
-        // opinion: 25.4 deep in a 6.35 bore is 4:1, which the shipped set calls
-        // `alright`.
-        datasheet: {
-          featureType: 'BlindHole',
-          zMax: 0,
-          zMin: -25.4,
-          extendedZMax: 0,
-          extendedZMin: -25.4,
-          radialStockToLeave: 0,
-          axialStockToLeave: 0,
-          toleranceBand: { atolIgnore: 0, atolDeviate: 0, atolMax: 0 },
-          hasFloor: true,
-          hasWall: true,
-          floorishArea: 0,
-          wallishArea: 0,
-          facts: {
-            kind: 'Hole',
-            diameter: 6.35,
-            fullConeDeg: 118,
-            isCounterbore: false,
-            holeProcess: 'Drill',
-            cd: {
-              ignore: { min: 6.35, max: 6.35 },
-              deviate: { min: 6.35, max: 6.35 },
-              effectiveAdaptive: { min: 6.35, max: 6.35 },
-              terminalCornerRadius: 0,
-            },
-            maxSpotDiameter: 0,
-            maxDrillDiameter: 6.35,
-            maxEndmillDiameter: 6.35,
-            filletRadius: 0,
-            filletHeight: 0,
-          },
-        },
-      },
-    ],
-  },
-}
+import { UP, faces, report, richHole, uploadTo } from './part-fixture'
+
+/**
+ * Two faces and the two ways up that reach them.
+ *
+ * It had neither, which was fine while every test here was about the
+ * viewport's edges — but the rules page judges the readings **the plan cuts**,
+ * and a part with no candidate directions can hold no plan, so those tests were
+ * asking what the rules made of nothing.
+ *
+ * The report, its datasheet and the route table behind it were written out here
+ * by hand and again in `dfm.spec`. They live in `part-fixture` now, which is
+ * also what stops the two drifting into testing two different Engines.
+ */
+const part = report({
+  regions: faces(2),
+  // −X rather than the fixture's −Y: nothing here reads the label, but the two
+  // are different ways up and swapping one for the other while moving the
+  // report out of this file would be a change nobody asked for.
+  candidateDirections: [UP, { x: -1, y: 0, z: 0 }],
+  features: [richHole('hole-1', UP, [0])],
+})
 
 /** The rules fold up, so reading one starts by opening it. */
 export const openRule = async (page: Page, name: string) => {
@@ -97,47 +41,7 @@ export const openRule = async (page: Page, name: string) => {
  */
 /** Connects, uploads and lands on the inspector with a report the server mocked. */
 export const openInspector = async (page: Page) => {
-  let connected = false
-  await page.route('**/api/**', async (route) => {
-    const request = route.request()
-    const url = new URL(request.url())
-    if (url.pathname === '/api/session') {
-      if (request.method() === 'GET') return route.fulfill({ json: { connected } })
-      if (request.method() === 'POST') {
-        connected = true
-        return route.fulfill({ status: 201, json: { connected: true } })
-      }
-      connected = false
-      return route.fulfill({ status: 204 })
-    }
-    if (url.pathname === '/api/parts' && request.method() === 'POST')
-      return route.fulfill({
-        status: 201,
-        json: { partId: 'part-1', uploadUrl: 'https://upload.test/source' },
-      })
-    if (url.pathname === '/api/parts/part-1' && request.method() === 'PATCH')
-      return route.fulfill({ status: 202, json: { partId: 'part-1', jobId: 'job-1' } })
-    if (url.pathname === '/api/parts/part-1/events')
-      return route.fulfill({
-        contentType: 'text/event-stream',
-        body: `event: analysis\ndata: ${JSON.stringify(readyEvent)}\n\n`,
-      })
-    return route.fallback()
-  })
-  await page.route('https://upload.test/source', (route) => route.fulfill({ status: 200 }))
-
-  await page.goto('/')
-  await page.getByLabel('Toolpath Engine API key').fill('tp_key')
-  await page.getByRole('button', { name: 'Connect' }).click()
-  await page.getByLabel('CAD file').setInputFiles({
-    name: 'fixture.step',
-    mimeType: 'model/step',
-    buffer: Buffer.from('STEP fixture'),
-  })
-  const analyze = page.getByRole('button', { name: 'Analyze part' })
-  await expect(analyze).toBeEnabled()
-  await analyze.click()
-  await expect(page).toHaveURL(/\/parts\/part-1/)
+  await uploadTo(page, part)
   await expect(page.getByRole('button', { name: 'Section' })).toBeVisible()
 }
 
