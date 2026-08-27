@@ -25,23 +25,12 @@ target as the goal.
 
 ## Where a test belongs
 
-`apps/dfm/docs/README.md` § Testing already settles this, and its reasons are in
-`docs/directions-replay.md`. Audit against it rather than against instinct:
-
-- **Pure logic belongs in `app/shared/*.test.ts`.** That is where most of the
-  value is and the cheapest place to add it.
-- **Component tests work**, including for components importing `@toolpath/ui`
-  (`face-list.test.tsx` is the proof). They are the cheapest coverage for
-  anything list-shaped.
-- **Anything that begins with a click on the part belongs in
-  `tests/on-the-part.spec.ts`**, against `tests/cube-fixture.ts` — the only
-  fixture that mounts geometry. Every other hand-built report sets
-  `hasMeshGlb: false`, and three logged bugs reached users because nothing else
-  could catch them. A test for click-on-part behavior placed anywhere else is a
-  finding.
-- **Never import captured Engine JSON.** Reports are built by hand with
-  `tests/part-fixture.ts`; a foreign report tests another codebase's
-  normalization too.
+`apps/dfm/docs/README.md` § Testing settles this, its reasons are in
+`docs/directions-replay.md`, and the `setup-testing` skill restates it for
+writing. Read one of those rather than working from instinct, and audit against
+it: a click-on-part test outside `tests/on-the-part.spec.ts`, or any test built
+on captured Engine JSON, is a finding on placement alone regardless of what it
+asserts.
 
 ## Behavioral seams to prioritize
 
@@ -55,11 +44,19 @@ target as the goal.
 ## Sensor coverage
 
 Separately from missing tests, report which behaviors and which AGENTS.md rules
-have no automated proof at all — nothing in Vitest, Playwright, `pnpm lint`, or
-`scripts/check-style.mjs` that would fail if they were broken. Naming that set
+have no automated proof at all — nothing in Vitest, Playwright, `eslint.config.js`,
+or `scripts/check-style.mjs` that would fail if they were broken. Naming that set
 is itself the finding, because those are the rules a long session drifts off
 first. The AGENTS.md style table marks its own unproven rules as judgment; check
-whether that list is still honest.
+whether that list is still honest, in both directions — a rule marked judgment
+that now has a sensor is as stale as one claiming a sensor it lacks.
+
+Two tests are sensors rather than coverage, and are audited as rules:
+
+- `app/styles.test.ts` — cascade-layer ordering and light/dark role parity.
+- `app/kit-usage.test.ts` — a ratchet holding raw `<button>` at or below a
+  budget. If the count has fallen well under it and the budget was not lowered,
+  that is a finding: the ground is not being kept.
 
 ## Reporting
 

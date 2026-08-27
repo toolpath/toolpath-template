@@ -33,16 +33,23 @@ directory PR #50 deleted. `migration.md` replaces it.
 
 ## Where these specs came from
 
+> **None of the sources in this section are in this repository.** They live in
+> Toolpath's internal `tp-ui` repository, on the `pc-feature-picker` branch, and
+> a template user has no access to them. Everything needed to work on this app
+> is in this folder. The pointers are kept for Toolpath engineers who do have
+> that checkout; treat a gap here as a gap in these pages, not as a cue to go
+> looking.
+
 `tp-ui@pc-feature-picker` is the reference implementation, and
 `apps/feature-picker/docs/` is its written spec — some 3,500 lines, including
 the two pages this folder adapts.
 
 **These pages are about this app.** Where the behaviour differs from the
 picker's, they say so and say why, rather than describing the picker and leaving
-the reader to diff it. The picker's own pages remain the deeper source on what
-has not been built here:
+the reader to diff it. For a Toolpath engineer with that checkout, the picker's
+own pages remain the deeper source on what has not been built here:
 
-| For                                                         | Read there                 |
+| For                                                         | Read there (in `tp-ui`)    |
 | ----------------------------------------------------------- | -------------------------- |
 | Why one click is ambiguous — the feature-per-direction fact | `docs/feature-model.md`    |
 | The Directions page in full, and its stage ladder           | `docs/build/directions.md` |
@@ -113,7 +120,12 @@ And a third, which everything past the parity plan is downstream of:
 | `app/components/part-inspector.tsx` | The page: all of the above, wired together                           |
 | `app/components/map-features.tsx`   | Where the mapping is actually done                                   |
 | `app/components/face-list.tsx`      | The face editor: one reading, face by face                           |
-| `packages/viewer`                   | Painting, picking, arrows, camera, cube, section — app-agnostic      |
+| `@toolpath/viewer`                  | Painting, picking, arrows, camera, cube, section — app-agnostic      |
+
+Every path above is under `apps/dfm/`. The last row is the exception: the viewer
+is a published package, vendored into this repository as a tarball and pinned in
+`apps/dfm/package.json`. It has no source here, so a change to painting or
+picking is a change to that package rather than an edit in this tree.
 
 ## Testing
 

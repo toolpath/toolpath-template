@@ -14,8 +14,7 @@
       "components/*": ["app/components/*"],
       "client/*": ["app/client/*"],
       "routes/*": ["app/routes/*"],
-      "shared/*": ["app/shared/*"],
-      "server/*": ["server/*"]
+      "shared/*": ["app/shared/*"]
     },
     "resolveJsonModule": true,
     "isolatedModules": true,

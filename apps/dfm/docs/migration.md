@@ -6,6 +6,16 @@ repository and is written from the target's point of view: the migration has
 **landed here**, and what follows is what arrived, what state it is in, and what
 is still outstanding.
 
+> **Where the branch has moved since.** Checked **27 Aug 2026** at `a84b1db`,
+> five commits past the `7d0c907` this page was verified at. The suite is still
+> green and larger: **940 unit tests in 61 files** and **135 e2e**, against the
+> 830 / 53 and 114 recorded below. The four commits in between are style and
+> layering work — the rules AGENTS.md already stated became gates in
+> `eslint.config.js` — plus the shop-size judgement merged from
+> `origin/paul/directions-mapping`. None of them touched the migration itself,
+> so everything below still holds; only the counts are of their moment. Do not
+> read the numbers in the table as current.
+
 Earlier drafts (25 Aug, and the 26 Aug re-verification in the sandbox) described
 the migration as work ahead. It is not. Those drafts also replaced `staging.md`,
 which aimed the work at `toolpath/apps/part-viewer` — a directory PR #50 deleted.
@@ -52,11 +62,14 @@ The earlier drafts predicted the exact shape of the blockage. Both blockers are
 now cleared locally (see next section), and the suite is green for the first
 time:
 
-|               | vs published `0.3.1` (predicted) | now, against local builds |
-| ------------- | -------------------------------- | ------------------------- |
-| `check-types` | 3 errors                         | **clean**                 |
-| unit          | 800 / 802                        | **830 / 830** (53 files)  |
-| e2e           | 111 / 114                        | **114 / 114**             |
+|               | vs published `0.3.1` (predicted) | at `7d0c907`, local builds |
+| ------------- | -------------------------------- | -------------------------- |
+| `check-types` | 3 errors                         | **clean**                  |
+| unit          | 800 / 802                        | **830 / 830** (53 files)   |
+| e2e           | 111 / 114                        | **114 / 114**              |
+
+A snapshot of 26 Aug, kept because the prediction is the point. For the current
+counts see the note at the top of this page.
 
 ```bash
 pnpm --filter @toolpath/dfm check-types    # clean

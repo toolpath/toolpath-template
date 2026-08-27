@@ -48,20 +48,18 @@ area would cost. If a single change of intent forces edits across several
 modules, the finding is the coupling, not the edit — name the specific import or
 shared shape that causes the ripple, and where the seam should be.
 
-These files already amplify that cost. Flag a change that adds to one where an
-extraction was available, and say which part could have moved:
+Some files already amplify that cost. Get the current set rather than trusting a
+list — a typed table goes stale within a few commits:
 
-| File                                | Lines | Imports |
-| ----------------------------------- | ----- | ------- |
-| `app/components/part-inspector.tsx` | 2518  | 50      |
-| `app/components/map-features.tsx`   | 1534  | 32      |
-| `app/shared/metrics.ts`             | 1522  | 3       |
-| `app/shared/rules.ts`               | 1343  | 4       |
-| `app/shared/best-reading.ts`        | 1338  | 10      |
-| `app/components/rule-editor.tsx`    | 1006  | 18      |
+```sh
+find apps/dfm/app -name '*.ts' -o -name '*.tsx' | grep -v '\.test\.' \
+  | xargs wc -l | sort -rn | sed -n '2,8p'
+```
 
-Size alone is not a finding. Growth in one of these, in a change that had a
-seam available, is.
+`part-inspector.tsx`, `map-features.tsx`, `metrics.ts`, `rules.ts`,
+`best-reading.ts`, and `rule-editor.tsx` have held the top of that list; check
+whether the diff moved any of them. Size alone is not a finding. Growth in one
+of them, in a change that had a seam available, is.
 
 ## Guides and sensors
 

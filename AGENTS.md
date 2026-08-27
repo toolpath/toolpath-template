@@ -85,8 +85,10 @@ violated, give it a check rather than restating it here.
 | `components/*`, `client/*`, `routes/*`, `shared/*` aliases in `app/` | `pnpm lint`        |
 | Only `apps/dfm/server` uses the Toolpath SDK at runtime              | `pnpm lint`        |
 | The layering under Project Map                                       | `pnpm lint`        |
+| Every colour role defined under both `:root` and `.dark`             | `pnpm test`        |
+| Font resets stay inside `@layer base`, where a utility can win       | `pnpm test`        |
+| `@toolpath/ui` components over hand-authored HTML, while it is used  | `pnpm test`        |
 | Tailwind classes for styling; `style={{}}` only for a computed value | judgment           |
-| `@toolpath/ui` components over hand-authored HTML, while it is used  | judgment           |
 
 What the checks cannot carry:
 
@@ -98,6 +100,19 @@ What the checks cannot carry:
   colour, a computed width. Everything static is a Tailwind class.
 - `apps/dfm/server` deliberately keeps relative imports into `app/shared`:
   production runs `tsx server/prod.ts` with no bundler to resolve an alias.
+- The kit rule is a **ratchet, not a ban**. `app/kit-usage.test.ts` pins raw
+  `<button>` at its current count so it can fall but not rise; the kit exports
+  `Button` and `IconButton`, and both take `aria-*` and `title` through. Reach
+  for the kit in new code, and lower the budget in that file whenever a
+  migration lands. A failure there is the rule being broken, not a flaky test.
+- The two stylesheet rules live in `app/styles.test.ts`, which reads
+  `app/styles.css` directly. Neither is visible in a component or catchable by
+  rendering one: an unlayered `font: inherit` beat every Tailwind font utility
+  silently, and a role defined in one theme keeps the other theme's value.
+
+Three sensors carry the table: `eslint.config.js`, `scripts/check-style.mjs`,
+and the two source-reading tests above. Adding a rule means adding it to one of
+them, or it is a preference rather than a rule.
 
 ## Project Map
 
