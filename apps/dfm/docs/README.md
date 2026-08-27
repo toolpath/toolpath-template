@@ -14,7 +14,6 @@ plan for how the part gets held.
 | [directions-parity-plan.md](directions-parity-plan.md)         | What the Directions page _is_ — the interaction inventory, and what is built            |
 | [directions-parity-findings.md](directions-parity-findings.md) | F1–F67: why each instruction in the replay exists, each one a bug or a wrong turn first |
 | [migration.md](migration.md)                                   | **How this work got here, and what is still outstanding** — read this before the PR     |
-| [review-backlog.md](review-backlog.md)                         | Three reviewed defects left unfixed on purpose, with the evidence and the fix for each  |
 
 The three `directions-*` pages are one set and are read in that order: the replay
 says what to do, the plan says what the thing is, the findings say why. They live

@@ -235,3 +235,32 @@ IMPORTANT - these guidelines are ONLY relevant when reviewing code, otherwise ig
   - performance impact
   - maintainability
 - Flag N+1 queries, unpaginated queries, excessive bundle growth, unnecessary rerenders, and large response payloads.
+
+### Already checked, and clean
+
+A review on 2026-08-27 established each of these and found nothing to fix. They
+are recorded so the next review spends its attention somewhere new. Re-derive
+one only when the code under it moves.
+
+- **Report redaction is complete.** `toPublicInspectionReport`
+  (`app/shared/contracts.ts:28`) strips `meshGlbUrl`, `meshStlUrl`, and
+  `thumbnailUrl`. In `@toolpath/api` 0.2.3, `PartResponse` (those three fields)
+  and `CreatePartResponse` (`uploadUrl`, which is the presigned upload the
+  browser is meant to receive) are the only models that declare a URL at all —
+  `Region` and `PartFeature` declare none. So the redaction covers the whole
+  type rather than the fields somebody remembered. Check it again when the SDK
+  version moves.
+- **The browser calls only app-owned endpoints.** The one external `fetch` under
+  `app/` is the presigned `PUT` at `app/client/api.ts:45`, which is the
+  documented direct upload. No Toolpath host appears anywhere else in the
+  client.
+- **The API key never leaves the server.** HttpOnly, Secure, SameSite=Lax
+  `A256GCM` JWE cookie, HKDF domain-separated from `APP_SESSION_SECRET`. Engine
+  failures log the status and the operation, never the key or an artifact URL.
+- **`banana.glb` is not a bundle problem.** 746 KiB, but it is a `public/`
+  asset, off by default, and deliberately not preloaded — `useGLTF.preload` at
+  module scope would fetch it on every page load, for something almost nobody
+  turns on (`app/components/banana.tsx:149`).
+- **There is no coverage tooling.** Nothing in the repo configures coverage, so
+  there is no coverage number to report. That is a gap in what can be measured,
+  not a failing check — do not substitute a different tool and call it coverage.
