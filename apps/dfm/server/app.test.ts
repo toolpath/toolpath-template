@@ -337,6 +337,59 @@ describe('DFM Hono API', () => {
     })
   })
 
+  test('fetches datasheet batches concurrently, under a cap, without losing one', async () => {
+    // Ten batches of the fifty-feature URL-safe batch size. Serially that is ten round trips the
+    // browser waits through after the analysis has already succeeded.
+    const features = Array.from({ length: 500 }, (unused, index) => ({
+      featureId: `feature-${index}`,
+      featureTag: `hole-${index}`,
+      featureType: 'blind_hole',
+      regionIdxs: [0],
+      machiningDirection: { x: 0, y: 0, z: 1 },
+      axis: { x: 0, y: 0, z: 1 },
+    }))
+    let inFlight = 0
+    let peakInFlight = 0
+    let batches = 0
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      const url = new URL(request.url)
+      if (request.method === 'GET' && url.pathname === '/v1/parts/part-1') {
+        return Response.json({ ...report(), features })
+      }
+      if (request.method === 'GET' && url.pathname === '/v1/parts/part-1/features') {
+        batches += 1
+        inFlight += 1
+        peakInFlight = Math.max(peakInFlight, inFlight)
+        const ids = url.searchParams.get('ids')?.split(',') ?? []
+        // Hold the batch open so overlapping requests are observable at all.
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        inFlight -= 1
+        return Response.json({
+          datasheets: ids.map((id) => ({
+            featureId: id,
+            featureTag: id.replace('feature-', 'hole-'),
+            featureType: 'blind_hole',
+            datasheet: { facts: { kind: 'Hole', diameter: 6.35 }, zMin: 2, zMax: 12 },
+          })),
+          notFound: [],
+        })
+      }
+      throw new Error(`Unexpected request ${request.method} ${request.url}`)
+    })
+
+    const analysis = await readAnalysis('tp_secret_key', 'part-1', analysisJob('succeeded'))
+
+    expect(batches).toBe(10)
+    expect(peakInFlight).toBeGreaterThan(1)
+    expect(peakInFlight).toBeLessThanOrEqual(4)
+    expect(analysis.status).toBe('ready')
+    // Every batch writes into one shared map, so a lost or overwritten key would show up here.
+    expect(
+      analysis.status === 'ready' && analysis.report.features.every((feature) => feature.datasheet),
+    ).toBe(true)
+  })
+
   test('maps queued and failed Engine job events without requesting a report', async () => {
     await expect(readAnalysis('tp_secret_key', 'part-1', analysisJob('queued'))).resolves.toEqual({
       status: 'pending',
@@ -388,5 +441,44 @@ describe('DFM Hono API', () => {
     })
     expect(reportReads).toBe(2)
     await expect(response.text()).resolves.toBe('mesh bytes')
+  })
+
+  test('releases the discarded mesh response before retrying', async () => {
+    let cancelled = false
+    let reportReads = 0
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      const url = new URL(request.url)
+      if (request.method === 'GET' && url.pathname === '/v1/parts/part-1') {
+        reportReads += 1
+        return Response.json(
+          report(`https://mesh.test/${reportReads === 1 ? 'expired' : 'fresh'}.glb`),
+        )
+      }
+      if (url.pathname === '/expired.glb') {
+        return new Response(
+          new ReadableStream({
+            start: (controller) => {
+              controller.enqueue(new TextEncoder().encode('<Error>AccessDenied</Error>'))
+            },
+            cancel: () => {
+              cancelled = true
+            },
+          }),
+          { status: 403 },
+        )
+      }
+      if (url.pathname === '/fresh.glb') {
+        return new Response('mesh bytes', { headers: { 'Content-Type': 'model/gltf-binary' } })
+      }
+      throw new Error(`Unexpected request ${request.method} ${request.url}`)
+    })
+    const response = await createApp().request('/api/parts/part-1/mesh?jobId=job-1&format=glb', {
+      headers: { Cookie: await cookieFor() },
+    })
+
+    await expect(response.text()).resolves.toBe('mesh bytes')
+    // An unread, uncancelled body holds its socket until the response is collected.
+    expect(cancelled).toBe(true)
   })
 })

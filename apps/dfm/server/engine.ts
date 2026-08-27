@@ -6,6 +6,12 @@ import {
 import type { PartFeature, PartReport } from '../app/shared/contracts'
 
 const DATASHEET_BATCH_SIZE = 50
+/**
+ * Batches in flight at once. Batching exists to stay inside a URL length limit, not to pace the
+ * Engine, so the batches do not have to be serial — but firing every batch of a 2,000-feature part
+ * at once trades a latency problem for a load one.
+ */
+const DATASHEET_BATCH_CONCURRENCY = 4
 
 const apiBaseUrl = (): string => {
   const baseUrl = process.env.TOOLPATH_API_BASE_URL
@@ -146,20 +152,37 @@ export const getWholePartReport = async (
     return report
   }
 
+  const batches: Array<string> = []
+  for (let index = 0; index < missingIds.length; index += DATASHEET_BATCH_SIZE) {
+    batches.push(missingIds.slice(index, index + DATASHEET_BATCH_SIZE).join(','))
+  }
+
   const datasheetsByTag = new Map<string, NonNullable<PartFeature['datasheet']>>()
   const engine = createEngineClient(apiKey)
-  for (let index = 0; index < missingIds.length; index += DATASHEET_BATCH_SIZE) {
-    const ids = missingIds.slice(index, index + DATASHEET_BATCH_SIZE)
-    const datasheets = await requireData(
-      engine.features.getPartFeatures({ id: partId, ids: ids.join(',') }),
-      'get feature datasheets',
-    )
-    for (const entry of datasheets.datasheets) {
-      if (entry.datasheet) {
-        datasheetsByTag.set(entry.featureTag, entry.datasheet)
+  // This runs inside the SSE handler after the analysis has already succeeded, so every serial
+  // round trip is time the browser spends on "Analyzing geometry…" for nothing. A shared cursor
+  // hands each worker the next batch as it frees up, so one slow batch does not stall the rest.
+  // The workers share `datasheetsByTag`, which is safe because a feature tag belongs to exactly
+  // one batch — no two workers write the same key.
+  let nextBatch = 0
+  const drainBatches = async () => {
+    while (nextBatch < batches.length) {
+      const ids = batches[nextBatch]
+      nextBatch += 1
+      const datasheets = await requireData(
+        engine.features.getPartFeatures({ id: partId, ids }),
+        'get feature datasheets',
+      )
+      for (const entry of datasheets.datasheets) {
+        if (entry.datasheet) {
+          datasheetsByTag.set(entry.featureTag, entry.datasheet)
+        }
       }
     }
   }
+  await Promise.all(
+    Array.from({ length: Math.min(DATASHEET_BATCH_CONCURRENCY, batches.length) }, drainBatches),
+  )
 
   return {
     ...report,
