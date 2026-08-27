@@ -53,11 +53,11 @@ export interface RulesSummary {
  * summary that cannot be followed back into the list below it is a summary to
  * be taken on trust.
  */
-export function rulesSummary(
+export const rulesSummary = (
   verdicts: readonly FeatureVerdict[],
   features: readonly PartFeature[],
   rules: readonly Rule[],
-): RulesSummary {
+): RulesSummary => {
   /*
    * **Only the features handed in**, all the way through.
    *
@@ -152,12 +152,12 @@ export function rulesSummary(
 }
 
 /** Which features a rule's readings landed on, once the filters have had a say. */
-export function costlyCount(hits: readonly { band: Band }[]): number {
+export const costlyCount = (hits: readonly { band: Band }[]): number => {
   return hits.filter((hit) => bandRank(hit.band) >= bandRank('meh')).length
 }
 
 /** The worst band a rule handed out, which is how hard it is being on this part. */
-export function worstOf(hits: readonly { band: Band }[]): Band | null {
+export const worstOf = (hits: readonly { band: Band }[]): Band | null => {
   return hits.reduce<Band | null>(
     (worst, hit) => (worst === null || bandRank(hit.band) > bandRank(worst) ? hit.band : worst),
     null,

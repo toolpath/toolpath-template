@@ -50,10 +50,10 @@ const STORAGE_KEY = 'part-viewer.unit'
  * a machinist works in one of them all day and should not set it again after
  * opening a report.
  */
-export function loadUnit(storage: Pick<Storage, 'getItem'> | null): Unit {
+export const loadUnit = (storage: Pick<Storage, 'getItem'> | null): Unit => {
   return storage?.getItem(STORAGE_KEY) === 'in' ? 'in' : 'mm'
 }
 
-export function saveUnit(storage: Pick<Storage, 'setItem'> | null, unit: Unit): void {
+export const saveUnit = (storage: Pick<Storage, 'setItem'> | null, unit: Unit): void => {
   storage?.setItem(STORAGE_KEY, unit)
 }

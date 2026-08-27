@@ -21,11 +21,11 @@ import { MODEL_UNIT, type Unit, convertArea, convertLength, decimalsFor } from '
  * convert to nothing: a 5:1 pocket is 5:1 in any shop, and a chamfer is 45° in
  * both.
  */
-export function formatMetric(
+export const formatMetric = (
   value: number | null,
   metric: MetricId | undefined,
   unit: Unit,
-): string {
+): string => {
   if (value === null) return '—'
 
   // A number whose metric is unknown is a raw datasheet field — the inputs to a
@@ -59,11 +59,11 @@ export interface RuleLimit {
  * something different in each is worse than a band that says ∞ at a floor
  * nothing reaches.
  */
-export function ruleLimits(
+export const ruleLimits = (
   rule: Rule,
   unit: Unit,
   names?: Partial<Record<Band, string>>,
-): RuleLimit[] {
+): RuleLimit[] => {
   if (rule.type !== 'threshold' && rule.type !== 'range') return []
 
   const edge = (value: number | null) =>
@@ -79,7 +79,7 @@ export function ruleLimits(
 }
 
 /** What a rule applies to, in words rather than a list of twenty type names. */
-export function ruleAudience(rule: Rule): string {
+export const ruleAudience = (rule: Rule): string => {
   if (rule.featureTypes.length === 0) return 'every feature'
   if (rule.featureTypes.length > 4) return `${rule.featureTypes.length} feature types`
 
@@ -87,7 +87,7 @@ export function ruleAudience(rule: Rule): string {
 }
 
 /** What a rule reads, named as the panel names it. */
-export function ruleReads(rule: Rule): string {
+export const ruleReads = (rule: Rule): string => {
   if (rule.expression) return rule.expression
   if (rule.type === 'baseline') return 'the kind of feature it is'
 
@@ -105,7 +105,7 @@ export function ruleReads(rule: Rule): string {
  * Ratios, counts and angles convert to nothing: a 5:1 pocket is 5:1 in any
  * shop, and a chamfer is 45° in both.
  */
-export function toDisplay(value: number, metric: MetricId | undefined, unit: Unit): number {
+export const toDisplay = (value: number, metric: MetricId | undefined, unit: Unit): number => {
   const quantity = metricQuantity(metric)
 
   if (quantity === 'length') return convertLength(value, MODEL_UNIT, unit)
@@ -114,7 +114,7 @@ export function toDisplay(value: number, metric: MetricId | undefined, unit: Uni
   return value
 }
 
-export function fromDisplay(value: number, metric: MetricId | undefined, unit: Unit): number {
+export const fromDisplay = (value: number, metric: MetricId | undefined, unit: Unit): number => {
   const quantity = metricQuantity(metric)
 
   if (quantity === 'length') return convertLength(value, unit, MODEL_UNIT)
@@ -124,7 +124,7 @@ export function fromDisplay(value: number, metric: MetricId | undefined, unit: U
 }
 
 /** What to write after a threshold box, or nothing where the number is bare. */
-export function unitSuffix(metric: MetricId | undefined, unit: Unit): string {
+export const unitSuffix = (metric: MetricId | undefined, unit: Unit): string => {
   switch (metricQuantity(metric)) {
     case 'length':
       return unit
@@ -149,7 +149,7 @@ export function unitSuffix(metric: MetricId | undefined, unit: Unit): string {
  * nobody argues about the second decimal of a 5:1 pocket, and a count gets
  * none.
  */
-export function displayDecimals(metric: MetricId | undefined, unit: Unit): number {
+export const displayDecimals = (metric: MetricId | undefined, unit: Unit): number => {
   switch (metricQuantity(metric)) {
     case 'length':
     case 'area':
@@ -180,10 +180,10 @@ export interface RuleHit {
  * Sorted by band and then by weight of the reading, so the top of each list is
  * the feature that limit is worst about.
  */
-export function ruleHits(
+export const ruleHits = (
   verdicts: readonly FeatureVerdict[],
   features: readonly PartFeature[],
-): Map<string, RuleHit[]> {
+): Map<string, RuleHit[]> => {
   const byTag = new Map(features.map((feature) => [feature.featureTag, feature]))
   const hits = new Map<string, RuleHit[]>()
 

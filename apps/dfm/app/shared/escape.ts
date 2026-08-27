@@ -26,7 +26,7 @@ export type EscapeStep =
  * they existed the ladder stopped one short of the two things a mode leaves
  * behind, and leaving Create meant finding the toolbar.
  */
-export function escapeStep({
+export const escapeStep = ({
   editing,
   hasSelection,
   expandedType,
@@ -52,7 +52,7 @@ export function escapeStep({
   arrows: boolean
   /** Whether anything other than By face is showing. */
   mode: boolean
-}): EscapeStep {
+}): EscapeStep => {
   if (editing) return 'editing'
   if (hasSelection) return 'selection'
   if (expandedType !== null) return 'expandedType'

@@ -1025,7 +1025,7 @@ export const PartInspector = ({
    * `pickFromPart` is a mode claiming the click first; this is what a click
    * means once nothing has.
    */
-  function selectFace(pick: PartPick): void {
+  const selectFace = (pick: PartPick): void => {
     /*
      * A lit direction answers "what would −Y cut **of the faces in hand**", so a
      * click that changes the faces in hand makes that answer stale — and a
@@ -1702,7 +1702,7 @@ export const PartInspector = ({
    * it: those two bars are how much is done, and this is the same measure from
    * the other end.
    */
-  function showUncut(): void {
+  const showUncut = (): void => {
     // Five answers to one question, and exactly one is lit — naming any of the
     // others is how you leave the one you are in.
     setDraft(null)

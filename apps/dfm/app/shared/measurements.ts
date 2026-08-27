@@ -43,7 +43,7 @@ export interface Measurement {
  * cut this way up stands in for it — which is what makes "how far down does the
  * tool reach before it cuts anything" answerable at all.
  */
-export function partTop(features: readonly PartFeature[], feature: PartFeature): number | null {
+export const partTop = (features: readonly PartFeature[], feature: PartFeature): number | null => {
   const { x, y, z } = feature.machiningDirection
   let top: number | null = null
 
@@ -59,10 +59,10 @@ export function partTop(features: readonly PartFeature[], feature: PartFeature):
 }
 
 /** How the faces of this feature are shaped, by the Engine's own classification. */
-function facesBy(
+const facesBy = (
   feature: PartFeature,
   regions: readonly { idx: number; shapeKind: string }[],
-): [string, number][] {
+): [string, number][] => {
   const byIdx = new Map(regions.map((region) => [region.idx, region]))
   const counts = new Map<string, number>()
 
@@ -81,7 +81,7 @@ function facesBy(
  * never reports for this type reads as a measurement that failed, and there are
  * a lot of them — a wall's `facts` carries little but a cutter diameter.
  */
-export function measurements({
+export const measurements = ({
   feature,
   features,
   regions,
@@ -91,7 +91,7 @@ export function measurements({
   features: readonly PartFeature[]
   regions: readonly { idx: number; shapeKind: string }[]
   unit: Unit
-}): Measurement[] {
+}): Measurement[] => {
   // Both readings, so a row carries its conversion rather than the caller
   // working it out again from a string it would have to parse first.
   const other: Unit = unit === 'mm' ? 'in' : 'mm'
@@ -318,6 +318,6 @@ export const STRIP_LABELS: Record<string, string> = {
   area: 'surface',
 }
 
-export function stripMeasurements(rows: readonly Measurement[]): Measurement[] {
+export const stripMeasurements = (rows: readonly Measurement[]): Measurement[] => {
   return STRIP_KEYS.flatMap((key) => rows.filter((row) => row.key === key)).slice(0, 3)
 }

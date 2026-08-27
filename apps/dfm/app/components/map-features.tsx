@@ -491,7 +491,7 @@ const ElsewhereFlag = ({
  * this is what anything taking it a word at a time gets. Written once so they
  * cannot come to say different things.
  */
-function faceSaid(face: UncutFace, unit: Unit): string {
+const faceSaid = (face: UncutFace, unit: Unit): string => {
   const reach =
     face.from.length === 0
       ? 'no way up reaches it — a gap in the analysis, not in the plan'

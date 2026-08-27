@@ -26,7 +26,7 @@ export interface ListKeyActions {
 
 const ROWS = '[data-row]'
 
-export function moveThroughList(
+export const moveThroughList = (
   event: {
     key: string
     target: EventTarget | null
@@ -34,7 +34,7 @@ export function moveThroughList(
     preventDefault: () => void
   },
   actions: ListKeyActions = {},
-): boolean {
+): boolean => {
   const container = event.currentTarget as HTMLElement | null
   const target = event.target as HTMLElement | null
   if (!container || !target) return false

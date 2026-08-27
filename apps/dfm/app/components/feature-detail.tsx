@@ -47,7 +47,7 @@ const shortTag = (tag: string): string => tag.slice(-6)
  * questions anybody asks, and this is the answer to "but what else is in
  * there", which is a different question asked far less often.
  */
-function flatten(value: unknown, prefix = ''): [string, string][] {
+const flatten = (value: unknown, prefix = ''): [string, string][] => {
   const record = asRecord(value)
   if (!record) return []
 

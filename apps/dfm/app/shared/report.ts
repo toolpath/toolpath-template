@@ -149,11 +149,11 @@ export const rawDatasheet = (feature: PartFeature): string =>
  * a shape. Holding a direction narrows the question the same way the counts
  * beside the type already narrow, so the two agree.
  */
-export function tagsOfType(
+export const tagsOfType = (
   features: readonly PartFeature[],
   featureType: string | null,
   direction: Vec3 | null,
-): string[] {
+): string[] => {
   if (featureType === null) return []
   return features
     .filter((feature) => feature.featureType === featureType)

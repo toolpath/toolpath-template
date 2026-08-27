@@ -113,10 +113,10 @@ export const regionWash = (
  * left grey is a face nothing cuts, which is a different statement and one the
  * page depends on being able to make.
  */
-function difficultyRegionWash(
+const difficultyRegionWash = (
   cutRegionsBy: ReadonlyMap<number, string>,
   verdicts: readonly { tag: string; band: Band | null }[],
-): RegionWash[] {
+): RegionWash[] => {
   const bands = new Map(verdicts.map((verdict) => [verdict.tag, verdict.band]))
 
   return [...cutRegionsBy]
@@ -155,7 +155,7 @@ export const paintWash = (
  * a decision nobody made. A face with no colour here is a face nothing cuts —
  * which is the question the page exists to close.
  */
-function directionsWash(cutBy: ReadonlyMap<string, number>): FeatureWash[] {
+const directionsWash = (cutBy: ReadonlyMap<string, number>): FeatureWash[] => {
   return [...cutBy].map(([tag, direction]) => ({
     tag,
     color: DIRECTION_COLORS[direction % DIRECTION_COLORS.length] ?? 0x64748b,
@@ -183,11 +183,11 @@ function directionsWash(cutBy: ReadonlyMap<string, number>): FeatureWash[] {
  * gentler is on screen; unjudged paints first and loses to everything, since
  * "nobody looked" should not cover a colour that means something.
  */
-function difficultyWash(
+const difficultyWash = (
   verdicts: readonly { tag: string; band: Band | null }[],
   /** Readings the plan cuts in the pass being shown. */
   mapped: ReadonlySet<string>,
-): FeatureWash[] {
+): FeatureWash[] => {
   return verdicts
     .filter((verdict) => mapped.has(verdict.tag))
     .sort((a, b) => paintOrder(b.band) - paintOrder(a.band))

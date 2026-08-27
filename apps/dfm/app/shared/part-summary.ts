@@ -77,10 +77,10 @@ export const pluralLabel = (value: string): string => {
 
 const asMs = (value: unknown): number => (typeof value === 'number' && value >= 0 ? value : 0)
 
-export function partSummary(
+export const partSummary = (
   report: PublicInspectionReport,
   activeDirection: number | null = null,
-): PartSummary {
+): PartSummary => {
   const held = activeDirection === null ? null : report.candidateDirections[activeDirection]
   const perDirection = new Map<string, number>()
   const perType = new Map<string, number>()
