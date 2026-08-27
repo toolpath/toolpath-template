@@ -2,6 +2,8 @@ import { CaretDownIcon } from '@phosphor-icons/react'
 import { useState, type ReactNode } from 'react'
 
 import { NumberBox } from './number-box'
+import { outsideSizes } from 'shared/metrics'
+import { formatLength } from 'shared/units'
 import type { MachineEnvelope, MachineSizes, PlanLimits } from 'shared/rules'
 import type { Unit } from 'shared/units'
 
@@ -174,9 +176,12 @@ export const PlanChoices = ({
   refused,
   revision,
   unit,
+  partSides,
   onChange,
 }: {
   limits: PlanLimits | undefined
+  /** The part on screen, measured off its mesh, or null before there is one. */
+  partSides?: ReadonlyArray<number> | null
   /** How many faces the floor kept from a refused reading, on the last plan. */
   refused?: number
   /** Bumped when a preset loads, which re-keys the size boxes onto its numbers. */
@@ -186,6 +191,8 @@ export const PlanChoices = ({
 }) => {
   const current: PlanLimits = limits ?? {}
   const machine: MachineSizes = current.machine ?? {}
+
+  const outside = partSides == null ? null : outsideSizes(partSides, current.machine)
 
   const setEnd = (end: 'min' | 'max', sizes: MachineEnvelope | undefined) => {
     const next: MachineSizes = { ...machine, [end]: sizes }
@@ -361,6 +368,32 @@ export const PlanChoices = ({
         state={sizesState(current.machine)}
         note="Three numbers at each end, because a machine is three numbers: a long thin part fits one a cube of the same length does not. The part is turned to suit, so its sides are matched to yours largest against largest, and how far it falls outside — either end — is what the rule reads."
       >
+        {/*
+          What the sizes just entered say about the part in front of you.
+
+          A limit somebody types and cannot see the effect of is a limit they
+          have to go and check somewhere else, which is where a shop stops
+          trusting the number. Read through the same answer the rule reads, so
+          the two cannot disagree.
+        */}
+        {partSides == null ? null : outside === null ? (
+          <p className="text-2xs leading-4 text-ink-faint">
+            Nothing is set, so nothing is judged. The part on screen is{' '}
+            {partSides.map((side) => formatLength(side, unit)).join(' × ')}.
+          </p>
+        ) : (
+          <p
+            className={`rounded px-2 py-1 text-2xs leading-4 ${
+              outside === 0 ? 'bg-success/10 text-success' : 'bg-warning/15 text-warning'
+            }`}
+          >
+            {outside === 0
+              ? `This part fits: ${partSides.map((side) => formatLength(side, unit)).join(' × ')}.`
+              : `This part is ${formatLength(outside, unit)} outside what you take, at ${partSides
+                  .map((side) => formatLength(side, unit))
+                  .join(' × ')}.`}
+          </p>
+        )}
         <SizeRow
           end="min"
           hint="Under this, it is not worth setting up. Leave empty to take anything small."

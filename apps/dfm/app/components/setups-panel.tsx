@@ -254,7 +254,7 @@ export const SetupsPanel = ({
 
   return (
     <aside
-      className="flex size-full min-h-0 flex-col overflow-y-auto bg-surface px-4 py-3 text-xs"
+      className="flex size-full min-h-0 flex-col overflow-y-auto bg-ground px-4 py-3 text-xs"
       onMouseLeave={() => onHover([])}
     >
       {/*

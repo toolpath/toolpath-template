@@ -32,6 +32,7 @@ export const RulesPanel = ({
   summary,
   types,
   unit,
+  partSides,
   focusedTag,
   onChoose,
   onHover,
@@ -64,6 +65,8 @@ export const RulesPanel = ({
   /** The feature types this part actually has, for aiming a rule. */
   types: ReadonlyArray<string>
   unit: Unit
+  /** The part's own size, for the sizes-taken card. Null before a mesh lands. */
+  partSides?: ReadonlyArray<number> | null
   focusedTag: string | null
   onChoose: (tag: string) => void
   onHover: (tags: Array<string>) => void
@@ -108,7 +111,7 @@ export const RulesPanel = ({
   }, [pending, set.rules])
 
   return (
-    <aside className="size-full overflow-y-auto bg-surface p-3 text-xs">
+    <aside className="size-full overflow-y-auto bg-ground p-3 text-xs">
       <Heading>Rule set</Heading>
 
       <div className="mb-2 flex items-center gap-4">
@@ -299,6 +302,7 @@ export const RulesPanel = ({
           limits={set.plan}
           onChange={rules.updatePlan}
           refused={bit?.worstBand}
+          partSides={partSides}
           revision={rules.revision}
           unit={unit}
         />

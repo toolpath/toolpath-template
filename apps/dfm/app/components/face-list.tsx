@@ -359,7 +359,7 @@ export const FaceList = ({
        * rows inherit; this one did not, which is why its readings were drawn
        * half again the size of the same readings everywhere else.
        */
-      className="flex size-full min-h-0 flex-col overflow-y-auto bg-surface text-xs"
+      className="flex size-full min-h-0 flex-col overflow-y-auto bg-ground text-xs"
       onMouseLeave={() => onHoverFace(null)}
     >
       <header className="flex flex-col gap-2 border-b border-edge p-3">

@@ -189,7 +189,7 @@ export const FeatureDetail = ({
   const built = planned === null ? [] : addedFrom(planned)
 
   return (
-    <aside className="flex size-full min-h-0 flex-col overflow-y-auto bg-surface">
+    <aside className="flex size-full min-h-0 flex-col overflow-y-auto bg-ground">
       {feature ? (
         <div className="p-3">
           <header className="flex flex-col gap-1.5">
