@@ -928,3 +928,37 @@ test('a reading drawn here is listed by the faces it was drawn on', async ({ pag
   // A reading like any other means listed like any other.
   await expect(page.locator('[data-keynav="map"] [data-row^="made-"]')).toHaveCount(1)
 })
+
+test('a reading drawn here is one Create counts as already covering the faces', async ({
+  page,
+}) => {
+  /*
+   * The other half of the same fault, and the half nothing caught.
+   *
+   * `Already on the part` answers "is the Engine already describing this shape"
+   * from the readings Create was handed. Handing it the report rather than the
+   * part left the readings drawn here out of that answer, so drawing the same
+   * two faces twice was told **This is new** the second time — with the first
+   * reading sitting on the part, covering exactly those faces.
+   *
+   * Its sibling above pins the face lists. This pins Create, which reads the
+   * same list for its chaining, its perimeter and its type guesses too.
+   */
+  await page.getByRole('button', { name: 'Create', exact: true }).click()
+  await page.getByRole('button', { name: '+Z', exact: true }).click()
+  await at(page, FACE)
+  await at(page, OTHER)
+  await page.getByRole('button', { name: 'Create feature' }).click()
+  await expect(page.getByText(/It is a reading like any other now/)).toBeVisible()
+
+  // Put it down and draw over the very same faces. `onAgain` empties the
+  // draft, so the way up is chosen again rather than carried over.
+  await page.getByRole('button', { name: 'Draw another' }).click()
+  await page.getByRole('button', { name: '+Z', exact: true }).click()
+  await at(page, FACE)
+  await at(page, OTHER)
+
+  // A reading like any other is one this step has to count.
+  await expect(page.getByText(/reading already covers all of these/)).toBeVisible()
+  await expect(page.getByText(/This is new/)).toHaveCount(0)
+})
