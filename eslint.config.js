@@ -61,7 +61,6 @@ export default tseslint.config(
       '**/.turbo/**',
       '**/test-results/**',
       '**/playwright-report/**',
-      'vendor/**',
     ],
   },
   {

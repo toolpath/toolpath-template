@@ -60,8 +60,8 @@ importers:
         specifier: 0.2.3
         version: 0.2.3
       '@toolpath/ui':
-        specifier: file:../../vendor/toolpath-ui-0.1.0.tgz
-        version: file:vendor/toolpath-ui-0.1.0.tgz(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)
+        specifier: 0.1.1
+        version: 0.1.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)
       '@toolpath/viewer':
         specifier: 0.4.0
         version: 0.4.0(@react-three/drei@10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)
@@ -1074,9 +1074,8 @@ packages:
     resolution: {integrity: sha512-WHJI84cFpEOaUls5fHOS2BJXk9Prj/nM5sRSy8JCGodLeJcRIH/eYUe+klD6Y39odLfaWShDPbUGg1oTaNvBcg==}
     engines: {node: '>=20'}
 
-  '@toolpath/ui@file:vendor/toolpath-ui-0.1.0.tgz':
-    resolution: {integrity: sha512-80xqQRN14s9pbBr4wGE+ZskN4/YSjLeCLdKgQue4CMRbwnKsgzcMv1BUEKPPyKIJ/jIFKAxun5Cw3hBSRGWf6w==, tarball: file:vendor/toolpath-ui-0.1.0.tgz}
-    version: 0.1.0
+  '@toolpath/ui@0.1.1':
+    resolution: {integrity: sha512-cVbQ1O5+At76BevWLJGS2i8oyLeneaFTlzM23dfkfIFr+xOkN7tat/WRx81ECCICLln6JDrlhIKhQfwP4EccMA==}
     peerDependencies:
       react: ^19.2.0
       react-dom: ^19.2.0
@@ -3699,7 +3698,7 @@ snapshots:
 
   '@toolpath/api@0.2.3': {}
 
-  '@toolpath/ui@file:vendor/toolpath-ui-0.1.0.tgz(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)':
+  '@toolpath/ui@0.1.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)':
     dependencies:
       '@base-ui/react': 1.2.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@phosphor-icons/react': 2.1.10(react-dom@19.2.0(react@19.2.0))(react@19.2.0)

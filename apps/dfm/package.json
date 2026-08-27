@@ -20,7 +20,7 @@
     "@react-three/drei": "10.7.8",
     "@react-three/fiber": "9.7.0",
     "@toolpath/api": "0.2.3",
-    "@toolpath/ui": "file:../../vendor/toolpath-ui-0.1.0.tgz",
+    "@toolpath/ui": "0.1.1",
     "@toolpath/viewer": "0.4.0",
     "eventsource-parser": "4.0.0",
     "hono": "4.13.0",
