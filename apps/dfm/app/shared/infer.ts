@@ -2,7 +2,7 @@ import type { Vec3 } from '@toolpath/api'
 
 import type { PartFeature } from './contracts'
 import { directionKey, kindOf } from './report'
-import { forcedRegions, isUndercut } from './generate'
+import { forcedRegions, isUndercut } from './reach'
 import { PASSES, claimedRegions } from './setups'
 import type { SetupPlan } from './setups'
 import type { FeatureVerdict } from './rules'

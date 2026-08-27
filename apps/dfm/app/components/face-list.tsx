@@ -19,6 +19,8 @@ import type { Pass, SetupPlan } from '../shared/setups'
 import type { PartFeature } from '../shared/contracts'
 import type { FeatureScore } from '../shared/feature-score'
 import { formatArea, type Unit } from '../shared/units'
+import { KEYNAV, ROW, keynavAttributes, rowAttributes } from '../shared/row-nav'
+import { usePartView } from './part-view'
 
 /**
  * The faces of one reading, and what else each of them could be.
@@ -103,12 +105,6 @@ const FaceHomes = ({ feature, row }: { feature: PartFeature; row: FaceRow }) => 
 
 export const FaceList = ({
   feature,
-  report,
-  plan,
-  directions,
-  scores,
-  showingPass,
-  unit,
   focusedTag,
   reveal,
   onCurrentFace,
@@ -131,13 +127,6 @@ export const FaceList = ({
   onCutting,
 }: {
   feature: PartFeature
-  report: FacePart
-  plan: SetupPlan
-  directions: readonly Vec3[]
-  scores: ReadonlyMap<string, FeatureScore>
-  /** Which pass the cut marks and the presses mean. */
-  showingPass: Pass
-  unit: Unit
   /** The reading being read, so the row that is says so. */
   focusedTag: string | null
   /** A face named from the part, to open and scroll to. */
@@ -214,6 +203,8 @@ export const FaceList = ({
   /** Change which passes a click on the part claims. */
   onCutting: (passes: ReadonlyArray<Pass>) => void
 }) => {
+  const { report, plan, directions, scores, showingPass, unit } = usePartView()
+
   /**
    * The face being worked on: expanded, and lit on the part.
    *
@@ -242,7 +233,7 @@ export const FaceList = ({
     if (reveal === null) return
     setOpen(reveal)
     document
-      .querySelector(`[data-keynav="faces"] [data-row="${String(reveal)}"]`)
+      .querySelector(`[${KEYNAV}="faces"] [${ROW}="${String(reveal)}"]`)
       ?.scrollIntoView({ block: 'nearest' })
   }, [reveal])
 
@@ -714,7 +705,7 @@ export const FaceList = ({
       <ul
         aria-label="Faces"
         className="flex flex-col p-1.5"
-        data-keynav="faces"
+        {...keynavAttributes('faces')}
         onKeyDown={(event) =>
           moveThroughList(event, {
             onOpen: (value) => toggle(Number(value)),
@@ -836,7 +827,7 @@ export const FaceList = ({
                     />
                     <button
                       type="button"
-                      data-row={String(row.idx)}
+                      {...rowAttributes(String(row.idx))}
                       tabIndex={-1}
                       aria-expanded={open === row.idx}
                       onClick={() => toggle(row.idx)}
@@ -933,7 +924,7 @@ export const FaceList = ({
                       */}
                             <button
                               type="button"
-                              data-row={owner.featureTag}
+                              {...rowAttributes(owner.featureTag)}
                               aria-pressed={reading}
                               // Reads it, and nothing else — the offer list's rule.
                               // The face stays lit and the part draws this reading's

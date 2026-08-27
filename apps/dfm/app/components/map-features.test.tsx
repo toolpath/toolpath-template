@@ -3,9 +3,10 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MapFeaturesPanel } from './map-features'
+import { PartViewProvider, type PartView } from './part-view'
 import { EMPTY_PLAN } from '../shared/setups'
 import { lockSetup, setPassFor } from '../shared/plan-actions'
-import { TEST_DIRECTIONS, testFeature, testPart } from '../shared/test-part'
+import { TEST_DIRECTIONS, testFeature, testPart, testReport } from '../shared/test-part'
 import type { FeatureScore } from '../shared/feature-score'
 import type { PartFeature } from '../shared/contracts'
 import type { UncutFace } from '../shared/plan-summary'
@@ -45,7 +46,40 @@ const uncutFace = (idx: number, from: number[], area = 10): UncutFace => ({
   from,
 })
 
-const panel = (props: Partial<Parameters<typeof MapFeaturesPanel>[0]> = {}) => {
+/**
+ * The panel, and what it is looking at.
+ *
+ * The part, the plan and the two view settings reach it through context now
+ * rather than as props, so this splits them back out of whatever a test passed
+ * — `panel({ plan })` still reads the way it always did, because a test says
+ * what is different about the plan and does not care which route it travels.
+ */
+const panel = (
+  overrides: Partial<Parameters<typeof MapFeaturesPanel>[0]> & Partial<PartView> = {},
+) => {
+  const {
+    report,
+    features: shown,
+    directions,
+    plan,
+    scores,
+    verdicts,
+    unit,
+    showingPass,
+    ...props
+  } = overrides
+
+  const view: PartView = {
+    report: report ?? testReport(features),
+    features: shown ?? features,
+    directions: directions ?? TEST_DIRECTIONS,
+    plan: plan ?? EMPTY_PLAN,
+    scores: scores ?? new Map<string, FeatureScore>(),
+    verdicts: verdicts ?? [],
+    unit: unit ?? 'mm',
+    showingPass: showingPass ?? 'rough',
+  }
+
   const onSetPass = vi.fn()
   const onChoose = vi.fn()
   const onHighlightDirection = vi.fn()
@@ -56,51 +90,46 @@ const panel = (props: Partial<Parameters<typeof MapFeaturesPanel>[0]> = {}) => {
   const onMake = vi.fn()
   const onPickFace = vi.fn()
   render(
-    <MapFeaturesPanel
-      directions={TEST_DIRECTIONS}
-      features={features}
-      candidates={[]}
-      plan={EMPTY_PLAN}
-      scores={new Map<string, FeatureScore>()}
-      unit="mm"
-      mode="face"
-      painted={new Set()}
-      holding={null}
-      focusedTag={null}
-      faces={1}
-      highlighted={null}
-      showingUncut={false}
-      uncut={[]}
-      onPickFace={onPickFace}
-      making={null}
-      types={['pocket', 'wall', 'profile']}
-      report={{ ...testPart(), features }}
-      touching={new Map()}
-      onHoverFace={vi.fn()}
-      justMade={null}
-      onAgain={vi.fn()}
-      onDeleteMade={vi.fn()}
-      onCutMadeFrom={vi.fn()}
-      handedTags={new Set<string>()}
-      onMake={onMake}
-      onDraft={vi.fn()}
-      onConfirmMade={vi.fn()}
-      showingPass="rough"
-      activeDirection={null}
-      onLetGo={vi.fn()}
-      proposal={null}
-      proposed={[]}
-      onInfer={onInfer}
-      onPrune={onPrune}
-      onDiscard={onDiscard}
-      onHighlightDirection={onHighlightDirection}
-      onMode={vi.fn()}
-      onChoose={onChoose}
-      onSetPass={onSetPass}
-      onShowFaces={onShowFaces}
-      onHover={vi.fn()}
-      {...props}
-    />,
+    <PartViewProvider view={view}>
+      <MapFeaturesPanel
+        candidates={[]}
+        mode="face"
+        painted={new Set()}
+        holding={null}
+        focusedTag={null}
+        faces={1}
+        highlighted={null}
+        showingUncut={false}
+        uncut={[]}
+        onPickFace={onPickFace}
+        making={null}
+        types={['pocket', 'wall', 'profile']}
+        touching={new Map()}
+        onHoverFace={vi.fn()}
+        justMade={null}
+        onAgain={vi.fn()}
+        onDeleteMade={vi.fn()}
+        onCutMadeFrom={vi.fn()}
+        handedTags={new Set<string>()}
+        onMake={onMake}
+        onDraft={vi.fn()}
+        onConfirmMade={vi.fn()}
+        activeDirection={null}
+        onLetGo={vi.fn()}
+        proposal={null}
+        proposed={[]}
+        onInfer={onInfer}
+        onPrune={onPrune}
+        onDiscard={onDiscard}
+        onHighlightDirection={onHighlightDirection}
+        onMode={vi.fn()}
+        onChoose={onChoose}
+        onSetPass={onSetPass}
+        onShowFaces={onShowFaces}
+        onHover={vi.fn()}
+        {...props}
+      />
+    </PartViewProvider>,
   )
   return {
     onSetPass,
@@ -598,11 +627,7 @@ describe('the rows survive a re-render', () => {
      */
     const props = {
       directions: TEST_DIRECTIONS,
-      features,
       candidates: [pocket, wall],
-      plan: EMPTY_PLAN,
-      scores: new Map<string, FeatureScore>(),
-      unit: 'mm' as const,
       mode: 'face' as const,
       painted: new Set<number>(),
       holding: null,
@@ -614,7 +639,6 @@ describe('the rows survive a re-render', () => {
       onPickFace: vi.fn(),
       making: null,
       types: [],
-      report: { ...testPart(), features },
       touching: new Map(),
       onHoverFace: vi.fn(),
       justMade: null,
@@ -625,7 +649,6 @@ describe('the rows survive a re-render', () => {
       onMake: vi.fn(),
       onDraft: vi.fn(),
       onConfirmMade: vi.fn(),
-      showingPass: 'rough' as const,
       activeDirection: null,
       onLetGo: vi.fn(),
       proposal: null,
@@ -641,14 +664,33 @@ describe('the rows survive a re-render', () => {
       onHover: vi.fn(),
     }
 
-    const { rerender } = render(<MapFeaturesPanel {...props} />)
+    const view: PartView = {
+      report: testReport(features),
+      features,
+      directions: TEST_DIRECTIONS,
+      plan: EMPTY_PLAN,
+      scores: new Map<string, FeatureScore>(),
+      verdicts: [],
+      unit: 'mm',
+      showingPass: 'rough',
+    }
+
+    const { rerender } = render(
+      <PartViewProvider view={view}>
+        <MapFeaturesPanel {...props} />
+      </PartViewProvider>,
+    )
 
     const row = screen.getAllByRole('button', { name: /Pocket/ })[0]!
     row.focus()
     expect(document.activeElement).toBe(row)
 
     // The kind of change reading a row causes.
-    rerender(<MapFeaturesPanel {...props} focusedTag="pocket" />)
+    rerender(
+      <PartViewProvider view={view}>
+        <MapFeaturesPanel {...props} focusedTag="pocket" />
+      </PartViewProvider>,
+    )
 
     expect(document.activeElement).toBe(screen.getAllByRole('button', { name: /Pocket/ })[0])
   })

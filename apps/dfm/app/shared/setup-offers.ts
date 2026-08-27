@@ -2,7 +2,7 @@ import type { Vec3 } from '@toolpath/api'
 
 import type { PartFeature } from './contracts'
 import { directionRows } from './direction-rows'
-import { requiredDirections } from './generate'
+import { requiredDirections } from './reach'
 import type { PartFaces } from './setups'
 
 /**

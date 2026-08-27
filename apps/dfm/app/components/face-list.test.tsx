@@ -3,10 +3,11 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { FaceList } from './face-list'
+import { PartViewProvider, type PartView } from './part-view'
 import { EMPTY_PLAN, PASSES, type SetupPlan } from '../shared/setups'
 import { setFaceCut } from '../shared/faces'
 import { setPassFor } from '../shared/plan-actions'
-import { TEST_DIRECTIONS, testFeature, testPart } from '../shared/test-part'
+import { TEST_DIRECTIONS, testFeature, testReport } from '../shared/test-part'
 
 /**
  * The face editor. The clicks it arms happen on a mesh no fixture mounts (F51),
@@ -18,7 +19,19 @@ afterEach(cleanup)
 const profile = testFeature('profile', 'profile', TEST_DIRECTIONS[0]!, [0, 1])
 const wall = testFeature('wall', 'wall', TEST_DIRECTIONS[1]!, [2])
 const features = [profile, wall]
-const report = { ...testPart(), features }
+const report = testReport(features)
+
+/** What every FaceList in here is looking at, with the plan under test in it. */
+const view = (plan: SetupPlan): PartView => ({
+  report,
+  features,
+  directions: TEST_DIRECTIONS,
+  plan,
+  scores: new Map(),
+  verdicts: [],
+  unit: 'mm',
+  showingPass: 'rough',
+})
 
 const editor = (plan: SetupPlan = EMPTY_PLAN) => {
   const onSetFace = vi.fn()
@@ -28,35 +41,31 @@ const editor = (plan: SetupPlan = EMPTY_PLAN) => {
   const onHoverFace = vi.fn()
 
   const panel = (shown: SetupPlan) => (
-    <FaceList
-      feature={profile}
-      report={report}
-      plan={shown}
-      directions={TEST_DIRECTIONS}
-      scores={new Map()}
-      showingPass="rough"
-      unit="mm"
-      focusedTag={null}
-      reveal={null}
-      cutting={PASSES}
-      onCutting={vi.fn()}
-      onSelectAll={onSelectAll}
-      onUnlockSetup={vi.fn()}
-      onSelectFree={onSelectFree}
-      types={['profile', 'wall', 'open_pocket']}
-      onRetype={onRetype}
-      onCurrentFace={vi.fn()}
-      onSetFace={onSetFace}
-      onSetFacePass={vi.fn()}
-      onSetPass={vi.fn()}
-      onChoose={vi.fn()}
-      onHoverFace={onHoverFace}
-      onCancel={vi.fn()}
-      changed={false}
-      onClose={vi.fn()}
-      onDelete={vi.fn()}
-      onCutFrom={vi.fn()}
-    />
+    <PartViewProvider view={view(shown)}>
+      <FaceList
+        feature={profile}
+        focusedTag={null}
+        reveal={null}
+        cutting={PASSES}
+        onCutting={vi.fn()}
+        onSelectAll={onSelectAll}
+        onUnlockSetup={vi.fn()}
+        onSelectFree={onSelectFree}
+        types={['profile', 'wall', 'open_pocket']}
+        onRetype={onRetype}
+        onCurrentFace={vi.fn()}
+        onSetFace={onSetFace}
+        onSetFacePass={vi.fn()}
+        onSetPass={vi.fn()}
+        onChoose={vi.fn()}
+        onHoverFace={onHoverFace}
+        onCancel={vi.fn()}
+        changed={false}
+        onClose={vi.fn()}
+        onDelete={vi.fn()}
+        onCutFrom={vi.fn()}
+      />
+    </PartViewProvider>
   )
 
   const { rerender } = render(panel(plan))
@@ -429,35 +438,31 @@ describe('disagreeing with what the Engine called it', () => {
   it('keeps its own type on the list even where the part uses it nowhere else', () => {
     const onRetype = vi.fn()
     render(
-      <FaceList
-        feature={profile}
-        report={report}
-        plan={EMPTY_PLAN}
-        directions={TEST_DIRECTIONS}
-        scores={new Map()}
-        showingPass="rough"
-        unit="mm"
-        focusedTag={null}
-        reveal={null}
-        cutting={PASSES}
-        onCutting={vi.fn()}
-        onSelectAll={vi.fn()}
-        onUnlockSetup={vi.fn()}
-        onSelectFree={vi.fn()}
-        types={['wall']}
-        onRetype={onRetype}
-        onCurrentFace={vi.fn()}
-        onSetFace={vi.fn()}
-        onSetFacePass={vi.fn()}
-        onSetPass={vi.fn()}
-        onChoose={vi.fn()}
-        onHoverFace={vi.fn()}
-        onCancel={vi.fn()}
-        changed={false}
-        onClose={vi.fn()}
-        onDelete={vi.fn()}
-        onCutFrom={vi.fn()}
-      />,
+      <PartViewProvider view={view(EMPTY_PLAN)}>
+        <FaceList
+          feature={profile}
+          focusedTag={null}
+          reveal={null}
+          cutting={PASSES}
+          onCutting={vi.fn()}
+          onSelectAll={vi.fn()}
+          onUnlockSetup={vi.fn()}
+          onSelectFree={vi.fn()}
+          types={['wall']}
+          onRetype={onRetype}
+          onCurrentFace={vi.fn()}
+          onSetFace={vi.fn()}
+          onSetFacePass={vi.fn()}
+          onSetPass={vi.fn()}
+          onChoose={vi.fn()}
+          onHoverFace={vi.fn()}
+          onCancel={vi.fn()}
+          changed={false}
+          onClose={vi.fn()}
+          onDelete={vi.fn()}
+          onCutFrom={vi.fn()}
+        />
+      </PartViewProvider>,
     )
 
     const select = screen.getByLabelText('Feature type') as HTMLSelectElement
@@ -527,35 +532,31 @@ describe('a reading cut from a settled way up', () => {
     const onUnlockSetup = vi.fn()
     const plan = settled()
     render(
-      <FaceList
-        feature={profile}
-        report={report}
-        plan={plan}
-        directions={TEST_DIRECTIONS}
-        scores={new Map()}
-        showingPass="rough"
-        unit="mm"
-        focusedTag={null}
-        reveal={null}
-        cutting={PASSES}
-        onCutting={vi.fn()}
-        onSelectAll={vi.fn()}
-        onUnlockSetup={onUnlockSetup}
-        onSelectFree={vi.fn()}
-        types={['profile']}
-        onRetype={vi.fn()}
-        onCurrentFace={vi.fn()}
-        onSetFace={vi.fn()}
-        onSetFacePass={vi.fn()}
-        onSetPass={vi.fn()}
-        onChoose={vi.fn()}
-        onHoverFace={vi.fn()}
-        onClose={vi.fn()}
-        onCancel={vi.fn()}
-        changed={false}
-        onDelete={vi.fn()}
-        onCutFrom={vi.fn()}
-      />,
+      <PartViewProvider view={view(plan)}>
+        <FaceList
+          feature={profile}
+          focusedTag={null}
+          reveal={null}
+          cutting={PASSES}
+          onCutting={vi.fn()}
+          onSelectAll={vi.fn()}
+          onUnlockSetup={onUnlockSetup}
+          onSelectFree={vi.fn()}
+          types={['profile']}
+          onRetype={vi.fn()}
+          onCurrentFace={vi.fn()}
+          onSetFace={vi.fn()}
+          onSetFacePass={vi.fn()}
+          onSetPass={vi.fn()}
+          onChoose={vi.fn()}
+          onHoverFace={vi.fn()}
+          onClose={vi.fn()}
+          onCancel={vi.fn()}
+          changed={false}
+          onDelete={vi.fn()}
+          onCutFrom={vi.fn()}
+        />
+      </PartViewProvider>,
     )
 
     fireEvent.click(screen.getByRole('button', { name: /^Unlock/ }))

@@ -23,6 +23,8 @@ import type { PartFaces, Pass, SetupPlan } from '../shared/setups'
 import { PASSES, cutState, cutsFrom, faceCounts } from '../shared/setups'
 import { type FacePart, facesOf } from '../shared/faces'
 import { formatArea, type Unit } from '../shared/units'
+import { rowAttributes } from '../shared/row-nav'
+import { usePartView } from './part-view'
 
 /**
  * The mapping, as a plan: what is held, what each way up cuts, what is left.
@@ -151,20 +153,12 @@ const FaceLines = ({
  * say so even if finishing still has it.
  */
 export const SetupsPanel = ({
-  report,
-  features,
-  showingPass,
-  unit,
-  directions,
-  plan,
-  scores,
   focusedTag,
   onChoose,
   onHover,
   onSetPass,
   onShowFaces,
   onRemoveSetup,
-  verdicts,
   onGenerate,
   onFillSetup,
   onLockSetup,
@@ -174,15 +168,6 @@ export const SetupsPanel = ({
   onShowUncut,
   onClearAll,
 }: {
-  report: PartFaces
-  features: readonly PartFeature[]
-  /** Which pass the face pips read. */
-  showingPass: Pass
-  unit: Unit
-  directions: readonly Vec3[]
-  plan: SetupPlan
-  /** How hard each reading is, the same badge the other lists carry. */
-  scores: ReadonlyMap<string, FeatureScore>
   focusedTag: string | null
   onChoose: (featureTag: string) => void
   onHover: (tags: string[]) => void
@@ -190,13 +175,6 @@ export const SetupsPanel = ({
   /** Open a reading's faces, in place of the datasheet. */
   onShowFaces: (featureTag: string) => void
   onRemoveSetup: (setupId: string) => void
-  /**
-   * The rules' verdicts, so `Fill` greys on the same answer the press uses.
-   *
-   * `inferable` takes them into account, so a button deciding without them
-   * greys on a different question from the one it asks.
-   */
-  verdicts: ReadonlyArray<FeatureVerdict>
   onGenerate: (how: Generator) => void
   /** Hold one way up in By direction, and offer what it can still pick up. */
   onFillSetup: (directionIndex: number) => void
@@ -218,6 +196,8 @@ export const SetupsPanel = ({
   onShowUncut: () => void
   onClearAll: () => void
 }) => {
+  const { report, features, showingPass, unit, directions, plan, scores, verdicts } = usePartView()
+
   // Folded by default is wrong — a direction with nothing shown under it reads
   // as empty. So they open, and folding is what somebody does to get one out of
   // the way once they have read it.
@@ -654,7 +634,7 @@ export const SetupsPanel = ({
 
                         <button
                           type="button"
-                          data-row={feature.featureTag}
+                          {...rowAttributes(feature.featureTag)}
                           aria-pressed={chosen}
                           onMouseEnter={() => onHover([feature.featureTag])}
                           onFocus={() => {
@@ -710,7 +690,7 @@ export const SetupsPanel = ({
                             >
                               <button
                                 type="button"
-                                data-row={hole.featureTag}
+                                {...rowAttributes(hole.featureTag)}
                                 onFocus={() => onChoose(hole.featureTag)}
                                 onClick={() => onChoose(hole.featureTag)}
                                 className="flex-1 truncate text-left font-mono transition hover:text-ink-strong"

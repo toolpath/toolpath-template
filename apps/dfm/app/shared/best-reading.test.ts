@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { byBestReading, DEFAULT_PLAN_LIMITS, whatBit } from './best-reading'
+import { byBestReading, DEFAULT_PLAN_LIMITS, bothBits } from './best-reading'
+import type { BestReadingOptions, WhatBit } from './best-reading'
 import { BAND_PRICE, bandOnScale, scaleFor, scoreFeature } from './rules'
 import { EMPTY_PLAN, PASSES, coverageOf, cutRegions, setupFor } from './setups'
 import { TEST_DIRECTIONS, testFeature, testPart } from './test-part'
 import type { FeatureVerdict, RuleResult } from './rules'
-import type { PartFaces } from './setups'
+import type { PartFaces, SetupPlan } from './setups'
 import { bandRank } from './rules'
 import type { PartFeature } from './contracts'
 import type { PlanLimits, Rule } from './rules'
@@ -93,7 +94,10 @@ const run = (
   features: ReadonlyArray<PartFeature>,
   verdicts = new Map<string, FeatureVerdict>(),
   keep = EMPTY_PLAN,
-) => byBestReading({ regions: part.regions }, TEST_DIRECTIONS, features, verdicts, keep)
+) =>
+  byBestReading({ regions: part.regions }, TEST_DIRECTIONS, features, verdicts, {
+    keep: keep,
+  }).plan
 
 describe('an arrangement the rules chose', () => {
   it('cuts every face exactly once', () => {
@@ -235,9 +239,11 @@ describe('what a new orientation has to be worth', () => {
       TEST_DIRECTIONS,
       [everything, crumb],
       new Map(),
-      EMPTY_PLAN,
-      { ...NOTHING_CHARGED, planRules: [setups([1, 1, 1, 1])] },
-    )
+      {
+        keep: EMPTY_PLAN,
+        limits: { ...NOTHING_CHARGED, planRules: [setups([1, 1, 1, 1])] },
+      },
+    ).plan
 
     expect(plan.setups).toHaveLength(1)
   })
@@ -248,9 +254,11 @@ describe('what a new orientation has to be worth', () => {
       TEST_DIRECTIONS,
       part.features,
       new Map(),
-      EMPTY_PLAN,
-      { ...DEFAULT_PLAN_LIMITS, maxDirections: 1 },
-    )
+      {
+        keep: EMPTY_PLAN,
+        limits: { ...DEFAULT_PLAN_LIMITS, maxDirections: 1 },
+      },
+    ).plan
 
     expect(plan.setups.length).toBeLessThanOrEqual(1)
   })
@@ -302,18 +310,16 @@ describe('a reading is judged over its whole ground, not face by face', () => {
     ['best1', ['easy']],
   ])
 
-  const cutter = (
-    plan: ReturnType<typeof byBestReading>,
-    face: number,
-    among: ReadonlyArray<PartFeature> = all,
-  ) =>
+  const cutter = (plan: SetupPlan, face: number, among: ReadonlyArray<PartFeature> = all) =>
     among.find((f) => f.regionIdxs.includes(face) && plan.assigned[f.featureTag]?.rough)?.featureTag
 
   it('lets the better reading take a face its other ground had blocked', () => {
     const plan = byBestReading(part, TEST_DIRECTIONS, all, verdicts, {
-      setups: TEST_DIRECTIONS.map((_d, index) => setupFor(TEST_DIRECTIONS, index, index)),
-      assigned: {},
-    })
+      keep: {
+        setups: TEST_DIRECTIONS.map((_d, index) => setupFor(TEST_DIRECTIONS, index, index)),
+        assigned: {},
+      },
+    }).plan
 
     expect(cutter(plan, 2)).toBe('wall')
   })
@@ -332,9 +338,11 @@ describe('a reading is judged over its whole ground, not face by face', () => {
     ])
 
     const plan = byBestReading(part, TEST_DIRECTIONS, [wide, narrow], scores, {
-      setups: TEST_DIRECTIONS.map((_d, index) => setupFor(TEST_DIRECTIONS, index, index)),
-      assigned: {},
-    })
+      keep: {
+        setups: TEST_DIRECTIONS.map((_d, index) => setupFor(TEST_DIRECTIONS, index, index)),
+        assigned: {},
+      },
+    }).plan
 
     // `narrow` scores better but reaches one face; taking it would leave two
     // cut by nobody.
@@ -360,10 +368,12 @@ describe('filling from what is already held', () => {
       TEST_DIRECTIONS,
       [mine, elsewhere],
       new Map(),
-      held(0),
-      DEFAULT_PLAN_LIMITS,
-      false,
-    )
+      {
+        keep: held(0),
+        limits: DEFAULT_PLAN_LIMITS,
+        mayBuy: false,
+      },
+    ).plan
 
     expect(plan.setups.map((setup) => setup.directionIndex)).toEqual([0])
     expect(plan.assigned['elsewhere']?.rough).toBeUndefined()
@@ -374,15 +384,11 @@ describe('filling from what is already held', () => {
     // The remedy is to hold that way up, which is somebody's decision to make.
     const onlyThere = testFeature('only-there', 'wall', DOWN, [4])
 
-    const plan = byBestReading(
-      { regions: part.regions },
-      TEST_DIRECTIONS,
-      [onlyThere],
-      new Map(),
-      held(0),
-      DEFAULT_PLAN_LIMITS,
-      false,
-    )
+    const plan = byBestReading({ regions: part.regions }, TEST_DIRECTIONS, [onlyThere], new Map(), {
+      keep: held(0),
+      limits: DEFAULT_PLAN_LIMITS,
+      mayBuy: false,
+    }).plan
 
     expect(plan.assigned['only-there']?.rough).toBeUndefined()
   })
@@ -399,10 +405,12 @@ describe('filling from what is already held', () => {
         ['poor', ['rats']],
         ['better', ['easy']],
       ]),
-      held(0),
-      DEFAULT_PLAN_LIMITS,
-      false,
-    )
+      {
+        keep: held(0),
+        limits: DEFAULT_PLAN_LIMITS,
+        mayBuy: false,
+      },
+    ).plan
 
     expect(plan.assigned['better']?.rough).toBeDefined()
     expect(plan.assigned['poor']?.rough).toBeUndefined()
@@ -414,10 +422,12 @@ describe('filling from what is already held', () => {
       TEST_DIRECTIONS,
       part.features,
       new Map(),
-      EMPTY_PLAN,
-      DEFAULT_PLAN_LIMITS,
-      false,
-    )
+      {
+        keep: EMPTY_PLAN,
+        limits: DEFAULT_PLAN_LIMITS,
+        mayBuy: false,
+      },
+    ).plan
 
     expect(plan.setups).toEqual([])
     expect(Object.keys(plan.assigned)).toEqual([])
@@ -463,7 +473,9 @@ describe('a bigger reading does not win on size alone', () => {
   }
 
   it('keeps the better reading and covers the rest from somewhere else', () => {
-    const plan = byBestReading(part26, TEST_DIRECTIONS, all, verdicts, held)
+    const plan = byBestReading(part26, TEST_DIRECTIONS, all, verdicts, {
+      keep: held,
+    }).plan
 
     expect(plan.assigned['wall']?.rough).toBeDefined()
     expect(plan.assigned['other']?.rough).toBeDefined()
@@ -473,7 +485,9 @@ describe('a bigger reading does not win on size alone', () => {
   it('still takes the bigger reading when nothing else reaches that ground', () => {
     // Without `other`, the twelve faces have no second answer — and a face cut
     // at 58 is worth more than a face cut by nobody.
-    const plan = byBestReading(part26, TEST_DIRECTIONS, [wall, contour], verdicts, held)
+    const plan = byBestReading(part26, TEST_DIRECTIONS, [wall, contour], verdicts, {
+      keep: held,
+    }).plan
 
     expect(plan.assigned['contour']?.rough).toBeDefined()
   })
@@ -548,8 +562,10 @@ describe('a big mediocre reading is not unassailable', () => {
       [...TEST_DIRECTIONS.slice(0, 2), contour.machiningDirection],
       all,
       verdicts,
-      held,
-    )
+      {
+        keep: held,
+      },
+    ).plan
 
     expect(plan.assigned['best']?.rough).toBeDefined()
     expect(plan.assigned['contour']?.rough).toBeUndefined()
@@ -563,8 +579,10 @@ describe('a big mediocre reading is not unassailable', () => {
       [...TEST_DIRECTIONS.slice(0, 2), contour.machiningDirection],
       all,
       verdicts,
-      held,
-    )
+      {
+        keep: held,
+      },
+    ).plan
 
     expect(coverageOf(part13, all, plan, 'rough').mapped).toBeCloseTo(1, 6)
   })
@@ -594,18 +612,14 @@ describe('a reading that may cut part of what it covers', () => {
   // `gainToMove` and the size floor are the *other* question — whether a split
   // is worth an operation. These are about whether it is possible at all.
   const arrange = (partial: boolean) =>
-    byBestReading(
-      { regions: part.regions },
-      TEST_DIRECTIONS,
-      all,
-      verdicts,
-      held,
-      NOTHING_CHARGED,
-      false,
-      false,
-      PASSES,
-      partial,
-    )
+    byBestReading({ regions: part.regions }, TEST_DIRECTIONS, all, verdicts, {
+      keep: held,
+      limits: NOTHING_CHARGED,
+      mayBuy: false,
+      seeded: false,
+      passes: PASSES,
+      partial: partial,
+    }).plan
 
   it('cuts every face by the best reading of it, rather than losing the lot', () => {
     const plan = arrange(true)
@@ -651,13 +665,18 @@ describe('what a shop will not cut at all', () => {
         ['good', ['meh']],
         ['only', ['no go']],
       ]),
-      { setups: [setupFor(TEST_DIRECTIONS, 0, 0), setupFor(TEST_DIRECTIONS, 1, 1)], assigned: {} },
-      { ...NOTHING_CHARGED, worstBand },
-      false,
-      false,
-      PASSES,
-      true,
-    )
+      {
+        keep: {
+          setups: [setupFor(TEST_DIRECTIONS, 0, 0), setupFor(TEST_DIRECTIONS, 1, 1)],
+          assigned: {},
+        },
+        limits: { ...NOTHING_CHARGED, worstBand },
+        mayBuy: false,
+        seeded: false,
+        passes: PASSES,
+        partial: true,
+      },
+    ).plan
 
   it('gives the face to a reading above the floor, whatever the refused one scores', () => {
     const plan = arrange([bad, good], 'rats')
@@ -754,22 +773,17 @@ describe('which limits actually did anything', () => {
    * it was consulted: a price checked four hundred times that blocked nothing
    * did nothing.
    */
-  const spend = (limits: Parameters<typeof byBestReading>[5]) =>
-    byBestReading(
-      { regions: part.regions },
-      TEST_DIRECTIONS,
-      part.features,
-      new Map<string, FeatureVerdict>(),
-      EMPTY_PLAN,
+  const spend = (limits: BestReadingOptions['limits']) =>
+    byBestReading({ regions: part.regions }, TEST_DIRECTIONS, part.features, new Map(), {
+      keep: EMPTY_PLAN,
       limits,
-    )
+    })
 
   // Both part rules off is a shop saying it does not care about either, and
   // nothing is charged — so nothing can have been refused for a price.
   it('reports nothing bitten where neither part rule is in force', () => {
-    spend({ planRules: [] })
+    const { bit } = spend({ planRules: [] })
 
-    const bit = whatBit()
     expect(bit.gainToMove).toBe(0)
     expect(bit.worthAnOperation).toBe(0)
     expect(bit.sliverFloor).toBe(0)
@@ -777,9 +791,9 @@ describe('which limits actually did anything', () => {
   })
 
   it('counts the ways up a refusal stopped being bought', () => {
-    spend({ ...DEFAULT_PLAN_LIMITS, planRules: [setups([1, 1, 1, 1], 1)] })
-
-    expect(whatBit().waysUp).toBeGreaterThan(0)
+    expect(
+      spend({ ...DEFAULT_PLAN_LIMITS, planRules: [setups([1, 1, 1, 1], 1)] }).bit.waysUp,
+    ).toBeGreaterThan(0)
   })
 
   // A fresh ledger per run, or the panel reads a mixture of two arrangements —
@@ -787,26 +801,23 @@ describe('which limits actually did anything', () => {
   it('starts again on every run rather than accumulating', () => {
     const limits: PlanLimits = { ...DEFAULT_PLAN_LIMITS, planRules: [setups([1, 1, 1, 1], 1)] }
 
-    spend(limits)
-    const once = whatBit().waysUp
+    const once = spend(limits).bit.waysUp
 
-    spend(limits)
-    expect(whatBit().waysUp).toBe(once)
+    expect(spend(limits).bit.waysUp).toBe(once)
   })
 
   it('says whether it settled or ran out of rounds', () => {
-    spend({ ...DEFAULT_PLAN_LIMITS, rounds: 1 })
-
-    expect(whatBit().rounds).toEqual({ used: 1, capped: true })
+    expect(spend({ ...DEFAULT_PLAN_LIMITS, rounds: 1 }).bit.rounds).toEqual({
+      used: 1,
+      capped: true,
+    })
   })
 
   // Nothing judged these readings, so the unjudged default is what ranked every
   // one of them — a part where that is true is a part whose plan rests on a
   // number nobody set deliberately, and it should say so.
   it('counts readings no rule reached', () => {
-    spend(DEFAULT_PLAN_LIMITS)
-
-    expect(whatBit().unjudgedRank).toBe(part.features.length)
+    expect(spend(DEFAULT_PLAN_LIMITS).bit.unjudgedRank).toBe(part.features.length)
   })
 })
 
@@ -834,9 +845,11 @@ describe('what a shop has already said it will not cut', () => {
       TEST_DIRECTIONS,
       [lonely],
       verdictsFor([['lonely', ['no go']]]),
-      EMPTY_PLAN,
-      DEFAULT_PLAN_LIMITS,
-    )
+      {
+        keep: EMPTY_PLAN,
+        limits: DEFAULT_PLAN_LIMITS,
+      },
+    ).plan
 
     expect(cutRegions(plan, lonely, 'rough')).toEqual([5])
   })
@@ -865,14 +878,19 @@ describe('whether a feature may come apart', () => {
         ['pocket', ['meh']],
         ['wall', ['easy']],
       ]),
-      { setups: [setupFor(TEST_DIRECTIONS, 0, 0), setupFor(TEST_DIRECTIONS, 1, 1)], assigned: {} },
-      limits,
-      false,
-      false,
-      PASSES,
-      // Undefined: the rule decides, which is the whole point of the change.
-      undefined,
-    )
+      {
+        keep: {
+          setups: [setupFor(TEST_DIRECTIONS, 0, 0), setupFor(TEST_DIRECTIONS, 1, 1)],
+          assigned: {},
+        },
+        limits: limits,
+        mayBuy: false,
+        seeded: false,
+        passes: PASSES,
+        // Undefined: the rule decides, which is the whole point of the change.
+        partial: undefined,
+      },
+    ).plan
 
   it('splits where the rules say a feature may come apart', () => {
     const plan = arrange({ ...NOTHING_CHARGED, splitFeatures: true })
@@ -909,13 +927,18 @@ describe('whether a feature may come apart', () => {
         ['pocket', ['meh']],
         ['wall', ['easy']],
       ]),
-      { setups: [setupFor(TEST_DIRECTIONS, 0, 0), setupFor(TEST_DIRECTIONS, 1, 1)], assigned: {} },
-      { ...NOTHING_CHARGED, splitFeatures: true },
-      false,
-      false,
-      PASSES,
-      false,
-    )
+      {
+        keep: {
+          setups: [setupFor(TEST_DIRECTIONS, 0, 0), setupFor(TEST_DIRECTIONS, 1, 1)],
+          assigned: {},
+        },
+        limits: { ...NOTHING_CHARGED, splitFeatures: true },
+        mayBuy: false,
+        seeded: false,
+        passes: PASSES,
+        partial: false,
+      },
+    ).plan
 
     expect(cutRegions(plan, pocket, 'rough')).toEqual([0, 1, 2])
   })
@@ -932,40 +955,34 @@ describe('a wall the geometry will not respect', () => {
    * geometry wins, and what was actually wrong is that it happened in silence.
    */
   const spend = (limits: PlanLimits) =>
-    byBestReading(
-      { regions: part.regions },
-      TEST_DIRECTIONS,
-      part.features,
-      new Map<string, FeatureVerdict>(),
-      EMPTY_PLAN,
+    byBestReading({ regions: part.regions }, TEST_DIRECTIONS, part.features, new Map(), {
+      keep: EMPTY_PLAN,
       limits,
-    )
+    })
 
   it('still buys a way up the geometry forces past the wall', () => {
     const plan = spend({ ...DEFAULT_PLAN_LIMITS, planRules: [setups([1, 1, 1, 1], 1)] })
 
     // A part needing more than one way up gets them: a wall is not a reason to
     // leave ground uncut.
-    expect(plan.setups.length).toBeGreaterThanOrEqual(1)
+    expect(plan.plan.setups.length).toBeGreaterThanOrEqual(1)
   })
 
   it('says how many it was forced past the wall to run', () => {
-    spend({ ...DEFAULT_PLAN_LIMITS, planRules: [setups([1, 1, 1, 1], 1)] })
-
     // One wall at a count of one, so every setup past the first is forced.
-    const plan = spend({ ...DEFAULT_PLAN_LIMITS, planRules: [setups([1, 1, 1, 1], 1)] })
+    const { plan, bit } = spend({ ...DEFAULT_PLAN_LIMITS, planRules: [setups([1, 1, 1, 1], 1)] })
 
-    expect(whatBit().waysUpForced).toBe(Math.max(0, plan.setups.length - 1))
+    expect(bit.waysUpForced).toBe(Math.max(0, plan.setups.length - 1))
   })
 
   // Nothing to report where the plan is inside the wall, and nothing to report
   // where no wall was set.
   it('says nothing when the plan is within what the shop asked for', () => {
-    spend({ ...DEFAULT_PLAN_LIMITS, planRules: [setups([9, 9, 9, 9], 9)] })
-    expect(whatBit().waysUpForced).toBe(0)
+    expect(
+      spend({ ...DEFAULT_PLAN_LIMITS, planRules: [setups([9, 9, 9, 9], 9)] }).bit.waysUpForced,
+    ).toBe(0)
 
-    spend({ ...DEFAULT_PLAN_LIMITS, planRules: [] })
-    expect(whatBit().waysUpForced).toBe(0)
+    expect(spend({ ...DEFAULT_PLAN_LIMITS, planRules: [] }).bit.waysUpForced).toBe(0)
   })
 })
 
@@ -1004,9 +1021,11 @@ describe('a setup somebody has settled', () => {
         ['pocket', ['easy']],
         ['wall', ['no go']],
       ]),
-      settled(),
-      NOTHING_CHARGED,
-    )
+      {
+        keep: settled(),
+        limits: NOTHING_CHARGED,
+      },
+    ).plan
 
   it('keeps what a locked setup cuts, however badly it scores', () => {
     expect(cutRegions(arrange(), wall, 'rough')).toEqual([2])
@@ -1033,9 +1052,11 @@ describe('a setup somebody has settled', () => {
         ['pocket', ['easy']],
         ['wall', ['no go']],
       ]),
-      open,
-      NOTHING_CHARGED,
-    )
+      {
+        keep: open,
+        limits: NOTHING_CHARGED,
+      },
+    ).plan
 
     expect(cutRegions(plan, wall, 'rough')).toEqual([])
   })

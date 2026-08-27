@@ -391,10 +391,6 @@ export const handedReadings = (
   })
 }
 
-/** Whether this reading holds that face by hand rather than by report. */
-export const holdsByHand = (plan: SetupPlan, feature: PartFeature, region: number): boolean =>
-  !feature.regionIdxs.includes(region) && coveredRegions(plan, feature).includes(region)
-
 /**
  * Whether the editor has changed anything about this reading.
  *

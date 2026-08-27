@@ -14,6 +14,7 @@ import type { PartFeature } from '../shared/contracts'
 import type { FeatureScore } from '../shared/feature-score'
 import { ruleHits } from '../shared/rule-text'
 import { moveThroughList } from '../shared/list-keys'
+import { keynavAttributes } from '../shared/row-nav'
 
 /**
  * The limits the part is being judged against, and every one of them editable.
@@ -193,7 +194,7 @@ export const RulesPanel = ({
 
       <ul
         className="mt-1"
-        data-keynav="rules"
+        {...keynavAttributes('rules')}
         onKeyDown={(event) =>
           moveThroughList(event, {
             onOpen: (value) => setOpen((shown) => new Set([...shown, value])),

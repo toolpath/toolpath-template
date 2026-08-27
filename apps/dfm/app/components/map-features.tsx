@@ -29,6 +29,8 @@ import { EMPTY_DRAFT, type Draft, type Touching } from '../shared/make-feature'
 import { INFER_SCOPES, type Infer } from '../shared/infer'
 import type { Proposal } from '../shared/proposal'
 import { formatArea, formatLength, type Unit } from '../shared/units'
+import { keynavAttributes, rowAttributes } from '../shared/row-nav'
+import { usePartView } from './part-view'
 
 /**
  * Map features — where the mapping is actually done.
@@ -270,7 +272,7 @@ const GroupHeader = ({
          * landing on a header lights everything that way up would cut, exactly
          * as clicking it does.
          */
-        data-row={`direction-${String(index)}`}
+        {...rowAttributes(`direction-${String(index)}`)}
         aria-pressed={highlighted === index}
         title={`Light everything ${label} would cut here`}
         onFocus={() => onHighlightDirection(index, tags)}
@@ -347,7 +349,7 @@ const HoleRow = ({
     >
       <button
         type="button"
-        data-row={hole.featureTag}
+        {...rowAttributes(hole.featureTag)}
         aria-pressed={isFocused}
         title={`Read this hole on its own — ${hole.featureTag}`}
         onFocus={() => onChoose(hole.featureTag, true)}
@@ -644,7 +646,6 @@ const Reading = ({
         ) : null}
         <button
           type="button"
-          data-row={feature.featureTag}
           /*
            * What the row would assign, for the keys handled at the window.
            *
@@ -654,8 +655,11 @@ const Reading = ({
            * re-derived there: the two lists group by different rules (see
            * `groupAcrossPart`), and a handler working it out again would use the
            * wrong one in one of them.
+           *
+           * `rowAttributes` writes the group only where there is one, so an
+           * ungrouped row says nothing and reads back as standing for itself.
            */
-          data-holes={grouped ? tags.join(' ') : undefined}
+          {...rowAttributes(feature.featureTag, grouped ? tags : undefined)}
           aria-pressed={isFocused}
           // The row under the keyboard is the target (§4g). Arrowing onto one
           // reads it, rather than moving a highlight that then has to be pressed
@@ -785,12 +789,7 @@ const Reading = ({
 }
 
 export const MapFeaturesPanel = ({
-  directions,
-  features,
   candidates,
-  plan,
-  scores,
-  unit,
   mode,
   painted,
   holding,
@@ -803,14 +802,12 @@ export const MapFeaturesPanel = ({
   making,
   handedTags,
   types,
-  report,
   touching,
   onHoverFace,
   justMade,
   onAgain,
   onDeleteMade,
   onCutMadeFrom,
-  showingPass,
   activeDirection,
   onMake,
   onDraft,
@@ -828,14 +825,8 @@ export const MapFeaturesPanel = ({
   onHighlightDirection,
   onHover,
 }: {
-  directions: readonly Vec3[]
-  features: readonly PartFeature[]
   /** The readings owning every picked face, ranked — by-face mode's whole job. */
   candidates: readonly PartFeature[]
-  plan: SetupPlan
-  scores: ReadonlyMap<string, FeatureScore>
-  /** The unit the shop reads in, for the drill a hole group names. */
-  unit: Unit
   mode: PickMode
   painted: ReadonlySet<number>
   holding: number | null
@@ -875,8 +866,6 @@ export const MapFeaturesPanel = ({
    */
   /** The types this part has, so a made reading is named like the rest. */
   types: readonly string[]
-  /** The part itself, for what a chosen face is and what covers it. */
-  report: PartFaces & { features: readonly PartFeature[] }
   /** Which faces touch which, for chaining and continuity while drawing. */
   touching: Touching
   /** Light one chosen face on the part on its own, while drawing. */
@@ -889,8 +878,6 @@ export const MapFeaturesPanel = ({
   onDeleteMade: (featureTag: string) => void
   /** Point a made reading at another candidate way up, and re-read it there. */
   onCutMadeFrom: (featureTag: string, direction: number) => void
-  /** Which pass the rows read their face counts in. */
-  showingPass: Pass
   /**
    * The way up being held, if one is — pressed on the part or named in the
    * summary. It already scopes what a click on the part can resolve to, and it
@@ -921,6 +908,7 @@ export const MapFeaturesPanel = ({
   onShowFaces: (featureTag: string) => void
   onHover: (tags: string[]) => void
 }) => {
+  const { directions, features, plan, scores, unit, report, showingPass } = usePartView()
   /*
    * What the locks hold, worked out once for the whole panel.
    *
@@ -1138,7 +1126,7 @@ export const MapFeaturesPanel = ({
           */}
           <ul
             className="mt-1"
-            data-keynav="offer"
+            {...keynavAttributes('offer')}
             onKeyDown={(event) => {
               // Arrows only. R, F, A/B, X and Delete are handled once at the
               // window, because the row under the keyboard is the target
@@ -1210,13 +1198,8 @@ export const MapFeaturesPanel = ({
       {making !== null || justMade !== null ? (
         <CreateFeature
           draft={making ?? EMPTY_DRAFT}
-          directions={directions}
-          report={report}
           touching={touching}
           types={types}
-          scores={scores}
-          unit={unit}
-          plan={plan}
           made={justMade}
           onSetPass={(feature, passes) => onSetPass([feature], passes)}
           onAgain={onAgain}
@@ -1243,14 +1226,14 @@ export const MapFeaturesPanel = ({
         ) : (
           <ul
             className="mt-2 flex flex-col"
-            data-keynav="unmapped"
+            {...keynavAttributes('unmapped')}
             onKeyDown={(event) => moveThroughList(event, listKeys)}
           >
             {uncutHere.map((face) => (
               <li key={face.idx}>
                 <button
                   type="button"
-                  data-row={String(face.idx)}
+                  {...rowAttributes(String(face.idx))}
                   /*
                    * Named in words, because the row is columns.
                    *
@@ -1409,7 +1392,7 @@ export const MapFeaturesPanel = ({
             ) : null}
             <ul
               className="flex flex-col gap-2"
-              data-keynav="map"
+              {...keynavAttributes('map')}
               onKeyDown={(event) => moveThroughList(event, listKeys)}
             >
               {(heldOffer ? [heldOffer] : []).map((offer) => (
@@ -1476,7 +1459,7 @@ export const MapFeaturesPanel = ({
           ) : null}
           <ul
             className="mt-1 flex flex-col gap-2"
-            data-keynav="map"
+            {...keynavAttributes('map')}
             onKeyDown={(event) => moveThroughList(event, listKeys)}
           >
             {byDirection(directions, candidates).map((group) => {

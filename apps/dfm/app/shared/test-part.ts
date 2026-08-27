@@ -1,4 +1,4 @@
-import type { PartFeature, PartReport } from './contracts'
+import type { PartFeature, PartReport, PublicInspectionReport } from './contracts'
 
 /**
  * A part built the way this app's other tests build one — by hand, in the
@@ -73,3 +73,24 @@ export const testPart = (): PartReport =>
       testFeature('right-profile', 'profile', RIGHT, [1, 3]),
     ],
   }) as unknown as PartReport
+
+/**
+ * The same part as the page sees it, with the artifact URLs already taken off.
+ *
+ * `testPart` is the Engine's report; this is what the server hands the browser
+ * — a `PublicInspectionReport`, which is the type every panel is now given
+ * through context. Tests used to build one inline as `{ ...testPart(), features }`
+ * and were only accepted because each panel asked for a structural subset of
+ * its own.
+ */
+export const testReport = (features?: ReadonlyArray<PartFeature>): PublicInspectionReport => {
+  const { meshGlbUrl, meshStlUrl, thumbnailUrl, ...rest } = testPart()
+
+  return {
+    ...rest,
+    ...(features ? { features: [...features] } : {}),
+    hasMeshGlb: false,
+    hasMeshStl: false,
+    hasThumbnail: false,
+  }
+}

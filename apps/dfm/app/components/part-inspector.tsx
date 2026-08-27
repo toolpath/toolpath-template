@@ -19,6 +19,8 @@ import {
 } from '../shared/selection'
 import { featureFromTags, filterFeatures, tagsOfType } from '../shared/report'
 import { gatheredReadings, peekTarget } from '../shared/picks'
+import { partClick } from '../shared/part-click'
+import { focusedRow, listAt, rowAt, rowsIn } from '../shared/row-nav'
 import { sameHoles } from '../shared/hole-groups'
 import { byDirection } from '../shared/map-features'
 import {
@@ -77,11 +79,11 @@ import {
 } from '../shared/pick-mode'
 import type { PartFeature } from '../shared/contracts'
 import { escapeStep } from '../shared/escape'
-import { isTyping, planKey } from '../shared/keys'
+import { isTyping, keyIntent } from '../shared/keys'
 import { AppHeader } from './app-header'
 import { READING_COLORS, SETUP_COLORS, faceColor } from '../shared/selection-colors'
 import { claimFace, handedReadings, readingChanged, setFaceCut } from '../shared/faces'
-import { type WhatBit, whatBit } from '../shared/best-reading'
+import type { WhatBit } from '../shared/best-reading'
 import {
   EMPTY_DRAFT,
   type Draft,
@@ -101,6 +103,7 @@ import { ToolpathIcon } from './panel-icons'
 import { SetupsPanel } from './setups-panel'
 import { MapFeaturesPanel } from './map-features'
 import { FeatureViewer } from './feature-viewer'
+import { PartViewProvider } from './part-view'
 
 type ViewerTab = 'directions' | 'inspector' | 'rules'
 
@@ -840,13 +843,13 @@ export const PartInspector = ({
    * position — or the last row, if the one removed was last.
    */
   const holdPlace = (row: HTMLElement | null | undefined) => {
-    const container = row?.closest<HTMLElement>('[data-keynav]')
+    const container = listAt(row)
     if (!row || !container) return () => undefined
-    const at = [...container.querySelectorAll<HTMLElement>('[data-row]')].indexOf(row)
+    const at = rowsIn(container).indexOf(row)
 
     return () => {
       requestAnimationFrame(() => {
-        const rows = [...container.querySelectorAll<HTMLElement>('[data-row]')]
+        const rows = rowsIn(container)
         rows[Math.min(at, rows.length - 1)]?.focus()
       })
     }
@@ -863,35 +866,37 @@ export const PartInspector = ({
     setProposal(next)
   }
 
+  /**
+   * Carry out what a click on the part asked for.
+   *
+   * The *which mode gets this click* half is `partClick`, a table in
+   * `shared/part-click.ts` with its own tests. This is the other half: one
+   * effect per answer, and no precedence left in it at all. The two used to be
+   * one hundred and sixty lines of interleaved `if` and `setState`, where the
+   * order was only readable by reading the effects.
+   */
   const pickFromPart = (pick: PartPick) => {
-    // By direction a click paints; by face it asks what owns the face. The
-    // mode decided this before the click happened.
-    /*
-     * Right reads, and changes nothing at all — anywhere on the part.
-     *
-     * Left does something, and what it does depends on the mode: picks, paints,
-     * or prunes a face out of an offer. Right only ever answers "what is this",
-     * which is what makes the part safe to interrogate half-way through a
-     * decision. Which reading it means is decided by what is already on screen
-     * — see `peekTarget`.
-     */
-    /*
-     * While a reading is being drawn, every click on the part is one of its
-     * faces — the panel that owns the part owns clicks on it, the same
-     * precedence a standing offer has.
-     *
-     * **Before the right-click branch**, and that is the whole of it: this
-     * lived inside that branch, so a left click never reached it and fell
-     * through to the ordinary pick, which grabs whole features. Drawing was
-     * the one mode where that is exactly wrong.
-     */
-    if (draft !== null) {
-      // Whether or not a way up has been chosen: the faces are the answer to
-      // the second question and can be given in any order.
+    const asked = partClick({
+      drawing: draft !== null,
+      secondary: pick.modifiers.secondary,
+      editing: facesOpen !== null,
+      editingCovers: facesOpen !== null && coveredRegions(plan, facesOpen).includes(pick.region),
+      offered: proposal !== null,
+      offeredHere: proposal?.faces.has(pick.region) ?? false,
+      holding: picking.mode === 'direction' && picking.holding !== null,
+    })
+
+    /** Re-point the editor's list at a face, even if it is already there. */
+    const revealAgain = () => {
+      setRevealFace(null)
+      requestAnimationFrame(() => setRevealFace(pick.region))
+    }
+
+    if (asked === 'draw' && draft !== null) {
+      // The part goes in, or `withFace` has nothing to chain through and
+      // chaining silently adds one face like any other click.
       setDraft(
         withGuess(
-          // The part goes in, or `withFace` has nothing to chain through and
-          // chaining silently adds one face like any other click.
           withFace(draft, pick.region, {
             features: part.features,
             directions: part.candidateDirections,
@@ -904,65 +909,23 @@ export const PartInspector = ({
       return
     }
 
-    if (pick.modifiers.secondary) {
-      /*
-       * Inside an open editor, right is "show me this one".
-       *
-       * Everywhere else right reads a *reading*; here the list is about faces,
-       * so the face is what it names — its row opens, scrolls to, and shows
-       * what else could cut it. Still changes nothing, which is what makes
-       * right the safe button.
-       */
-      if (facesOpen && coveredRegions(plan, facesOpen).includes(pick.region)) {
-        setRevealFace(null)
-        requestAnimationFrame(() => setRevealFace(pick.region))
-        return
-      }
+    if (asked === 'reveal') {
+      revealAgain()
+      return
+    }
 
+    if (asked === 'peek') {
+      // Which reading it means is decided by what is already on screen.
       const target = peekTarget(pick.ranked.length > 0 ? pick.ranked : pick.owners, [
-        // The open editor is the most specific list on screen, so a right click
-        // on one of its faces means its reading.
         facesOpen ? [facesOpen.featureTag] : [],
         proposed.filter((f) => f.regionIdxs.includes(pick.region)).map((f) => f.featureTag),
         paintedFeatures.filter((f) => f.regionIdxs.includes(pick.region)).map((f) => f.featureTag),
-        /*
-         * The plan itself is deliberately **not** one of these lists.
-         *
-         * A peek is a question about a list — *which of these is this face* —
-         * so the lists it answers from are the ones somebody has put up: an
-         * open editor, a standing offer, a painted set. Counting the plan made
-         * right click open a datasheet on any mapped face, which on a mostly
-         * mapped part is every right click — including the ones that were only
-         * ever the start of a pan.
-         */
       ])
       if (target) setSelection((current) => focusWithin(current, target))
       return
     }
 
-    /*
-     * **In the editor, the part is the control.**
-     *
-     * A click on a face makes it exactly what the editor's R / F / Both switch
-     * names — the switch says what the face is *for*, not which pass to toggle.
-     * A face cut in both passes, clicked with Finish selected, becomes finished
-     * only; it used to lose finishing, which is a click labelled finish taking
-     * finishing away. Clicking a face that is already exactly what the switch
-     * says takes it off, so a second click still undoes the first. That is the
-     * whole of face editing, and it happens on the model rather than by hunting
-     * for a row: the faces are *on the part*, and a column of twelve indices is
-     * a poor way to point at one.
-     *
-     * **This reverses a rule** written a few weeks ago, which said a click here
-     * should only find the face in the list, on the grounds that toggling it
-     * was "one gesture with no confirmation and no undo, aimed at whatever the
-     * pointer happened to be over". What changed is that face editing is
-     * something entered and left deliberately, so a click inside it is not
-     * ambiguous — and the row still opens, so the gesture shows its result and
-     * clicking again undoes it. That is also why nothing needs arming: there is
-     * no second meaning for a click in here to be confused with.
-     */
-    if (facesOpen !== null) {
+    if (asked === 'claim' && facesOpen !== null) {
       const reading = facesOpen
 
       setPlan((current) =>
@@ -976,21 +939,17 @@ export const PartInspector = ({
         ),
       )
       setHoveredFace(null)
-      setRevealFace(null)
-      requestAnimationFrame(() => setRevealFace(pick.region))
+      revealAgain()
       return
     }
 
-    // While an offer stands the part *is* the offer (§4c): a left click on a
-    // proposed face takes that face out of it, and only that face.
-    if (proposal?.faces.has(pick.region)) {
-      changeOffer(proposal ? withoutFace(proposal, pick.region) : null)
+    if (asked === 'prune' && proposal !== null) {
+      changeOffer(withoutFace(proposal, pick.region))
       return
     }
 
-    // A face outside a standing offer joins it, with the smallest reading of it
-    // this way up can run.
-    if (proposal) {
+    if (asked === 'join' && proposal !== null) {
+      // With the smallest reading of it this way up can run.
       const vector = part.candidateDirections[proposal.direction]
       const reading = vector
         ? readingsFor(part.features, vector, new Set([pick.region]), rules.verdicts)[0]
@@ -1002,9 +961,7 @@ export const PartInspector = ({
       return
     }
 
-    if (picking.mode === 'direction' && picking.holding !== null) {
-      // The direction is already chosen, so a click asks what work is there
-      // rather than which face — the whole reading goes on or comes off.
+    if (asked === 'paint' && picking.holding !== null) {
       const vector = part.candidateDirections[picking.holding]
       const regions = vector
         ? (readingsFor(part.features, vector, new Set([pick.region]), rules.verdicts)[0]
@@ -1013,6 +970,7 @@ export const PartInspector = ({
       setPicking((current) => paintReading(current, pick.region, regions))
       return
     }
+
     selectFace(pick)
   }
 
@@ -1147,6 +1105,8 @@ export const PartInspector = ({
   const painting = useMemo(() => {
     if (choosing === null) return plan
 
+    // The preview wants the arrangement, not the ledger beside it: nothing is
+    // decided until Confirm, so there is nothing yet to report about it.
     return planForChosen({
       report,
       directions: part.candidateDirections,
@@ -1157,7 +1117,7 @@ export const PartInspector = ({
       chosen: choosing.chosen,
       splitPasses: choosing.splitPasses,
       partial: choosing.partial,
-    })
+    }).plan
   }, [choosing, plan, report, part.candidateDirections, part.features, rules])
 
   const cutBy = useMemo(
@@ -1222,9 +1182,24 @@ export const PartInspector = ({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
-      if (isTyping(target)) return
+
+      /*
+       * Which of the four a press is — the routing, not the meaning.
+       *
+       * `keyIntent` is that table, with its own tests. Everything below is one
+       * effect per answer: the ladder used to be interleaved with the eleven
+       * `setState` calls that carry the answers out, so what a key did could
+       * only be read by reading what it changed.
+       */
+      const pressed = keyIntent({
+        key: event.key,
+        typing: isTyping(target),
+        inList: listAt(target) !== null,
+      })
+      if (!pressed) return
+
       // Escape works outward, one thing per press — see `escapeStep`.
-      if (event.key === 'Escape') {
+      if (pressed.act === 'escape') {
         const step = escapeStep({
           // Innermost, and the only rung that undoes: leaving the editor any
           // way but Save puts the plan back as it was when it opened.
@@ -1264,15 +1239,7 @@ export const PartInspector = ({
         return
       }
 
-      /*
-       * Z shows every arrow, or puts them all away.
-       *
-       * Its own key because the arrows are how a way up is held, and reaching
-       * for the toolbar to find one is a gesture away from the part. Not in
-       * `planKey` — that is about the reading in hand, and this is about the
-       * whole part.
-       */
-      if (event.key.toLowerCase() === 'z') {
+      if (pressed.act === 'arrows') {
         event.preventDefault()
         setArrows((current) => nextArrows(current))
         return
@@ -1285,30 +1252,21 @@ export const PartInspector = ({
        * is the target wherever the keyboard happens to be — and two handlers
        * for one keystroke is two things happening per press.
        */
-      const act = planKey(event.key)
-      if (act) {
-        // The row under the keyboard first, then whatever is being read: in
-        // by-direction mode a list can take focus without lighting anything up.
-        const row = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>(
-          '[data-row]',
-        )
+      if (pressed.act === 'plan') {
+        const act = pressed.plan
         /*
-         * What the row stands for, which is not always one reading.
+         * The row under the keyboard first, then whatever is being read: in
+         * by-direction mode a list can take focus without lighting anything up.
          *
-         * A row for sixteen identical holes is sixteen, so R on it has to be
-         * sixteen — and it says so in `data-holes` rather than leaving it to be
-         * worked out here: the lists group by different rules (see
-         * `groupAcrossPart`) and only the row knows which one drew it.
-         *
-         * With no row under the keyboard the target is whatever is being read,
-         * which is already the whole group unless one hole was named on its own.
+         * What a row stands for is not always one reading — a row for sixteen
+         * identical holes is sixteen, so R on it has to be sixteen — and the
+         * row says which it is rather than leaving it to be worked out here:
+         * the lists group by different rules (see `groupAcrossPart`) and only
+         * the row knows which one drew it. `row-nav` owns that encoding.
          */
-        const meant = row
-          ? featureFromTags(
-              part.features,
-              row.dataset['holes']?.split(' ') ?? [row.dataset['row'] ?? ''],
-            )
-          : focusedHoles
+        const under = focusedRow()
+        const row = rowAt(document.activeElement)
+        const meant = under ? featureFromTags(part.features, under.holds) : focusedHoles
         const feature = meant[0]
         if (!feature) return
 
@@ -1345,19 +1303,14 @@ export const PartInspector = ({
       }
 
       /*
-       * Arrows only, and only outside a list.
+       * Arrows walk the readings of the face that was clicked.
        *
-       * A list under the keyboard walks itself in the order it is drawn; this
-       * is the shortcut for when focus is still on the canvas that produced the
-       * candidates. The guard sits here rather than at the top because the keys
-       * above act on the row under the keyboard, which is usually *inside* one
-       * of those lists — guarding everything was why they did nothing.
+       * Only outside a list — a list under the keyboard walks itself in the
+       * order it is drawn, and `keyIntent` is where that guard lives. This is
+       * the shortcut for when focus is still on the canvas that produced the
+       * candidates.
        */
-      if (target?.closest('[data-keynav]')) return
-
-      const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0
-      if (step === 0) return
-      const next = stepThrough(shownOrder, focusedTag, step)
+      const next = stepThrough(shownOrder, focusedTag, pressed.by)
       if (next === null) return
       event.preventDefault()
       setSelection((current) => focusWithin(current, next))
@@ -1669,30 +1622,37 @@ export const PartInspector = ({
     returnArrows()
 
     setPlanIsGenerated(true)
-    setPlanBit(whatBit())
-    setPlan((current) =>
-      generate(how, {
-        report,
-        seeded: planIsGenerated,
-        directions: part.candidateDirections,
-        features: part.features,
-        plan: current,
-        verdicts: rules.verdicts,
-        /*
-         * The shop's own economics, from the rule set beside the part.
-         *
-         * These were not passed at all, so every arrangement was built against
-         * the defaults and a limit somebody had set was quietly ignored.
-         *
-         * The two **part rules** ride along in `planRules`: they are what a
-         * shop says about setups and about how much work an operation should
-         * do, and the allocator is handed limits rather than a rule set — so
-         * they are put where it will look. The alternative was widening six
-         * signatures to carry a set that only `scaleFor` reads.
-         */
-        limits: { ...rules.ruleSet.plan, planRules: rules.ruleSet.rules.filter(judgesPlan) },
-      }),
-    )
+    /*
+     * The plan and its ledger come out of the same call.
+     *
+     * `setPlanBit(whatBit())` used to stand on the line above this one, reading
+     * module state that the run below had not written yet — so the panel showed
+     * the *previous* arrangement's counters, and zeroes on the first press.
+     * There is no ledger to read now until there is a plan to read it from.
+     */
+    const made = generate(how, {
+      report,
+      seeded: planIsGenerated,
+      directions: part.candidateDirections,
+      features: part.features,
+      plan,
+      verdicts: rules.verdicts,
+      /*
+       * The shop's own economics, from the rule set beside the part.
+       *
+       * These were not passed at all, so every arrangement was built against
+       * the defaults and a limit somebody had set was quietly ignored.
+       *
+       * The two **part rules** ride along in `planRules`: they are what a shop
+       * says about setups and about how much work an operation should do, and
+       * the allocator is handed limits rather than a rule set — so they are put
+       * where it will look.
+       */
+      limits: { ...rules.ruleSet.plan, planRules: rules.ruleSet.rules.filter(judgesPlan) },
+    })
+
+    setPlanBit(made.bit)
+    setPlan(made.plan)
   }
 
   /**
@@ -1719,14 +1679,6 @@ export const PartInspector = ({
 
   const directionsPanel = (
     <SetupsPanel
-      report={part}
-      verdicts={rules.verdicts}
-      features={part.features}
-      showingPass={showingPass}
-      unit={unit}
-      directions={part.candidateDirections}
-      plan={plan}
-      scores={scores}
       focusedTag={focusedTag}
       onChoose={choose}
       onHover={setHoveredTags}
@@ -1778,17 +1730,18 @@ export const PartInspector = ({
               // The original answer: the rules buy whatever they think is worth
               // holding. Still the right first question on a part nobody knows.
               setPlanIsGenerated(true)
-              setPlanBit(whatBit())
-              setPlan(
-                generate('from the rules', {
-                  report,
-                  directions: part.candidateDirections,
-                  features: part.features,
-                  plan: EMPTY_PLAN,
-                  verdicts: rules.verdicts,
-                  limits: rules.ruleSet.plan,
-                }),
-              )
+
+              const made = generate('from the rules', {
+                report,
+                directions: part.candidateDirections,
+                features: part.features,
+                plan: EMPTY_PLAN,
+                verdicts: rules.verdicts,
+                limits: rules.ruleSet.plan,
+              })
+
+              setPlanBit(made.bit)
+              setPlan(made.plan)
               setChoosing(null)
               returnArrows()
             }}
@@ -1798,21 +1751,23 @@ export const PartInspector = ({
             }}
             onConfirm={() => {
               setPlanIsGenerated(true)
-              setPlanBit(whatBit())
               returnArrows()
-              setPlan(
-                planForChosen({
-                  report,
-                  directions: part.candidateDirections,
-                  features: part.features,
-                  plan: EMPTY_PLAN,
-                  verdicts: rules.verdicts,
-                  limits: rules.ruleSet.plan,
-                  chosen: choosing.chosen,
-                  splitPasses: choosing.splitPasses,
-                  partial: choosing.partial,
-                }),
-              )
+
+              const made = planForChosen({
+                report,
+                directions: part.candidateDirections,
+                features: part.features,
+                plan: EMPTY_PLAN,
+                verdicts: rules.verdicts,
+                limits: rules.ruleSet.plan,
+                chosen: choosing.chosen,
+                splitPasses: choosing.splitPasses,
+                partial: choosing.partial,
+              })
+
+              // Both passes of a split are added together — see `bothBits`.
+              setPlanBit(made.bit)
+              setPlan(made.plan)
               setChoosing(null)
             }}
           />
@@ -1912,153 +1867,181 @@ export const PartInspector = ({
       />
     )
 
-  return (
-    <main className="flex h-screen min-h-0 flex-col overflow-hidden bg-ground text-ink">
-      <AppHeader
-        className="border-b border-edge px-4 py-3"
-        navigation={
-          <Tabs value={tab} onValueChange={(value) => setTab(value as ViewerTab)}>
-            <Tabs.List>
-              <Tabs.Tab value="inspector">Inspector</Tabs.Tab>
-              <Tabs.Tab value="directions">Directions</Tabs.Tab>
-              <Tabs.Tab value="rules">Rules</Tabs.Tab>
-            </Tabs.List>
-          </Tabs>
-        }
-        actions={
-          <div className="flex items-center gap-4">
-            <div className="text-right text-xs text-ink-dim">
-              <p>{part.features.length} recognized features</p>
-              <p className="font-mono">{report.partId}</p>
-            </div>
-            <Link
-              className="rounded border border-edge-strong bg-transparent px-3 py-2 text-sm font-semibold text-ink transition hover:bg-surface"
-              to="/"
-            >
-              Upload another part
-            </Link>
-          </div>
-        }
-      >
-        {/* The mark, then the name. The word `Toolpath` was standing in for a
-            logo that exists — it is in `toolpath_ui`, and this is it. */}
-        <div className="flex items-center gap-2.5">
-          <ToolpathIcon className="size-8" />
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-info">Toolpath</p>
-            <h1 className="font-display text-xl font-bold">DFM</h1>
-          </div>
-        </div>
-      </AppHeader>
+  /*
+   * What every panel below is looking at.
+   *
+   * Memoised because it is a context value: a fresh object each render would
+   * make every consumer re-render on every one of this component's state
+   * changes, which is the opposite of what moving these off the prop lists was
+   * for.
+   */
+  const view = useMemo(
+    () => ({
+      report,
+      features: part.features,
+      directions: part.candidateDirections,
+      plan,
+      scores,
+      verdicts: rules.verdicts,
+      unit,
+      showingPass,
+    }),
+    [
+      report,
+      part.features,
+      part.candidateDirections,
+      plan,
+      scores,
+      rules.verdicts,
+      unit,
+      showingPass,
+    ],
+  )
 
-      <Panels.Group className="min-h-0 flex-1" orientation="horizontal">
-        <Panels.Panel className="min-h-0 overflow-hidden" defaultSize={460} minSize={260}>
-          {tabPanel}
-        </Panels.Panel>
-        <Panels.Separator className={leftSeparatorClassName} />
-        <Panels.Panel className="min-h-0 overflow-hidden" minSize={400}>
-          <FeatureViewer
-            activeDirection={activeDirection}
-            onPickDirection={(index) => {
+  return (
+    <PartViewProvider view={view}>
+      <main className="flex h-screen min-h-0 flex-col overflow-hidden bg-ground text-ink">
+        <AppHeader
+          className="border-b border-edge px-4 py-3"
+          navigation={
+            <Tabs value={tab} onValueChange={(value) => setTab(value as ViewerTab)}>
+              <Tabs.List>
+                <Tabs.Tab value="inspector">Inspector</Tabs.Tab>
+                <Tabs.Tab value="directions">Directions</Tabs.Tab>
+                <Tabs.Tab value="rules">Rules</Tabs.Tab>
+              </Tabs.List>
+            </Tabs>
+          }
+          actions={
+            <div className="flex items-center gap-4">
+              <div className="text-right text-xs text-ink-dim">
+                <p>{part.features.length} recognized features</p>
+                <p className="font-mono">{report.partId}</p>
+              </div>
+              <Link
+                className="rounded border border-edge-strong bg-transparent px-3 py-2 text-sm font-semibold text-ink transition hover:bg-surface"
+                to="/"
+              >
+                Upload another part
+              </Link>
+            </div>
+          }
+        >
+          {/* The mark, then the name. The word `Toolpath` was standing in for a
+            logo that exists — it is in `toolpath_ui`, and this is it. */}
+          <div className="flex items-center gap-2.5">
+            <ToolpathIcon className="size-8" />
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-info">Toolpath</p>
+              <h1 className="font-display text-xl font-bold">DFM</h1>
+            </div>
+          </div>
+        </AppHeader>
+
+        <Panels.Group className="min-h-0 flex-1" orientation="horizontal">
+          <Panels.Panel className="min-h-0 overflow-hidden" defaultSize={460} minSize={260}>
+            {tabPanel}
+          </Panels.Panel>
+          <Panels.Separator className={leftSeparatorClassName} />
+          <Panels.Panel className="min-h-0 overflow-hidden" minSize={400}>
+            <FeatureViewer
+              activeDirection={activeDirection}
+              onPickDirection={(index) => {
+                /*
+                 * While drawing, an arrow names the way up being drawn from.
+                 *
+                 * It is the gesture the app already uses for "hold this
+                 * direction", and a drawing is held from one — so it would be
+                 * strange for the arrows to be on screen and mean something else.
+                 */
+                if (draft !== null) {
+                  setDraft((current) =>
+                    current === null
+                      ? null
+                      : withGuess(
+                          {
+                            ...current,
+                            direction: index,
+                            /*
+                             * The faces stay.
+                             *
+                             * They were thrown away on the reasoning that a set
+                             * chosen against another way up says nothing about
+                             * this one — true of what they *read as*, which is
+                             * why the guess re-runs, and not true of the faces
+                             * themselves. Choosing faces and then the arrow is
+                             * the natural order for anybody who looks at the part
+                             * before thinking about the setup, and it silently
+                             * undid their work.
+                             */
+                          },
+                          part.features,
+                          part.candidateDirections,
+                        ),
+                  )
+                  return
+                }
+                holdDirection(index)
+                setPicking((current) => holdPickDirection(current, index))
+              }}
+              jobId={jobId}
               /*
-               * While drawing, an arrow names the way up being drawn from.
+               * What the part paints as selected: the ticked readings, plus
+               * whatever is being read but not ticked (§3.8).
                *
-               * It is the gesture the app already uses for "hold this
-               * direction", and a drawing is held from one — so it would be
-               * strange for the arrows to be on screen and mean something else.
+               * The plan excludes a focus the app *guessed* — clicking two walls
+               * lit up an eleven-face profile nobody had chosen. That needs
+               * `focusFromPick`, which is not tracked yet (row 10), so a guessed
+               * focus still paints here.
                */
-              if (draft !== null) {
-                setDraft((current) =>
-                  current === null
-                    ? null
-                    : withGuess(
-                        {
-                          ...current,
-                          direction: index,
-                          /*
-                           * The faces stay.
-                           *
-                           * They were thrown away on the reasoning that a set
-                           * chosen against another way up says nothing about
-                           * this one — true of what they *read as*, which is
-                           * why the guess re-runs, and not true of the faces
-                           * themselves. Choosing faces and then the arrow is
-                           * the natural order for anybody who looks at the part
-                           * before thinking about the setup, and it silently
-                           * undid their work.
-                           */
-                        },
-                        part.features,
-                        part.candidateDirections,
-                      ),
-                )
-                return
-              }
-              holdDirection(index)
-              setPicking((current) => holdPickDirection(current, index))
-            }}
-            report={part}
-            jobId={jobId}
-            /*
-             * What the part paints as selected: the ticked readings, plus
-             * whatever is being read but not ticked (§3.8).
-             *
-             * The plan excludes a focus the app *guessed* — clicking two walls
-             * lit up an eleven-face profile nobody had chosen. That needs
-             * `focusFromPick`, which is not tracked yet (row 10), so a guessed
-             * focus still paints here.
-             */
-            selectedFeatureTags={selectionPaint.whole}
-            /*
-             * Nothing feature-level while a face list is open.
-             *
-             * This layer paints **over** everything, faces included — an open
-             * feature type or a row the pointer passed on the way here would
-             * cover the very faces the list is asking about. The list is a
-             * question about faces, so faces are what the part answers with.
-             */
-            highlightedFeatureTags={hoverPaint.whole}
-            heldRegions={heldFaces}
-            shownDirection={shownArrow(
-              draft?.direction === null || draft === null ? arrows : 'off',
-              arrowContext,
-            )}
-            /* Drawing narrows to the one being drawn from — see
+              selectedFeatureTags={selectionPaint.whole}
+              /*
+               * Nothing feature-level while a face list is open.
+               *
+               * This layer paints **over** everything, faces included — an open
+               * feature type or a row the pointer passed on the way here would
+               * cover the very faces the list is asking about. The list is a
+               * question about faces, so faces are what the part answers with.
+               */
+              highlightedFeatureTags={hoverPaint.whole}
+              heldRegions={heldFaces}
+              shownDirection={shownArrow(
+                draft?.direction === null || draft === null ? arrows : 'off',
+                arrowContext,
+              )}
+              /* Drawing narrows to the one being drawn from — see
                `arrowContext`. Until one is chosen, every arrow is a choice. */
-            arrows={draft?.direction === null || draft === null ? arrows : 'off'}
-            onArrows={setArrows}
-            arrowsVisible={arrowsVisible(
-              draft?.direction === null || draft === null ? arrows : 'off',
-              arrowContext,
-            )}
-            paintMode={paintMode}
-            unit={unit}
-            onUnit={chooseUnit}
-            showingPass={showingPass}
-            onShowingPass={setShowingPass}
-            cutBy={cutBy}
-            cutByRegion={cutByRegion}
-            cutRegionsBy={cutRegionsBy}
-            faceLayer={listedFaces}
-            proposed={proposed}
-            proposedFrom={proposal?.direction}
-            painted={paintedFeatures}
-            verdicts={rules.verdicts}
-            onPaintMode={choosePaintMode}
-            focusFeature={focusFeature}
-            onPick={pickFromPart}
-            onAdjacency={setTouching}
-            onHoverPart={setPointerOnPart}
-            onClearSelection={clearPicks}
-          />
-        </Panels.Panel>
-        <Panels.Separator className={rightSeparatorClassName} />
-        <Panels.Panel className="min-h-0 overflow-hidden" defaultSize={460} minSize={320}>
-          {/* Content-sized, above the datasheet — not a resizable panel. A panel
+              arrows={draft?.direction === null || draft === null ? arrows : 'off'}
+              onArrows={setArrows}
+              arrowsVisible={arrowsVisible(
+                draft?.direction === null || draft === null ? arrows : 'off',
+                arrowContext,
+              )}
+              paintMode={paintMode}
+              onUnit={chooseUnit}
+              onShowingPass={setShowingPass}
+              cutBy={cutBy}
+              cutByRegion={cutByRegion}
+              cutRegionsBy={cutRegionsBy}
+              faceLayer={listedFaces}
+              proposed={proposed}
+              proposedFrom={proposal?.direction}
+              painted={paintedFeatures}
+              onPaintMode={choosePaintMode}
+              focusFeature={focusFeature}
+              onPick={pickFromPart}
+              onAdjacency={setTouching}
+              onHoverPart={setPointerOnPart}
+              onClearSelection={clearPicks}
+            />
+          </Panels.Panel>
+          <Panels.Separator className={rightSeparatorClassName} />
+          <Panels.Panel className="min-h-0 overflow-hidden" defaultSize={460} minSize={320}>
+            {/* Content-sized, above the datasheet — not a resizable panel. A panel
               group keeps its layout across a child's remount, so the first
               click's height would survive every click after it (§8). */}
-          <div className="flex size-full min-h-0 flex-col">
-            {/*
+            <div className="flex size-full min-h-0 flex-col">
+              {/*
               **Frozen while a feature is being edited.**
 
               The editor stands in place of the datasheet below, so the mapping
@@ -2073,205 +2056,206 @@ export const PartInspector = ({
               tree in one word, and there is no list of controls to keep in step
               with as the panel grows.
             */}
-            <div className="contents" inert={facesOpen !== null}>
-              <MapFeaturesPanel
-                directions={part.candidateDirections}
-                features={part.features}
-                candidates={mappable}
-                plan={plan}
-                scores={scores}
-                unit={unit}
-                mode={picking.mode}
-                painted={picking.painted}
-                holding={picking.holding}
-                focusedTag={focusedTag}
-                faces={selection.picks.length}
-                highlighted={litDirection?.index ?? null}
-                showingUncut={showingUncut}
-                making={draft}
-                types={featureTypes}
-                report={part}
-                touching={touching}
-                onHoverFace={setHoveredFace}
-                justMade={justMade}
-                onAgain={() => {
-                  setJustMade(null)
-                  setDraft(EMPTY_DRAFT)
-                }}
-                onDeleteMade={deleteMade}
-                onCutMadeFrom={cutMadeFrom}
-                onMake={() => {
+              <div className="contents" inert={facesOpen !== null}>
+                <MapFeaturesPanel
+                  candidates={mappable}
+                  mode={picking.mode}
+                  painted={picking.painted}
+                  holding={picking.holding}
+                  focusedTag={focusedTag}
+                  faces={selection.picks.length}
+                  highlighted={litDirection?.index ?? null}
+                  showingUncut={showingUncut}
+                  making={draft}
+                  types={featureTypes}
+                  touching={touching}
+                  onHoverFace={setHoveredFace}
+                  justMade={justMade}
+                  onAgain={() => {
+                    setJustMade(null)
+                    setDraft(EMPTY_DRAFT)
+                  }}
+                  onDeleteMade={deleteMade}
+                  onCutMadeFrom={cutMadeFrom}
+                  onMake={() => {
+                    /*
+                     * One press starts it and the same press puts it down, like
+                     * every other thing this toggle can be showing — and **leaving
+                     * is leaving**, whether or not something was just made. With
+                     * the draft already put down by a confirm, a plain toggle
+                     * started a fresh drawing instead.
+                     */
+                    setDraft((current) =>
+                      current === null && justMade === null ? EMPTY_DRAFT : null,
+                    )
+                    setJustMade(null)
+                    setShowingUncut(false)
+                    setSelection(NOTHING_SELECTED)
+                    // The way up is named by pressing an arrow, so entering puts
+                    // them on screen — the same reason By direction does. A mode
+                    // whose first gesture is invisible is one nobody can start.
+                    // Borrowed: leaving without choosing one gives them back.
+                    if (draft === null) borrowArrows()
+                    else returnArrows()
+                  }}
                   /*
-                   * One press starts it and the same press puts it down, like
-                   * every other thing this toggle can be showing — and **leaving
-                   * is leaving**, whether or not something was just made. With
-                   * the draft already put down by a confirm, a plain toggle
-                   * started a fresh drawing instead.
+                   * Every change to the draft re-guesses the type.
+                   *
+                   * It used to be guessed only where a click on the part changed
+                   * the faces, so a set chosen any other way — Profile, Clear, an ✕
+                   * on a row — left the type unset and **Create disabled with no
+                   * way to see why**. One choke point instead: the panel says what
+                   * changed, and the guess is what follows from it.
                    */
-                  setDraft((current) =>
-                    current === null && justMade === null ? EMPTY_DRAFT : null,
-                  )
-                  setJustMade(null)
-                  setShowingUncut(false)
-                  setSelection(NOTHING_SELECTED)
-                  // The way up is named by pressing an arrow, so entering puts
-                  // them on screen — the same reason By direction does. A mode
-                  // whose first gesture is invisible is one nobody can start.
-                  // Borrowed: leaving without choosing one gives them back.
-                  if (draft === null) borrowArrows()
-                  else returnArrows()
-                }}
-                /*
-                 * Every change to the draft re-guesses the type.
-                 *
-                 * It used to be guessed only where a click on the part changed
-                 * the faces, so a set chosen any other way — Profile, Clear, an ✕
-                 * on a row — left the type unset and **Create disabled with no
-                 * way to see why**. One choke point instead: the panel says what
-                 * changed, and the guess is what follows from it.
-                 */
-                onDraft={(next) =>
-                  setDraft(withGuess(next, part.features, part.candidateDirections))
-                }
-                onConfirmMade={() => {
-                  if (draft === null || draft.direction === null || draft.featureType === null)
-                    return
-                  const vector = part.candidateDirections[draft.direction]
-                  if (!vector) return
+                  onDraft={(next) =>
+                    setDraft(withGuess(next, part.features, part.candidateDirections))
+                  }
+                  onConfirmMade={() => {
+                    if (draft === null || draft.direction === null || draft.featureType === null)
+                      return
+                    const vector = part.candidateDirections[draft.direction]
+                    if (!vector) return
 
-                  const guess = readsAs(part.features, vector, draft.faces).find(
-                    (each) => each.featureType === draft.featureType,
-                  )
+                    const guess = readsAs(part.features, vector, draft.faces).find(
+                      (each) => each.featureType === draft.featureType,
+                    )
 
-                  const feature = makeFeature({
-                    direction: vector,
-                    featureType: draft.featureType,
-                    faces: draft.faces,
-                    // The Engine family the rules read, where the readings that
-                    // already call these faces this type agree on one.
-                    kind: guess?.kind,
-                  })
+                    const feature = makeFeature({
+                      direction: vector,
+                      featureType: draft.featureType,
+                      faces: draft.faces,
+                      // The Engine family the rules read, where the readings that
+                      // already call these faces this type agree on one.
+                      kind: guess?.kind,
+                    })
 
-                  setMade((current) => [...current, feature])
-                  setJustMade(feature)
-                  setDraft(null)
-                  // Cut where it was said it would be, while it was being drawn.
-                  if (draft.passes.length > 0) {
-                    setPlan((current) =>
-                      setPassFor(
-                        current,
-                        part.candidateDirections,
-                        [...part.features, feature],
-                        [feature],
-                        draft.passes,
+                    setMade((current) => [...current, feature])
+                    setJustMade(feature)
+                    setDraft(null)
+                    // Cut where it was said it would be, while it was being drawn.
+                    if (draft.passes.length > 0) {
+                      setPlan((current) =>
+                        setPassFor(
+                          current,
+                          part.candidateDirections,
+                          [...part.features, feature],
+                          [feature],
+                          draft.passes,
+                        ),
+                      )
+                    }
+                    // Opened straight away: somebody who has just drawn a reading is
+                    // about to say where it is cut from.
+                    setSelection({
+                      picks: [],
+                      candidates: [],
+                      focused: feature.featureTag,
+                      alone: false,
+                    })
+                  }}
+                  uncut={uncutRows(
+                    part,
+                    part.candidateDirections,
+                    part.features,
+                    plan,
+                    showingPass,
+                  )}
+                  onPickFace={(region) => {
+                    /*
+                     * A row in the uncut list **is** the face on the part, so
+                     * pressing it lights it exactly as clicking it there would —
+                     * one act, one meaning, wherever the gesture is made.
+                     *
+                     * And nothing else: the row opens onto its own readings in
+                     * place, so putting the list away here would close the thing
+                     * the press just opened.
+                     */
+                    selectFace(
+                      pickForRegion(
+                        region,
+                        // Who covers it by the **plan's** reckoning — reported or
+                        // handed — which is who could be asked to cut it.
+                        part.features
+                          .filter((feature) => coveredRegions(plan, feature).includes(region))
+                          .map((feature) => feature.featureTag),
+                      ),
+                    )
+                  }}
+                  activeDirection={activeDirection}
+                  onLetGo={() =>
+                    setPicking((current) => holdPickDirection(current, current.holding ?? -1))
+                  }
+                  proposal={proposal}
+                  proposed={proposed}
+                  handedTags={
+                    new Set(
+                      handedReadings(part.features, plan, heldRegions(selection)).map(
+                        (feature) => feature.featureTag,
                       ),
                     )
                   }
-                  // Opened straight away: somebody who has just drawn a reading is
-                  // about to say where it is cut from.
-                  setSelection({
-                    picks: [],
-                    candidates: [],
-                    focused: feature.featureTag,
-                    alone: false,
-                  })
-                }}
-                uncut={uncutRows(part, part.candidateDirections, part.features, plan, showingPass)}
-                onPickFace={(region) => {
-                  /*
-                   * A row in the uncut list **is** the face on the part, so
-                   * pressing it lights it exactly as clicking it there would —
-                   * one act, one meaning, wherever the gesture is made.
-                   *
-                   * And nothing else: the row opens onto its own readings in
-                   * place, so putting the list away here would close the thing
-                   * the press just opened.
-                   */
-                  selectFace(
-                    pickForRegion(
-                      region,
-                      // Who covers it by the **plan's** reckoning — reported or
-                      // handed — which is who could be asked to cut it.
-                      part.features
-                        .filter((feature) => coveredRegions(plan, feature).includes(region))
-                        .map((feature) => feature.featureTag),
-                    ),
-                  )
-                }}
-                showingPass={showingPass}
-                activeDirection={activeDirection}
-                onLetGo={() =>
-                  setPicking((current) => holdPickDirection(current, current.holding ?? -1))
-                }
-                proposal={proposal}
-                proposed={proposed}
-                handedTags={
-                  new Set(
-                    handedReadings(part.features, plan, heldRegions(selection)).map(
-                      (feature) => feature.featureTag,
-                    ),
-                  )
-                }
-                onInfer={(kind: Infer) => {
-                  if (picking.holding === null) return
-                  const setup = plan.setups.find(
-                    (entry) => entry.directionIndex === picking.holding,
-                  )
-                  setProposal(
-                    propose(
-                      part.features,
-                      plan,
-                      part.candidateDirections,
-                      picking.holding,
-                      kind,
-                      rules.verdicts,
-                      setup?.id,
-                    ),
-                  )
-                }}
-                onPrune={(readings) =>
-                  // A row is its group, so pruning one is pruning all of them —
-                  // folded rather than looped, because each removal answers the
-                  // one before it.
-                  changeOffer(
-                    readings.reduce<Proposal | null>(
-                      (current, reading) => (current ? withoutReading(current, reading) : null),
-                      proposal,
-                    ),
-                  )
-                }
-                onDiscard={() => changeOffer(null)}
-                onHighlightDirection={(index, tags) =>
-                  // Pressing the row it is already lighting puts it out, so the
-                  // same press both asks and stops asking.
-                  setLitDirection((current) => (current?.index === index ? null : { index, tags }))
-                }
-                onMode={(mode: PickMode) => {
-                  // Unmapped and Create are the other answers to the same
-                  // question, so naming either pick mode is how you leave them.
-                  setShowingUncut(false)
-                  setDraft(null)
-                  setJustMade(null)
-                  setPicking((current) => switchMode(current, mode))
-                  setSelection(NOTHING_SELECTED)
-                  setHoveredTags([])
-                  /*
-                   * By direction is worked by pressing an arrow, so entering it
-                   * puts them on screen — and leaving it puts them away along
-                   * with whatever was held, rather than restoring what they were.
-                   * A held way up is a filter on the mode being left.
-                   */
-                  if (mode === 'direction') borrowArrows()
-                  else putArrowsAway()
-                }}
-                onChoose={chooseWithin}
-                onSetPass={setPass}
-                onShowFaces={openFaces}
-                onHover={setHoveredTags}
-              />
-            </div>
-            <div className="min-h-0 flex-1 overflow-hidden">
-              {/*
+                  onInfer={(kind: Infer) => {
+                    if (picking.holding === null) return
+                    const setup = plan.setups.find(
+                      (entry) => entry.directionIndex === picking.holding,
+                    )
+                    setProposal(
+                      propose(
+                        part.features,
+                        plan,
+                        part.candidateDirections,
+                        picking.holding,
+                        kind,
+                        rules.verdicts,
+                        setup?.id,
+                      ),
+                    )
+                  }}
+                  onPrune={(readings) =>
+                    // A row is its group, so pruning one is pruning all of them —
+                    // folded rather than looped, because each removal answers the
+                    // one before it.
+                    changeOffer(
+                      readings.reduce<Proposal | null>(
+                        (current, reading) => (current ? withoutReading(current, reading) : null),
+                        proposal,
+                      ),
+                    )
+                  }
+                  onDiscard={() => changeOffer(null)}
+                  onHighlightDirection={(index, tags) =>
+                    // Pressing the row it is already lighting puts it out, so the
+                    // same press both asks and stops asking.
+                    setLitDirection((current) =>
+                      current?.index === index ? null : { index, tags },
+                    )
+                  }
+                  onMode={(mode: PickMode) => {
+                    // Unmapped and Create are the other answers to the same
+                    // question, so naming either pick mode is how you leave them.
+                    setShowingUncut(false)
+                    setDraft(null)
+                    setJustMade(null)
+                    setPicking((current) => switchMode(current, mode))
+                    setSelection(NOTHING_SELECTED)
+                    setHoveredTags([])
+                    /*
+                     * By direction is worked by pressing an arrow, so entering it
+                     * puts them on screen — and leaving it puts them away along
+                     * with whatever was held, rather than restoring what they were.
+                     * A held way up is a filter on the mode being left.
+                     */
+                    if (mode === 'direction') borrowArrows()
+                    else putArrowsAway()
+                  }}
+                  onChoose={chooseWithin}
+                  onSetPass={setPass}
+                  onShowFaces={openFaces}
+                  onHover={setHoveredTags}
+                />
+              </div>
+              <div className="min-h-0 flex-1 overflow-hidden">
+                {/*
                 Nothing is being read while a reading is being drawn.
                 
                 The datasheet describes one of the Engine's readings, and this
@@ -2279,198 +2263,193 @@ export const PartInspector = ({
                 up puts a description of something else under the panel doing
                 the work, and clicking a face used to change it.
               */}
-              {draft !== null ? (
-                <aside className="flex size-full min-h-0 flex-col overflow-y-auto bg-ground">
-                  <p className="p-4 text-sm leading-6 text-ink-dim">
-                    Drawing a reading. Its faces are listed above, and the part shows what is chosen
-                    — nothing is being read.
-                  </p>
-                </aside>
-              ) : facesOpen ? (
-                <FaceList
-                  feature={facesOpen}
-                  report={part}
-                  plan={plan}
-                  directions={part.candidateDirections}
-                  scores={scores}
-                  showingPass={showingPass}
-                  unit={unit}
-                  onSetFace={(feature, region, cut) => {
-                    setPlanIsGenerated(false)
-                    setPlan((current) =>
-                      setFaceCut(
-                        current,
-                        part.candidateDirections,
-                        part.features,
-                        feature,
-                        // Both passes: a face ticked here is roughed and
-                        // finished, the same default a generator takes.
-                        PASSES,
-                        region,
-                        cut,
-                      ),
-                    )
-                  }}
-                  onSetPass={setPass}
-                  /*
-                   * One face moves; nothing else does.
-                   *
-                   * Pressing the pass a face already has here takes that face
-                   * off that reading, which is the same rule a row follows —
-                   * and everything else the reading cuts, and everything every
-                   * other reading cuts, is left exactly as it was.
-                   */
-                  onSetFacePass={(owner, region, passes) => {
+                {draft !== null ? (
+                  <aside className="flex size-full min-h-0 flex-col overflow-y-auto bg-ground">
+                    <p className="p-4 text-sm leading-6 text-ink-dim">
+                      Drawing a reading. Its faces are listed above, and the part shows what is
+                      chosen — nothing is being read.
+                    </p>
+                  </aside>
+                ) : facesOpen ? (
+                  <FaceList
+                    feature={facesOpen}
+                    onSetFace={(feature, region, cut) => {
+                      setPlanIsGenerated(false)
+                      setPlan((current) =>
+                        setFaceCut(
+                          current,
+                          part.candidateDirections,
+                          part.features,
+                          feature,
+                          // Both passes: a face ticked here is roughed and
+                          // finished, the same default a generator takes.
+                          PASSES,
+                          region,
+                          cut,
+                        ),
+                      )
+                    }}
+                    onSetPass={setPass}
                     /*
-                     * A toggle: pressing a pass this face already has here
-                     * takes it off. An **empty** list is Both pressed on a face
-                     * that holds both, which `setFaceCut` reads as "off, in
-                     * both passes" — `[].every()` is vacuously true, so asking
-                     * the question of an empty list gives the wrong answer.
-                     */
-                    const holds =
-                      passes.length > 0 &&
-                      passes.every((pass) => cutsFace(plan, owner, pass, region))
-                    setPlan((current) =>
-                      setFaceCut(
-                        current,
-                        part.candidateDirections,
-                        part.features,
-                        owner,
-                        passes,
-                        region,
-                        !holds,
-                      ),
-                    )
-                  }}
-                  focusedTag={focusedTag}
-                  reveal={revealFace}
-                  onCurrentFace={setCurrentFace}
-                  onChoose={chooseWithin}
-                  onDelete={deleteMade}
-                  onCutFrom={cutMadeFrom}
-                  cutting={facePasses}
-                  onCutting={setFacePasses}
-                  /*
-                   * Every face nobody has claimed, in the passes the switch
-                   * names — folded from one snapshot, the same rule
-                   * `onSelectAll` follows and for the same reason.
-                   *
-                   * **Additive, and per face.** Each entry carries the passes
-                   * that face is actually free in — a face finished from
-                   * another way up and roughed by nobody is filled in roughing
-                   * alone, whatever the switch says. Taking the switch's passes
-                   * for every face would pull the finishing off the reading
-                   * that has it, in a press that exists to fill gaps rather
-                   * than argue with anything.
-                   */
-                  types={featureTypes}
-                  /*
-                   * Rename what a reading is, and let every list see it.
-                   *
-                   * Written into `retyped`, which `part` folds in beside the
-                   * made readings — so the rules re-judge it, the score moves,
-                   * and a generator run after this puts it where the new type
-                   * belongs. A plan built before the rename is no longer a plan
-                   * the rules would produce, which is what clearing the
-                   * generated flag says.
-                   */
-                  onRetype={(featureTag, featureType) => {
-                    setPlanIsGenerated(false)
-                    setRetyped((current) => ({ ...current, [featureTag]: featureType }))
-                  }}
-                  onSelectFree={(faces) => {
-                    setPlanIsGenerated(false)
-                    const reading = facesOpen
-                    setPlan((current) =>
-                      faces.reduce(
-                        (plan, face) =>
-                          setFaceCut(
-                            plan,
-                            part.candidateDirections,
-                            part.features,
-                            reading,
-                            face.passes,
-                            face.region,
-                            true,
-                          ),
-                        current,
-                      ),
-                    )
-                  }}
-                  onUnlockSetup={(setupId) =>
-                    setPlan((current) => lockSetup(current, setupId, false))
-                  }
-                  onSelectAll={(on) => {
-                    /*
-                     * One update for every face, not one per face.
+                     * One face moves; nothing else does.
                      *
-                     * `setPlan` folds over the set from a single snapshot —
-                     * twenty `setState` calls from one snapshot keep only the
-                     * last, which is exactly how "Both" once set finishing and
-                     * dropped roughing.
+                     * Pressing the pass a face already has here takes that face
+                     * off that reading, which is the same rule a row follows —
+                     * and everything else the reading cuts, and everything every
+                     * other reading cuts, is left exactly as it was.
                      */
-                    const reading = facesOpen
-                    setPlan((current) =>
-                      coveredRegions(current, reading).reduce(
-                        (plan, region) =>
-                          setFaceCut(
-                            plan,
-                            part.candidateDirections,
-                            part.features,
-                            reading,
-                            facePasses,
-                            region,
-                            on,
-                          ),
-                        current,
-                      ),
-                    )
-                  }}
-                  onHoverFace={setHoveredFace}
-                  /*
-                   * Whether `Save` has anything to keep — the same question
-                   * `Cancel` answers from the other side, asked of the plan the
-                   * editor opened against rather than of a flag somebody has to
-                   * remember to set.
-                   */
-                  changed={planBefore !== null && readingChanged(planBefore, plan, facesOpen)}
-                  onCancel={cancelFaces}
-                  onClose={saveFaces}
-                />
-              ) : (
-                <FeatureDetail
-                  mode={picking.mode}
-                  feature={focused}
-                  siblings={focusedHoles}
-                  report={part}
-                  candidates={mappable}
-                  scores={scores}
-                  onChoose={focusCandidate}
-                  onZoom={zoomToFeature}
-                  onClose={clearPicks}
-                  unit={unit}
-                  rules={rules.ruleSet.rules}
-                  part={rulesContext}
-                  verdict={rules.verdicts.find((each) => each.tag === focusedTag) ?? null}
-                  plan={plan}
-                  showingPass={showingPass}
-                  onShowFaces={openFaces}
-                  onDelete={deleteMade}
-                  /*
-                   * Sixteen identical holes are one press, here as everywhere
-                   * else — the datasheet is describing the group, so its buttons
-                   * had better act on it.
-                   */
-                  onSetPass={(feature, passes) =>
-                    setPass(focusedHoles.length > 1 ? focusedHoles : [feature], passes)
-                  }
-                />
-              )}
+                    onSetFacePass={(owner, region, passes) => {
+                      /*
+                       * A toggle: pressing a pass this face already has here
+                       * takes it off. An **empty** list is Both pressed on a face
+                       * that holds both, which `setFaceCut` reads as "off, in
+                       * both passes" — `[].every()` is vacuously true, so asking
+                       * the question of an empty list gives the wrong answer.
+                       */
+                      const holds =
+                        passes.length > 0 &&
+                        passes.every((pass) => cutsFace(plan, owner, pass, region))
+                      setPlan((current) =>
+                        setFaceCut(
+                          current,
+                          part.candidateDirections,
+                          part.features,
+                          owner,
+                          passes,
+                          region,
+                          !holds,
+                        ),
+                      )
+                    }}
+                    focusedTag={focusedTag}
+                    reveal={revealFace}
+                    onCurrentFace={setCurrentFace}
+                    onChoose={chooseWithin}
+                    onDelete={deleteMade}
+                    onCutFrom={cutMadeFrom}
+                    cutting={facePasses}
+                    onCutting={setFacePasses}
+                    /*
+                     * Every face nobody has claimed, in the passes the switch
+                     * names — folded from one snapshot, the same rule
+                     * `onSelectAll` follows and for the same reason.
+                     *
+                     * **Additive, and per face.** Each entry carries the passes
+                     * that face is actually free in — a face finished from
+                     * another way up and roughed by nobody is filled in roughing
+                     * alone, whatever the switch says. Taking the switch's passes
+                     * for every face would pull the finishing off the reading
+                     * that has it, in a press that exists to fill gaps rather
+                     * than argue with anything.
+                     */
+                    types={featureTypes}
+                    /*
+                     * Rename what a reading is, and let every list see it.
+                     *
+                     * Written into `retyped`, which `part` folds in beside the
+                     * made readings — so the rules re-judge it, the score moves,
+                     * and a generator run after this puts it where the new type
+                     * belongs. A plan built before the rename is no longer a plan
+                     * the rules would produce, which is what clearing the
+                     * generated flag says.
+                     */
+                    onRetype={(featureTag, featureType) => {
+                      setPlanIsGenerated(false)
+                      setRetyped((current) => ({ ...current, [featureTag]: featureType }))
+                    }}
+                    onSelectFree={(faces) => {
+                      setPlanIsGenerated(false)
+                      const reading = facesOpen
+                      setPlan((current) =>
+                        faces.reduce(
+                          (plan, face) =>
+                            setFaceCut(
+                              plan,
+                              part.candidateDirections,
+                              part.features,
+                              reading,
+                              face.passes,
+                              face.region,
+                              true,
+                            ),
+                          current,
+                        ),
+                      )
+                    }}
+                    onUnlockSetup={(setupId) =>
+                      setPlan((current) => lockSetup(current, setupId, false))
+                    }
+                    onSelectAll={(on) => {
+                      /*
+                       * One update for every face, not one per face.
+                       *
+                       * `setPlan` folds over the set from a single snapshot —
+                       * twenty `setState` calls from one snapshot keep only the
+                       * last, which is exactly how "Both" once set finishing and
+                       * dropped roughing.
+                       */
+                      const reading = facesOpen
+                      setPlan((current) =>
+                        coveredRegions(current, reading).reduce(
+                          (plan, region) =>
+                            setFaceCut(
+                              plan,
+                              part.candidateDirections,
+                              part.features,
+                              reading,
+                              facePasses,
+                              region,
+                              on,
+                            ),
+                          current,
+                        ),
+                      )
+                    }}
+                    onHoverFace={setHoveredFace}
+                    /*
+                     * Whether `Save` has anything to keep — the same question
+                     * `Cancel` answers from the other side, asked of the plan the
+                     * editor opened against rather than of a flag somebody has to
+                     * remember to set.
+                     */
+                    changed={planBefore !== null && readingChanged(planBefore, plan, facesOpen)}
+                    onCancel={cancelFaces}
+                    onClose={saveFaces}
+                  />
+                ) : (
+                  <FeatureDetail
+                    mode={picking.mode}
+                    feature={focused}
+                    siblings={focusedHoles}
+                    report={part}
+                    candidates={mappable}
+                    scores={scores}
+                    onChoose={focusCandidate}
+                    onZoom={zoomToFeature}
+                    onClose={clearPicks}
+                    unit={unit}
+                    rules={rules.ruleSet.rules}
+                    part={rulesContext}
+                    verdict={rules.verdicts.find((each) => each.tag === focusedTag) ?? null}
+                    plan={plan}
+                    showingPass={showingPass}
+                    onShowFaces={openFaces}
+                    onDelete={deleteMade}
+                    /*
+                     * Sixteen identical holes are one press, here as everywhere
+                     * else — the datasheet is describing the group, so its buttons
+                     * had better act on it.
+                     */
+                    onSetPass={(feature, passes) =>
+                      setPass(focusedHoles.length > 1 ? focusedHoles : [feature], passes)
+                    }
+                  />
+                )}
+              </div>
             </div>
-          </div>
-        </Panels.Panel>
-      </Panels.Group>
-    </main>
+          </Panels.Panel>
+        </Panels.Group>
+      </main>
+    </PartViewProvider>
   )
 }

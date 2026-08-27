@@ -44,6 +44,7 @@ import { Button } from '@toolpath/ui'
 import { ToolButton } from './tool-button'
 import { barButtonClass } from './panel-button'
 import type { PartReport, PublicInspectionReport } from '../shared/contracts'
+import { usePartView } from './part-view'
 
 class MeshErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state: { error: Error | null } = { error: null }
@@ -133,7 +134,6 @@ const ARROW_STATES: Record<Arrows, { label: string; said: string; note: string }
  * it, and only the focused reading is coloured.
  */
 export const FeatureViewer = ({
-  report,
   jobId,
   selectedFeatureTags,
   highlightedFeatureTags,
@@ -144,9 +144,7 @@ export const FeatureViewer = ({
   onArrows,
   arrowsVisible,
   paintMode,
-  unit,
   onUnit,
-  showingPass,
   onShowingPass,
   cutBy,
   cutByRegion,
@@ -156,7 +154,6 @@ export const FeatureViewer = ({
   proposedFrom,
   painted,
   onPaintMode,
-  verdicts,
   focusFeature,
   onPickDirection,
   onPick,
@@ -164,7 +161,6 @@ export const FeatureViewer = ({
   onAdjacency,
   onClearSelection,
 }: {
-  report: PublicInspectionReport
   jobId: string
   /** The readings painted as selected: ticked, plus whatever is being read. */
   selectedFeatureTags: readonly string[]
@@ -194,11 +190,7 @@ export const FeatureViewer = ({
   arrowsVisible: boolean
   /** The standing wash: what the part is coloured by while nothing is selected. */
   paintMode: PaintMode
-  /** What the size readout is spoken in. Shared with every panel. */
-  unit: Unit
   onUnit: (unit: Unit) => void
-  /** Which pass the standing wash means. */
-  showingPass: Pass
   onShowingPass: (pass: Pass) => void
   /** Which way up cuts each feature in that pass, for the directions wash. */
   cutBy: ReadonlyMap<string, number>
@@ -225,8 +217,6 @@ export const FeatureViewer = ({
   /** Readings gathered by painting, in their own orange. */
   painted: readonly { featureTag: string }[]
   onPaintMode: (mode: PaintMode) => void
-  /** What the rules made of each feature, for the difficulty wash. */
-  verdicts: readonly { tag: string; band: Band | null }[]
   /** A feature to zoom to. Framed when it changes. */
   focusFeature: string | null
   onPickDirection: (index: number) => void
@@ -238,6 +228,8 @@ export const FeatureViewer = ({
   /** A click that hit nothing in the scene. */
   onClearSelection: () => void
 }) => {
+  const { report, unit, showingPass, verdicts } = usePartView()
+
   const viewerRef = useRef<ViewerHandle>(null)
   // The cut is a mode: its handle stands over the part's centre, which is also
   // where an orbit starts, so leaving it on would swallow the gesture.

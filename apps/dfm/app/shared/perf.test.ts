@@ -107,7 +107,9 @@ describe('a part the size of a real one', () => {
     const counts = [Object.keys(plan.assigned).length]
 
     for (let round = 1; round <= limit; round += 1) {
-      const next = byBestReading(part, DIRS, features, verdicts, plan)
+      const next = byBestReading(part, DIRS, features, verdicts, {
+        keep: plan,
+      }).plan
       counts.push(Object.keys(next.assigned).length)
 
       if (JSON.stringify(shapeOf(next)) === JSON.stringify(shapeOf(plan))) {
@@ -138,8 +140,12 @@ describe('a part the size of a real one', () => {
   it('settles the same way twice, rather than picking a different arrangement', () => {
     // Same inputs, same answer. A tie broken by iteration order rather than by
     // a rule is a plan that changes under somebody while they are reading it.
-    const once = byBestReading(part, DIRS, features, verdicts, EMPTY_PLAN)
-    const twice = byBestReading(part, DIRS, features, verdicts, EMPTY_PLAN)
+    const once = byBestReading(part, DIRS, features, verdicts, {
+      keep: EMPTY_PLAN,
+    }).plan
+    const twice = byBestReading(part, DIRS, features, verdicts, {
+      keep: EMPTY_PLAN,
+    }).plan
 
     expect(shapeOf(twice)).toEqual(shapeOf(once))
   })
@@ -161,8 +167,10 @@ describe('a part the size of a real one', () => {
    * anything a healthy run approaches.
    */
   it('gets through a real part without needing to be waited for', { timeout: 10_000 }, () => {
-    expect(byBestReading(part, DIRS, features, verdicts, EMPTY_PLAN).setups.length).toBeGreaterThan(
-      0,
-    )
+    expect(
+      byBestReading(part, DIRS, features, verdicts, {
+        keep: EMPTY_PLAN,
+      }).plan.setups.length,
+    ).toBeGreaterThan(0)
   })
 })

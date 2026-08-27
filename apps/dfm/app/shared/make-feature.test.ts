@@ -9,7 +9,6 @@ import {
   chainBetween,
   cutFrom,
   growRun,
-  isContinuous,
   perimeterFrom,
   runsIn,
   relationTo,
@@ -236,48 +235,6 @@ describe('the perimeter, from one way up', () => {
   })
 })
 
-describe('a feature is one continuous piece', () => {
-  /*
-   * An operation runs over faces that touch — a pocket is its floor and the
-   * walls around it, not a floor here and a wall on the far side of the part.
-   */
-  const around = [
-    typed('left', 'wall', UP, [10, 11]),
-    typed('middle', 'wall', UP, [11, 12]),
-    typed('far', 'wall', UP, [40, 41]),
-  ]
-
-  it('is one run when every face reaches every other', () => {
-    expect(isContinuous(around, UP, [10, 11, 12])).toBe(true)
-    expect(runsIn(around, UP, [10, 11, 12])).toEqual([[10, 11, 12]])
-  })
-
-  it('is not, when two groups never meet', () => {
-    expect(isContinuous(around, UP, [10, 40])).toBe(false)
-  })
-
-  it('says which groups they are, so somebody knows which face to take off', () => {
-    // "These four and that one" beats a yes or a no.
-    expect(runsIn(around, UP, [10, 11, 40, 41])).toEqual([
-      [10, 11],
-      [40, 41],
-    ])
-  })
-
-  it('counts one face as continuous, and none as not', () => {
-    expect(isContinuous(around, UP, [10])).toBe(true)
-    expect(isContinuous(around, UP, [])).toBe(false)
-  })
-
-  it('refuses rather than wrongly allows, where the proxy is wrong', () => {
-    // Two faces that touch but that no single reading covers read as unjoined.
-    // Conservative on purpose: a made feature is refused, not silently wrong.
-    const unlinked = [typed('a', 'wall', UP, [1]), typed('b', 'wall', UP, [2])]
-
-    expect(isContinuous(unlinked, UP, [1, 2])).toBe(false)
-  })
-})
-
 describe('chaining, as a click', () => {
   const chain = [
     typed('a', 'wall', UP, [10, 11]),
@@ -367,7 +324,6 @@ describe('before the mesh arrives', () => {
      */
     const together = [typed('one', 'profile', UP, [0, 1])]
 
-    expect(isContinuous(together, UP, [0, 1], new Map())).toBe(true)
     expect(runsIn(together, UP, [0, 1], new Map())).toEqual([[0, 1]])
   })
 
@@ -379,7 +335,9 @@ describe('before the mesh arrives', () => {
       [1, new Set<number>()],
     ])
 
-    expect(isContinuous(together, UP, [0, 1], apart)).toBe(false)
+    // Two runs rather than one is the same claim `isContinuous` made, said by
+    // the function the app actually calls.
+    expect(runsIn(together, UP, [0, 1], apart)).toEqual([[0], [1]])
   })
 })
 

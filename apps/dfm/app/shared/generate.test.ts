@@ -1,17 +1,20 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  GENERATORS,
-  PICKS_WAYS_UP,
-  forcedRegions,
-  generate,
-  isUndercut,
-  planForChosen,
-  requiredDirections,
-} from './generate'
+import { GENERATORS, PICKS_WAYS_UP, generate, planForChosen } from './generate'
+import { forcedRegions, isUndercut, requiredDirections } from './reach'
 import { EMPTY_PLAN, coverageOf, cutRegions } from './setups'
 import { TEST_DIRECTIONS, testFeature, testPart } from './test-part'
 import type { PartFeature } from './contracts'
+
+/** The arrangement and its ledger, for the tests that are about what was decided. */
+const offerBoth = (how: Parameters<typeof generate>[0]) =>
+  generate(how, {
+    report: { regions: part.regions },
+    directions: TEST_DIRECTIONS,
+    features,
+    plan: { setups: [], assigned: {} },
+    verdicts: [],
+  })
 
 const part = testPart()
 const features = part.features
@@ -23,7 +26,7 @@ const offer = (how: Parameters<typeof generate>[0], all: ReadonlyArray<PartFeatu
     features: all,
     plan: { setups: [], assigned: {} },
     verdicts: [],
-  })
+  }).plan
 
 describe('what the part forces', () => {
   it('finds the faces only one way up can reach', () => {
@@ -168,7 +171,7 @@ describe('a plan over the ways up somebody chose', () => {
       chosen: [0],
       splitPasses: false,
       partial: false,
-    })
+    }).plan
 
     expect(plan.setups.map((setup) => setup.directionIndex)).toEqual([0])
   })
@@ -179,7 +182,7 @@ describe('a plan over the ways up somebody chose', () => {
       chosen: [0],
       splitPasses: false,
       partial: false,
-    })
+    }).plan
 
     expect(cutRegions(plan, up, 'rough')).toEqual([0, 1])
     expect(cutRegions(plan, up, 'finish')).toEqual([0, 1])
@@ -191,7 +194,7 @@ describe('a plan over the ways up somebody chose', () => {
       chosen: [0, 1],
       splitPasses: false,
       partial: false,
-    })
+    }).plan
 
     for (const assignment of Object.values(plan.assigned)) {
       expect(assignment.rough).toBe(assignment.finish)
@@ -210,7 +213,7 @@ describe('a plan over the ways up somebody chose', () => {
       chosen: [0, 1],
       splitPasses: true,
       partial: false,
-    })
+    }).plan
 
     expect(cutRegions(plan, up, 'rough')).toEqual([0, 1])
     expect(cutRegions(plan, up, 'finish')).toEqual([0, 1])
@@ -228,13 +231,13 @@ describe('a plan over the ways up somebody chose', () => {
       chosen: [0, 1],
       splitPasses: true,
       partial: false,
-    })
+    }).plan
     const together = planForChosen({
       ...options,
       chosen: [0, 1],
       splitPasses: false,
       partial: false,
-    })
+    }).plan
 
     // By what the assignments *mean*: a setup id is a fresh uuid per run.
     const asDirections = (plan: typeof apart) => {
@@ -248,6 +251,74 @@ describe('a plan over the ways up somebody chose', () => {
     }
 
     expect(asDirections(apart)).toEqual(asDirections(together))
+  })
+
+  /*
+   * The bug the ledger was returned for.
+   *
+   * It used to be module state read through a getter, and every caller reached
+   * for it on the line *above* the run that fills it — so the panel showed the
+   * previous arrangement's counters, and zeroes on the very first press. There
+   * is no ledger to read now until there is a plan to read it from.
+   */
+  it('reports the run that just happened, on the first press', () => {
+    expect(offerBoth('from the rules').bit?.unjudgedRank).toBe(features.length)
+  })
+
+  /*
+   * Nothing to report, said as nothing rather than as zeroes.
+   *
+   * The three sweeping offers never consult the limits, so "the limits refused
+   * nothing" would be a claim they are not entitled to make.
+   */
+  it('says nothing for an offer that never consulted the limits', () => {
+    expect(offerBoth('from toolpath').bit).toBeUndefined()
+  })
+
+  /*
+   * Two runs make one plan, so its ledger has to be two ledgers.
+   *
+   * The ledger used to be module state that each run reset on the way in, so
+   * the roughing run's counters were overwritten by the finishing run before
+   * anybody could read them — a split-pass plan reported half of what it
+   * decided, and the half it dropped was silent. The counters are additive
+   * because they count decisions, and both runs made decisions.
+   */
+  it('adds up what both passes of a split decided', () => {
+    const split = planForChosen({
+      ...options,
+      chosen: [0, 1],
+      splitPasses: true,
+      partial: false,
+    })
+    const once = planForChosen({
+      ...options,
+      chosen: [0, 1],
+      splitPasses: false,
+      partial: false,
+    })
+
+    // Whatever a single run counts, two runs of the same economics count twice.
+    expect(split.bit?.unjudgedRank).toBe((once.bit?.unjudgedRank ?? 0) * 2)
+  })
+
+  // `rounds` is the one counter that is not a sum: a plan is as capped as its
+  // most capped half, not twice as capped.
+  it('takes the longer of the two runs rather than adding the rounds up', () => {
+    const split = planForChosen({
+      ...options,
+      chosen: [0, 1],
+      splitPasses: true,
+      partial: false,
+    })
+    const once = planForChosen({
+      ...options,
+      chosen: [0, 1],
+      splitPasses: false,
+      partial: false,
+    })
+
+    expect(split.bit?.rounds.used).toBe(once.bit?.rounds.used)
   })
 })
 
@@ -277,7 +348,7 @@ describe('splitting a feature between ways up', () => {
   }
 
   it('lets a reading keep the faces it won, and says what it gave up', () => {
-    const plan = planForChosen({ ...options, chosen: [0, 1], partial: true })
+    const plan = planForChosen({ ...options, chosen: [0, 1], partial: true }).plan
 
     // Both readings are in the plan, and between them they cut both faces.
     const cut = [...cutRegions(plan, wide, 'rough'), ...cutRegions(plan, narrow, 'rough')]
@@ -289,7 +360,7 @@ describe('splitting a feature between ways up', () => {
      * The old rule: a reading holding some of its faces was filtered out of the
      * plan entirely, and its faces left cut by nobody.
      */
-    const plan = planForChosen({ ...options, chosen: [0, 1], partial: false })
+    const plan = planForChosen({ ...options, chosen: [0, 1], partial: false }).plan
     const cut = new Set([...cutRegions(plan, wide, 'rough'), ...cutRegions(plan, narrow, 'rough')])
 
     expect(cut.size).toBeLessThanOrEqual(2)

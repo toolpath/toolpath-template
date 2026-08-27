@@ -24,6 +24,8 @@ import type { PartFeature } from '../shared/contracts'
 import type { PartFaces } from '../shared/setups'
 import type { FeatureScore } from '../shared/feature-score'
 import { formatArea, type Unit } from '../shared/units'
+import { rowAttributes } from '../shared/row-nav'
+import { usePartView } from './part-view'
 
 /**
  * Making a reading the Engine did not report.
@@ -71,13 +73,8 @@ const Step = ({
 export const CreateFeature = ({
   made,
   draft,
-  directions,
-  report,
   touching,
   types,
-  scores,
-  unit,
-  plan,
   onDraft,
   onChoose,
   onHover,
@@ -93,17 +90,10 @@ export const CreateFeature = ({
   /** The reading just created, waiting to be mapped. */
   made: PartFeature | null
   draft: Draft
-  directions: readonly Vec3[]
-  /** The part, for what covers these faces and what each of them is. */
-  report: PartFaces & { features: ReadonlyArray<PartFeature> }
   /** Which faces touch which, for chaining and continuity. */
   touching: Touching
   /** The types this part has, so a made reading is named like the rest. */
   types: readonly string[]
-  scores: ReadonlyMap<string, FeatureScore>
-  unit: Unit
-  /** The mapping so far, so the presses below say what they already hold. */
-  plan: SetupPlan
   onDraft: (draft: Draft) => void
   onChoose: (featureTag: string) => void
   onHover: (tags: string[]) => void
@@ -122,6 +112,8 @@ export const CreateFeature = ({
   /** Leave the mode entirely. */
   onDone: () => void
 }) => {
+  const { directions, report, scores, unit, plan } = usePartView()
+
   const vector = draft.direction === null ? null : directions[draft.direction]
   /**
    * Which of the chosen faces the plan is already cutting, and from where.
@@ -514,7 +506,7 @@ export const CreateFeature = ({
                   >
                     <button
                       type="button"
-                      data-row={feature.featureTag}
+                      {...rowAttributes(feature.featureTag)}
                       onClick={() => onChoose(feature.featureTag)}
                       className="flex min-w-0 flex-1 items-center gap-2 rounded-r px-2 py-1 text-left text-2xs text-ink-muted transition hover:bg-ground/60"
                     >

@@ -1,3 +1,5 @@
+import { ROW, rowAt, rowsIn } from './row-nav'
+
 /**
  * Arrow keys through a list of rows.
  *
@@ -24,8 +26,6 @@ export interface ListKeyActions {
   onClose?: (value: string) => void
 }
 
-const ROWS = '[data-row]'
-
 export const moveThroughList = (
   event: {
     key: string
@@ -39,8 +39,8 @@ export const moveThroughList = (
   const target = event.target as HTMLElement | null
   if (!container || !target) return false
 
-  const rows = [...container.querySelectorAll<HTMLElement>(ROWS)]
-  const at = rows.indexOf(target.closest<HTMLElement>(ROWS) ?? target)
+  const rows = rowsIn(container)
+  const at = rows.indexOf(rowAt(target) ?? target)
   if (at === -1) return false
 
   const focus = (index: number) => {
@@ -66,7 +66,7 @@ export const moveThroughList = (
       focus(rows.length - 1)
       return true
     case 'ArrowRight': {
-      const value = rows[at]?.dataset.row
+      const value = rows[at]?.getAttribute(ROW)
       if (!value || !actions.onOpen) return false
       event.preventDefault()
       actions.onOpen(value)
@@ -75,7 +75,7 @@ export const moveThroughList = (
     case 'ArrowLeft': {
       if (!actions.onClose) return false
       event.preventDefault()
-      actions.onClose(rows[at]?.dataset.row ?? '')
+      actions.onClose(rows[at]?.getAttribute(ROW) ?? '')
       return true
     }
     default:

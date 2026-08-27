@@ -52,3 +52,70 @@ export const isTyping = (target: EventTarget | null): boolean => {
   const tag = element.tagName
   return tag === 'INPUT' || tag === 'TEXTAREA' || element.isContentEditable
 }
+
+/**
+ * What a keystroke at the window means, before anything is done about it.
+ *
+ * The routing rather than the meaning: `escapeStep` already says what Escape
+ * puts down and `planKey` what R, F and X ask for, but *which of them a press
+ * is* was a hundred and seventy lines of `if` and `return` inside the page's
+ * one `useEffect`, interleaved with the eleven `setState` calls that carry each
+ * answer out. There was no way to ask what a key did without a browser.
+ *
+ * Order is the whole of it, and each rung was got wrong once:
+ *
+ * | typing    | a shortcut that fires while a name is being typed is a plan   |
+ * |           | rewritten by somebody spelling a word                         |
+ * | escape    | works outward one rung per press — see `escapeStep`            |
+ * | arrows    | Z has its own key because the arrows are how a way up is held  |
+ * | plan      | R, F, X act on the row under the keyboard, wherever it is      |
+ * | step      | and arrowing through the readings only applies **outside** a   |
+ * |           | list, because a list under the keyboard walks itself           |
+ */
+export type KeyIntent =
+  | { act: 'escape' }
+  | { act: 'arrows' }
+  | { act: 'plan'; plan: NonNullable<PlanKey> }
+  | { act: 'step'; by: 1 | -1 }
+  | null
+
+export const keyIntent = ({
+  key,
+  typing,
+  inList,
+}: {
+  key: string
+  /** Whether the press landed in a text field. */
+  typing: boolean
+  /**
+   * Whether focus is inside a list that walks itself.
+   *
+   * Only the last rung asks: the keys above act on the row under the keyboard,
+   * which is usually *inside* one of those lists — guarding all of them is why
+   * they did nothing at all.
+   */
+  inList: boolean
+}): KeyIntent => {
+  if (typing) return null
+
+  if (key === 'Escape') return { act: 'escape' }
+
+  /*
+   * Z shows every arrow, or puts them all away.
+   *
+   * Its own key because the arrows are how a way up is held, and reaching for
+   * the toolbar to find one is a gesture away from the part. Not in `planKey`
+   * — that is about the reading in hand, and this is about the whole part.
+   */
+  if (key.toLowerCase() === 'z') return { act: 'arrows' }
+
+  const plan = planKey(key)
+  if (plan) return { act: 'plan', plan }
+
+  if (inList) return null
+
+  if (key === 'ArrowDown') return { act: 'step', by: 1 }
+  if (key === 'ArrowUp') return { act: 'step', by: -1 }
+
+  return null
+}

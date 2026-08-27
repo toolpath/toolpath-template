@@ -2,7 +2,7 @@ import type { Vec3 } from '@toolpath/api'
 
 import type { PartFeature } from './contracts'
 import { directionKey } from './report'
-import { forcedRegions, isUndercut, requiredDirections } from './generate'
+import { isUndercut, requiredDirections, scoreIn, skipUndercut, undercutOnly } from './reach'
 import type { Assignment, PartFaces, Setup, SetupPlan } from './setups'
 import { EMPTY_PLAN, PASSES, type Pass, claimedRegions, coveredRegions, setupFor } from './setups'
 import { lockedReadings } from './plan-actions'
@@ -54,26 +54,6 @@ export { DEFAULT_PLAN_LIMITS } from './rules'
  */
 const rankOfBand = (band: Band | null, unjudged: number): number =>
   band === null ? unjudged : bandRank(band)
-
-const scoreIn = (feature: PartFeature, verdicts: Map<string, FeatureVerdict>): number | null => {
-  const verdict = verdicts.get(feature.featureTag)
-  return verdict ? scoreFeature(verdict) : null
-}
-
-const undercutOnly = (features: ReadonlyArray<PartFeature>): Set<number> => {
-  const ordinary = new Set<number>()
-  const seen = new Set<number>()
-  for (const feature of features) {
-    for (const idx of feature.regionIdxs) {
-      seen.add(idx)
-      if (!isUndercut(feature)) ordinary.add(idx)
-    }
-  }
-  return new Set([...seen].filter((idx) => !ordinary.has(idx)))
-}
-
-const skipUndercut = (feature: PartFeature, onlyUndercut: ReadonlySet<number>): boolean =>
-  isUndercut(feature) && !feature.regionIdxs.some((idx) => onlyUndercut.has(idx))
 
 /**
  * What each limit actually decided, on the run that just happened.
@@ -143,28 +123,47 @@ const nothingBit = (): WhatBit => ({
   rounds: { used: 0, capped: false },
 })
 
-/*
- * The ledger of the run that just happened.
+/**
+ * Two ledgers added together, for an arrangement built in more than one run.
  *
- * Module state rather than a second return value, which would have to be
- * threaded through `planForChosen`, both passes of a split, the merge and the
- * three components that call them — six signatures widened so one panel can
- * read a counter. Reset at the top of every run, so it is never a mixture of
- * two.
- *
- * The page is one arrangement at a time; if that ever stops being true this
- * becomes a returned value and the six signatures get widened after all.
+ * A split-pass plan is two runs and one plan, so its ledger has to be two
+ * ledgers: counting only the second says the roughing run refused nothing,
+ * which is a different claim from the truth. `rounds` takes the larger `used`
+ * and either `capped` — the plan is as capped as its most capped half.
  */
-let bit = nothingBit()
+export const bothBits = (first: WhatBit, second: WhatBit): WhatBit => ({
+  gainToMove: first.gainToMove + second.gainToMove,
+  worthAnOperation: first.worthAnOperation + second.worthAnOperation,
+  newDirectionGain: first.newDirectionGain + second.newDirectionGain,
+  sliverFloor: first.sliverFloor + second.sliverFloor,
+  operationCost: first.operationCost + second.operationCost,
+  worstBand: first.worstBand + second.worstBand,
+  waysUp: first.waysUp + second.waysUp,
+  waysUpForced: first.waysUpForced + second.waysUpForced,
+  unjudgedRank: first.unjudgedRank + second.unjudgedRank,
+  rounds: {
+    used: Math.max(first.rounds.used, second.rounds.used),
+    capped: first.rounds.capped || second.rounds.capped,
+  },
+})
 
-/** What the limits decided, on the last arrangement built. */
-export const whatBit = (): WhatBit => bit
+/**
+ * What the arrangement decided, and the ledger of how it decided it.
+ *
+ * The ledger was module state read through a `whatBit()` getter, which made
+ * the order of two statements load-bearing and invisible: every caller read it
+ * *before* the run that fills it, so the panel showed the previous
+ * arrangement's counters and zeroes on the first press. Returning it together
+ * with the plan is what makes that unwriteable — there is no ledger to read
+ * until there is a plan to read it from.
+ */
+export interface BestReadingResult {
+  plan: SetupPlan
+  bit: WhatBit
+}
 
-export const byBestReading = (
-  report: PartFaces,
-  directions: ReadonlyArray<Vec3>,
-  features: ReadonlyArray<PartFeature>,
-  verdicts: Map<string, FeatureVerdict>,
+/** Everything about a run except the part it is arranging. */
+export interface BestReadingOptions {
   /**
    * Setups somebody is already holding, which this fills around.
    *
@@ -172,8 +171,8 @@ export const byBestReading = (
    * exactly like a forced direction, because the re-fixture has already been
    * paid for.
    */
-  keep: SetupPlan = EMPTY_PLAN,
-  limits: PlanLimits = DEFAULT_PLAN_LIMITS,
+  keep?: SetupPlan
+  limits?: PlanLimits
   /**
    * Whether a way up may be **bought** that nobody is holding.
    *
@@ -183,7 +182,7 @@ export const byBestReading = (
    * and it will leave ground uncut where the held setups genuinely cannot reach
    * it. That is the honest answer, not a shortfall.
    */
-  mayBuy = true,
+  mayBuy?: boolean
   /**
    * Whether `keep` is a **starting point** rather than a decision.
    *
@@ -193,7 +192,7 @@ export const byBestReading = (
    * only to get coverage on the board, and freezing it would freeze its
    * mistakes with it.
    */
-  seeded = false,
+  seeded?: boolean
   /**
    * Which passes this run decides. Both, unless they are being decided apart.
    *
@@ -202,7 +201,7 @@ export const byBestReading = (
    * and finished another — a thing the plan has modelled from the start and the
    * generator had no way to say.
    */
-  passes: ReadonlyArray<Pass> = PASSES,
+  passes?: ReadonlyArray<Pass>
   /**
    * Whether a reading may cut **part** of what it covers.
    *
@@ -221,15 +220,41 @@ export const byBestReading = (
    * held, and every reading keeps whatever it won — noted as what it gave up.
    * The trade is **fragmentation**: per-face allocation can hand one face to a
    * one-face reading and leave an operation running for it, which is what
-   * `operationCost` exists to argue against. The swap pass still does that
+   * `operationCost` exists to argue against.
+   *
    * **Undefined means "whatever the rules say."** This is a shop-level answer
    * now — *May the plan split a feature?*, in the rules beside everything else
    * — so every generator honours it without each of them having to remember to
    * pass it along. A generator press that wants the other way says so
    * explicitly, and that override lasts one run.
    */
-  partial: boolean | undefined = undefined,
-): SetupPlan => {
+  partial?: boolean
+}
+
+export const byBestReading = (
+  report: PartFaces,
+  directions: ReadonlyArray<Vec3>,
+  features: ReadonlyArray<PartFeature>,
+  verdicts: Map<string, FeatureVerdict>,
+  /**
+   * The run's settings, all optional.
+   *
+   * An object rather than six trailing positionals: the call that decided a
+   * split pass read `byBestReading(..., limits, false, false, [pass], partial)`,
+   * and the two bare booleans in the middle of it are `mayBuy` and `seeded` —
+   * two decisions with twenty lines of reasoning each at the declaration and
+   * nothing at all where they are made.
+   */
+  options: BestReadingOptions = {},
+): BestReadingResult => {
+  const {
+    keep = EMPTY_PLAN,
+    limits = DEFAULT_PLAN_LIMITS,
+    mayBuy = true,
+    seeded = false,
+    passes = PASSES,
+    partial,
+  } = options
   const mayPart = partial ?? limits.splitFeatures !== false
 
   /*
@@ -281,8 +306,10 @@ export const byBestReading = (
    * face — see the test named for it, which asserts the consequence rather than
    * hiding it.
    */
-  // A fresh ledger per run, so it is never a mixture of two arrangements.
-  bit = nothingBit()
+  // A fresh ledger per run, so it is never a mixture of two arrangements. Local
+  // to the run and handed back with the plan: a caller cannot reach for it
+  // before the run that fills it, which is what the module-level one allowed.
+  const bit = nothingBit()
 
   const unjudged = limits.unjudgedRank ?? DEFAULT_PLAN_LIMITS.unjudgedRank ?? 1.5
   const rankOf = (band: Band | null) => rankOfBand(band, unjudged)
@@ -1174,17 +1201,17 @@ export const byBestReading = (
   const ordered = [...surviving].sort((a, b) => (areaCut.get(b.id) ?? 0) - (areaCut.get(a.id) ?? 0))
 
   return {
-    // Only the ones made here are renumbered. A setup somebody was already
-    // holding keeps the name it had — reordering the list is a presentation
-    // choice, renaming somebody's setup is not.
-    setups: ordered.map((setup, at) =>
-      kept.has(setup.id)
-        ? setup
-        : { ...setup, name: setupFor(directions, setup.directionIndex, at).name },
-    ),
-    assigned,
+    plan: {
+      // Only the ones made here are renumbered. A setup somebody was already
+      // holding keeps the name it had — reordering the list is a presentation
+      // choice, renaming somebody's setup is not.
+      setups: ordered.map((setup, at) =>
+        kept.has(setup.id)
+          ? setup
+          : { ...setup, name: setupFor(directions, setup.directionIndex, at).name },
+      ),
+      assigned,
+    },
+    bit,
   }
 }
-
-/** Kept for the `only here` scope, which asks the same question of one direction. */
-export { forcedRegions }

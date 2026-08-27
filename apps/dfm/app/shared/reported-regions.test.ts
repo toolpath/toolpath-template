@@ -35,6 +35,16 @@ const MAY_READ = new Set([
   // The plan layer. These are what everything else asks instead.
   'setups.ts',
   'faces.ts',
+  /*
+   * Reachability, and it is the Engine's answer by definition.
+   *
+   * *Which directions can see this face*, *is this face reachable only one way*
+   * — both are facts about the shape the Engine described. A plan cannot change
+   * what a direction can reach, and a face handed to another way up is still
+   * reachable from this one. So the Engine's list is the right one here, and
+   * `cutRegions` would be the wrong question entirely.
+   */
+  'reach.ts',
   'best-reading.ts',
   'generate.ts',
   'infer.ts',

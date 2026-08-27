@@ -494,14 +494,6 @@ export const runsIn = (
   return runs.sort((a, b) => (a[0] ?? 0) - (b[0] ?? 0))
 }
 
-/** Whether the chosen faces are one piece — see {@link runsIn}. */
-export const isContinuous = (
-  features: ReadonlyArray<PartFeature>,
-  direction: Vec3,
-  faces: ReadonlyArray<number>,
-  touching?: Touching,
-): boolean => faces.length > 0 && runsIn(features, direction, faces, touching).length === 1
-
 /**
  * The whole connected run the chosen faces sit in.
  *

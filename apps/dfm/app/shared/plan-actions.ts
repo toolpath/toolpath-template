@@ -250,33 +250,6 @@ export const isMapped = (plan: SetupPlan, featureTag: string): boolean =>
   PASSES.some((pass) => plan.assigned[featureTag]?.[pass] !== undefined)
 
 /**
- * The readings of a face, with the ones already being cut first.
- *
- * Clicking a face that is already being cut is nearly always a question about
- * **that** cut — "what did I put here", not "what else could go here". Ranking
- * the plan's own readings above the alternatives is what makes the answer the
- * thing somebody was asking about; otherwise a face lands on whichever unmapped
- * candidate the geometry happened to rank first.
- *
- * Stable within each half, so the ranking a click arrived with is kept among
- * equals rather than replaced by a second opinion.
- */
-export const mappedFirst = <T extends { featureTag: string }>(
-  readings: ReadonlyArray<T>,
-  plan: SetupPlan,
-): Array<T> => {
-  const mine: Array<T> = []
-  const rest: Array<T> = []
-
-  for (const reading of readings) {
-    if (isMapped(plan, reading.featureTag)) mine.push(reading)
-    else rest.push(reading)
-  }
-
-  return [...mine, ...rest]
-}
-
-/**
  * The readings of a face, in the order a click should offer them.
  *
  * Three bands, and stable within each so the ranking a click arrived with
@@ -426,7 +399,3 @@ export const settledSetup = (plan: SetupPlan, featureTag: string): Setup | null 
       setup.locked === true &&
       PASSES.some((pass) => plan.assigned[featureTag]?.[pass] === setup.id),
   ) ?? null
-
-/** Whether a reading is held by a setup somebody has settled. */
-export const isLocked = (plan: SetupPlan, featureTag: string): boolean =>
-  lockedReadings(plan).has(featureTag)

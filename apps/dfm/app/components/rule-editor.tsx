@@ -31,6 +31,7 @@ import {
 } from '../shared/rules'
 import type { Unit } from '../shared/units'
 import { decimalsFor } from '../shared/units'
+import { rowAttributes } from '../shared/row-nav'
 
 /**
  * A rule, editable.
@@ -821,7 +822,7 @@ export const RuleCard = ({
           aria-expanded={open}
           aria-label={`${rule.name}: limits and what it caught`}
           className="shrink-0 text-ink-dim hover:text-ink-strong"
-          data-row={rule.id}
+          {...rowAttributes(rule.id)}
           onClick={onOpen}
           type="button"
         >
@@ -957,7 +958,7 @@ export const RuleCard = ({
                         ? 'bg-info/15 text-info'
                         : 'text-ink-muted hover:bg-ground/60'
                     }`}
-                    data-row={hit.tag}
+                    {...rowAttributes(hit.tag)}
                     onClick={() => onChoose(hit.tag)}
                     // Arrowing onto a row opens it on the right, so the keyboard
                     // thumbs through features rather than moving a highlight

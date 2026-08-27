@@ -11,6 +11,7 @@ import { moveThroughList } from '../shared/list-keys'
 import { Heading } from './heading'
 import type { FeatureScore } from '../shared/feature-score'
 import { ScoreBadge } from './score-badge'
+import { keynavAttributes, rowAttributes } from '../shared/row-nav'
 
 const Count = ({ label, value }: { label: string; value: string | number }) => (
   <div className="flex items-baseline justify-between gap-4 py-1">
@@ -135,7 +136,7 @@ export const PartSummary = ({
         className="mb-1 w-full rounded border border-edge-strong bg-transparent px-2 py-1 text-2xs text-ink-strong outline-none placeholder:text-ink-dim focus-visible:ring-1 focus-visible:ring-info"
       />
       <ul
-        data-keynav="types"
+        {...keynavAttributes('types')}
         onKeyDown={(event) =>
           moveThroughList(event, {
             onOpen: (type) => onExpandType(type),
@@ -155,7 +156,7 @@ export const PartSummary = ({
             <li key={entry.type}>
               <button
                 type="button"
-                data-row={entry.type}
+                {...rowAttributes(entry.type)}
                 aria-expanded={open}
                 onClick={() => onExpandType(open ? null : entry.type)}
                 className={`flex w-full items-baseline gap-2 rounded px-1 py-1 text-left transition ${
@@ -194,7 +195,7 @@ export const PartSummary = ({
                         <li key={holes.key}>
                           <button
                             type="button"
-                            data-row={feature.featureTag}
+                            {...rowAttributes(feature.featureTag)}
                             aria-pressed={chosen}
                             onMouseEnter={() => onHover([feature.featureTag])}
                             onMouseLeave={() => onHover([])}

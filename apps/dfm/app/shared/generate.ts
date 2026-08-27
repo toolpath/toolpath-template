@@ -5,8 +5,21 @@ import { directionKey } from './report'
 import type { Assignment, PartFaces, Setup, SetupPlan } from './setups'
 import { EMPTY_PLAN, PASSES, type Pass, claimedRegions, setupFor } from './setups'
 import type { FeatureVerdict } from './rules'
-import { DEFAULT_PLAN_LIMITS, byBestReading, type PlanLimits } from './best-reading'
-import { scoreFeature } from './rules'
+import {
+  DEFAULT_PLAN_LIMITS,
+  byBestReading,
+  bothBits,
+  type PlanLimits,
+  type WhatBit,
+} from './best-reading'
+import {
+  forcedRegions,
+  isUndercut,
+  requiredDirections,
+  scoreIn,
+  skipUndercut,
+  undercutOnly,
+} from './reach'
 
 /**
  * Arrangements offered in one press.
@@ -123,97 +136,6 @@ export const PICKS_WAYS_UP: ReadonlyArray<Generator> = [
   'from toolpath',
 ]
 
-/** Which directions can reach a region at all, by the features that cover it. */
-const directionsPerRegion = (features: ReadonlyArray<PartFeature>): Map<number, Set<string>> => {
-  const reach = new Map<number, Set<string>>()
-
-  for (const feature of features) {
-    const key = directionKey(feature.machiningDirection)
-    for (const idx of feature.regionIdxs) {
-      const seen = reach.get(idx) ?? new Set<string>()
-      seen.add(key)
-      reach.set(idx, seen)
-    }
-  }
-
-  return reach
-}
-
-/**
- * The regions only one direction can reach.
- *
- * These are what force a setup. Everything else on the part is a choice between
- * directions, and a plan is entitled to argue about it.
- */
-export const forcedRegions = (features: ReadonlyArray<PartFeature>): Set<number> => {
-  const forced = new Set<number>()
-
-  for (const [idx, canReach] of directionsPerRegion(features)) {
-    if (canReach.size === 1) forced.add(idx)
-  }
-
-  return forced
-}
-
-/**
- * The directions the part forces: each one is the only way to reach something.
- *
- * A plan can argue about everything else. It cannot argue about these — drop one
- * and a surface has nobody to cut it — so they are the honest floor of any
- * arrangement, and what is left over afterwards is the real decision.
- */
-export const requiredDirections = (
-  directions: ReadonlyArray<Vec3>,
-  features: ReadonlyArray<PartFeature>,
-): Array<number> => {
-  const forced = forcedRegions(features)
-  const only = new Set<string>()
-
-  for (const feature of features) {
-    if (feature.regionIdxs.some((idx) => forced.has(idx))) {
-      only.add(directionKey(feature.machiningDirection))
-    }
-  }
-
-  return directions.flatMap((direction, index) =>
-    only.has(directionKey(direction)) ? [index] : [],
-  )
-}
-
-export const isUndercut = (feature: PartFeature): boolean =>
-  feature.featureType.toLowerCase().includes('undercut')
-
-/**
- * The faces that are undercuts or nothing.
- *
- * An undercut is not work to be swept into an arrangement because it happens to
- * be reachable — it wants a T-slot cutter or a lollipop, and a plan that fills
- * itself with them has promised a shop something no endmill will do. But some
- * faces have no other answer, and refusing those leaves a hole with no
- * explanation. So the rule is *only when it is the only option*.
- */
-const undercutOnlyRegions = (features: ReadonlyArray<PartFeature>): Set<number> => {
-  const ordinary = new Set<number>()
-  const seen = new Set<number>()
-
-  for (const feature of features) {
-    for (const idx of feature.regionIdxs) {
-      seen.add(idx)
-      if (!isUndercut(feature)) ordinary.add(idx)
-    }
-  }
-
-  return new Set([...seen].filter((idx) => !ordinary.has(idx)))
-}
-
-const skipUndercut = (feature: PartFeature, onlyUndercut: ReadonlySet<number>): boolean =>
-  isUndercut(feature) && !feature.regionIdxs.some((idx) => onlyUndercut.has(idx))
-
-const scoreIn = (feature: PartFeature, verdicts: Map<string, FeatureVerdict>): number | null => {
-  const verdict = verdicts.get(feature.featureTag)
-  return verdict ? scoreFeature(verdict) : null
-}
-
 /**
  * A plan with a setup per named direction, and the work each one actually does.
  *
@@ -239,7 +161,7 @@ const planFor = (
   // Seeded from what is already held, so filling never re-cuts a face an
   // existing setup is already down for.
   const claimed = claimedRegions(features, keep)
-  const onlyUndercut = undercutOnlyRegions(features)
+  const onlyUndercut = undercutOnly(features)
 
   for (const index of wanted) {
     const already = setups.find((setup) => setup.directionIndex === index)
@@ -312,7 +234,21 @@ export interface GenerateOptions {
   verdicts: ReadonlyArray<FeatureVerdict>
 }
 
-export const generate = (how: Generator, options: GenerateOptions): SetupPlan => {
+/**
+ * A plan, and what the shop's limits decided while building it.
+ *
+ * `bit` is `undefined` where the generator never consulted the limits — the
+ * three `planFor` offers sweep directions in a stated order and have no
+ * economics to report. That is a different answer from "the limits refused
+ * nothing", and the rules panel says nothing at all for it rather than drawing
+ * a row of zeroes.
+ */
+export interface Arrangement {
+  plan: SetupPlan
+  bit?: WhatBit
+}
+
+export const generate = (how: Generator, options: GenerateOptions): Arrangement => {
   const { report, directions, features, verdicts } = options
   const byTag = new Map(verdicts.map((verdict) => [verdict.tag, verdict]))
 
@@ -342,7 +278,7 @@ export const generate = (how: Generator, options: GenerateOptions): SetupPlan =>
      * covers decides badly while the one that decides well leaves ground uncut.
      * Closing it means an allocator that does both, not a sequence of these two.
      */
-    return byBestReading(report, directions, features, byTag, EMPTY_PLAN, options.limits)
+    return byBestReading(report, directions, features, byTag, { limits: options.limits })
   }
 
   if (how === 'fill from current') {
@@ -360,14 +296,10 @@ export const generate = (how: Generator, options: GenerateOptions): SetupPlan =>
      * With nothing held it therefore does nothing at all, which is the only
      * honest thing it could do.
      */
-    return byBestReading(
-      report,
-      directions,
-      features,
-      byTag,
-      options.plan,
-      options.limits,
-      false,
+    return byBestReading(report, directions, features, byTag, {
+      keep: options.plan,
+      limits: options.limits,
+      mayBuy: false,
       /*
        * A plan **a generator made** is a starting point, not a decision.
        *
@@ -377,8 +309,8 @@ export const generate = (how: Generator, options: GenerateOptions): SetupPlan =>
        * nothing at all. That is right for a plan somebody built by hand and
        * wrong for one this same file wrote a moment ago.
        */
-      options.seeded ?? false,
-    )
+      seeded: options.seeded ?? false,
+    })
   }
 
   if (how === 'required only') {
@@ -393,44 +325,50 @@ export const generate = (how: Generator, options: GenerateOptions): SetupPlan =>
      */
     const forced = forcedRegions(features)
 
-    return planFor(
-      report,
-      directions,
-      features.filter((feature) => feature.regionIdxs.some((idx) => forced.has(idx))),
-      requiredDirections(directions, features),
-      undefined,
-      byTag,
-    )
+    return {
+      plan: planFor(
+        report,
+        directions,
+        features.filter((feature) => feature.regionIdxs.some((idx) => forced.has(idx))),
+        requiredDirections(directions, features),
+        undefined,
+        byTag,
+      ),
+    }
   }
 
   if (how === 'required, filled') {
     const required = requiredDirections(directions, features)
 
-    return planFor(
-      report,
-      directions,
-      features,
-      [
-        ...required,
-        ...directions
-          .map((_direction, index) => index)
-          .filter((index) => !required.includes(index)),
-      ],
-      undefined,
-      byTag,
-    )
+    return {
+      plan: planFor(
+        report,
+        directions,
+        features,
+        [
+          ...required,
+          ...directions
+            .map((_direction, index) => index)
+            .filter((index) => !required.includes(index)),
+        ],
+        undefined,
+        byTag,
+      ),
+    }
   }
 
   // Toolpath's own analysis: every direction it reported, in the order it
   // reported them.
-  return planFor(
-    report,
-    directions,
-    features,
-    directions.map((_direction, index) => index),
-    undefined,
-    byTag,
-  )
+  return {
+    plan: planFor(
+      report,
+      directions,
+      features,
+      directions.map((_direction, index) => index),
+      undefined,
+      byTag,
+    ),
+  }
 }
 
 /**
@@ -481,7 +419,7 @@ export const planForChosen = (
      */
     partial: boolean
   },
-): SetupPlan => {
+): Arrangement => {
   const { report, directions, features, verdicts, chosen, splitPasses, partial, limits } = options
   const byTag = new Map(verdicts.map((verdict) => [verdict.tag, verdict]))
 
@@ -490,18 +428,13 @@ export const planForChosen = (
   const held: SetupPlan = { setups, assigned: {} }
 
   if (!splitPasses) {
-    return byBestReading(
-      report,
-      directions,
-      features,
-      byTag,
-      held,
+    return byBestReading(report, directions, features, byTag, {
+      keep: held,
       limits,
-      false,
-      false,
-      PASSES,
+      mayBuy: false,
+      passes: PASSES,
       partial,
-    )
+    })
   }
 
   /*
@@ -525,17 +458,39 @@ export const planForChosen = (
    * finishing has to clear.
    */
   const decide = (pass: Pass) =>
-    byBestReading(report, directions, features, byTag, held, limits, false, false, [pass], partial)
+    byBestReading(report, directions, features, byTag, {
+      keep: held,
+      limits,
+      mayBuy: false,
+      passes: [pass],
+      partial,
+    })
 
   const roughed = decide('rough')
   const finished = decide('finish')
 
   return {
-    setups: roughed.setups,
-    assigned: Object.fromEntries(
-      [...new Set([...Object.keys(roughed.assigned), ...Object.keys(finished.assigned)])].map(
-        (tag) => [tag, { ...roughed.assigned[tag], finish: finished.assigned[tag]?.finish }],
+    plan: {
+      setups: roughed.plan.setups,
+      assigned: Object.fromEntries(
+        [
+          ...new Set([
+            ...Object.keys(roughed.plan.assigned),
+            ...Object.keys(finished.plan.assigned),
+          ]),
+        ].map((tag) => [
+          tag,
+          { ...roughed.plan.assigned[tag], finish: finished.plan.assigned[tag]?.finish },
+        ]),
       ),
-    ),
+    },
+    /*
+     * **Both** runs, added together.
+     *
+     * Two runs make one plan here, and each used to overwrite the ledger the
+     * other had just written — so a split-pass arrangement reported only what
+     * its finishing run decided, and the roughing run's refusals vanished.
+     */
+    bit: bothBits(roughed.bit, finished.bit),
   }
 }

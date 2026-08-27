@@ -5,7 +5,6 @@ import {
   cutElsewhere,
   facesOf,
   handedReadings,
-  holdsByHand,
   readingChanged,
   setFaceCut,
 } from './faces'
@@ -345,11 +344,6 @@ describe('who owns a face once the plan has moved one', () => {
 
   it('names nobody while the plan has moved nothing', () => {
     expect(handedReadings(both, EMPTY_PLAN, [0, 1, 5])).toEqual([])
-  })
-
-  it('says of one reading and one face whether it was given or reported', () => {
-    expect(holdsByHand(handed, group, 5)).toBe(true)
-    expect(holdsByHand(handed, group, 0)).toBe(false)
   })
 })
 

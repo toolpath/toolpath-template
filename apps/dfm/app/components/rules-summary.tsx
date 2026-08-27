@@ -8,6 +8,7 @@ import { BANDS, bandName } from '../shared/rules'
 import type { Unit } from '../shared/units'
 import { Heading } from './heading'
 import { KindIcon } from './feature-icons'
+import { rowAttributes } from '../shared/row-nav'
 
 /** How many of the worst readings the panel draws before it offers the rest. */
 const SHOWN = 6
@@ -98,7 +99,7 @@ export const RulesSummaryPanel = ({
                   <li key={feature.tag}>
                     <button
                       className="flex w-full items-center gap-2 rounded py-0.5 pl-2 pr-1 text-left text-2xs text-ink-muted transition hover:bg-ground/60"
-                      data-row={feature.tag}
+                      {...rowAttributes(feature.tag)}
                       onClick={() => onChoose(feature.tag)}
                       onFocus={() => onChoose(feature.tag)}
                       onMouseEnter={() => onHover([feature.tag])}
@@ -188,7 +189,7 @@ const WorstRow = ({
 }) => (
   <button
     className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-2xs text-ink-body hover:bg-ground/60"
-    data-row={reading.tag}
+    {...rowAttributes(reading.tag)}
     onClick={() => onChoose(reading.tag)}
     onFocus={() => onChoose(reading.tag)}
     onMouseEnter={() => onHover([reading.tag])}

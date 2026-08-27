@@ -11,7 +11,6 @@ import {
   setPassFor,
   setupForReading,
   isMapped,
-  mappedFirst,
   readingOrder,
 } from './plan-actions'
 import { EMPTY_PLAN, PASSES, cutsFrom } from './setups'
@@ -164,27 +163,6 @@ describe('which setup holds a readings direction', () => {
 })
 
 describe('what a click on a mapped face is asking', () => {
-  it('puts the readings the plan already cuts first', () => {
-    // "What did I put here", not "what else could go here".
-    const plan = assign(EMPTY_PLAN, [wall], ['rough'])
-
-    expect(mappedFirst([pocket, wall, profile], plan).map((f) => f.featureTag)).toEqual([
-      'wall',
-      'pocket',
-      'profile',
-    ])
-  })
-
-  it('keeps the order a click arrived with among equals', () => {
-    // The ranking the geometry gave is kept rather than replaced by a second
-    // opinion about readings the plan has nothing to say about.
-    expect(mappedFirst([pocket, wall, profile], EMPTY_PLAN).map((f) => f.featureTag)).toEqual([
-      'pocket',
-      'wall',
-      'profile',
-    ])
-  })
-
   it('knows a reading is mapped in either pass', () => {
     const roughed = assign(EMPTY_PLAN, [pocket], ['rough'])
     const finished = assign(EMPTY_PLAN, [pocket], ['finish'])

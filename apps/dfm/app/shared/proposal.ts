@@ -57,20 +57,6 @@ export const propose = (
   }
 }
 
-/** An offer built from what somebody painted, rather than from a whole direction. */
-export const proposeFrom = (
-  readings: ReadonlyArray<PartFeature>,
-  direction: number,
-): Proposal | null => {
-  if (readings.length === 0) return null
-
-  return {
-    direction,
-    faces: new Set(readings.flatMap((feature) => feature.regionIdxs)),
-    kept: new Set(),
-  }
-}
-
 /** The readings an offer currently amounts to. */
 export const proposedReadings = (
   features: ReadonlyArray<PartFeature>,

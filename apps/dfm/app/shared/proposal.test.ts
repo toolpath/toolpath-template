@@ -5,13 +5,14 @@ import {
   keeping,
   proposedReadings,
   propose,
-  proposeFrom,
   withoutFace,
   withoutReading,
   withReading,
 } from './proposal'
+import type { Proposal } from './proposal'
 import { EMPTY_PLAN } from './setups'
 import { TEST_DIRECTIONS, testFeature } from './test-part'
+import type { PartFeature } from './contracts'
 
 const UP = TEST_DIRECTIONS[0]!
 const wall = testFeature('wall', 'wall', UP, [0, 1, 2])
@@ -19,6 +20,24 @@ const face0 = testFeature('face0', 'face', UP, [0])
 const face1 = testFeature('face1', 'face', UP, [1])
 const face2 = testFeature('face2', 'face', UP, [2])
 const all = [wall, face0, face1, face2]
+
+/**
+ * An offer built straight from readings, for a test that is about what happens
+ * next.
+ *
+ * The app never makes one this way — `propose` asks `inferable` which readings a
+ * scope offers — so this lived in `proposal.ts` as an export nothing but this
+ * file called. It is a fixture, so it lives with the fixtures.
+ */
+const proposeFrom = (readings: ReadonlyArray<PartFeature>, direction: number): Proposal | null => {
+  if (readings.length === 0) return null
+
+  return {
+    direction,
+    faces: new Set(readings.flatMap((feature) => feature.regionIdxs)),
+    kept: new Set(),
+  }
+}
 
 const readings = (proposal: NonNullable<ReturnType<typeof proposeFrom>>) =>
   proposedReadings(all, TEST_DIRECTIONS, proposal)

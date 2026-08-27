@@ -21,9 +21,7 @@ import {
   noting,
   faceCounts,
   partArea,
-  scoreSetups,
   setPass,
-  setupColor,
   setupFor,
   withoutEmptied,
 } from './setups'
@@ -99,29 +97,6 @@ describe('coverage', () => {
     // Roughing and finishing are separate claims, so a plan that has roughed
     // everything has finished nothing.
     expect(coverageOf(cube, features, coveringPlan('rough'), 'finish').mapped).toBe(0)
-  })
-})
-
-describe('what a setup amounts to', () => {
-  it('scores the work actually assigned to it', () => {
-    const plan = coveringPlan()
-    const scores = scoreSetups(cube, features, verdicts, plan)
-
-    expect(scores).toHaveLength(plan.setups.length)
-
-    for (const entry of scores) {
-      expect(entry.features).toBeGreaterThan(0)
-      expect(entry.area).toBeGreaterThan(0)
-    }
-  })
-
-  it('reads nothing for a setup holding no work', () => {
-    const setup = setupFor(cube.candidateDirections, 0)
-    const [entry] = scoreSetups(cube, features, verdicts, { setups: [setup], assigned: {} })
-
-    expect(entry.score).toBeNull()
-    expect(entry.worst).toBeNull()
-    expect(entry.features).toBe(0)
   })
 })
 
@@ -322,16 +297,6 @@ describe('cutting each face once per pass', () => {
     const held: SetupPlan = { setups: [], assigned: { [other.featureTag]: { rough: 'a' } } }
 
     expect(cutOnce(held, [...all, other], face, 'rough', 'b')[other.featureTag]?.rough).toBe('a')
-  })
-})
-
-describe('one colour per direction, everywhere', () => {
-  it('paints a setup the colour the viewer paints its arrow', () => {
-    // A setup, its arrow and its work are the same thing seen three ways, and
-    // three palettes would be three things to learn.
-    for (let index = 0; index < 12; index++) {
-      expect(setupColor(index)).toBe(`#${directionColor(index).toString(16).padStart(6, '0')}`)
-    }
   })
 })
 
