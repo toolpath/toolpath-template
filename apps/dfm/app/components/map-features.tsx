@@ -1040,7 +1040,7 @@ export const MapFeaturesPanel = ({
    * reading by reading would make one press both assign and unassign.
    */
   return (
-    <section className="border-b border-edge bg-surface px-3 py-2 text-xs">
+    <section className="border-b border-edge bg-ground px-3 py-2 text-xs">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-2xs font-bold uppercase tracking-wider text-ink-muted">Map features</h2>
       </header>

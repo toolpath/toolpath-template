@@ -78,6 +78,18 @@ const meshUrl = (partId: string, jobId: string, format: 'glb' | 'stl'): string =
 /** A direction the report does not have, so the label says something. */
 const ORIGIN = { x: 0, y: 0, z: 0 }
 
+/**
+ * A shelf on the part: one border, one ground, one padding, one height.
+ *
+ * There were three of these carrying three sets of numbers — the controls at
+ * `p-1` around 24px buttons, the unit at `p-1` around a smaller one, and the
+ * size reading at `px-2 py-1` with no wrapper at all. Side by side they sat at
+ * three heights and read as three unrelated things stuck to the canvas rather
+ * than as one row of controls.
+ */
+const SHELF =
+  'pointer-events-auto flex h-8 items-center gap-1 rounded-md border border-edge-strong bg-ground/85 px-1'
+
 const ArrowGlyph = () => (
   <svg
     aria-hidden="true"
@@ -462,17 +474,16 @@ export const FeatureViewer = ({
         everywhere except the shelf itself — a full-width bar over the canvas
         would eat every drag that ended low.
       */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex flex-col gap-1.5 px-3">
-        {/*
-          Two rows, not one.
+      {/*
+        One line, and one height.
 
-          The canvas is only as wide as the two panels leave it — around 480px
-          on a 1400px window — and the controls, the unit, the theme and the
-          size reading do not fit across that. On one row they took turns
-          hiding each other: first the reading ran off the edge, then it sat on
-          top of the shelf. Stacked, the shelf stays centred and the readings
-          stay right, at every width there is.
-        */}
+        The shelf is centred on the viewport and the readings sit to its right,
+        which only works while there is room for both — the canvas is as narrow
+        as the two panels leave it. So the row wraps rather than overlapping:
+        side by side wherever it fits, stacked where it does not, and never one
+        control hidden under another.
+      */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex flex-wrap items-center justify-center gap-1.5 px-3">
         <div className="flex flex-col items-center gap-1.5">
           {sectioning ? (
             /* Its own row above the shelf, so starting a section does not shove
@@ -511,11 +522,7 @@ export const FeatureViewer = ({
               ) : null}
             </div>
           ) : null}
-          <div
-            className="pointer-events-auto flex items-center gap-1 rounded-md border border-edge-strong bg-ground/85 p-1"
-            role="group"
-            aria-label="View controls"
-          >
+          <div className={SHELF} role="group" aria-label="View controls">
             <button
               type="button"
               // Three states, so `aria-pressed` cannot carry it — the label says
@@ -526,7 +533,7 @@ export const FeatureViewer = ({
               aria-label={`Direction arrows: ${ARROW_STATES[arrows].said}`}
               title={ARROW_STATES[arrows].note}
               onClick={() => onArrows(nextArrows(arrows))}
-              className={`flex items-center gap-1 rounded px-1.5 py-1 transition ${
+              className={`flex h-6 items-center gap-1 rounded px-1.5 transition ${
                 arrows === 'off'
                   ? 'text-ink-body hover:bg-surface hover:text-ink'
                   : 'bg-info/20 text-info'
@@ -608,7 +615,7 @@ export const FeatureViewer = ({
           viewport the two absolute corners sat on top of each other, and the
           thing they hid was the toolbar.
         */}
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
+        <div className="flex flex-wrap items-center justify-center gap-1.5">
           {/*
             One button, not two. There are exactly two units and a machinist
             works in one of them all day, so this shows what is being read and
@@ -625,13 +632,13 @@ export const FeatureViewer = ({
             `pointer-events-auto` on the shelf: the strip around it has none, and
             a control nobody can press is worse than one that is not there.
           */}
-          <span className="pointer-events-auto flex items-center rounded-md border border-edge-strong bg-ground/85 p-1">
+          <span className={SHELF}>
             <button
               type="button"
               aria-label={`Units: ${unit}. Switch to ${unit === 'mm' ? 'in' : 'mm'}`}
               title={`Reading in ${unit} — press for ${unit === 'mm' ? 'in' : 'mm'}`}
               onClick={() => onUnit(unit === 'mm' ? 'in' : 'mm')}
-              className="rounded px-1.5 py-0.5 text-2xs font-bold uppercase tracking-wide text-ink-muted transition hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-info"
+              className="grid h-6 place-items-center rounded px-1.5 text-2xs font-bold uppercase tracking-wide text-ink-muted transition hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-info"
             >
               {unit}
             </button>
@@ -644,7 +651,7 @@ export const FeatureViewer = ({
               }`}
               title={`Show ${unit === 'mm' ? 'inches' : 'millimetres'}`}
               onClick={() => onUnit(unit === 'mm' ? 'in' : 'mm')}
-              className="pointer-events-auto whitespace-nowrap rounded-md border border-edge-strong bg-ground/85 px-2 py-1 font-mono text-2xs tabular-nums text-ink-muted transition hover:border-edge-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/75"
+              className={`${SHELF} whitespace-nowrap px-2 font-mono text-2xs tabular-nums text-ink-muted transition hover:border-edge-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/75`}
             >
               {formatSides(sidesOf(partBox), unit)}
             </button>
