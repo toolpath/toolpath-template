@@ -173,15 +173,28 @@ test('shows the limits it judges by, and what they made of a feature', async ({ 
 
   await expect(page.getByRole('heading', { name: 'Difficulty' })).toBeVisible()
 
-  // The working, a hover away: the arithmetic, the datasheet fields behind it,
-  // and the limits with the band it landed in. A verdict saying "L/D is 4"
-  // cannot be checked; one that names its fields can be argued with.
-  await page.getByRole('button', { name: /How Drilling L\/D ratio is worked out/ }).hover()
+  /*
+   * The working, a hover away: the arithmetic, the datasheet fields behind it,
+   * and the limits with the band it landed in. A verdict saying "L/D is 4"
+   * cannot be checked; one that names its fields can be argued with.
+   *
+   * The hover is retried with the assertion rather than done once before it.
+   * The tooltip opens 700ms after the pointer arrives, and anything that moves
+   * the button within that window — a re-render, a late layout shift — takes
+   * the pointer off it and cancels the open. Nothing then re-enters the button,
+   * because `hover()` moved the mouse once and the mouse stays where it was
+   * put, so the tooltip never opens and the wait runs out against a button that
+   * is sitting right there. Re-hovering each attempt makes a lost open heal
+   * instead of ending the test.
+   */
+  const working = page.getByText('part top − zMin ÷ facts.diameter')
+  await expect(async () => {
+    await page.getByRole('button', { name: /How Drilling L\/D ratio is worked out/ }).hover()
+    await expect(working).toBeVisible({ timeout: 2_000 })
+  }).toPass({ timeout: 15_000 })
 
-  // The arithmetic, then the fields it read and what each held. A ratio's
-  // inputs are lengths, so they carry no ":1" — that would be a unit the
-  // Engine never reported.
-  await expect(page.getByText('part top − zMin ÷ facts.diameter')).toBeVisible()
+  // The fields it read and what each held. A ratio's inputs are lengths, so
+  // they carry no ":1" — that would be a unit the Engine never reported.
   await expect(page.getByText('6.35 mm', { exact: true }).last()).toBeVisible()
   // The fourth box bounds rats, and is where a refusal starts when a rule
   // names none of its own.

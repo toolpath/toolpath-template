@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { memo, useMemo, useState, type ReactNode } from 'react'
 import type { Vec3 } from '@toolpath/api'
 
 import { FaceCount } from './face-count'
@@ -792,7 +792,7 @@ const Reading = ({
   )
 }
 
-export const MapFeaturesPanel = ({
+const MapFeaturesPanelView = ({
   candidates,
   mode,
   painted,
@@ -862,12 +862,6 @@ export const MapFeaturesPanel = ({
    * that face's list at all — while being the one cutting it.
    */
   handedTags: ReadonlySet<string>
-  /**
-   * The three-axis selection bar, or `null` for the mode buttons it replaces.
-   *
-   * An experiment (`?axes`), so both are in the binary and either can be the
-   * one on screen.
-   */
   /** The types this part has, so a made reading is named like the rest. */
   types: ReadonlyArray<string>
   /** Which faces touch which, for chaining and continuity while drawing. */
@@ -1532,3 +1526,11 @@ export const MapFeaturesPanel = ({
     </section>
   )
 }
+
+/*
+ * Memoised. It drives the mapping, so its own inputs move constantly while
+ * somebody is mapping — and not at all while they are hovering a face row,
+ * dragging a rule threshold, or switching the part's wash, which is what this
+ * is here to sit out.
+ */
+export const MapFeaturesPanel = memo(MapFeaturesPanelView)

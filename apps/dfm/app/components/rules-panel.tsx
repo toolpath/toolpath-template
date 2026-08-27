@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 import { Button } from '@toolpath/ui'
 import { RuleCard } from './rule-editor'
 import { Heading } from './heading'
@@ -23,7 +23,7 @@ import { keynavAttributes } from 'shared/row-nav'
  * what a shop is here for. What a rule reads, who it judges and its shape are
  * under `more`: decided once, and in the way when they are not being decided.
  */
-export const RulesPanel = ({
+const RulesPanelView = ({
   rules,
   bit,
   now,
@@ -365,3 +365,9 @@ export const RulesPanel = ({
     </aside>
   )
 }
+
+/*
+ * Memoised. Its inputs are the rule set and what the rules made of the plan —
+ * neither of which moves when a pointer crosses a face row on another tab.
+ */
+export const RulesPanel = memo(RulesPanelView)

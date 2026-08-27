@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { PartFeature, PublicInspectionReport } from 'shared/contracts'
 import { KindIcon } from './feature-icons'
 import { duration, partSummary } from 'shared/part-summary'
@@ -27,7 +28,7 @@ const Count = ({ label, value }: { label: string; value: string | number }) => (
  * order it gets asked: how much geometry, which ways up, what kinds of feature,
  * and how long it took to say so.
  */
-export const PartSummary = ({
+const PartSummaryView = ({
   report,
   features,
   plan,
@@ -248,3 +249,9 @@ export const PartSummary = ({
     </div>
   )
 }
+
+/*
+ * Memoised. The inspector tab's list of what the part has — it is not what a
+ * hover on the part or a threshold on the rules tab is about.
+ */
+export const PartSummary = memo(PartSummaryView)

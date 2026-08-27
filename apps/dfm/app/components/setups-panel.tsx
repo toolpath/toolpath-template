@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from 'react'
+import { Fragment, memo, useState, type ReactNode } from 'react'
 import type { Vec3 } from '@toolpath/api'
 
 import { Heading } from './heading'
@@ -152,7 +152,7 @@ const FaceLines = ({
  * gave a face up for roughing is not cutting it for roughing, and the row has to
  * say so even if finishing still has it.
  */
-export const SetupsPanel = ({
+const SetupsPanelView = ({
   focusedTag,
   onChoose,
   onHover,
@@ -718,3 +718,13 @@ export const SetupsPanel = ({
     </aside>
   )
 }
+
+/*
+ * Memoised, because the page above it re-renders on thirty-odd pieces of state
+ * and almost none of them are this panel's. Hovering a face row sets
+ * `hoveredFace`, which feeds the part's paint layers and nothing here.
+ *
+ * Its presses arrive through `useStable`, so they hold one identity and this
+ * comparison can actually succeed.
+ */
+export const SetupsPanel = memo(SetupsPanelView)
