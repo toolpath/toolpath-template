@@ -95,7 +95,7 @@ export const report = ({
   features,
 }: {
   regions: ReturnType<typeof faces>
-  candidateDirections: readonly Direction[]
+  candidateDirections: ReadonlyArray<Direction>
   features: ReadonlyArray<ReturnType<typeof feature>>
 }) => ({
   partId: 'part-1',
@@ -144,9 +144,13 @@ export const openPart = async (page: Page, part: ReturnType<typeof report>): Pro
 export const openStream = async (page: Page, body: string | null): Promise<void> => {
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url())
-    if (url.pathname === '/api/session') return route.fulfill({ json: { connected: true } })
+    if (url.pathname === '/api/session') {
+      return route.fulfill({ json: { connected: true } })
+    }
     if (url.pathname === '/api/parts/part-1/events') {
-      if (body === null) return route.fulfill({ status: 401, json: { error: 'expired' } })
+      if (body === null) {
+        return route.fulfill({ status: 401, json: { error: 'expired' } })
+      }
       return route.fulfill({ contentType: 'text/event-stream', body })
     }
     return route.fallback()
@@ -244,7 +248,9 @@ export const uploadTo = async (
     const url = new URL(request.url())
 
     if (url.pathname === '/api/session') {
-      if (request.method() === 'GET') return route.fulfill({ json: { connected } })
+      if (request.method() === 'GET') {
+        return route.fulfill({ json: { connected } })
+      }
       if (request.method() === 'POST') {
         connected = true
         return route.fulfill({ status: 201, json: { connected: true } })
@@ -252,18 +258,21 @@ export const uploadTo = async (
       connected = false
       return route.fulfill({ status: 204 })
     }
-    if (url.pathname === '/api/parts' && request.method() === 'POST')
+    if (url.pathname === '/api/parts' && request.method() === 'POST') {
       return route.fulfill({
         status: 201,
         json: { partId: 'part-1', uploadUrl: 'https://upload.test/source' },
       })
-    if (url.pathname === '/api/parts/part-1' && request.method() === 'PATCH')
+    }
+    if (url.pathname === '/api/parts/part-1' && request.method() === 'PATCH') {
       return route.fulfill({ status: 202, json: { partId: 'part-1', jobId: 'job-1' } })
-    if (url.pathname === '/api/parts/part-1/events' && url.searchParams.get('jobId') === 'job-1')
+    }
+    if (url.pathname === '/api/parts/part-1/events' && url.searchParams.get('jobId') === 'job-1') {
       return route.fulfill({
         contentType: 'text/event-stream',
         body: analysisEvent({ status: 'ready', report: part }),
       })
+    }
 
     return route.fallback()
   })

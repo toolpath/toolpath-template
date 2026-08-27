@@ -602,7 +602,9 @@ export const scaleFor = (limits: PlanLimits, metric: PlanMetricId): PlanScale | 
   const rule = limits.planRules?.find((each) => each.id === PLAN_RULE_IDS[metric])
 
   if (rule === undefined || rule.type !== 'threshold' || !rule.enabled) {
-    if (metric !== 'setups' || limits.maxDirections === undefined) return null
+    if (metric !== 'setups' || limits.maxDirections === undefined) {
+      return null
+    }
 
     const ceiling = limits.maxDirections
     return {
@@ -639,7 +641,9 @@ export const bandOnScale = (scale: PlanScale, value: number): Band => {
         ? Math.max(scale.noGo, rats)
         : Math.min(scale.noGo, rats)
 
-  if (stop !== null && past(stop)) return 'no go'
+  if (stop !== null && past(stop)) {
+    return 'no go'
+  }
 
   const at = scale.thresholds.findIndex((limit) => !past(limit))
 
@@ -1074,7 +1078,9 @@ export const evaluateFeature = (
   const results: Array<RuleResult> = []
 
   for (const rule of rules) {
-    if (!judgesFeatures(rule)) continue
+    if (!judgesFeatures(rule)) {
+      continue
+    }
 
     const band = evaluateRule(rule, feature.featureType, metrics)
 

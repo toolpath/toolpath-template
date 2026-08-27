@@ -2,11 +2,11 @@ import { createContext, useContext, type ReactNode } from 'react'
 
 import type { Vec3 } from '@toolpath/api'
 
-import type { PartFeature, PublicInspectionReport } from '../shared/contracts'
-import type { FeatureScore } from '../shared/feature-score'
-import type { FeatureVerdict } from '../shared/rules'
-import type { Pass, SetupPlan } from '../shared/setups'
-import type { Unit } from '../shared/units'
+import type { PartFeature, PublicInspectionReport } from 'shared/contracts'
+import type { FeatureScore } from 'shared/feature-score'
+import type { FeatureVerdict } from 'shared/rules'
+import type { Pass, SetupPlan } from 'shared/setups'
+import type { Unit } from 'shared/units'
 
 /**
  * What every panel on the part page is looking at.

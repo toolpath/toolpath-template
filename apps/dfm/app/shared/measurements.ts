@@ -43,15 +43,22 @@ export interface Measurement {
  * cut this way up stands in for it — which is what makes "how far down does the
  * tool reach before it cuts anything" answerable at all.
  */
-export const partTop = (features: readonly PartFeature[], feature: PartFeature): number | null => {
+export const partTop = (
+  features: ReadonlyArray<PartFeature>,
+  feature: PartFeature,
+): number | null => {
   const { x, y, z } = feature.machiningDirection
   let top: number | null = null
 
   for (const other of features) {
     const direction = other.machiningDirection
-    if (direction.x !== x || direction.y !== y || direction.z !== z) continue
+    if (direction.x !== x || direction.y !== y || direction.z !== z) {
+      continue
+    }
     const zMax = asNumber(other.datasheet?.extendedZMax)
-    if (zMax === null) continue
+    if (zMax === null) {
+      continue
+    }
     top = top === null ? zMax : Math.max(top, zMax)
   }
 
@@ -61,8 +68,8 @@ export const partTop = (features: readonly PartFeature[], feature: PartFeature):
 /** How the faces of this feature are shaped, by the Engine's own classification. */
 const facesBy = (
   feature: PartFeature,
-  regions: readonly { idx: number; shapeKind: string }[],
-): [string, number][] => {
+  regions: ReadonlyArray<{ idx: number; shapeKind: string }>,
+): Array<[string, number]> => {
   const byIdx = new Map(regions.map((region) => [region.idx, region]))
   const counts = new Map<string, number>()
 
@@ -88,10 +95,10 @@ export const measurements = ({
   unit,
 }: {
   feature: PartFeature
-  features: readonly PartFeature[]
-  regions: readonly { idx: number; shapeKind: string }[]
+  features: ReadonlyArray<PartFeature>
+  regions: ReadonlyArray<{ idx: number; shapeKind: string }>
   unit: Unit
-}): Measurement[] => {
+}): Array<Measurement> => {
   // Both readings, so a row carries its conversion rather than the caller
   // working it out again from a string it would have to parse first.
   const other: Unit = unit === 'mm' ? 'in' : 'mm'
@@ -104,7 +111,7 @@ export const measurements = ({
     alt: formatArea(value, other),
   })
 
-  const rows: Measurement[] = []
+  const rows: Array<Measurement> = []
   const sheet = feature.datasheet
   const sheetFacts = facts(feature)
 
@@ -318,6 +325,6 @@ export const STRIP_LABELS: Record<string, string> = {
   area: 'surface',
 }
 
-export const stripMeasurements = (rows: readonly Measurement[]): Measurement[] => {
+export const stripMeasurements = (rows: ReadonlyArray<Measurement>): Array<Measurement> => {
   return STRIP_KEYS.flatMap((key) => rows.filter((row) => row.key === key)).slice(0, 3)
 }

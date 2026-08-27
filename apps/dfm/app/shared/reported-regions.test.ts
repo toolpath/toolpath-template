@@ -79,10 +79,12 @@ const MAY_READ = new Set([
   'rule-text.ts',
 ])
 
-const walk = (dir: string): string[] =>
+const walk = (dir: string): Array<string> =>
   readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const path = join(dir, entry.name)
-    if (entry.isDirectory()) return walk(path)
+    if (entry.isDirectory()) {
+      return walk(path)
+    }
     return entry.name.endsWith('.ts') || entry.name.endsWith('.tsx') ? [path] : []
   })
 

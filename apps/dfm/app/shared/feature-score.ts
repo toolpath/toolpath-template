@@ -17,7 +17,9 @@ export interface FeatureScore {
  * looked at it. A feature failing one rule of five reads differently from one
  * failing all five, and a row showing only the colour cannot tell them apart.
  */
-export const featureScores = (verdicts: readonly FeatureVerdict[]): Map<string, FeatureScore> => {
+export const featureScores = (
+  verdicts: ReadonlyArray<FeatureVerdict>,
+): Map<string, FeatureScore> => {
   const scores = new Map<string, FeatureScore>()
 
   for (const verdict of verdicts) {

@@ -1,11 +1,11 @@
 import { directionIndexOf, sameDirection, type PartPick } from '@toolpath/viewer'
-import { type Arrows, arrowsFor, arrowsVisible, nextArrows, shownArrow } from '../shared/arrows'
-import { type PaintMode, loadPaintMode, savePaintMode } from '../shared/paint'
-import { type Unit, loadUnit, saveUnit } from '../shared/units'
+import { type Arrows, arrowsFor, arrowsVisible, nextArrows, shownArrow } from 'shared/arrows'
+import { type PaintMode, loadPaintMode, savePaintMode } from 'shared/paint'
+import { type Unit, loadUnit, saveUnit } from 'shared/units'
 import { Panels, Tabs } from '@toolpath/ui'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import type { PublicInspectionReport } from '../shared/contracts'
+import type { PublicInspectionReport } from 'shared/contracts'
 import {
   NOTHING_SELECTED,
   focusWithin,
@@ -16,22 +16,22 @@ import {
   pickForRegion,
   scopeToDirection,
   stepThrough,
-} from '../shared/selection'
-import { featureFromTags, filterFeatures, tagsOfType } from '../shared/report'
-import { gatheredReadings, peekTarget } from '../shared/picks'
-import { partClick } from '../shared/part-click'
-import { focusedRow, listAt, rowAt, rowsIn } from '../shared/row-nav'
-import { sameHoles } from '../shared/hole-groups'
-import { byDirection } from '../shared/map-features'
+} from 'shared/selection'
+import { featureFromTags, filterFeatures, tagsOfType } from 'shared/report'
+import { gatheredReadings, peekTarget } from 'shared/picks'
+import { partClick } from 'shared/part-click'
+import { focusedRow, listAt, rowAt, rowsIn } from 'shared/row-nav'
+import { sameHoles } from 'shared/hole-groups'
+import { byDirection } from 'shared/map-features'
 import {
   cutByDirection,
   cutRegionsByDirection,
   cutRegionsByFeature,
   planCoverage,
   uncutRows,
-} from '../shared/plan-summary'
-import { readingsFor } from '../shared/infer'
-import type { Infer } from '../shared/infer'
+} from 'shared/plan-summary'
+import { readingsFor } from 'shared/infer'
+import type { Infer } from 'shared/infer'
 import {
   focusAfterPrune,
   keeping,
@@ -41,14 +41,14 @@ import {
   withoutReading,
   withReading,
   type Proposal,
-} from '../shared/proposal'
-import { paintReading } from '../shared/pick-mode'
-import { listHighlight, paintByCut, partHighlight } from '../shared/highlighting'
-import { useRules } from '../shared/use-rules'
-import { judgesPlan } from '../shared/rules'
-import { featureScores } from '../shared/feature-score'
-import { rulesSummary } from '../shared/rules-summary'
-import { partContext } from '../shared/metrics'
+} from 'shared/proposal'
+import { paintReading } from 'shared/pick-mode'
+import { listHighlight, paintByCut, partHighlight } from 'shared/highlighting'
+import { useRules } from 'shared/use-rules'
+import { judgesPlan } from 'shared/rules'
+import { featureScores } from 'shared/feature-score'
+import { rulesSummary } from 'shared/rules-summary'
+import { partContext } from 'shared/metrics'
 import {
   EMPTY_PLAN,
   PASSES,
@@ -58,17 +58,17 @@ import {
   cutsFace,
   type Pass,
   type SetupPlan,
-} from '../shared/setups'
-import { withoutEmptied } from '../shared/setups'
+} from 'shared/setups'
+import { withoutEmptied } from 'shared/setups'
 import {
   easiestReading,
   lockSetup,
   readingForFace,
   readingOrder,
   setPassFor,
-} from '../shared/plan-actions'
-import { generate, planForChosen, type Generator } from '../shared/generate'
-import { missedBy, setupOffers } from '../shared/setup-offers'
+} from 'shared/plan-actions'
+import { generate, planForChosen, type Generator } from 'shared/generate'
+import { missedBy, setupOffers } from 'shared/setup-offers'
 import { SetupChooser } from './setup-chooser'
 import {
   START as PICK_START,
@@ -76,14 +76,14 @@ import {
   clearAll as clearPicking,
   holdDirection as holdPickDirection,
   switchMode,
-} from '../shared/pick-mode'
-import type { PartFeature } from '../shared/contracts'
-import { escapeStep } from '../shared/escape'
-import { isTyping, keyIntent } from '../shared/keys'
+} from 'shared/pick-mode'
+import type { PartFeature } from 'shared/contracts'
+import { escapeStep } from 'shared/escape'
+import { isTyping, keyIntent } from 'shared/keys'
 import { AppHeader } from './app-header'
-import { READING_COLORS, SETUP_COLORS, faceColor } from '../shared/selection-colors'
-import { claimFace, handedReadings, readingChanged, setFaceCut } from '../shared/faces'
-import type { WhatBit } from '../shared/best-reading'
+import { READING_COLORS, SETUP_COLORS, faceColor } from 'shared/selection-colors'
+import { claimFace, handedReadings, readingChanged, setFaceCut } from 'shared/faces'
+import type { WhatBit } from 'shared/best-reading'
 import {
   EMPTY_DRAFT,
   type Draft,
@@ -94,7 +94,7 @@ import {
   type Touching,
   withFace,
   withGuess,
-} from '../shared/make-feature'
+} from 'shared/make-feature'
 import { FaceList } from './face-list'
 import { FeatureDetail } from './feature-detail'
 import { PartSummary } from './part-summary'
@@ -138,7 +138,7 @@ export const PartInspector = ({
 }) => {
   const [tab, setTab] = useState<ViewerTab>('inspector')
   const [query, setQuery] = useState('')
-  const [hoveredTags, setHoveredTags] = useState<string[]>([])
+  const [hoveredTags, setHoveredTags] = useState<Array<string>>([])
   const [pointerOnPart, setPointerOnPart] = useState(false)
   const [selection, setSelection] = useState<SelectionState>(NOTHING_SELECTED)
   const [activeDirection, setActiveDirection] = useState<number | null>(null)
@@ -176,7 +176,9 @@ export const PartInspector = ({
 
   /** Give them back, unless something since has made them somebody's choice. */
   const returnArrows = () => {
-    if (arrowsBefore.current !== null) setArrows(arrowsBefore.current)
+    if (arrowsBefore.current !== null) {
+      setArrows(arrowsBefore.current)
+    }
     arrowsBefore.current = null
   }
 
@@ -226,7 +228,7 @@ export const PartInspector = ({
    */
   const [litDirection, setLitDirection] = useState<{
     index: number
-    tags: readonly string[]
+    tags: ReadonlyArray<string>
   } | null>(null)
 
   /*
@@ -308,7 +310,9 @@ export const PartInspector = ({
    * is the thing they were trying to avoid by pressing Cancel.
    */
   const cancelFaces = () => {
-    if (planBefore !== null) setPlan(planBefore)
+    if (planBefore !== null) {
+      setPlan(planBefore)
+    }
     setPlanBefore(null)
     closeFaces()
   }
@@ -319,7 +323,9 @@ export const PartInspector = ({
     setHoveredFace(null)
     setCurrentFace(null)
     setRevealFace(null)
-    if (washBefore !== null) setPaintMode(washBefore)
+    if (washBefore !== null) {
+      setPaintMode(washBefore)
+    }
     setWashBefore(null)
   }
   /** The face under the pointer in that list, lit on the part on its own. */
@@ -384,12 +390,16 @@ export const PartInspector = ({
      * cannot be used to choose a different way up. The panel carries the flag
      * there instead, so the filter still has a sign of itself.
      */
-    if (holding !== null && !showingUncut) setArrows('off')
+    if (holding !== null && !showingUncut) {
+      setArrows('off')
+    }
 
     const direction = holding === null ? null : report.candidateDirections[holding]
     setSelection((current) =>
       scopeToDirection(current, (tag) => {
-        if (!direction) return true
+        if (!direction) {
+          return true
+        }
         const feature = report.features.find((each) => each.featureTag === tag)
         return feature ? sameDirection(feature.machiningDirection, direction) : false
       }),
@@ -516,7 +526,7 @@ export const PartInspector = ({
    * second source — and the one that forgot would quietly leave a made reading
    * out of the plan it is part of.
    */
-  const [made, setMade] = useState<readonly PartFeature[]>([])
+  const [made, setMade] = useState<ReadonlyArray<PartFeature>>([])
   /**
    * Readings somebody has renamed, by tag.
    *
@@ -563,7 +573,9 @@ export const PartInspector = ({
     const features = [...report.features, ...made]
     const renamed = features.map((feature) => {
       const featureType = retyped[feature.featureTag]
-      if (featureType === undefined || featureType === feature.featureType) return feature
+      if (featureType === undefined || featureType === feature.featureType) {
+        return feature
+      }
       return { ...feature, featureType }
     })
 
@@ -632,7 +644,9 @@ export const PartInspector = ({
      */
     const vector = part.candidateDirections[index]
     const feature = part.features.find((each) => each.featureTag === featureTag)
-    if (!vector || !feature) return
+    if (!vector || !feature) {
+      return
+    }
 
     const moved = cutFrom(part.features, feature, vector)
     const held = PASSES.filter((pass) => plan.assigned[featureTag]?.[pass] !== undefined)
@@ -641,7 +655,9 @@ export const PartInspector = ({
     setPlan((current) => {
       const { [featureTag]: gone, ...assigned } = current.assigned
       const without = withoutEmptied(current, { ...current, assigned }, part.features)
-      if (held.length === 0) return without
+      if (held.length === 0) {
+        return without
+      }
       return setPassFor(
         without,
         part.candidateDirections,
@@ -844,7 +860,9 @@ export const PartInspector = ({
    */
   const holdPlace = (row: HTMLElement | null | undefined) => {
     const container = listAt(row)
-    if (!row || !container) return () => undefined
+    if (!row || !container) {
+      return () => undefined
+    }
     const at = rowsIn(container).indexOf(row)
 
     return () => {
@@ -921,7 +939,9 @@ export const PartInspector = ({
         proposed.filter((f) => f.regionIdxs.includes(pick.region)).map((f) => f.featureTag),
         paintedFeatures.filter((f) => f.regionIdxs.includes(pick.region)).map((f) => f.featureTag),
       ])
-      if (target) setSelection((current) => focusWithin(current, target))
+      if (target) {
+        setSelection((current) => focusWithin(current, target))
+      }
       return
     }
 
@@ -1022,7 +1042,9 @@ export const PartInspector = ({
 
       const next = pickFace(current, pick, (tags) => easiestReading(tags, scores))
       const ordered = readingOrder(featureFromTags(part.features, next.candidates), plan)
-      if (ordered.length === 0) return next
+      if (ordered.length === 0) {
+        return next
+      }
 
       /*
        * A first click opens the reading worth opening.
@@ -1083,9 +1105,13 @@ export const PartInspector = ({
    * wash wants it: by feature rather than by face.
    */
   const paintedFeatures = useMemo(() => {
-    if (picking.holding === null || picking.painted.size === 0) return []
+    if (picking.holding === null || picking.painted.size === 0) {
+      return []
+    }
     const vector = part.candidateDirections[picking.holding]
-    if (!vector) return []
+    if (!vector) {
+      return []
+    }
     return readingsFor(part.features, vector, picking.painted, rules.verdicts)
   }, [picking.holding, picking.painted, part.candidateDirections, part.features, rules.verdicts])
 
@@ -1103,7 +1129,9 @@ export const PartInspector = ({
    * `splitPasses`) come off the dialog, so changing either repaints too.
    */
   const painting = useMemo(() => {
-    if (choosing === null) return plan
+    if (choosing === null) {
+      return plan
+    }
 
     // The preview wants the arrangement, not the ledger beside it: nothing is
     // decided until Confirm, so there is nothing yet to report about it.
@@ -1164,11 +1192,15 @@ export const PartInspector = ({
    * than describing one and staying silent about the other fifteen.
    */
   const focusedHoles = useMemo(() => {
-    if (!focused) return []
+    if (!focused) {
+      return []
+    }
     // Named from inside its own opened group, a hole is only itself — that row
     // is the one place somebody has said *this one*, and answering it by
     // lighting the other fifteen is the app ignoring them.
-    if (selection.alone) return [focused]
+    if (selection.alone) {
+      return [focused]
+    }
     return sameHoles(part.features, focused)
   }, [focused, part.features, selection.alone])
 
@@ -1196,7 +1228,9 @@ export const PartInspector = ({
         typing: isTyping(target),
         inList: listAt(target) !== null,
       })
-      if (!pressed) return
+      if (!pressed) {
+        return
+      }
 
       // Escape works outward, one thing per press — see `escapeStep`.
       if (pressed.act === 'escape') {
@@ -1214,11 +1248,15 @@ export const PartInspector = ({
           // Anything other than By face, which is where the page opens.
           mode: showingUncut || draft !== null || picking.mode !== 'face',
         })
-        if (step === 'editing') cancelFaces()
-        else if (step === 'selection') clearPicks()
-        else if (step === 'expandedType') expandType(null)
-        else if (step === 'direction') setActiveDirection(null)
-        else if (step === 'arrows') {
+        if (step === 'editing') {
+          cancelFaces()
+        } else if (step === 'selection') {
+          clearPicks()
+        } else if (step === 'expandedType') {
+          expandType(null)
+        } else if (step === 'direction') {
+          setActiveDirection(null)
+        } else if (step === 'arrows') {
           setArrows('off')
           arrowsBefore.current = null
         } else if (step === 'mode') {
@@ -1268,7 +1306,9 @@ export const PartInspector = ({
         const row = rowAt(document.activeElement)
         const meant = under ? featureFromTags(part.features, under.holds) : focusedHoles
         const feature = meant[0]
-        if (!feature) return
+        if (!feature) {
+          return
+        }
 
         if (act.act === 'pass') {
           event.preventDefault()
@@ -1285,8 +1325,9 @@ export const PartInspector = ({
          * brushes the keyboard. Taking work off a direction has a button, and
          * pressing the pass it already holds does it too.
          */
-        if (!meant.some((entry) => proposed.some((each) => each.featureTag === entry.featureTag)))
+        if (!meant.some((entry) => proposed.some((each) => each.featureTag === entry.featureTag))) {
           return
+        }
         event.preventDefault()
 
         // Keeps the keyboard's place, so pruning thirty readings is thirty
@@ -1311,7 +1352,9 @@ export const PartInspector = ({
        * candidates.
        */
       const next = stepThrough(shownOrder, focusedTag, pressed.by)
-      if (next === null) return
+      if (next === null) {
+        return
+      }
       event.preventDefault()
       setSelection((current) => focusWithin(current, next))
     }
@@ -1671,8 +1714,11 @@ export const PartInspector = ({
       // Its filter is a click on an arrow, so entering it puts the arrows on
       // screen — the same reason By direction does. A mode whose only gesture
       // is invisible is one nobody starts.
-      if (current) returnArrows()
-      else borrowArrows()
+      if (current) {
+        returnArrows()
+      } else {
+        borrowArrows()
+      }
       return !current
     })
   }
@@ -1696,7 +1742,9 @@ export const PartInspector = ({
             missed={missedBy(part, part.candidateDirections, choosing.chosen)}
             onToggle={(index) =>
               setChoosing((current) => {
-                if (current === null) return current
+                if (current === null) {
+                  return current
+                }
                 // Ticking **appends**: the order somebody says them in is the
                 // order they mean, until they say otherwise with the arrows.
                 const chosen = current.chosen.includes(index)
@@ -1708,10 +1756,14 @@ export const PartInspector = ({
             }
             onMove={(index, by) =>
               setChoosing((current) => {
-                if (current === null) return current
+                if (current === null) {
+                  return current
+                }
                 const at = current.chosen.indexOf(index)
                 const to = at + by
-                if (at === -1 || to < 0 || to >= current.chosen.length) return current
+                if (at === -1 || to < 0 || to >= current.chosen.length) {
+                  return current
+                }
 
                 const chosen = [...current.chosen]
                 const [moved] = chosen.splice(at, 1)
@@ -2095,8 +2147,11 @@ export const PartInspector = ({
                     // them on screen — the same reason By direction does. A mode
                     // whose first gesture is invisible is one nobody can start.
                     // Borrowed: leaving without choosing one gives them back.
-                    if (draft === null) borrowArrows()
-                    else returnArrows()
+                    if (draft === null) {
+                      borrowArrows()
+                    } else {
+                      returnArrows()
+                    }
                   }}
                   /*
                    * Every change to the draft re-guesses the type.
@@ -2111,10 +2166,13 @@ export const PartInspector = ({
                     setDraft(withGuess(next, part.features, part.candidateDirections))
                   }
                   onConfirmMade={() => {
-                    if (draft === null || draft.direction === null || draft.featureType === null)
+                    if (draft === null || draft.direction === null || draft.featureType === null) {
                       return
+                    }
                     const vector = part.candidateDirections[draft.direction]
-                    if (!vector) return
+                    if (!vector) {
+                      return
+                    }
 
                     const guess = readsAs(part.features, vector, draft.faces).find(
                       (each) => each.featureType === draft.featureType,
@@ -2195,7 +2253,9 @@ export const PartInspector = ({
                     )
                   }
                   onInfer={(kind: Infer) => {
-                    if (picking.holding === null) return
+                    if (picking.holding === null) {
+                      return
+                    }
                     const setup = plan.setups.find(
                       (entry) => entry.directionIndex === picking.holding,
                     )
@@ -2245,8 +2305,11 @@ export const PartInspector = ({
                      * with whatever was held, rather than restoring what they were.
                      * A held way up is a filter on the mode being left.
                      */
-                    if (mode === 'direction') borrowArrows()
-                    else putArrowsAway()
+                    if (mode === 'direction') {
+                      borrowArrows()
+                    } else {
+                      putArrowsAway()
+                    }
                   }}
                   onChoose={chooseWithin}
                   onSetPass={setPass}

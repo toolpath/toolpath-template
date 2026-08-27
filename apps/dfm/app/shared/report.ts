@@ -68,10 +68,14 @@ export const kindOf = (feature: PartFeature): string => {
 export const featureHeadline = (feature: PartFeature): string | undefined => {
   const featureFacts = facts(feature)
   const diameter = featureFacts?.kind === 'Hole' ? asNumber(featureFacts.diameter) : null
-  if (diameter !== null) return `⌀ ${millimeters(diameter)}`
+  if (diameter !== null) {
+    return `⌀ ${millimeters(diameter)}`
+  }
   const radius =
     featureFacts && 'filletRadius' in featureFacts ? asNumber(featureFacts.filletRadius) : null
-  if (radius !== null) return `R ${millimeters(radius)}`
+  if (radius !== null) {
+    return `R ${millimeters(radius)}`
+  }
   const sheet = feature.datasheet
   const minimum = asNumber(sheet?.zMin)
   const maximum = asNumber(sheet?.zMax)
@@ -89,9 +93,14 @@ export const featureSummary = (feature: PartFeature): FeatureSummary => ({
   headline: featureHeadline(feature),
 })
 
-export const filterFeatures = (features: readonly PartFeature[], query: string): PartFeature[] => {
+export const filterFeatures = (
+  features: ReadonlyArray<PartFeature>,
+  query: string,
+): Array<PartFeature> => {
   const normalized = query.trim().toLocaleLowerCase()
-  if (!normalized) return [...features]
+  if (!normalized) {
+    return [...features]
+  }
   return features.filter((feature) => {
     const summary = featureSummary(feature)
     return [summary.type, summary.direction, summary.tag, summary.headline]
@@ -100,10 +109,10 @@ export const filterFeatures = (features: readonly PartFeature[], query: string):
   })
 }
 
-export const featureDetailRows = (feature: PartFeature): DetailRow[] => {
+export const featureDetailRows = (feature: PartFeature): Array<DetailRow> => {
   const sheet = feature.datasheet
   const featureFacts = facts(feature)
-  const rows: DetailRow[] = [
+  const rows: Array<DetailRow> = [
     { label: 'Feature tag', value: feature.featureTag },
     { label: 'Machining direction', value: directionLabel(feature.machiningDirection) },
     { label: 'Mesh regions', value: String(feature.regionIdxs.length) },
@@ -125,7 +134,9 @@ export const featureDetailRows = (feature: PartFeature): DetailRow[] => {
   ]
   for (const [label, raw, format] of measurements) {
     const value = asNumber(raw)
-    if (value !== null) rows.push({ label, value: format(value) })
+    if (value !== null) {
+      rows.push({ label, value: format(value) })
+    }
   }
   return rows
 }
@@ -150,11 +161,13 @@ export const rawDatasheet = (feature: PartFeature): string =>
  * beside the type already narrow, so the two agree.
  */
 export const tagsOfType = (
-  features: readonly PartFeature[],
+  features: ReadonlyArray<PartFeature>,
   featureType: string | null,
   direction: Vec3 | null,
-): string[] => {
-  if (featureType === null) return []
+): Array<string> => {
+  if (featureType === null) {
+    return []
+  }
   return features
     .filter((feature) => feature.featureType === featureType)
     .filter((feature) => !direction || sameDirection(feature.machiningDirection, direction))
@@ -162,9 +175,9 @@ export const tagsOfType = (
 }
 
 export const featureFromTags = (
-  features: readonly PartFeature[],
-  tags: readonly string[],
-): PartFeature[] => {
+  features: ReadonlyArray<PartFeature>,
+  tags: ReadonlyArray<string>,
+): Array<PartFeature> => {
   const byTag = new Map(features.map((feature) => [feature.featureTag, feature]))
   return tags.flatMap((tag) => {
     const feature = byTag.get(tag)

@@ -1,9 +1,9 @@
-import { ToolpathIcon } from '../components/panel-icons'
-import { AppHeader } from '../components/app-header'
-import { ConnectionPanel } from '../components/connection-panel'
-import { UploadPanel } from '../components/upload-panel'
-import { usePartUpload } from '../client/use-part-upload'
-import { useSession } from '../client/use-session'
+import { ToolpathIcon } from 'components/panel-icons'
+import { AppHeader } from 'components/app-header'
+import { ConnectionPanel } from 'components/connection-panel'
+import { UploadPanel } from 'components/upload-panel'
+import { usePartUpload } from 'client/use-part-upload'
+import { useSession } from 'client/use-session'
 import { Card } from '@toolpath/ui'
 
 const HomeRoute = () => {

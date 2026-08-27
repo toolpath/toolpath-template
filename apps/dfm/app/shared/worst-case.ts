@@ -38,7 +38,9 @@ export const worstDatasheet = (
   parts: ReadonlyArray<PartFeature>,
 ): Record<string, unknown> | null => {
   const sheets = parts.map((part) => part.datasheet).filter((sheet) => sheet != null)
-  if (sheets.length === 0) return null
+  if (sheets.length === 0) {
+    return null
+  }
 
   const worst = (
     key: string,
@@ -46,7 +48,9 @@ export const worstDatasheet = (
     read: (part: PartFeature) => number | null,
   ): [string, number] | null => {
     const values = parts.map(read).filter((value): value is number => value !== null)
-    if (values.length === 0) return null
+    if (values.length === 0) {
+      return null
+    }
 
     // `reduce(Math.min)` hands the callback four arguments, and the fourth is
     // the array — `Math.min(acc, value, index, [..])` is NaN, silently.
@@ -138,12 +142,16 @@ const worstFacts = (parts: ReadonlyArray<PartFeature>): Record<string, unknown> 
 
   const smallest = (read: (sheet: NonNullable<ReturnType<typeof facts>>) => number | null) => {
     const values = all.map(read).filter((value): value is number => value !== null && value > 0)
-    if (values.length === 0) return null
+    if (values.length === 0) {
+      return null
+    }
     return Math.min(...values)
   }
 
   const cutter = smallest((sheet) => {
-    if (sheet.kind === 'Chamfer') return asNumber(sheet.three?.cd?.ignore?.min)
+    if (sheet.kind === 'Chamfer') {
+      return asNumber(sheet.three?.cd?.ignore?.min)
+    }
     return 'cd' in sheet ? asNumber(sheet.cd?.ignore?.min) : null
   })
   const endmill = smallest((sheet) =>
@@ -204,7 +212,9 @@ export const asPlanned = (
   added: ReadonlyArray<number>,
   feature: PartFeature,
 ): PartFeature => {
-  if (added.length === 0) return feature
+  if (added.length === 0) {
+    return feature
+  }
 
   const here = directionKey(feature.machiningDirection)
   const folded: Array<PartFeature> = []
@@ -220,12 +230,16 @@ export const asPlanned = (
       )
       .sort((a, b) => a.regionIdxs.length - b.regionIdxs.length)[0]
 
-    if (!owner || seen.has(owner.featureTag)) continue
+    if (!owner || seen.has(owner.featureTag)) {
+      continue
+    }
     seen.add(owner.featureTag)
     folded.push(owner)
   }
 
-  if (folded.length === 0) return feature
+  if (folded.length === 0) {
+    return feature
+  }
 
   return {
     ...feature,
@@ -246,10 +260,14 @@ export const asPlanned = (
 /** The readings whose measurements were folded in with an added face. */
 export const addedFrom = (feature: PartFeature): ReadonlyArray<Source> => {
   const from = (feature.datasheet as Record<string, unknown> | null | undefined)?.addedFrom
-  if (!Array.isArray(from)) return []
+  if (!Array.isArray(from)) {
+    return []
+  }
 
   return from.filter((entry): entry is Source => {
-    if (entry === null || typeof entry !== 'object') return false
+    if (entry === null || typeof entry !== 'object') {
+      return false
+    }
     const row = entry as Record<string, unknown>
     return typeof row.featureTag === 'string' && typeof row.featureType === 'string'
   })

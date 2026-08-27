@@ -1,13 +1,13 @@
 import { InfoIcon } from '@phosphor-icons/react'
 import { Tooltip } from '@toolpath/ui'
-import { bandCss } from '../shared/bands'
-import { formatMetric, ruleLimits } from '../shared/rule-text'
-import type { Band, FeatureVerdict, Rule, RuleResult } from '../shared/rules'
-import { bandName, readEveryRule, scoreFeature } from '../shared/rules'
-import type { MetricId, PartContext } from '../shared/metrics'
-import { PART_METRICS, metricFormula, metricQuantity, metricSources } from '../shared/metrics'
-import type { PartFeature } from '../shared/contracts'
-import type { Unit } from '../shared/units'
+import { bandCss } from 'shared/bands'
+import { formatMetric, ruleLimits } from 'shared/rule-text'
+import type { Band, FeatureVerdict, Rule, RuleResult } from 'shared/rules'
+import { bandName, readEveryRule, scoreFeature } from 'shared/rules'
+import type { MetricId, PartContext } from 'shared/metrics'
+import { PART_METRICS, metricFormula, metricQuantity, metricSources } from 'shared/metrics'
+import type { PartFeature } from 'shared/contracts'
+import type { Unit } from 'shared/units'
 
 /**
  * Where a number came from: the arithmetic, then the datasheet fields behind it
@@ -32,7 +32,9 @@ const Working = ({
   const formula = metricFormula(metric, feature, part)
   const readings = metricSources(metric, feature, part)
 
-  if (readings.length === 0) return null
+  if (readings.length === 0) {
+    return null
+  }
 
   // A source is a raw datasheet field, and for a ratio or a count it is *not*
   // in the metric's own units — the inputs to an L/D are two lengths, and
@@ -64,7 +66,9 @@ const Working = ({
 const Limits = ({ rule, band, unit }: { rule: Rule; band: Band | null; unit: Unit }) => {
   const limits = ruleLimits(rule, unit)
 
-  if (limits.length === 0) return null
+  if (limits.length === 0) {
+    return null
+  }
 
   return (
     <span className="flex flex-col gap-0.5">
@@ -143,7 +147,7 @@ export const RuleVerdict = ({
   part,
 }: {
   feature: PartFeature
-  rules: readonly Rule[]
+  rules: ReadonlyArray<Rule>
   verdict: FeatureVerdict
   unit: Unit
   /**

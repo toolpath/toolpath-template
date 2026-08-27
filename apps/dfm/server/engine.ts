@@ -86,9 +86,13 @@ const keyStatusFromResponse = async (
 export const validateApiKey = async (apiKey: string): Promise<void> => {
   try {
     const validation = await createEngineClient(apiKey).keys.validateKey()
-    if (!validation.valid) throw new InvalidApiKeyError(validation.status)
+    if (!validation.valid) {
+      throw new InvalidApiKeyError(validation.status)
+    }
   } catch (error) {
-    if (error instanceof InvalidApiKeyError) throw error
+    if (error instanceof InvalidApiKeyError) {
+      throw error
+    }
     if (error instanceof ResponseError && error.response.status === 401) {
       throw new InvalidApiKeyError(await keyStatusFromResponse(error.response))
     }
@@ -110,7 +114,9 @@ export const getPartReport = async (
       jobId: jobId ?? undefined,
     })
   } catch (error) {
-    if (error instanceof ResponseError && error.response.status === 404) return null
+    if (error instanceof ResponseError && error.response.status === 404) {
+      return null
+    }
     if (error instanceof ResponseError) {
       throw new EngineError(error.response.status, 'engine_request_failed', 'get report')
     }
@@ -129,12 +135,16 @@ export const getWholePartReport = async (
   jobId: string | null,
 ): Promise<PartReport | null> => {
   const report = await getPartReport(apiKey, partId, jobId)
-  if (!report) return null
+  if (!report) {
+    return null
+  }
 
   const missingIds = report.features.flatMap((feature) =>
     feature.datasheet || typeof feature.featureId !== 'string' ? [] : [feature.featureId],
   )
-  if (missingIds.length === 0) return report
+  if (missingIds.length === 0) {
+    return report
+  }
 
   const datasheetsByTag = new Map<string, NonNullable<PartFeature['datasheet']>>()
   const engine = createEngineClient(apiKey)
@@ -145,7 +155,9 @@ export const getWholePartReport = async (
       'get feature datasheets',
     )
     for (const entry of datasheets.datasheets) {
-      if (entry.datasheet) datasheetsByTag.set(entry.featureTag, entry.datasheet)
+      if (entry.datasheet) {
+        datasheetsByTag.set(entry.featureTag, entry.datasheet)
+      }
     }
   }
 

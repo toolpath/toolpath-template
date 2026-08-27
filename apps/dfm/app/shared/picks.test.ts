@@ -7,7 +7,7 @@ import { holdFace, sharedReadings, gatheredReadings, peekTarget } from './picks'
  * only way to name one of the five to eight readings on a face without hunting
  * through a list of them.
  */
-const pick = (region: number, ranked: string[]): PartPick => ({
+const pick = (region: number, ranked: Array<string>): PartPick => ({
   region,
   owners: ranked,
   ranked,
@@ -58,7 +58,7 @@ describe('sharedReadings', () => {
 })
 
 describe('gathering readings across several faces', () => {
-  const pick = (region: number, owners: string[], ranked?: string[]) =>
+  const pick = (region: number, owners: Array<string>, ranked?: Array<string>) =>
     ({
       region,
       owners,

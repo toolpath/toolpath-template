@@ -32,7 +32,9 @@ export const applyTheme = (
   root: { classList: DOMTokenList; style: CSSStyleDeclaration } | null,
   theme: Theme,
 ): void => {
-  if (!root) return
+  if (!root) {
+    return
+  }
 
   root.classList.toggle('dark', theme === 'dark')
   root.style.colorScheme = theme

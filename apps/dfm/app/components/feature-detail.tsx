@@ -1,10 +1,10 @@
 import { CheckIcon, CopyIcon } from '@phosphor-icons/react'
 import { Badge, Button, IconButton, Tooltip } from '@toolpath/ui'
-import { useEffect, useRef, useState } from 'react'
-import type { PartFeature, PublicInspectionReport } from '../shared/contracts'
-import type { PickMode } from '../shared/pick-mode'
-import { directionCss } from '../shared/direction-colors'
-import { measurements, stripMeasurements, STRIP_LABELS } from '../shared/measurements'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import type { PartFeature, PublicInspectionReport } from 'shared/contracts'
+import type { PickMode } from 'shared/pick-mode'
+import { directionCss } from 'shared/direction-colors'
+import { measurements, stripMeasurements, STRIP_LABELS } from 'shared/measurements'
 import {
   asRecord,
   directionLabel,
@@ -12,21 +12,21 @@ import {
   featureSummary,
   kindOf,
   rawDatasheet,
-} from '../shared/report'
-import { cutRegions, cutState, faceCounts, takenOn } from '../shared/setups'
+} from 'shared/report'
+import { cutRegions, cutState, faceCounts, takenOn } from 'shared/setups'
 import { PassButtons } from './pass-buttons'
-import type { Pass, SetupPlan } from '../shared/setups'
-import { setupForReading } from '../shared/plan-actions'
-import type { Unit } from '../shared/units'
-import type { FeatureVerdict, Rule } from '../shared/rules'
-import type { PartContext } from '../shared/metrics'
+import type { Pass, SetupPlan } from 'shared/setups'
+import { setupForReading } from 'shared/plan-actions'
+import type { Unit } from 'shared/units'
+import type { FeatureVerdict, Rule } from 'shared/rules'
+import type { PartContext } from 'shared/metrics'
 import { RuleVerdict } from './rule-verdict'
-import type { FeatureScore } from '../shared/feature-score'
+import type { FeatureScore } from 'shared/feature-score'
 import { FaceCount } from './face-count'
-import { isMade } from '../shared/make-feature'
-import { addedFrom, asPlanned, isDerived } from '../shared/worst-case'
+import { isMade } from 'shared/make-feature'
+import { addedFrom, asPlanned, isDerived } from 'shared/worst-case'
 import { KindIcon, MeasurementIcon } from './feature-icons'
-import { pluralLabel, typeLabel } from '../shared/part-summary'
+import { pluralLabel, typeLabel } from 'shared/part-summary'
 
 /** Which way up it is cut from, as a position in the part's own list. */
 const directionOf = (report: PublicInspectionReport, feature: PartFeature): number =>
@@ -47,20 +47,26 @@ const shortTag = (tag: string): string => tag.slice(-6)
  * questions anybody asks, and this is the answer to "but what else is in
  * there", which is a different question asked far less often.
  */
-const flatten = (value: unknown, prefix = ''): [string, string][] => {
+const flatten = (value: unknown, prefix = ''): Array<[string, string]> => {
   const record = asRecord(value)
-  if (!record) return []
+  if (!record) {
+    return []
+  }
 
   return Object.entries(record).flatMap(([key, entry]) => {
     const path = prefix ? `${prefix}.${key}` : key
     const nested = asRecord(entry)
-    if (nested) return flatten(nested, path)
-    if (Array.isArray(entry)) return [[path, `[${entry.length}]`] as [string, string]]
+    if (nested) {
+      return flatten(nested, path)
+    }
+    if (Array.isArray(entry)) {
+      return [[path, `[${entry.length}]`] as [string, string]]
+    }
     return [[path, String(entry)] as [string, string]]
   })
 }
 
-const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+const Section = ({ title, children }: { title: string; children: ReactNode }) => (
   <section className="mt-5">
     <h3 className="mb-1.5 text-2xs font-bold uppercase tracking-wider text-ink-dim">{title}</h3>
     {children}
@@ -79,7 +85,9 @@ const CopyButton = ({ value, label }: { value: string; label: string }) => {
 
   useEffect(
     () => () => {
-      if (reset.current) clearTimeout(reset.current)
+      if (reset.current) {
+        clearTimeout(reset.current)
+      }
     },
     [],
   )
@@ -88,7 +96,9 @@ const CopyButton = ({ value, label }: { value: string; label: string }) => {
     try {
       await navigator.clipboard.writeText(value)
       setCopied(true)
-      if (reset.current) clearTimeout(reset.current)
+      if (reset.current) {
+        clearTimeout(reset.current)
+      }
       reset.current = setTimeout(() => setCopied(false), 1500)
     } catch {
       // Clipboard access is unavailable in some embedded or non-secure views.
@@ -130,7 +140,7 @@ export const FeatureDetail = ({
   /** Which mode the panel above is in, so the invitation names its gesture. */
   mode: PickMode
   report: PublicInspectionReport
-  candidates: readonly PartFeature[]
+  candidates: ReadonlyArray<PartFeature>
   /** How hard each candidate is, so the list ranks as well as lists. */
   scores: ReadonlyMap<string, FeatureScore>
   onChoose: (featureTag: string) => void
@@ -146,7 +156,7 @@ export const FeatureDetail = ({
    * assigned, read and lit on its own. A second copy here was a table that
    * could only be looked at.
    */
-  siblings: readonly PartFeature[]
+  siblings: ReadonlyArray<PartFeature>
   /** Which pass the face count is counting. */
   showingPass: Pass
   /** Assign this reading to its own direction. Empty passes takes it off both. */
@@ -160,7 +170,7 @@ export const FeatureDetail = ({
   unit: Unit
   /** What the rules made of the feature being read, if any is. */
   verdict: FeatureVerdict | null
-  rules: readonly Rule[]
+  rules: ReadonlyArray<Rule>
   /** The context the verdict was judged with, so the working shows the same numbers. */
   part: PartContext
 }) => {

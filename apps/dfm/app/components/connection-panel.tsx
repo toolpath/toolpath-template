@@ -16,7 +16,9 @@ export const ConnectionPanel = ({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const apiKey = new FormData(event.currentTarget).get('apiKey')
-    if (typeof apiKey !== 'string') return
+    if (typeof apiKey !== 'string') {
+      return
+    }
     try {
       await onConnect(apiKey)
       form.current?.reset()

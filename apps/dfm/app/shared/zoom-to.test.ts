@@ -30,7 +30,7 @@ describe('what the wheel zooms toward', () => {
   })
 
   it('writes what it is given', () => {
-    const written: string[] = []
+    const written: Array<string> = []
     saveZoomTo({ setItem: (_key, value) => written.push(value) }, 'centre')
 
     expect(written).toEqual(['centre'])

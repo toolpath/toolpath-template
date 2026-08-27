@@ -61,7 +61,9 @@ const coveringPlan = (pass: 'rough' | 'finish' = 'rough'): SetupPlan => {
   for (const feature of features) {
     if (feature.regionIdxs.some((idx) => !claimed.has(idx))) {
       assigned[feature.featureTag] = { [pass]: setup.id }
-      for (const idx of feature.regionIdxs) claimed.add(idx)
+      for (const idx of feature.regionIdxs) {
+        claimed.add(idx)
+      }
     }
   }
 

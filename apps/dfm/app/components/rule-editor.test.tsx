@@ -2,8 +2,8 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { DEFAULT_RULES } from '../shared/rule-presets'
-import type { Rule } from '../shared/rules'
+import { DEFAULT_RULES } from 'shared/rule-presets'
+import type { Rule } from 'shared/rules'
 import { RuleCard } from './rule-editor'
 
 // Vitest is not configured with globals, so Testing Library's automatic
@@ -12,7 +12,9 @@ afterEach(cleanup)
 
 const preset = (id: string): Rule => {
   const rule = DEFAULT_RULES.find((each) => each.id === id)
-  if (!rule) throw new Error(`no preset ${id}`)
+  if (!rule) {
+    throw new Error(`no preset ${id}`)
+  }
   return rule
 }
 
@@ -77,7 +79,9 @@ describe('typing a number into a rule', () => {
   it('types a decimal through from an emptied box', () => {
     render(<EditableCard rule={drillSizes} />)
 
-    for (const step of ['', '0', '0.', '0.3', '0.37', '0.375']) type('Size 1', step)
+    for (const step of ['', '0', '0.', '0.3', '0.37', '0.375']) {
+      type('Size 1', step)
+    }
     fireEvent.blur(box('Size 1'))
 
     expect(box('Size 1').value).toBe('0.375')
@@ -129,7 +133,9 @@ describe('typing a number into a rule', () => {
   it('holds the separators while a list of sizes is typed', () => {
     render(<EditableCard editing={false} rule={drillSizes} />)
 
-    for (const step of ['', '3', '3,', '3, ', '3, 6', '3, 6.', '3, 6.35']) type('Sizes held', step)
+    for (const step of ['', '3', '3,', '3, ', '3, 6', '3, 6.', '3, 6.35']) {
+      type('Sizes held', step)
+    }
 
     expect(box('Sizes held').value).toBe('3, 6.35')
 

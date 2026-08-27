@@ -145,7 +145,9 @@ export const uncutFaces = (
     // What each reading cuts, not what it covers — a face given up to another
     // reading is cut by that one, and a face nobody took is uncut even though
     // the reading covering it is assigned.
-    for (const idx of cutRegions(plan, feature, pass)) cut.add(idx)
+    for (const idx of cutRegions(plan, feature, pass)) {
+      cut.add(idx)
+    }
   }
 
   return report.regions.map((region) => region.idx).filter((idx) => !cut.has(idx))
@@ -211,11 +213,16 @@ export const uncutRows = (
    */
   const covering = new Map<number, Array<PartFeature>>()
   for (const feature of features) {
-    if (index.get(directionKey(feature.machiningDirection)) === undefined) continue
+    if (index.get(directionKey(feature.machiningDirection)) === undefined) {
+      continue
+    }
     for (const idx of coveredRegions(plan, feature)) {
       const already = covering.get(idx)
-      if (already) already.push(feature)
-      else covering.set(idx, [feature])
+      if (already) {
+        already.push(feature)
+      } else {
+        covering.set(idx, [feature])
+      }
     }
   }
 
@@ -274,15 +281,21 @@ export const cutByDirection = (
 
   for (const feature of features) {
     const setupId = plan.assigned[feature.featureTag]?.[pass]
-    if (setupId === undefined) continue
+    if (setupId === undefined) {
+      continue
+    }
     const direction = byId.get(setupId)
-    if (direction === undefined) continue
+    if (direction === undefined) {
+      continue
+    }
     // Only a reading cutting **exactly** what it covers can be named by its
     // tag: the viewer expands a tag to the faces the Engine reported, which is
     // one face too many for a reading that gave one up and one too few for a
     // reading that was handed one. Anything else paints face by face — see
     // `cutRegionsByDirection`.
-    if (!exactlyItsOwn(plan, feature, pass)) continue
+    if (!exactlyItsOwn(plan, feature, pass)) {
+      continue
+    }
     cutBy.set(feature.featureTag, direction)
   }
 
@@ -313,11 +326,17 @@ export const cutRegionsByDirection = (
   const cutBy = new Map<number, number>()
 
   for (const feature of features) {
-    if (exactlyItsOwn(plan, feature, pass)) continue
+    if (exactlyItsOwn(plan, feature, pass)) {
+      continue
+    }
     const setupId = plan.assigned[feature.featureTag]?.[pass]
     const direction = setupId === undefined ? undefined : byId.get(setupId)
-    if (direction === undefined) continue
-    for (const idx of cutRegions(plan, feature, pass)) cutBy.set(idx, direction)
+    if (direction === undefined) {
+      continue
+    }
+    for (const idx of cutRegions(plan, feature, pass)) {
+      cutBy.set(idx, direction)
+    }
   }
 
   return cutBy
@@ -349,12 +368,18 @@ export const cutRegionsByFeature = (
   const cutBy = new Map<number, string>()
 
   for (const feature of features) {
-    if (exactlyItsOwn(plan, feature, pass)) continue
+    if (exactlyItsOwn(plan, feature, pass)) {
+      continue
+    }
     const setupId = plan.assigned[feature.featureTag]?.[pass]
     // Held by a setup the plan no longer has is not held. Guarded the same way
     // as the direction layer so the two modes agree about what is mapped.
-    if (setupId === undefined || !setups.has(setupId)) continue
-    for (const idx of cutRegions(plan, feature, pass)) cutBy.set(idx, feature.featureTag)
+    if (setupId === undefined || !setups.has(setupId)) {
+      continue
+    }
+    for (const idx of cutRegions(plan, feature, pass)) {
+      cutBy.set(idx, feature.featureTag)
+    }
   }
 
   return cutBy

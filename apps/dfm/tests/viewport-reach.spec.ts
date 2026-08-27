@@ -65,7 +65,9 @@ test('takes a pointer at its own edges and corners', async ({ page }) => {
   // the old dead strip.
   const owners = await page.evaluate(() => {
     const viewer = document.querySelector('section.relative')
-    if (!viewer) throw new Error('no viewer section')
+    if (!viewer) {
+      throw new Error('no viewer section')
+    }
     const box = viewer.getBoundingClientRect()
     const inset = 3
     const spots: Record<string, [number, number]> = {

@@ -1,6 +1,6 @@
-import { directionCss } from '../shared/direction-colors'
+import { directionCss } from 'shared/direction-colors'
 import type { Vec3 } from '@toolpath/api'
-import { directionLabel } from '../shared/report'
+import { directionLabel } from 'shared/report'
 
 /**
  * The other ways up a made reading could be cut from.

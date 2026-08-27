@@ -33,7 +33,9 @@ export const lengthOf = ({ x, y, z }: Vec3): number => Math.sqrt(x * x + y * y +
 
 export const normalize = (vec: Vec3): Vec3 | null => {
   const length = lengthOf(vec)
-  if (length < TINY) return null
+  if (length < TINY) {
+    return null
+  }
   return { x: vec.x / length, y: vec.y / length, z: vec.z / length }
 }
 
@@ -43,7 +45,9 @@ export const dot = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b
 export const angleBetween = (a: Vec3, b: Vec3): number => {
   const first = normalize(a)
   const second = normalize(b)
-  if (!first || !second) return Number.NaN
+  if (!first || !second) {
+    return Number.NaN
+  }
   return (Math.acos(Math.min(1, Math.max(-1, dot(first, second)))) * 180) / Math.PI
 }
 

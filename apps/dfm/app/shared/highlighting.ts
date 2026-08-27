@@ -29,14 +29,18 @@ export const listHighlight = ({
   pointerOnPart,
 }: {
   /** Features under the pointer in a list. */
-  hovered: readonly string[]
+  hovered: ReadonlyArray<string>
   /** The open type's features, empty once it has stopped being the question. */
-  ofType: readonly string[]
+  ofType: ReadonlyArray<string>
   /** Whether the pointer is over the part itself. */
   pointerOnPart: boolean
-}): string[] => {
-  if (hovered.length > 0) return [...hovered]
-  if (pointerOnPart) return []
+}): Array<string> => {
+  if (hovered.length > 0) {
+    return [...hovered]
+  }
+  if (pointerOnPart) {
+    return []
+  }
   return [...ofType]
 }
 
@@ -63,9 +67,11 @@ export const partHighlight = ({
   focused: string | null
   /** Regions picked by clicking the part. */
   picked: Iterable<number>
-}): { tags: string[]; regions: number[] } => {
+}): { tags: Array<string>; regions: Array<number> } => {
   const tags = new Set(selected)
-  if (focused) tags.add(focused)
+  if (focused) {
+    tags.add(focused)
+  }
 
   return {
     tags: [...tags],
@@ -96,9 +102,9 @@ export const paintByCut = (
   features: ReadonlyArray<PartFeature>,
   plan: SetupPlan,
   pass: Pass,
-): { whole: string[]; faces: number[] } => {
-  const whole: string[] = []
-  const faces: number[] = []
+): { whole: Array<string>; faces: Array<number> } => {
+  const whole: Array<string> = []
+  const faces: Array<number> = []
   const byTag = new Map(features.map((feature) => [feature.featureTag, feature]))
 
   for (const tag of tags) {

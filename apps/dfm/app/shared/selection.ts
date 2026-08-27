@@ -10,9 +10,9 @@ import { holdFace, sharedReadings } from './picks'
  */
 export interface SelectionState {
   /** The faces being held, most recent last. */
-  readonly picks: readonly PartPick[]
+  readonly picks: ReadonlyArray<PartPick>
   /** The readings those faces share, best first. */
-  readonly candidates: readonly string[]
+  readonly candidates: ReadonlyArray<string>
   readonly focused: string | null
   /**
    * Whether the reading being read stands for **itself** rather than for the
@@ -62,13 +62,17 @@ export const pickFace = (
    * in the order the click ranked them, and re-sorting under a walk would make
    * the second press land somewhere unpredictable.
    */
-  prefer?: (tags: readonly string[]) => string | null,
+  prefer?: (tags: ReadonlyArray<string>) => string | null,
 ): SelectionState => {
-  if (!pick) return NOTHING_SELECTED
+  if (!pick) {
+    return NOTHING_SELECTED
+  }
 
   const adding = pick.modifiers.meta || pick.modifiers.ctrl
   const held = adding ? holdFace(state.picks, pick) : [pick]
-  if (held.length === 0) return NOTHING_SELECTED
+  if (held.length === 0) {
+    return NOTHING_SELECTED
+  }
 
   if (held.length > 1) {
     const candidates = sharedReadings(held)
@@ -102,7 +106,9 @@ export const pickFace = (
  * to set up other tests.
  */
 export const stepCandidate = (state: SelectionState, step: number): SelectionState => {
-  if (state.candidates.length === 0) return state
+  if (state.candidates.length === 0) {
+    return state
+  }
 
   const at = state.focused === null ? -1 : state.candidates.indexOf(state.focused)
   const next = (at + step + state.candidates.length) % state.candidates.length
@@ -125,7 +131,9 @@ export const scopeToDirection = (
   state: SelectionState,
   reachable: (tag: string) => boolean,
 ): SelectionState => {
-  if (state.picks.length === 0) return state
+  if (state.picks.length === 0) {
+    return state
+  }
 
   const candidates = sharedReadings(state.picks).filter(reachable)
 
@@ -154,7 +162,7 @@ export const isEmptySelection = (state: SelectionState): boolean =>
   state.picks.length === 0 && state.candidates.length === 0 && state.focused === null
 
 /** The faces being held, for painting them so a second click has something to aim at. */
-export const heldRegions = (state: SelectionState): number[] =>
+export const heldRegions = (state: SelectionState): Array<number> =>
   state.picks.map((pick) => pick.region)
 
 /**
@@ -185,11 +193,13 @@ export const focusWithin = (
  * anybody watching can see.
  */
 export const stepThrough = (
-  tags: readonly string[],
+  tags: ReadonlyArray<string>,
   focused: string | null,
   step: number,
 ): string | null => {
-  if (tags.length === 0) return null
+  if (tags.length === 0) {
+    return null
+  }
   const at = focused === null ? -1 : tags.indexOf(focused)
   return tags[(at + step + tags.length) % tags.length] ?? null
 }
@@ -208,7 +218,7 @@ export const stepThrough = (
  * viewer. A list has no viewpoint to rank from, and inventing one here would be
  * a second answer to a question the part already answers.
  */
-export const pickForRegion = (region: number, owners: readonly string[]): PartPick => {
+export const pickForRegion = (region: number, owners: ReadonlyArray<string>): PartPick => {
   return {
     region,
     owners,

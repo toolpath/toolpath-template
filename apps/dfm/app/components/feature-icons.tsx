@@ -420,6 +420,8 @@ export const MEASUREMENT_ICONS: Record<string, () => ReactElement> = {
  */
 export const MeasurementIcon = ({ measurement }: { measurement: string }) => {
   const Icon = MEASUREMENT_ICONS[measurement]
-  if (!Icon) return <span aria-hidden="true" className="size-4 shrink-0" />
+  if (!Icon) {
+    return <span aria-hidden="true" className="size-4 shrink-0" />
+  }
   return <Icon />
 }

@@ -37,11 +37,15 @@ export const moveThroughList = (
 ): boolean => {
   const container = event.currentTarget as HTMLElement | null
   const target = event.target as HTMLElement | null
-  if (!container || !target) return false
+  if (!container || !target) {
+    return false
+  }
 
   const rows = rowsIn(container)
   const at = rows.indexOf(rowAt(target) ?? target)
-  if (at === -1) return false
+  if (at === -1) {
+    return false
+  }
 
   const focus = (index: number) => {
     const row = rows[Math.min(Math.max(index, 0), rows.length - 1)]
@@ -67,13 +71,17 @@ export const moveThroughList = (
       return true
     case 'ArrowRight': {
       const value = rows[at]?.getAttribute(ROW)
-      if (!value || !actions.onOpen) return false
+      if (!value || !actions.onOpen) {
+        return false
+      }
       event.preventDefault()
       actions.onOpen(value)
       return true
     }
     case 'ArrowLeft': {
-      if (!actions.onClose) return false
+      if (!actions.onClose) {
+        return false
+      }
       event.preventDefault()
       actions.onClose(rows[at]?.getAttribute(ROW) ?? '')
       return true

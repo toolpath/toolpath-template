@@ -11,7 +11,7 @@ import {
   stepThrough,
 } from './selection'
 
-const pick = (region: number, ranked: string[], holding = false): PartPick => ({
+const pick = (region: number, ranked: Array<string>, holding = false): PartPick => ({
   region,
   owners: ranked,
   ranked,

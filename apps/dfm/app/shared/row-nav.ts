@@ -77,7 +77,9 @@ export interface RowMeaning {
 
 export const meaningOf = (row: HTMLElement | null | undefined): RowMeaning | null => {
   const value = row?.getAttribute(ROW)
-  if (value === null || value === undefined) return null
+  if (value === null || value === undefined) {
+    return null
+  }
 
   const holds = row?.getAttribute(HOLDS)
   return {

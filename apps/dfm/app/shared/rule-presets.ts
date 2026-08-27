@@ -1,3 +1,6 @@
+// `FeatureType` is a string enum, not the SDK client: no key, no network, and
+// `Object.values` below needs its members at runtime.
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports
 import { FeatureType as EngineFeatureType } from '@toolpath/api'
 import type { FeatureType } from '@toolpath/viewer'
 import type { Rule, RuleSet } from './rules'

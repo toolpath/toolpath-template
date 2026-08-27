@@ -6,7 +6,7 @@ import type { PartPick } from '@toolpath/viewer'
  * Keyed on the region rather than on the pick: the same face clicked twice is
  * the same face, whatever the ray happened to hit.
  */
-export const holdFace = (held: readonly PartPick[], pick: PartPick): PartPick[] => {
+export const holdFace = (held: ReadonlyArray<PartPick>, pick: PartPick): Array<PartPick> => {
   const without = held.filter((each) => each.region !== pick.region)
   return without.length === held.length ? [...held, pick] : without
 }
@@ -18,9 +18,11 @@ export const holdFace = (held: readonly PartPick[], pick: PartPick): PartPick[] 
  * Empty is a real answer: two faces with nothing in common are two faces, and
  * saying so beats offering a reading that only covers one of them.
  */
-export const sharedReadings = (held: readonly PartPick[]): string[] => {
+export const sharedReadings = (held: ReadonlyArray<PartPick>): Array<string> => {
   const newest = held.at(-1)
-  if (!newest) return []
+  if (!newest) {
+    return []
+  }
 
   // From `owners` rather than `ranked`, because `ranked` was already narrowed
   // by whatever direction was in force when the face was clicked — and these
@@ -51,8 +53,8 @@ export const sharedReadings = (held: readonly PartPick[]): string[] => {
  * click ranked them, de-duplicated. So the newest face's best reading is never
  * buried under the first face's worst.
  */
-export const gatheredReadings = (held: readonly PartPick[]): string[] => {
-  const tags: string[] = []
+export const gatheredReadings = (held: ReadonlyArray<PartPick>): Array<string> => {
+  const tags: Array<string> = []
   const seen = new Set<string>()
 
   for (const pick of held) {
@@ -60,7 +62,9 @@ export const gatheredReadings = (held: readonly PartPick[]): string[] => {
     // be narrowed by whatever direction was in force, and a face with nothing
     // reachable that way still has owners worth listing.
     for (const tag of pick.ranked.length > 0 ? pick.ranked : pick.owners) {
-      if (seen.has(tag)) continue
+      if (seen.has(tag)) {
+        continue
+      }
       seen.add(tag)
       tags.push(tag)
     }
@@ -99,13 +103,15 @@ export const gatheredReadings = (held: readonly PartPick[]): string[] => {
  */
 export const peekTarget = (
   /** The face's readings, in the order this click ranked them. */
-  ranked: readonly string[],
+  ranked: ReadonlyArray<string>,
   /** Lists currently on screen, most specific first. */
-  onScreen: ReadonlyArray<readonly string[]>,
+  onScreen: ReadonlyArray<ReadonlyArray<string>>,
 ): string | null => {
   for (const list of onScreen) {
     const found = ranked.find((tag) => list.includes(tag))
-    if (found) return found
+    if (found) {
+      return found
+    }
   }
 
   return null

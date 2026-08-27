@@ -45,10 +45,14 @@ export const Banana = ({ onPlaced }: { onPlaced?: (both: Box3) => void }) => {
 
     gltf.scene.traverse((object) => {
       const mesh = object as Mesh
-      if (found === null && mesh.isMesh) found = mesh.geometry
+      if (found === null && mesh.isMesh) {
+        found = mesh.geometry
+      }
     })
 
-    if (found === null) return null
+    if (found === null) {
+      return null
+    }
 
     const own = (found as BufferGeometry).clone()
     own.computeVertexNormals()
@@ -78,7 +82,9 @@ export const Banana = ({ onPlaced }: { onPlaced?: (both: Box3) => void }) => {
    */
   useLayoutEffect(() => {
     const node = group.current
-    if (!node || !geometry?.boundingBox) return
+    if (!node || !geometry?.boundingBox) {
+      return
+    }
 
     node.userData[EXCLUDE_FROM_FRAME] = true
     node.position.set(0, 0, 0)
@@ -86,16 +92,24 @@ export const Banana = ({ onPlaced }: { onPlaced?: (both: Box3) => void }) => {
     const part = new Box3()
     scene.updateWorldMatrix(true, true)
     scene.traverse((object) => {
-      if (object.userData[EXCLUDE_FROM_FRAME]) return
+      if (object.userData[EXCLUDE_FROM_FRAME]) {
+        return
+      }
       let ancestor = object.parent
       while (ancestor && ancestor !== scene) {
-        if (ancestor.userData[EXCLUDE_FROM_FRAME]) return
+        if (ancestor.userData[EXCLUDE_FROM_FRAME]) {
+          return
+        }
         ancestor = ancestor.parent
       }
-      if ('isMesh' in object) part.expandByObject(object)
+      if ('isMesh' in object) {
+        part.expandByObject(object)
+      }
     })
 
-    if (part.isEmpty()) return
+    if (part.isEmpty()) {
+      return
+    }
 
     const size = part.getSize(new Vector3())
     const own = geometry.boundingBox
@@ -118,7 +132,9 @@ export const Banana = ({ onPlaced }: { onPlaced?: (both: Box3) => void }) => {
     onPlaced?.(part.clone().union(new Box3().setFromObject(node)))
   }, [scene, geometry, onPlaced])
 
-  if (!geometry) return null
+  if (!geometry) {
+    return null
+  }
 
   return (
     <group ref={group}>

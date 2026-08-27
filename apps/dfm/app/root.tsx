@@ -1,6 +1,7 @@
+import type { ReactNode } from 'react'
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router'
 import appCss from './styles.css?url'
-import { THEME_SCRIPT } from './shared/theme'
+import { THEME_SCRIPT } from 'shared/theme'
 
 export const links = () => [
   { rel: 'stylesheet', href: appCss },
@@ -14,7 +15,7 @@ export const links = () => [
   },
 ]
 
-export const Layout = ({ children }: { children: React.ReactNode }) => (
+export const Layout = ({ children }: { children: ReactNode }) => (
   /*
    * No `className` on `<html>` on purpose.
    *

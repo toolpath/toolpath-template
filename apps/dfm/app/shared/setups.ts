@@ -111,7 +111,7 @@ export interface Assignment {
    * "cut on two of its three faces" is the thing somebody needs to see, and
    * deriving it from a kept-list means diffing on every render.
    */
-  without?: Partial<Record<Pass, readonly number[]>>
+  without?: Partial<Record<Pass, ReadonlyArray<number>>>
   /**
    * Faces this reading has **taken on**, per pass — ones it does not cover.
    *
@@ -126,7 +126,7 @@ export interface Assignment {
    * reported feature stays exactly as it was reported, so a re-run that says
    * something different is a change in one place and not a merge.
    */
-  also?: Partial<Record<Pass, readonly number[]>>
+  also?: Partial<Record<Pass, ReadonlyArray<number>>>
 }
 
 export interface SetupPlan {
@@ -174,7 +174,9 @@ export const cutRegions = (
   pass: Pass,
 ): ReadonlyArray<number> => {
   const held = plan.assigned[feature.featureTag]
-  if (held?.[pass] === undefined) return []
+  if (held?.[pass] === undefined) {
+    return []
+  }
 
   const gone = held.without?.[pass]
   const extra = held.also?.[pass]
@@ -200,20 +202,26 @@ export const cutRegions = (
  */
 export const coveredRegions = (plan: SetupPlan, feature: PartFeature): ReadonlyArray<number> => {
   const held = plan.assigned[feature.featureTag]
-  if (held === undefined) return feature.regionIdxs
+  if (held === undefined) {
+    return feature.regionIdxs
+  }
 
   const mine = new Set(feature.regionIdxs)
   const extra: Array<number> = []
 
   for (const pass of PASSES) {
     for (const idx of held.also?.[pass] ?? []) {
-      if (mine.has(idx)) continue
+      if (mine.has(idx)) {
+        continue
+      }
       mine.add(idx)
       extra.push(idx)
     }
   }
 
-  if (extra.length === 0) return feature.regionIdxs
+  if (extra.length === 0) {
+    return feature.regionIdxs
+  }
   return [...feature.regionIdxs, ...extra.sort((a, b) => a - b)]
 }
 
@@ -229,7 +237,9 @@ export const takenOn = (
   feature: PartFeature,
   pass: Pass,
 ): ReadonlyArray<number> => {
-  if (plan.assigned[feature.featureTag]?.[pass] === undefined) return []
+  if (plan.assigned[feature.featureTag]?.[pass] === undefined) {
+    return []
+  }
   return plan.assigned[feature.featureTag]?.also?.[pass] ?? []
 }
 
@@ -264,7 +274,9 @@ export const faceCounts = (
   // Nothing claimed and nothing given up, so the count is about what the
   // reading covers: `0 of 12` on an unmapped row would say a decision had been
   // made about it.
-  if (cut.size === 0) return { faces: faces.length, cut: faces.length }
+  if (cut.size === 0) {
+    return { faces: faces.length, cut: faces.length }
+  }
 
   return { faces: faces.length, cut: faces.filter((idx) => cut.has(idx)).length }
 }
@@ -281,7 +293,9 @@ export const givenUp = (
   feature: PartFeature,
   pass: Pass,
 ): ReadonlyArray<number> => {
-  if (plan.assigned[feature.featureTag]?.[pass] === undefined) return []
+  if (plan.assigned[feature.featureTag]?.[pass] === undefined) {
+    return []
+  }
   return plan.assigned[feature.featureTag]?.without?.[pass] ?? []
 }
 
@@ -463,7 +477,9 @@ export const cutState = (
   pass: Pass,
   setup: Setup | null | undefined,
 ): boolean | 'some' => {
-  if (!cutsFrom(plan, feature.featureTag, pass, setup)) return false
+  if (!cutsFrom(plan, feature.featureTag, pass, setup)) {
+    return false
+  }
   return givenUp(plan, feature, pass).length === 0 ? true : 'some'
 }
 
@@ -480,11 +496,17 @@ export const groupCutState = (
   pass: Pass,
   setup: Setup | null | undefined,
 ): boolean | 'some' => {
-  if (features.length === 0) return false
+  if (features.length === 0) {
+    return false
+  }
 
   const states = features.map((feature) => cutState(plan, feature, pass, setup))
-  if (states.every((state) => state === true)) return true
-  if (states.every((state) => state === false)) return false
+  if (states.every((state) => state === true)) {
+    return true
+  }
+  if (states.every((state) => state === false)) {
+    return false
+  }
   return 'some'
 }
 
@@ -549,11 +571,19 @@ export const cutOnce = (
   // Nothing is claimed by letting go, so nothing else is disturbed.
   if (setupId !== undefined) {
     const faces = new Set(only ?? cutRegions(plan, feature, pass))
-    if (only === undefined) for (const idx of feature.regionIdxs) faces.add(idx)
+    if (only === undefined) {
+      for (const idx of feature.regionIdxs) {
+        faces.add(idx)
+      }
+    }
 
     for (const other of features) {
-      if (other.featureTag === feature.featureTag) continue
-      if (assigned[other.featureTag]?.[pass] === undefined) continue
+      if (other.featureTag === feature.featureTag) {
+        continue
+      }
+      if (assigned[other.featureTag]?.[pass] === undefined) {
+        continue
+      }
 
       /*
        * What it is *cutting*, not what it covers.
@@ -564,7 +594,9 @@ export const cutOnce = (
        * old note.
        */
       const kept = cutRegions(plan, other, pass).filter((idx) => !faces.has(idx))
-      if (kept.length === cutRegions(plan, other, pass).length) continue
+      if (kept.length === cutRegions(plan, other, pass).length) {
+        continue
+      }
 
       if (kept.length === 0) {
         // It cuts nothing now. Unassigned outright, and its note goes with it.
@@ -610,25 +642,37 @@ export const noting = (
 
   const note: Assignment = { ...held }
 
-  if (gone.length === 0) note.without = dropping(held?.without, pass)
-  else note.without = { ...held?.without, [pass]: gone }
+  if (gone.length === 0) {
+    note.without = dropping(held?.without, pass)
+  } else {
+    note.without = { ...held?.without, [pass]: gone }
+  }
 
-  if (extra.length === 0) note.also = dropping(held?.also, pass)
-  else note.also = { ...held?.also, [pass]: extra }
+  if (extra.length === 0) {
+    note.also = dropping(held?.also, pass)
+  } else {
+    note.also = { ...held?.also, [pass]: extra }
+  }
 
-  if (note.without === undefined) delete note.without
-  if (note.also === undefined) delete note.also
+  if (note.without === undefined) {
+    delete note.without
+  }
+  if (note.also === undefined) {
+    delete note.also
+  }
 
   return note
 }
 
 /** One pass's note taken out, or the whole note gone when it was the last. */
 const dropping = (
-  note: Partial<Record<Pass, readonly number[]>> | undefined,
+  note: Partial<Record<Pass, ReadonlyArray<number>>> | undefined,
   pass: Pass,
-): Partial<Record<Pass, readonly number[]>> | undefined => {
+): Partial<Record<Pass, ReadonlyArray<number>>> | undefined => {
   const { [pass]: gone, ...rest } = note ?? {}
-  if (Object.keys(rest).length === 0) return undefined
+  if (Object.keys(rest).length === 0) {
+    return undefined
+  }
   return rest
 }
 
@@ -641,11 +685,17 @@ const without = (held: Assignment | undefined, pass: Pass): Assignment => {
   const gone = dropping(held?.without, pass)
   const extra = dropping(held?.also, pass)
 
-  if (gone === undefined) delete kept.without
-  else kept.without = gone
+  if (gone === undefined) {
+    delete kept.without
+  } else {
+    kept.without = gone
+  }
 
-  if (extra === undefined) delete kept.also
-  else kept.also = extra
+  if (extra === undefined) {
+    delete kept.also
+  } else {
+    kept.also = extra
+  }
 
   return kept
 }

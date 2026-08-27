@@ -30,7 +30,9 @@ const all = [wall, face0, face1, face2]
  * file called. It is a fixture, so it lives with the fixtures.
  */
 const proposeFrom = (readings: ReadonlyArray<PartFeature>, direction: number): Proposal | null => {
-  if (readings.length === 0) return null
+  if (readings.length === 0) {
+    return null
+  }
 
   return {
     direction,

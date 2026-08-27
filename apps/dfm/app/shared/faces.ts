@@ -115,7 +115,9 @@ export const facesOf = (
   const cutter = new Map(PASSES.map((each) => [each, new Map<number, PartFeature>()]))
   for (const other of report.features) {
     for (const each of PASSES) {
-      for (const idx of cutRegions(plan, other, each)) cutter.get(each)?.set(idx, other)
+      for (const idx of cutRegions(plan, other, each)) {
+        cutter.get(each)?.set(idx, other)
+      }
     }
   }
 
@@ -168,10 +170,16 @@ export const cutElsewhere = (
   const others = new Map<string, PartFeature>()
 
   for (const idx of coveredRegions(plan, feature)) {
-    if (mine.has(idx)) continue
+    if (mine.has(idx)) {
+      continue
+    }
     for (const other of report.features) {
-      if (other.featureTag === feature.featureTag) continue
-      if (cutRegions(plan, other, pass).includes(idx)) others.set(other.featureTag, other)
+      if (other.featureTag === feature.featureTag) {
+        continue
+      }
+      if (cutRegions(plan, other, pass).includes(idx)) {
+        others.set(other.featureTag, other)
+      }
     }
   }
 
@@ -289,12 +297,16 @@ const setFacePass = (
    * is open, though — that is the point of adding a face, and the reading's
    * reported faces are not a limit on what somebody can hand it.
    */
-  if (!cut && !coveredRegions(plan, feature).includes(region)) return plan
+  if (!cut && !coveredRegions(plan, feature).includes(region)) {
+    return plan
+  }
 
   const index = directions.findIndex(
     (direction) => directionKey(direction) === directionKey(feature.machiningDirection),
   )
-  if (index < 0) return plan
+  if (index < 0) {
+    return plan
+  }
 
   const held = plan.setups.find((entry) => entry.directionIndex === index)
   const setup = held ?? setupFor(directions, index, plan.setups.length)
@@ -304,7 +316,9 @@ const setFacePass = (
    * Taking a face off a reading nothing is cutting is already true, so it is
    * left alone rather than assigned in order to be un-assigned.
    */
-  if (!cut && !holding) return plan
+  if (!cut && !holding) {
+    return plan
+  }
 
   /*
    * What it cuts after the press, as a set of faces.
@@ -319,8 +333,11 @@ const setFacePass = (
    * not yet in the plan, with no special case needed to say so.
    */
   const kept = new Set(cutRegions(plan, feature, pass))
-  if (cut) kept.add(region)
-  else kept.delete(region)
+  if (cut) {
+    kept.add(region)
+  } else {
+    kept.delete(region)
+  }
 
   // Nothing left to cut. Unassigned outright, the same rule a claim follows
   // when it takes a reading's last face.
@@ -383,10 +400,14 @@ export const handedReadings = (
   regions: Iterable<number>,
 ): Array<PartFeature> => {
   const wanted = new Set(regions)
-  if (wanted.size === 0) return []
+  if (wanted.size === 0) {
+    return []
+  }
 
   return features.filter((feature) => {
-    if (feature.regionIdxs.some((idx) => wanted.has(idx))) return false
+    if (feature.regionIdxs.some((idx) => wanted.has(idx))) {
+      return false
+    }
     return coveredRegions(plan, feature).some((idx) => wanted.has(idx))
   })
 }
@@ -414,7 +435,9 @@ export const readingChanged = (
   const at = (plan: SetupPlan, pass: Pass) => plan.assigned[feature.featureTag]?.[pass]
 
   return PASSES.some((pass) => {
-    if (at(before, pass) !== at(after, pass)) return true
+    if (at(before, pass) !== at(after, pass)) {
+      return true
+    }
 
     const was = [...cutRegions(before, feature, pass)].sort((a, b) => a - b)
     const now = [...cutRegions(after, feature, pass)].sort((a, b) => a - b)

@@ -21,8 +21,12 @@ export type Arrows = 'all' | 'confirmed' | 'off'
  * one nobody could press without watching.
  */
 export const nextArrows = (arrows: Arrows): Arrows => {
-  if (arrows === 'all') return 'confirmed'
-  if (arrows === 'confirmed') return 'off'
+  if (arrows === 'all') {
+    return 'confirmed'
+  }
+  if (arrows === 'confirmed') {
+    return 'off'
+  }
   return 'all'
 }
 
@@ -42,7 +46,7 @@ export interface ArrowContext {
    * button says so rather than falling back to all of them, which would be the
    * toggle quietly refusing the state it was put in.
    */
-  readonly confirmed: readonly number[]
+  readonly confirmed: ReadonlyArray<number>
   /**
    * The ways up being **chosen**, while somebody is choosing them.
    *
@@ -53,7 +57,7 @@ export interface ArrowContext {
    *
    * `null` when nothing is being chosen, which is nearly always.
    */
-  readonly choosing: readonly number[] | null
+  readonly choosing: ReadonlyArray<number> | null
 }
 
 /**
@@ -76,18 +80,28 @@ export interface ArrowContext {
 export const shownArrow = (
   arrows: Arrows,
   context: ArrowContext,
-): number | readonly number[] | null => {
-  if (context.choosing !== null) return context.choosing
-  if (arrows === 'all') return null
-  if (context.activeDirection !== null) return context.activeDirection
+): number | ReadonlyArray<number> | null => {
+  if (context.choosing !== null) {
+    return context.choosing
+  }
+  if (arrows === 'all') {
+    return null
+  }
+  if (context.activeDirection !== null) {
+    return context.activeDirection
+  }
 
   const named = context.litDirection ?? context.focusedDirection
-  if (arrows !== 'confirmed') return named ?? -1
+  if (arrows !== 'confirmed') {
+    return named ?? -1
+  }
 
   // The plan's ways up, and whatever is being read alongside them. A reading's
   // own direction is part of the answer whether or not the plan has claimed it
   // — dropping it here would make clicking a feature take its arrow away.
-  if (named === null || context.confirmed.includes(named)) return context.confirmed
+  if (named === null || context.confirmed.includes(named)) {
+    return context.confirmed
+  }
   return [...context.confirmed, named]
 }
 
@@ -99,8 +113,12 @@ export const shownArrow = (
  */
 export const arrowsVisible = (arrows: Arrows, context: ArrowContext): boolean => {
   const shown = shownArrow(arrows, context)
-  if (shown === null) return true
-  if (typeof shown === 'number') return shown !== -1
+  if (shown === null) {
+    return true
+  }
+  if (typeof shown === 'number') {
+    return shown !== -1
+  }
   return shown.length > 0
 }
 

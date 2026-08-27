@@ -53,11 +53,23 @@ export const escapeStep = ({
   /** Whether anything other than By face is showing. */
   mode: boolean
 }): EscapeStep => {
-  if (editing) return 'editing'
-  if (hasSelection) return 'selection'
-  if (expandedType !== null) return 'expandedType'
-  if (direction !== null) return 'direction'
-  if (arrows) return 'arrows'
-  if (mode) return 'mode'
+  if (editing) {
+    return 'editing'
+  }
+  if (hasSelection) {
+    return 'selection'
+  }
+  if (expandedType !== null) {
+    return 'expandedType'
+  }
+  if (direction !== null) {
+    return 'direction'
+  }
+  if (arrows) {
+    return 'arrows'
+  }
+  if (mode) {
+    return 'mode'
+  }
   return null
 }

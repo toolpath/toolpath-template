@@ -110,7 +110,9 @@ export const useRules = (
   const loadPreset = useCallback((id: string) => {
     const selected = PRESET_SETS.find((set) => set.id === id)
 
-    if (!selected) return
+    if (!selected) {
+      return
+    }
 
     setPresetId(selected.id)
     setRevision((current) => current + 1)

@@ -148,7 +148,7 @@ describe('DFM Hono API', () => {
   })
 
   test('uses the SDK only to create a direct upload and start analysis', async () => {
-    const requests: Request[] = []
+    const requests: Array<Request> = []
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init)
       requests.push(request)
@@ -264,9 +264,12 @@ describe('DFM Hono API', () => {
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init)
       const url = new URL(request.url)
-      if (url.pathname === '/v1/jobs/job-1/events') return analysisStream(analysisJob('succeeded'))
-      if (request.method === 'GET' && url.pathname === '/v1/parts/part-1')
+      if (url.pathname === '/v1/jobs/job-1/events') {
+        return analysisStream(analysisJob('succeeded'))
+      }
+      if (request.method === 'GET' && url.pathname === '/v1/parts/part-1') {
         return Response.json(report('https://mesh.test/a?signature=secret'))
+      }
       throw new Error(`Unexpected request ${request.method} ${request.url}`)
     })
     const response = await createApp().request('/api/parts/part-1/events?jobId=job-1', {
@@ -284,8 +287,10 @@ describe('DFM Hono API', () => {
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init)
       const url = new URL(request.url)
-      if (url.pathname === '/v1/jobs/job-1/events') return analysisStream(analysisJob('succeeded'))
-      if (request.method === 'GET' && url.pathname === '/v1/parts/part-1')
+      if (url.pathname === '/v1/jobs/job-1/events') {
+        return analysisStream(analysisJob('succeeded'))
+      }
+      if (request.method === 'GET' && url.pathname === '/v1/parts/part-1') {
         return Response.json({
           ...report(),
           features: [
@@ -299,6 +304,7 @@ describe('DFM Hono API', () => {
             },
           ],
         })
+      }
       if (request.method === 'GET' && url.pathname === '/v1/parts/part-1/features') {
         expect(url.searchParams.get('ids')).toBe('feature-1')
         return Response.json({
@@ -369,9 +375,12 @@ describe('DFM Hono API', () => {
           report(`https://mesh.test/${reportReads === 1 ? 'expired' : 'fresh'}.glb`),
         )
       }
-      if (url.pathname === '/expired.glb') return new Response(null, { status: 403 })
-      if (url.pathname === '/fresh.glb')
+      if (url.pathname === '/expired.glb') {
+        return new Response(null, { status: 403 })
+      }
+      if (url.pathname === '/fresh.glb') {
         return new Response('mesh bytes', { headers: { 'Content-Type': 'model/gltf-binary' } })
+      }
       throw new Error(`Unexpected request ${request.method} ${request.url}`)
     })
     const response = await createApp().request('/api/parts/part-1/mesh?jobId=job-1&format=glb', {

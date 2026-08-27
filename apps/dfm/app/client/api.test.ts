@@ -14,8 +14,8 @@ describe('direct CAD upload', () => {
   })
 
   test('creates a part, PUTs the file directly, then starts analysis', async () => {
-    const requests: Request[] = []
-    const phases: string[] = []
+    const requests: Array<Request> = []
+    const phases: Array<string> = []
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(new URL(String(input), 'http://part-viewer.test'), init)
       requests.push(request)

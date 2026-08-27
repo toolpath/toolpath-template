@@ -1,7 +1,7 @@
 import { Button } from '@toolpath/ui'
 import { useState } from 'react'
-import type { UploadStatus } from '../client/use-part-upload'
-import { CAD_EXTENSIONS } from '../shared/cad'
+import type { UploadStatus } from 'client/use-part-upload'
+import { CAD_EXTENSIONS } from 'shared/cad'
 
 const uploadLabel = (status: UploadStatus): string => {
   switch (status) {
@@ -63,7 +63,9 @@ export const UploadPanel = ({
           isLoading={isUploading}
           disabled={!file || isBusy}
           onClick={() => {
-            if (file) void onUpload(file)
+            if (file) {
+              void onUpload(file)
+            }
           }}
         >
           {uploadLabel(status)}

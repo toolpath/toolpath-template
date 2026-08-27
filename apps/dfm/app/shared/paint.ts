@@ -12,7 +12,7 @@ import type { Band } from './rules'
  */
 export type PaintMode = 'directions' | 'plain' | 'difficulty'
 
-export const PAINT_MODES: readonly PaintMode[] = ['plain', 'directions', 'difficulty']
+export const PAINT_MODES: ReadonlyArray<PaintMode> = ['plain', 'directions', 'difficulty']
 
 /**
  * The modes, in the order they are offered.
@@ -26,7 +26,7 @@ export const PAINT_MODES: readonly PaintMode[] = ['plain', 'directions', 'diffic
  * The icons live in `components/panel-icons`, because an icon is a component
  * and this file is one a test can import without a DOM.
  */
-const ALL_PAINT_MODE_LABELS: readonly (readonly [PaintMode, string])[] = [
+const ALL_PAINT_MODE_LABELS: ReadonlyArray<readonly [PaintMode, string]> = [
   ['plain', 'Plain'],
   ['directions', 'Directions'],
   ['difficulty', 'Difficulty'],
@@ -90,10 +90,14 @@ export const regionWash = (
   /** Which reading cuts each face, for `difficulty`. */
   cutRegionsBy: ReadonlyMap<number, string> = new Map(),
   /** What the rules made of each feature, for `difficulty`. */
-  verdicts: readonly { tag: string; band: Band | null }[] = [],
-): RegionWash[] => {
-  if (mode === 'difficulty') return difficultyRegionWash(cutRegionsBy, verdicts)
-  if (mode !== 'directions') return []
+  verdicts: ReadonlyArray<{ tag: string; band: Band | null }> = [],
+): Array<RegionWash> => {
+  if (mode === 'difficulty') {
+    return difficultyRegionWash(cutRegionsBy, verdicts)
+  }
+  if (mode !== 'directions') {
+    return []
+  }
 
   return [...cutByRegion].map(([region, direction]) => ({
     region,
@@ -115,8 +119,8 @@ export const regionWash = (
  */
 const difficultyRegionWash = (
   cutRegionsBy: ReadonlyMap<number, string>,
-  verdicts: readonly { tag: string; band: Band | null }[],
-): RegionWash[] => {
+  verdicts: ReadonlyArray<{ tag: string; band: Band | null }>,
+): Array<RegionWash> => {
   const bands = new Map(verdicts.map((verdict) => [verdict.tag, verdict.band]))
 
   return [...cutRegionsBy]
@@ -137,12 +141,16 @@ const difficultyRegionWash = (
 export const paintWash = (
   mode: PaintMode,
   /** What the rules made of each feature, for `difficulty`. */
-  verdicts: readonly { tag: string; band: Band | null }[] = [],
+  verdicts: ReadonlyArray<{ tag: string; band: Band | null }> = [],
   /** Which way up cuts each feature in the pass being shown, for `directions`. */
   cutBy: ReadonlyMap<string, number> = new Map(),
-): FeatureWash[] => {
-  if (mode === 'difficulty') return difficultyWash(verdicts, new Set(cutBy.keys()))
-  if (mode === 'directions') return directionsWash(cutBy)
+): Array<FeatureWash> => {
+  if (mode === 'difficulty') {
+    return difficultyWash(verdicts, new Set(cutBy.keys()))
+  }
+  if (mode === 'directions') {
+    return directionsWash(cutBy)
+  }
   return []
 }
 
@@ -155,7 +163,7 @@ export const paintWash = (
  * a decision nobody made. A face with no colour here is a face nothing cuts —
  * which is the question the page exists to close.
  */
-const directionsWash = (cutBy: ReadonlyMap<string, number>): FeatureWash[] => {
+const directionsWash = (cutBy: ReadonlyMap<string, number>): Array<FeatureWash> => {
   return [...cutBy].map(([tag, direction]) => ({
     tag,
     color: DIRECTION_COLORS[direction % DIRECTION_COLORS.length] ?? 0x64748b,
@@ -184,10 +192,10 @@ const directionsWash = (cutBy: ReadonlyMap<string, number>): FeatureWash[] => {
  * "nobody looked" should not cover a colour that means something.
  */
 const difficultyWash = (
-  verdicts: readonly { tag: string; band: Band | null }[],
+  verdicts: ReadonlyArray<{ tag: string; band: Band | null }>,
   /** Readings the plan cuts in the pass being shown. */
   mapped: ReadonlySet<string>,
-): FeatureWash[] => {
+): Array<FeatureWash> => {
   return verdicts
     .filter((verdict) => mapped.has(verdict.tag))
     .sort((a, b) => paintOrder(b.band) - paintOrder(a.band))
@@ -226,10 +234,10 @@ export const PAINTED_HEX = 0xf97316
  * an offer amounts to tile exactly the faces it is offering.
  */
 export const proposedWash = (
-  readings: readonly { featureTag: string }[],
+  readings: ReadonlyArray<{ featureTag: string }>,
   /** Which way up is asking. Falls back to the old violet where unknown. */
   direction?: number,
-): FeatureWash[] => {
+): Array<FeatureWash> => {
   const color =
     direction === undefined
       ? PROPOSED_HEX
@@ -254,7 +262,9 @@ export const proposedWash = (
  * faces, so the part showed two different meanings in one colour and neither
  * could be identified.
  */
-export const paintedWash = (readings: readonly { featureTag: string }[]): FeatureWash[] => {
+export const paintedWash = (
+  readings: ReadonlyArray<{ featureTag: string }>,
+): Array<FeatureWash> => {
   return readings.map((reading) => ({
     tag: reading.featureTag,
     color: PAINTED_HEX,

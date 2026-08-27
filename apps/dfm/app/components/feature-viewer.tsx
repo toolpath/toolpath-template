@@ -19,17 +19,17 @@ import { useEffect, useCallback, Component, Suspense, useMemo, useRef, useState 
 import type { ErrorInfo, ReactNode } from 'react'
 import type { Box3 } from 'three'
 import type { PartPick, SectionPlacement, SectionState } from '@toolpath/viewer'
-import { type Arrows, nextArrows } from '../shared/arrows'
-import { READING_COLORS, SETUP_COLORS } from '../shared/selection-colors'
-import { loadShowAids, saveShowAids } from '../shared/scene-aids'
-import { loadZoomTo, saveZoomTo, type ZoomTo } from '../shared/zoom-to'
-import { directionLabel } from '../shared/report'
+import { type Arrows, nextArrows } from 'shared/arrows'
+import { READING_COLORS, SETUP_COLORS } from 'shared/selection-colors'
+import { loadShowAids, saveShowAids } from 'shared/scene-aids'
+import { loadZoomTo, saveZoomTo, type ZoomTo } from 'shared/zoom-to'
+import { directionLabel } from 'shared/report'
 import { BananaIcon, GridIcon, PAINT_MODE_ICONS } from './panel-icons'
 import { Banana } from './banana'
 import { PartSize, formatSides, sidesOf } from './part-size'
-import type { Unit } from '../shared/units'
-import { loadBanana, saveBanana } from '../shared/banana'
-import { applyTheme, loadTheme, saveTheme, type Theme } from '../shared/theme'
+import type { Unit } from 'shared/units'
+import { loadBanana, saveBanana } from 'shared/banana'
+import { applyTheme, loadTheme, saveTheme, type Theme } from 'shared/theme'
 import {
   PAINT_MODE_LABELS,
   type PaintMode,
@@ -37,13 +37,13 @@ import {
   paintedWash,
   proposedWash,
   regionWash,
-} from '../shared/paint'
-import type { Band } from '../shared/rules'
-import type { Pass } from '../shared/setups'
+} from 'shared/paint'
+import type { Band } from 'shared/rules'
+import type { Pass } from 'shared/setups'
 import { Button } from '@toolpath/ui'
 import { ToolButton } from './tool-button'
 import { barButtonClass } from './panel-button'
-import type { PartReport, PublicInspectionReport } from '../shared/contracts'
+import type { PartReport, PublicInspectionReport } from 'shared/contracts'
 import { usePartView } from './part-view'
 
 class MeshErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -163,16 +163,16 @@ export const FeatureViewer = ({
 }: {
   jobId: string
   /** The readings painted as selected: ticked, plus whatever is being read. */
-  selectedFeatureTags: readonly string[]
+  selectedFeatureTags: ReadonlyArray<string>
   /** Features under the pointer in the feature list. */
-  highlightedFeatureTags: readonly string[]
+  highlightedFeatureTags: ReadonlyArray<string>
   /**
    * The faces being held, painted so a modifier-click has something to aim at.
    *
    * Without them, holding a second face narrows the candidate list and often
    * leaves the same reading painted, so the click looks like it did nothing.
    */
-  heldRegions: readonly number[]
+  heldRegions: ReadonlyArray<number>
   /** Scopes picking to one way up, and shows that arrow on its own. */
   activeDirection: number | null
   /**
@@ -182,7 +182,7 @@ export const FeatureViewer = ({
    * one feature is being read, the other nine answer a question nobody asked.
    */
   /** `null` for every arrow, an index for one, a list for a set, `-1` for none. */
-  shownDirection: number | readonly number[] | null
+  shownDirection: number | ReadonlyArray<number> | null
   /** Every arrow, only the ways up the plan holds, or only what the selection implies. */
   arrows: Arrows
   onArrows: (arrows: Arrows) => void
@@ -203,9 +203,9 @@ export const FeatureViewer = ({
    * listed. Under the picked colour, so the row under the pointer still stands
    * out of the set it belongs to.
    */
-  faceLayer: readonly { region: number; color: number; weight: number }[]
+  faceLayer: ReadonlyArray<{ region: number; color: number; weight: number }>
   /** Readings the app is offering, painted over everything else. */
-  proposed: readonly { featureTag: string }[]
+  proposed: ReadonlyArray<{ featureTag: string }>
   /**
    * Which way up the offer came from, so it is painted in that colour.
    *
@@ -215,7 +215,7 @@ export const FeatureViewer = ({
    */
   proposedFrom?: number | undefined
   /** Readings gathered by painting, in their own orange. */
-  painted: readonly { featureTag: string }[]
+  painted: ReadonlyArray<{ featureTag: string }>
   onPaintMode: (mode: PaintMode) => void
   /** A feature to zoom to. Framed when it changes. */
   focusFeature: string | null
@@ -281,7 +281,9 @@ export const FeatureViewer = ({
     setBanana((shown) => {
       saveBanana(typeof window === 'undefined' ? null : window.localStorage, !shown)
       // Going off, re-fit now: nothing is arriving to ask for it later.
-      if (shown) viewerRef.current?.fit()
+      if (shown) {
+        viewerRef.current?.fit()
+      }
       return !shown
     })
   }
@@ -676,7 +678,9 @@ export const FeatureViewer = ({
                 onSectionChange={(state) => {
                   // The handle reports its drag through the same path the
                   // slider writes to, so the two never disagree.
-                  if (state.plane && state.depth !== null) setDepth(state.depth)
+                  if (state.plane && state.depth !== null) {
+                    setDepth(state.depth)
+                  }
                   setDepthRange(state.depthRange)
                 }}
               />

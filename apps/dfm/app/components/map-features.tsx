@@ -7,29 +7,29 @@ import { PassButtons } from './pass-buttons'
 import { panelButtonClass } from './panel-button'
 import { CreateIcon, DirectionIcon, FeatureIcon } from './panel-icons'
 import { ScoreBadge } from './score-badge'
-import { directionCss } from '../shared/direction-colors'
-import { directionLabel } from '../shared/report'
-import { cutElsewhere, type FacePart } from '../shared/faces'
-import { pluralLabel, typeLabel } from '../shared/part-summary'
-import { isMade } from '../shared/make-feature'
-import { moveThroughList } from '../shared/list-keys'
-import { byDirection, offersFor } from '../shared/map-features'
-import { groupAcrossPart, groupHoles, holeDiameter } from '../shared/hole-groups'
-import { blockedBy, lockedClaims, settledSetup, setupForReading } from '../shared/plan-actions'
-import type { LockedClaims } from '../shared/plan-actions'
-import type { UncutFace } from '../shared/plan-summary'
-import { PASSES, cutState, directionOf, faceCounts, groupCutState } from '../shared/setups'
-import type { PartFaces, Pass, SetupPlan } from '../shared/setups'
+import { directionCss } from 'shared/direction-colors'
+import { directionLabel } from 'shared/report'
+import { cutElsewhere, type FacePart } from 'shared/faces'
+import { pluralLabel, typeLabel } from 'shared/part-summary'
+import { isMade } from 'shared/make-feature'
+import { moveThroughList } from 'shared/list-keys'
+import { byDirection, offersFor } from 'shared/map-features'
+import { groupAcrossPart, groupHoles, holeDiameter } from 'shared/hole-groups'
+import { blockedBy, lockedClaims, settledSetup, setupForReading } from 'shared/plan-actions'
+import type { LockedClaims } from 'shared/plan-actions'
+import type { UncutFace } from 'shared/plan-summary'
+import { PASSES, cutState, directionOf, faceCounts, groupCutState } from 'shared/setups'
+import type { PartFaces, Pass, SetupPlan } from 'shared/setups'
 import { LockIcon } from '@phosphor-icons/react'
-import type { PartFeature } from '../shared/contracts'
-import type { FeatureScore } from '../shared/feature-score'
-import type { PickMode } from '../shared/pick-mode'
+import type { PartFeature } from 'shared/contracts'
+import type { FeatureScore } from 'shared/feature-score'
+import type { PickMode } from 'shared/pick-mode'
 import { CreateFeature } from './create-feature'
-import { EMPTY_DRAFT, type Draft, type Touching } from '../shared/make-feature'
-import { INFER_SCOPES, type Infer } from '../shared/infer'
-import type { Proposal } from '../shared/proposal'
-import { formatArea, formatLength, type Unit } from '../shared/units'
-import { keynavAttributes, rowAttributes } from '../shared/row-nav'
+import { EMPTY_DRAFT, type Draft, type Touching } from 'shared/make-feature'
+import { INFER_SCOPES, type Infer } from 'shared/infer'
+import type { Proposal } from 'shared/proposal'
+import { formatArea, formatLength, type Unit } from 'shared/units'
+import { keynavAttributes, rowAttributes } from 'shared/row-nav'
 import { usePartView } from './part-view'
 
 /**
@@ -242,9 +242,9 @@ const GroupHeader = ({
   trailing?: string
   plan: SetupPlan
   claims: LockedClaims
-  directions: readonly Vec3[]
+  directions: ReadonlyArray<Vec3>
   highlighted: number | null
-  onHighlightDirection: (index: number, tags: readonly string[]) => void
+  onHighlightDirection: (index: number, tags: ReadonlyArray<string>) => void
   onSetPass: (features: ReadonlyArray<PartFeature>, passes: ReadonlyArray<Pass>) => void
 }) => {
   const state = (pass: Pass) =>
@@ -329,12 +329,12 @@ const HoleRow = ({
   label: string
   plan: SetupPlan
   claims: LockedClaims
-  directions: readonly Vec3[]
+  directions: ReadonlyArray<Vec3>
   scores: ReadonlyMap<string, FeatureScore>
   focusedTag: string | null
   onChoose: (featureTag: string, alone: boolean) => void
   onSetPass: (features: ReadonlyArray<PartFeature>, passes: ReadonlyArray<Pass>) => void
-  onHover: (tags: string[]) => void
+  onHover: (tags: Array<string>) => void
 }) => {
   const setup = setupForReading(plan, directions, hole)
   const isFocused = hole.featureTag === focusedTag
@@ -418,14 +418,16 @@ const ElsewhereFlag = ({
   plan,
   report,
 }: {
-  directions: readonly Vec3[]
+  directions: ReadonlyArray<Vec3>
   feature: PartFeature
   plan: SetupPlan
   report: FacePart
 }) => {
   const homes = PASSES.map((pass) => {
     const holder = cutElsewhere(report, plan, feature, pass)[0]
-    if (!holder) return { pass, index: null, label: null }
+    if (!holder) {
+      return { pass, index: null, label: null }
+    }
 
     const setup = plan.setups.find((entry) => entry.id === plan.assigned[holder.featureTag]?.[pass])
     const direction = setup ? directionOf(setup, directions) : null
@@ -438,7 +440,9 @@ const ElsewhereFlag = ({
   })
 
   const [rough, finish] = homes
-  if (rough?.label === null && finish?.label === null) return null
+  if (rough?.label === null && finish?.label === null) {
+    return null
+  }
 
   const together = rough?.label !== null && rough?.label === finish?.label
   const dot = (index: number | null) => (
@@ -549,7 +553,7 @@ const Reading = ({
   label: string
   inOffer?: boolean
   /** Anything that acts on this row from outside — the offer's prune, so far. */
-  trailing?: React.ReactNode
+  trailing?: ReactNode
   /**
    * Whether this reading holds the picked face **by hand** rather than by
    * report.
@@ -562,14 +566,14 @@ const Reading = ({
   claims: LockedClaims
   /** Which pass the row's face count is reading. */
   showingPass: Pass
-  directions: readonly Vec3[]
+  directions: ReadonlyArray<Vec3>
   scores: ReadonlyMap<string, FeatureScore>
   focusedTag: string | null
   onChoose: (featureTag: string, alone: boolean) => void
   onSetPass: (features: ReadonlyArray<PartFeature>, passes: ReadonlyArray<Pass>) => void
   /** Open this reading's faces, in place of the datasheet. */
   onShowFaces: (featureTag: string) => void
-  onHover: (tags: string[]) => void
+  onHover: (tags: Array<string>) => void
 }) => {
   const setup = setupForReading(plan, directions, feature)
   const group = siblings.length > 0 ? siblings : [feature]
@@ -826,7 +830,7 @@ export const MapFeaturesPanel = ({
   onHover,
 }: {
   /** The readings owning every picked face, ranked — by-face mode's whole job. */
-  candidates: readonly PartFeature[]
+  candidates: ReadonlyArray<PartFeature>
   mode: PickMode
   painted: ReadonlySet<number>
   holding: number | null
@@ -845,7 +849,7 @@ export const MapFeaturesPanel = ({
    * unassigned on a finished part, and a feature can read as unmapped while
    * every face it covers is already cut by somebody else. Neither is a gap.
    */
-  uncut: readonly UncutFace[]
+  uncut: ReadonlyArray<UncutFace>
   /** Pick one from the list — the same act as clicking it on the part. */
   onPickFace: (region: number) => void
   /** The reading being drawn, if one is. */
@@ -865,7 +869,7 @@ export const MapFeaturesPanel = ({
    * one on screen.
    */
   /** The types this part has, so a made reading is named like the rest. */
-  types: readonly string[]
+  types: ReadonlyArray<string>
   /** Which faces touch which, for chaining and continuity while drawing. */
   touching: Touching
   /** Light one chosen face on the part on its own, while drawing. */
@@ -893,7 +897,7 @@ export const MapFeaturesPanel = ({
   /** A standing offer, if the app has been asked for one. */
   proposal: Proposal | null
   /** What that offer currently amounts to. */
-  proposed: readonly PartFeature[]
+  proposed: ReadonlyArray<PartFeature>
   onInfer: (kind: Infer) => void
   /** Takes a whole row out of the offer — a group of identical holes included. */
   onPrune: (readings: ReadonlyArray<PartFeature>) => void
@@ -902,11 +906,11 @@ export const MapFeaturesPanel = ({
   /** `alone` is true only for a hole named from inside its own opened group. */
   onChoose: (featureTag: string, alone: boolean) => void
   /** Light every reading of one way up, from the faces in hand. */
-  onHighlightDirection: (index: number, tags: readonly string[]) => void
+  onHighlightDirection: (index: number, tags: ReadonlyArray<string>) => void
   onSetPass: (features: ReadonlyArray<PartFeature>, passes: ReadonlyArray<Pass>) => void
   /** Open a reading's faces, in place of the datasheet. */
   onShowFaces: (featureTag: string) => void
-  onHover: (tags: string[]) => void
+  onHover: (tags: Array<string>) => void
 }) => {
   const { directions, features, plan, scores, unit, report, showingPass } = usePartView()
   /*
@@ -954,7 +958,9 @@ export const MapFeaturesPanel = ({
   const openGroup = (key: string) =>
     setOpened((current) => {
       const next = new Set(current)
-      if (!next.delete(key)) next.add(key)
+      if (!next.delete(key)) {
+        next.add(key)
+      }
       return next
     })
   /*
@@ -971,7 +977,9 @@ export const MapFeaturesPanel = ({
         setOpenFace(Number(key))
         return
       }
-      if (!opened.has(key)) openGroup(key)
+      if (!opened.has(key)) {
+        openGroup(key)
+      }
     },
     onClose: (key: string) => {
       if (isFaceRow(key)) {
@@ -1257,7 +1265,9 @@ export const MapFeaturesPanel = ({
                      * somebody hunting the part for it.
                      */
                     setOpenFace((current) => (current === face.idx ? null : face.idx))
-                    if (openFace !== face.idx) onPickFace(face.idx)
+                    if (openFace !== face.idx) {
+                      onPickFace(face.idx)
+                    }
                   }}
                   aria-expanded={openFace === face.idx}
                   className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-2xs transition hover:bg-surface"

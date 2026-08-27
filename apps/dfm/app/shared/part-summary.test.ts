@@ -54,7 +54,9 @@ describe('partSummary', () => {
 
   it('counts nothing against no question', () => {
     // A column equal to the one beside it is a column nobody reads.
-    for (const entry of partSummary(report).types) expect(entry.inDirection).toBeNull()
+    for (const entry of partSummary(report).types) {
+      expect(entry.inDirection).toBeNull()
+    }
   })
 
   it('lists the feature types commonest first', () => {

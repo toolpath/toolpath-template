@@ -53,7 +53,9 @@ export const directionRows = (report: PartDirections): Array<DirectionRow> => {
 
   for (const feature of report.features) {
     const index = directionIndexOf(report, feature)
-    if (index === -1) continue
+    if (index === -1) {
+      continue
+    }
 
     featuresPer[index] += 1
     for (const idx of feature.regionIdxs) {

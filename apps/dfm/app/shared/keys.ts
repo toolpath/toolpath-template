@@ -48,7 +48,9 @@ export const planKey = (key: string): PlanKey => {
  */
 export const isTyping = (target: EventTarget | null): boolean => {
   const element = target as HTMLElement | null
-  if (!element) return false
+  if (!element) {
+    return false
+  }
   const tag = element.tagName
   return tag === 'INPUT' || tag === 'TEXTAREA' || element.isContentEditable
 }
@@ -96,9 +98,13 @@ export const keyIntent = ({
    */
   inList: boolean
 }): KeyIntent => {
-  if (typing) return null
+  if (typing) {
+    return null
+  }
 
-  if (key === 'Escape') return { act: 'escape' }
+  if (key === 'Escape') {
+    return { act: 'escape' }
+  }
 
   /*
    * Z shows every arrow, or puts them all away.
@@ -107,15 +113,25 @@ export const keyIntent = ({
    * the toolbar to find one is a gesture away from the part. Not in `planKey`
    * — that is about the reading in hand, and this is about the whole part.
    */
-  if (key.toLowerCase() === 'z') return { act: 'arrows' }
+  if (key.toLowerCase() === 'z') {
+    return { act: 'arrows' }
+  }
 
   const plan = planKey(key)
-  if (plan) return { act: 'plan', plan }
+  if (plan) {
+    return { act: 'plan', plan }
+  }
 
-  if (inList) return null
+  if (inList) {
+    return null
+  }
 
-  if (key === 'ArrowDown') return { act: 'step', by: 1 }
-  if (key === 'ArrowUp') return { act: 'step', by: -1 }
+  if (key === 'ArrowDown') {
+    return { act: 'step', by: 1 }
+  }
+  if (key === 'ArrowUp') {
+    return { act: 'step', by: -1 }
+  }
 
   return null
 }

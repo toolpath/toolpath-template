@@ -1,17 +1,17 @@
-import type { PartFeature, PublicInspectionReport } from '../shared/contracts'
+import type { PartFeature, PublicInspectionReport } from 'shared/contracts'
 import { KindIcon } from './feature-icons'
-import { duration, partSummary } from '../shared/part-summary'
-import { directionLabel } from '../shared/report'
-import { directionCss } from '../shared/direction-colors'
-import { groupHoles } from '../shared/hole-groups'
-import type { SetupPlan } from '../shared/setups'
-import { coverageOf } from '../shared/setups'
-import { directionRows } from '../shared/direction-rows'
-import { moveThroughList } from '../shared/list-keys'
+import { duration, partSummary } from 'shared/part-summary'
+import { directionLabel } from 'shared/report'
+import { directionCss } from 'shared/direction-colors'
+import { groupHoles } from 'shared/hole-groups'
+import type { SetupPlan } from 'shared/setups'
+import { coverageOf } from 'shared/setups'
+import { directionRows } from 'shared/direction-rows'
+import { moveThroughList } from 'shared/list-keys'
 import { Heading } from './heading'
-import type { FeatureScore } from '../shared/feature-score'
+import type { FeatureScore } from 'shared/feature-score'
 import { ScoreBadge } from './score-badge'
-import { keynavAttributes, rowAttributes } from '../shared/row-nav'
+import { keynavAttributes, rowAttributes } from 'shared/row-nav'
 
 const Count = ({ label, value }: { label: string; value: string | number }) => (
   <div className="flex items-baseline justify-between gap-4 py-1">
@@ -45,7 +45,7 @@ export const PartSummary = ({
 }: {
   report: PublicInspectionReport
   /** The features to list, already filtered by whatever search is running. */
-  features: readonly PartFeature[]
+  features: ReadonlyArray<PartFeature>
   activeDirection: number | null
   /** The mapping so far, so each way up can say what it has been given. */
   plan: SetupPlan
@@ -53,9 +53,9 @@ export const PartSummary = ({
   expandedType: string | null
   onExpandType: (type: string | null) => void
   focusedTag: string | null
-  candidateTags: readonly string[]
+  candidateTags: ReadonlyArray<string>
   onChoose: (featureTag: string) => void
-  onHover: (featureTags: string[]) => void
+  onHover: (featureTags: Array<string>) => void
   query: string
   onQuery: (query: string) => void
   /** How hard each feature is, where the rules had anything to say. */

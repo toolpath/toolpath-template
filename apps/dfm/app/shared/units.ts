@@ -17,13 +17,17 @@ export const MODEL_UNIT: Unit = 'mm'
 const PER_INCH = 25.4
 
 export const convertLength = (value: number, from: Unit, to: Unit): number => {
-  if (from === to) return value
+  if (from === to) {
+    return value
+  }
   return from === 'in' ? value * PER_INCH : value / PER_INCH
 }
 
 /** Areas scale with the square of the length conversion. */
 export const convertArea = (value: number, from: Unit, to: Unit): number => {
-  if (from === to) return value
+  if (from === to) {
+    return value
+  }
   return from === 'in' ? value * PER_INCH ** 2 : value / PER_INCH ** 2
 }
 

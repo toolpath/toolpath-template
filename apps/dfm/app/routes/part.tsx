@@ -1,7 +1,7 @@
 import { Link, useParams, useSearchParams } from 'react-router'
 import { Card } from '@toolpath/ui'
-import { PartInspector } from '../components/part-inspector'
-import { useAnalysisEvents } from '../client/use-analysis-events'
+import { PartInspector } from 'components/part-inspector'
+import { useAnalysisEvents } from 'client/use-analysis-events'
 
 const FailedPart = ({ message }: { message: string }) => (
   <main className="grid min-h-screen place-items-center bg-ground p-6 text-ink">
@@ -23,14 +23,20 @@ const PartRoute = () => {
   const { partId } = useParams()
   const [searchParams] = useSearchParams()
   const jobId = searchParams.get('job')
-  if (!partId || !jobId) return <FailedPart message="No analysis job was supplied for this part." />
+  if (!partId || !jobId) {
+    return <FailedPart message="No analysis job was supplied for this part." />
+  }
   return <ActivePart partId={partId} jobId={jobId} />
 }
 
 const ActivePart = ({ partId, jobId }: { partId: string; jobId: string }) => {
   const state = useAnalysisEvents(partId, jobId)
-  if (state.status === 'ready') return <PartInspector report={state.report} jobId={jobId} />
-  if (state.status === 'failed') return <FailedPart message={state.message} />
+  if (state.status === 'ready') {
+    return <PartInspector report={state.report} jobId={jobId} />
+  }
+  if (state.status === 'failed') {
+    return <FailedPart message={state.message} />
+  }
   const percent = state.progress === null ? null : `${Math.round(state.progress * 100)}%`
   return (
     <main className="grid min-h-screen place-items-center bg-ground p-6 text-ink">

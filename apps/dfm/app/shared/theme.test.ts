@@ -157,6 +157,8 @@ describe('the script that runs before the first paint', () => {
 
     expect(() => new Function(THEME_SCRIPT)()).not.toThrow()
 
-    if (original) Object.defineProperty(window, 'localStorage', original)
+    if (original) {
+      Object.defineProperty(window, 'localStorage', original)
+    }
   })
 })

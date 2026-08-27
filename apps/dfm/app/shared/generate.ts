@@ -166,10 +166,14 @@ const planFor = (
   for (const index of wanted) {
     const already = setups.find((setup) => setup.directionIndex === index)
     const setup = already ?? setupFor(directions, index, setups.length)
-    if (!already) setups.push(setup)
+    if (!already) {
+      setups.push(setup)
+    }
 
     const direction = directions[index]
-    if (!direction) continue
+    if (!direction) {
+      continue
+    }
 
     const key = directionKey(direction)
     // Best reading first *within* the direction: two features of one setup can
@@ -186,15 +190,21 @@ const planFor = (
       )
 
     for (const feature of mine) {
-      if (assigned[feature.featureTag]?.rough) continue
+      if (assigned[feature.featureTag]?.rough) {
+        continue
+      }
 
       // All of it or none of it. A feature is one operation over the faces it
       // covers — you cannot run half a profile — so a reading that overlaps
       // ground another setup already cuts is not a saving, it is the same wall
       // machined twice.
-      if (feature.regionIdxs.some((idx) => claimed.has(idx))) continue
+      if (feature.regionIdxs.some((idx) => claimed.has(idx))) {
+        continue
+      }
 
-      for (const idx of feature.regionIdxs) claimed.add(idx)
+      for (const idx of feature.regionIdxs) {
+        claimed.add(idx)
+      }
       assigned[feature.featureTag] = { rough: setup.id, finish: setup.id }
     }
   }

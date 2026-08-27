@@ -23,7 +23,7 @@ import type { PartFeature } from './contracts'
 const UP = TEST_DIRECTIONS[0]!
 const DOWN = TEST_DIRECTIONS[1]!
 
-const typed = (tag: string, type: string, dir: typeof UP, faces: number[], kind?: string) =>
+const typed = (tag: string, type: string, dir: typeof UP, faces: Array<number>, kind?: string) =>
   ({
     ...testFeature(tag, type, dir, faces),
     datasheet: kind === undefined ? null : { facts: { kind } },

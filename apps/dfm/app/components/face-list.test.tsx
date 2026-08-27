@@ -4,10 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { FaceList } from './face-list'
 import { PartViewProvider, type PartView } from './part-view'
-import { EMPTY_PLAN, PASSES, type SetupPlan } from '../shared/setups'
-import { setFaceCut } from '../shared/faces'
-import { setPassFor } from '../shared/plan-actions'
-import { TEST_DIRECTIONS, testFeature, testReport } from '../shared/test-part'
+import { EMPTY_PLAN, PASSES, type SetupPlan } from 'shared/setups'
+import { setFaceCut } from 'shared/faces'
+import { setPassFor } from 'shared/plan-actions'
+import { TEST_DIRECTIONS, testFeature, testReport } from 'shared/test-part'
 
 /**
  * The face editor. The clicks it arms happen on a mesh no fixture mounts (F51),

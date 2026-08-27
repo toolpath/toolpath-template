@@ -45,10 +45,14 @@ export const propose = (
   setupId?: string,
 ): Proposal | null => {
   const vector = directions[direction]
-  if (!vector) return null
+  if (!vector) {
+    return null
+  }
 
   const offered = inferable(features, plan, vector, kind, verdicts, setupId)
-  if (offered.length === 0) return null
+  if (offered.length === 0) {
+    return null
+  }
 
   return {
     direction,
@@ -65,7 +69,9 @@ export const proposedReadings = (
   verdicts?: ReadonlyArray<FeatureVerdict>,
 ): Array<PartFeature> => {
   const vector = directions[proposal.direction]
-  if (!vector) return []
+  if (!vector) {
+    return []
+  }
   return coverFaces(features, vector, proposal.faces, verdicts, proposal.kept)
 }
 
@@ -79,15 +85,21 @@ export const proposedReadings = (
 export const withoutFace = (proposal: Proposal, face: number): Proposal | null => {
   const faces = new Set(proposal.faces)
   faces.delete(face)
-  if (faces.size === 0) return null
+  if (faces.size === 0) {
+    return null
+  }
   return { ...proposal, faces }
 }
 
 /** Taking a whole reading out of an offer — the X on its row. */
 export const withoutReading = (proposal: Proposal, feature: PartFeature): Proposal | null => {
   const faces = new Set(proposal.faces)
-  for (const idx of feature.regionIdxs) faces.delete(idx)
-  if (faces.size === 0) return null
+  for (const idx of feature.regionIdxs) {
+    faces.delete(idx)
+  }
+  if (faces.size === 0) {
+    return null
+  }
 
   const kept = new Set(proposal.kept)
   kept.delete(feature.featureTag)
@@ -108,17 +120,23 @@ export const withReading = (
   reading: PartFeature,
   claimed: ReadonlySet<number>,
 ): Proposal => {
-  if (reading.regionIdxs.some((idx) => claimed.has(idx))) return proposal
+  if (reading.regionIdxs.some((idx) => claimed.has(idx))) {
+    return proposal
+  }
 
   const faces = new Set(proposal.faces)
-  for (const idx of reading.regionIdxs) faces.add(idx)
+  for (const idx of reading.regionIdxs) {
+    faces.add(idx)
+  }
   return { ...proposal, faces }
 }
 
 /** Assigning a reading keeps it, so re-covering can never take it back. */
 export const keeping = (proposal: Proposal, features: ReadonlyArray<PartFeature>): Proposal => {
   const kept = new Set(proposal.kept)
-  for (const feature of features) kept.add(feature.featureTag)
+  for (const feature of features) {
+    kept.add(feature.featureTag)
+  }
   return { ...proposal, kept }
 }
 
@@ -138,8 +156,12 @@ export const focusAfterPrune = (
   before: ReadonlyArray<{ featureTag: string }>,
   after: ReadonlyArray<{ featureTag: string }>,
 ): string | null => {
-  if (focused === null) return null
+  if (focused === null) {
+    return null
+  }
   const wasOffered = before.some((feature) => feature.featureTag === focused)
-  if (!wasOffered) return focused
+  if (!wasOffered) {
+    return focused
+  }
   return after.some((feature) => feature.featureTag === focused) ? focused : null
 }

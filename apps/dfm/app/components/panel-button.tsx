@@ -30,7 +30,9 @@ export const panelButtonClass = ({
   const base =
     'rounded border px-2 py-1 text-2xs font-bold uppercase tracking-wider transition disabled:opacity-40'
 
-  if (pressed) return `${base} border-info bg-info/10 text-ink-strong`
+  if (pressed) {
+    return `${base} border-info bg-info/10 text-ink-strong`
+  }
   if (tone === 'danger') {
     return `${base} border-edge text-ink-muted enabled:hover:border-danger enabled:hover:text-danger`
   }

@@ -33,8 +33,8 @@ export interface PartSummary {
   readonly regions: number
   readonly triangles: number
   readonly points: number
-  readonly directions: readonly DirectionCount[]
-  readonly types: readonly TypeCount[]
+  readonly directions: ReadonlyArray<DirectionCount>
+  readonly types: ReadonlyArray<TypeCount>
   readonly timing: { readonly download: number; readonly analysis: number; readonly total: number }
 }
 
@@ -70,8 +70,12 @@ export const typeLabel = (value: string): string =>
  */
 export const pluralLabel = (value: string): string => {
   const lower = value.toLowerCase()
-  if (/(s|x|z|ch|sh)$/.test(lower)) return `${value}es`
-  if (/[^aeiou]y$/.test(lower)) return `${value.slice(0, -1)}ies`
+  if (/(s|x|z|ch|sh)$/.test(lower)) {
+    return `${value}es`
+  }
+  if (/[^aeiou]y$/.test(lower)) {
+    return `${value.slice(0, -1)}ies`
+  }
   return `${value}s`
 }
 

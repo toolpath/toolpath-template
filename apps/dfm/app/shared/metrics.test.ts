@@ -144,7 +144,9 @@ describe('the two readers of the datasheet agree', () => {
     const shown = rowValue(row)
     const measured = metrics[metric]
 
-    if (shown === null && measured === null) return
+    if (shown === null && measured === null) {
+      return
+    }
     expect(measured).not.toBe(null)
     expect(shown).toBeCloseTo(measured as number, 2)
   })

@@ -28,7 +28,9 @@ const list = (name: string, rows: ReadonlyArray<{ value: string; holds?: Array<s
   for (const row of rows) {
     const element = document.createElement('button')
     for (const [key, value] of Object.entries(rowAttributes(row.value, row.holds))) {
-      if (value !== undefined) element.setAttribute(key, value)
+      if (value !== undefined) {
+        element.setAttribute(key, value)
+      }
     }
     container.append(element)
   }

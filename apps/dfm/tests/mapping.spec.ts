@@ -27,7 +27,9 @@ import { SIDE, UP, faces, feature, openFeature, openPart, report } from './part-
 const fillAll = async (page: Page) => {
   await page.getByRole('tab', { name: 'Directions' }).click()
   const summary = page.locator('summary', { hasText: 'Generate directions' })
-  if (!(await page.getByRole('button', { name: 'Fill all' }).isVisible())) await summary.click()
+  if (!(await page.getByRole('button', { name: 'Fill all' }).isVisible())) {
+    await summary.click()
+  }
   await page.getByRole('button', { name: 'Fill all' }).click()
 }
 

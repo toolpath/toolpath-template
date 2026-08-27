@@ -1,15 +1,16 @@
+import type { ReactNode } from 'react'
 import type { Vec3 } from '@toolpath/api'
 import { Button } from '@toolpath/ui'
 
 import { KindIcon } from './feature-icons'
 import { CutFrom } from './cut-from'
 import { PassButtons } from './pass-buttons'
-import { setupForReading } from '../shared/plan-actions'
-import { PASSES, cutState, cutsFace, type Pass, type SetupPlan } from '../shared/setups'
+import { setupForReading } from 'shared/plan-actions'
+import { PASSES, cutState, cutsFace, type Pass, type SetupPlan } from 'shared/setups'
 import { ScoreBadge } from './score-badge'
-import { directionCss } from '../shared/direction-colors'
-import { directionLabel, kindOf } from '../shared/report'
-import { typeLabel } from '../shared/part-summary'
+import { directionCss } from 'shared/direction-colors'
+import { directionLabel, kindOf } from 'shared/report'
+import { typeLabel } from 'shared/part-summary'
 import {
   coveringAll,
   growRun,
@@ -19,12 +20,12 @@ import {
   runsIn,
   type Draft,
   type Touching,
-} from '../shared/make-feature'
-import type { PartFeature } from '../shared/contracts'
-import type { PartFaces } from '../shared/setups'
-import type { FeatureScore } from '../shared/feature-score'
-import { formatArea, type Unit } from '../shared/units'
-import { rowAttributes } from '../shared/row-nav'
+} from 'shared/make-feature'
+import type { PartFeature } from 'shared/contracts'
+import type { PartFaces } from 'shared/setups'
+import type { FeatureScore } from 'shared/feature-score'
+import { formatArea, type Unit } from 'shared/units'
+import { rowAttributes } from 'shared/row-nav'
 import { usePartView } from './part-view'
 
 /**
@@ -48,7 +49,7 @@ const Step = ({
   n: number
   title: string
   done: boolean
-  children: React.ReactNode
+  children: ReactNode
 }) => (
   <section className="border-t border-edge px-3 py-2 first:border-t-0">
     <h3 className="mb-1.5 flex items-center gap-2 text-2xs font-bold uppercase tracking-wider text-ink-dim">
@@ -93,10 +94,10 @@ export const CreateFeature = ({
   /** Which faces touch which, for chaining and continuity. */
   touching: Touching
   /** The types this part has, so a made reading is named like the rest. */
-  types: readonly string[]
+  types: ReadonlyArray<string>
   onDraft: (draft: Draft) => void
   onChoose: (featureTag: string) => void
-  onHover: (tags: string[]) => void
+  onHover: (tags: Array<string>) => void
   /** Light one chosen face on the part on its own. */
   onHoverFace: (region: number | null) => void
   onConfirm: () => void
@@ -125,7 +126,9 @@ export const CreateFeature = ({
   const cutNow = new Map<number, string>()
   for (const face of draft.faces) {
     for (const other of report.features) {
-      if (!PASSES.some((pass) => cutsFace(plan, other, pass, face))) continue
+      if (!PASSES.some((pass) => cutsFace(plan, other, pass, face))) {
+        continue
+      }
       cutNow.set(face, directionLabel(other.machiningDirection))
       break
     }

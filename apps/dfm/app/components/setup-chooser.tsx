@@ -1,7 +1,7 @@
 import { Button } from '@toolpath/ui'
 
-import { directionCss } from '../shared/direction-colors'
-import type { SetupOffer } from '../shared/setup-offers'
+import { directionCss } from 'shared/direction-colors'
+import type { SetupOffer } from 'shared/setup-offers'
 
 /**
  * Which ways up you will hold, before the rules decide what each one cuts.
@@ -30,7 +30,7 @@ export const SetupChooser = ({
   onRecommend,
   onCancel,
 }: {
-  offers: readonly SetupOffer[]
+  offers: ReadonlyArray<SetupOffer>
   /**
    * The ways up chosen, **in the order they will be run**.
    *
@@ -80,9 +80,15 @@ export const SetupChooser = ({
         .sort((a, b) => {
           const at = chosen.indexOf(a.index)
           const to = chosen.indexOf(b.index)
-          if (at === -1 && to === -1) return a.index - b.index
-          if (at === -1) return 1
-          if (to === -1) return -1
+          if (at === -1 && to === -1) {
+            return a.index - b.index
+          }
+          if (at === -1) {
+            return 1
+          }
+          if (to === -1) {
+            return -1
+          }
           return at - to
         })
         .map((offer) => {

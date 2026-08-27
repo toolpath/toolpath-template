@@ -1,8 +1,8 @@
 import { CubeIcon, GaugeIcon } from '@phosphor-icons/react'
 import type { ReactNode } from 'react'
 
-import type { GeneratorIcon } from '../shared/generate'
-import type { PaintMode } from '../shared/paint'
+import type { GeneratorIcon } from 'shared/generate'
+import type { PaintMode } from 'shared/paint'
 
 /**
  * The small marks on the panels' buttons.

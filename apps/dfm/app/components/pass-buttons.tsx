@@ -1,4 +1,4 @@
-import type { Pass } from '../shared/setups'
+import type { Pass } from 'shared/setups'
 
 /**
  * Rough, Finish, Both — on one reading.
@@ -72,8 +72,12 @@ export const PassButtons = ({
    * beside them shows the same claim.
    */
   const look = (state: boolean | 'some', blocked: string | null) => {
-    if (state === true) return blocked !== null ? `${on} ${stop}` : on
-    if (state === 'some') return blocked !== null ? `${part} ${stop}` : part
+    if (state === true) {
+      return blocked !== null ? `${on} ${stop}` : on
+    }
+    if (state === 'some') {
+      return blocked !== null ? `${part} ${stop}` : part
+    }
     return blocked !== null ? shut : off
   }
   const pressed = (state: boolean | 'some') => (state === 'some' ? 'mixed' : state)
@@ -101,8 +105,12 @@ export const PassButtons = ({
   const bothBlocked = blockedBy?.(bothPasses) ?? null
 
   const says = (state: boolean | 'some', verb: string, blocked: string | null) => {
-    if (blocked !== null) return `Settled in ${blocked}. Unlock it to change what it cuts.`
-    if (state === 'some') return `${verb} the rest of this reading from ${label}`
+    if (blocked !== null) {
+      return `Settled in ${blocked}. Unlock it to change what it cuts.`
+    }
+    if (state === 'some') {
+      return `${verb} the rest of this reading from ${label}`
+    }
     return `${verb} this reading from ${label}`
   }
 

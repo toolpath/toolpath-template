@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PassButtons } from './pass-buttons'
-import type { Pass } from '../shared/setups'
+import type { Pass } from 'shared/setups'
 
 /**
  * The three presses a mapping is made of. §3.7 of the parity plan is the spec:

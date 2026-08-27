@@ -27,7 +27,7 @@ const regions = Array.from({ length: F }, (_, idx) => ({
 const part = { regions } as unknown as PartFaces
 
 // ~200 readings: each direction gets a spread of small and large features.
-const features: PartFeature[] = []
+const features: Array<PartFeature> = []
 DIRS.forEach((d, di) => {
   for (let i = 0; i < 25; i++) {
     const size = (i % 5) + 1

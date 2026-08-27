@@ -31,13 +31,17 @@ export const lockedClaims = (
   const locked = new Map(
     plan.setups.filter((setup) => setup.locked === true).map((setup) => [setup.id, setup]),
   )
-  if (locked.size === 0) return { readings, cutting }
+  if (locked.size === 0) {
+    return { readings, cutting }
+  }
 
   for (const [tag, assignment] of Object.entries(plan.assigned)) {
     for (const pass of PASSES) {
       const setupId = assignment[pass]
       const setup = setupId === undefined ? undefined : locked.get(setupId)
-      if (setup !== undefined) readings.set(tag, setup)
+      if (setup !== undefined) {
+        readings.set(tag, setup)
+      }
     }
   }
 
@@ -48,10 +52,14 @@ export const lockedClaims = (
    */
   for (const feature of allFeatures) {
     const held = readings.get(feature.featureTag)
-    if (held === undefined) continue
+    if (held === undefined) {
+      continue
+    }
     for (const pass of PASSES) {
       const regions = cutting.get(pass)
-      for (const idx of cutRegions(plan, feature, pass)) regions?.set(idx, held)
+      for (const idx of cutRegions(plan, feature, pass)) {
+        regions?.set(idx, held)
+      }
     }
   }
 
@@ -74,23 +82,33 @@ export const blockedBy = (
   /** Empty means "take it off both passes", which claims nothing. */
   passes: ReadonlyArray<Pass>,
 ): Setup | null => {
-  if (claims.readings.size === 0) return null
+  if (claims.readings.size === 0) {
+    return null
+  }
 
   for (const feature of features) {
     const held = claims.readings.get(feature.featureTag)
-    if (held !== undefined) return held
+    if (held !== undefined) {
+      return held
+    }
   }
 
   // Letting go claims no faces, so it cannot take one from anybody.
-  if (passes.length === 0) return null
+  if (passes.length === 0) {
+    return null
+  }
 
   for (const pass of passes) {
     const regions = claims.cutting.get(pass)
-    if (regions === undefined) continue
+    if (regions === undefined) {
+      continue
+    }
     for (const feature of features) {
       for (const idx of feature.regionIdxs) {
         const cutter = regions.get(idx)
-        if (cutter !== undefined) return cutter
+        if (cutter !== undefined) {
+          return cutter
+        }
       }
     }
   }
@@ -156,15 +174,21 @@ export const setPassFor = (
   passes: ReadonlyArray<Pass>,
 ): SetupPlan => {
   const first = features[0]
-  if (!first) return plan
+  if (!first) {
+    return plan
+  }
 
   // Settled work does not move, and does not lose faces to work that does.
-  if (disturbsLocked(plan, allFeatures, features, passes)) return plan
+  if (disturbsLocked(plan, allFeatures, features, passes)) {
+    return plan
+  }
 
   const index = directions.findIndex(
     (direction) => directionKey(direction) === directionKey(first.machiningDirection),
   )
-  if (index < 0) return plan
+  if (index < 0) {
+    return plan
+  }
 
   const held = plan.setups.find((entry) => entry.directionIndex === index)
   const setup = held ?? setupFor(directions, index, plan.setups.length)
@@ -241,7 +265,9 @@ export const setupForReading = (
   const index = directions.findIndex(
     (direction) => directionKey(direction) === directionKey(feature.machiningDirection),
   )
-  if (index < 0) return null
+  if (index < 0) {
+    return null
+  }
   return plan.setups.find((entry) => entry.directionIndex === index) ?? null
 }
 
@@ -272,9 +298,13 @@ export const readingOrder = (
   const askew: Array<PartFeature> = []
 
   for (const reading of readings) {
-    if (isMapped(plan, reading.featureTag)) mapped.push(reading)
-    else if (isAxisAligned(reading.machiningDirection)) square.push(reading)
-    else askew.push(reading)
+    if (isMapped(plan, reading.featureTag)) {
+      mapped.push(reading)
+    } else if (isAxisAligned(reading.machiningDirection)) {
+      square.push(reading)
+    } else {
+      askew.push(reading)
+    }
   }
 
   return [...mapped, ...square, ...askew]
@@ -292,7 +322,7 @@ export const readingOrder = (
  * them, so two equally easy readings still resolve the way the geometry said.
  */
 export const easiestReading = (
-  tags: readonly string[],
+  tags: ReadonlyArray<string>,
   scores: ReadonlyMap<string, { score: number | null }>,
 ): string | null => {
   let best: string | null = null
@@ -342,7 +372,9 @@ export const readingForFace = (
   const cutting = readings.find((reading) =>
     PASSES.some((pass) => cutsFace(plan, reading, pass, region)),
   )
-  if (cutting) return cutting.featureTag
+  if (cutting) {
+    return cutting.featureTag
+  }
 
   return easiestReading(
     readings.map((reading) => reading.featureTag),
@@ -372,13 +404,17 @@ export const lockSetup = (plan: SetupPlan, setupId: string, locked: boolean): Se
  */
 export const lockedReadings = (plan: SetupPlan): ReadonlySet<string> => {
   const settled = new Set(plan.setups.filter((setup) => setup.locked === true).map((s) => s.id))
-  if (settled.size === 0) return new Set()
+  if (settled.size === 0) {
+    return new Set()
+  }
 
   const held = new Set<string>()
   for (const [tag, assignment] of Object.entries(plan.assigned)) {
     for (const pass of PASSES) {
       const setupId = assignment[pass]
-      if (setupId !== undefined && settled.has(setupId)) held.add(tag)
+      if (setupId !== undefined && settled.has(setupId)) {
+        held.add(tag)
+      }
     }
   }
 

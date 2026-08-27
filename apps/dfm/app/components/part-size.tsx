@@ -2,7 +2,7 @@ import { useContentBox } from '@toolpath/viewer'
 import { useEffect } from 'react'
 import { Vector3, type Box3 } from 'three'
 
-import { convertLength, decimalsFor, MODEL_UNIT, type Unit } from '../shared/units'
+import { convertLength, decimalsFor, MODEL_UNIT, type Unit } from 'shared/units'
 
 /**
  * The part's own size, measured off the mesh and handed out.
@@ -18,7 +18,9 @@ export const PartSize = ({ onMeasured }: { onMeasured: (box: Box3) => void }) =>
   const box = useContentBox()
 
   useEffect(() => {
-    if (!box.isEmpty()) onMeasured(box)
+    if (!box.isEmpty()) {
+      onMeasured(box)
+    }
   }, [box, onMeasured])
 
   return null

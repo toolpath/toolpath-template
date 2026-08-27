@@ -100,8 +100,12 @@ export const inferable = (
   const offered: Array<PartFeature> = []
 
   for (const feature of mine) {
-    if (feature.regionIdxs.some((idx) => claimed.has(idx))) continue
-    for (const idx of feature.regionIdxs) claimed.add(idx)
+    if (feature.regionIdxs.some((idx) => claimed.has(idx))) {
+      continue
+    }
+    for (const idx of feature.regionIdxs) {
+      claimed.add(idx)
+    }
     offered.push(feature)
   }
 
@@ -126,7 +130,9 @@ export const inferable = (
   )
 
   for (const idx of missed) {
-    if (offered.some((taken) => taken.regionIdxs.includes(idx))) continue
+    if (offered.some((taken) => taken.regionIdxs.includes(idx))) {
+      continue
+    }
 
     const rescue = mine
       .filter((feature) => feature.regionIdxs.includes(idx))
@@ -144,13 +150,19 @@ export const inferable = (
         )
       })
 
-    if (!rescue) continue
+    if (!rescue) {
+      continue
+    }
 
     const faces = new Set(rescue.regionIdxs)
     for (let at = offered.length - 1; at >= 0; at--) {
-      if (offered[at]!.regionIdxs.every((held) => faces.has(held))) offered.splice(at, 1)
+      if (offered[at]!.regionIdxs.every((held) => faces.has(held))) {
+        offered.splice(at, 1)
+      }
     }
-    for (const face of rescue.regionIdxs) claimed.add(face)
+    for (const face of rescue.regionIdxs) {
+      claimed.add(face)
+    }
     offered.push(rescue)
   }
 
@@ -204,8 +216,12 @@ export const coverFaces = (
     )
 
   for (const feature of eligible) {
-    if (feature.regionIdxs.some((idx) => taken.has(idx))) continue
-    for (const idx of feature.regionIdxs) taken.add(idx)
+    if (feature.regionIdxs.some((idx) => taken.has(idx))) {
+      continue
+    }
+    for (const idx of feature.regionIdxs) {
+      taken.add(idx)
+    }
     chosen.push(feature)
   }
 
@@ -247,8 +263,12 @@ export const readingsFor = (
     )
 
   for (const feature of touching) {
-    if (feature.regionIdxs.some((idx) => taken.has(idx))) continue
-    for (const idx of feature.regionIdxs) taken.add(idx)
+    if (feature.regionIdxs.some((idx) => taken.has(idx))) {
+      continue
+    }
+    for (const idx of feature.regionIdxs) {
+      taken.add(idx)
+    }
     chosen.push(feature)
   }
 

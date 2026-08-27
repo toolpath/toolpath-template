@@ -1,9 +1,9 @@
 import { CaretDownIcon } from '@phosphor-icons/react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import { NumberBox } from './number-box'
-import type { MachineEnvelope, MachineSizes, PlanLimits } from '../shared/rules'
-import type { Unit } from '../shared/units'
+import type { MachineEnvelope, MachineSizes, PlanLimits } from 'shared/rules'
+import type { Unit } from 'shared/units'
 
 /**
  * The two decisions about a plan that are **not scales**.
@@ -41,7 +41,7 @@ const Card = ({
   /** What it is set to, shown on the row the way a rule shows its band. */
   state: string
   note: string
-  children: React.ReactNode
+  children: ReactNode
 }) => {
   const [open, setOpen] = useState(false)
 
@@ -156,9 +156,15 @@ const SizeRow = ({
 
 /** What the row says on its card, without opening it. */
 const sizesState = (machine: MachineSizes | undefined): string => {
-  if (machine?.min && machine.max) return 'both ends'
-  if (machine?.max) return 'largest only'
-  if (machine?.min) return 'smallest only'
+  if (machine?.min && machine.max) {
+    return 'both ends'
+  }
+  if (machine?.max) {
+    return 'largest only'
+  }
+  if (machine?.min) {
+    return 'smallest only'
+  }
 
   return 'any size'
 }

@@ -38,7 +38,9 @@ export const offersFor = (
   features: ReadonlyArray<PartFeature>,
   painted: ReadonlySet<number>,
 ): Array<DirectionOffer> => {
-  if (painted.size === 0) return []
+  if (painted.size === 0) {
+    return []
+  }
 
   const offers = directions.map((direction, index) => {
     const key = directionKey(direction)
@@ -54,8 +56,12 @@ export const offersFor = (
     const readings: Array<PartFeature> = []
 
     for (const feature of mine) {
-      if (feature.regionIdxs.some((idx) => taken.has(idx))) continue
-      for (const idx of feature.regionIdxs) taken.add(idx)
+      if (feature.regionIdxs.some((idx) => taken.has(idx))) {
+        continue
+      }
+      for (const idx of feature.regionIdxs) {
+        taken.add(idx)
+      }
       readings.push(feature)
     }
 
@@ -104,7 +110,9 @@ export const byDirection = (
     const index = directions.findIndex(
       (direction) => directionKey(direction) === directionKey(feature.machiningDirection),
     )
-    if (index < 0) continue
+    if (index < 0) {
+      continue
+    }
     groups.set(index, [...(groups.get(index) ?? []), feature])
   }
 

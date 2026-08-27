@@ -102,17 +102,23 @@ export const missedBy = (
         direction.y === feature.machiningDirection.y &&
         direction.z === feature.machiningDirection.z,
     )
-    if (!at) continue
+    if (!at) {
+      continue
+    }
 
     for (const idx of feature.regionIdxs) {
       reachable.add(idx)
-      if (chosen.includes(at[0])) covered.add(idx)
+      if (chosen.includes(at[0])) {
+        covered.add(idx)
+      }
     }
   }
 
   const areaOf = new Map(report.regions.map((region) => [region.idx, region.area]))
   const total = [...reachable].reduce((sum, idx) => sum + (areaOf.get(idx) ?? 0), 0)
-  if (total === 0) return 0
+  if (total === 0) {
+    return 0
+  }
 
   const held = [...covered].reduce((sum, idx) => sum + (areaOf.get(idx) ?? 0), 0)
   return (total - held) / total

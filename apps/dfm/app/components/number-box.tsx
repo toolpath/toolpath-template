@@ -2,10 +2,10 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Input } from '@toolpath/ui'
 
-import { bandCss } from '../shared/bands'
-import type { Band, Rule } from '../shared/rules'
-import { fromDisplay, toDisplay, unitSuffix } from '../shared/rule-text'
-import type { Unit } from '../shared/units'
+import { bandCss } from 'shared/bands'
+import type { Band, Rule } from 'shared/rules'
+import { fromDisplay, toDisplay, unitSuffix } from 'shared/rule-text'
+import type { Unit } from 'shared/units'
 
 /**
  * Typing a number into this app.
@@ -157,7 +157,9 @@ export const NumberBox = ({
           // `5.` and `.5` are numbers to everybody but a parser, so leaving the
           // box takes what is in it rather than restoring the old number.
           const typed = draft?.trim()
-          if (typed && COMPLETE.test(typed)) commit(Number(typed))
+          if (typed && COMPLETE.test(typed)) {
+            commit(Number(typed))
+          }
 
           setDraft(null)
         }}
@@ -172,7 +174,9 @@ export const NumberBox = ({
             return
           }
 
-          if (COMPLETE.test(trimmed)) commit(Number(trimmed))
+          if (COMPLETE.test(trimmed)) {
+            commit(Number(trimmed))
+          }
         }}
       />
       {converted === null ? null : (

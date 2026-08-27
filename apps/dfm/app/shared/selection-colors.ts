@@ -112,7 +112,11 @@ export const FACE_COLORS = {
  * painting it the same green as a face done in one is the app hiding the cost.
  */
 export const faceColor = (passes: ReadonlyArray<'rough' | 'finish'>): number => {
-  if (passes.length === 0) return FACE_COLORS.uncut
-  if (passes.length > 1) return FACE_COLORS.cut
+  if (passes.length === 0) {
+    return FACE_COLORS.uncut
+  }
+  if (passes.length > 1) {
+    return FACE_COLORS.cut
+  }
   return passes[0] === 'rough' ? FACE_COLORS.rough : FACE_COLORS.finish
 }

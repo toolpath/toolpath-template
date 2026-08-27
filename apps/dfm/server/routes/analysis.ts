@@ -57,12 +57,16 @@ const streamAnalysis = async (
     createEngineClient(apiKey).jobs.streamJobEventsRaw({ id: jobId }),
     'open analysis events',
   )
-  if (!response.raw.body) throw new Error('The Toolpath Engine returned an empty event stream.')
+  if (!response.raw.body) {
+    throw new Error('The Toolpath Engine returned an empty event stream.')
+  }
 
-  const jobs: JobDetail[] = []
+  const jobs: Array<JobDetail> = []
   const parser = createParser({
     onEvent: (event) => {
-      if (event.event !== 'job') return
+      if (event.event !== 'job') {
+        return
+      }
       const payload: unknown = JSON.parse(event.data)
       if (!payload || typeof payload !== 'object' || !instanceOfJobDetail(payload)) {
         throw new Error('The Toolpath Engine returned an invalid job event.')
@@ -83,9 +87,13 @@ const streamAnalysis = async (
       while (jobs.length > 0) {
         const job = jobs.shift()!
         const analysis = await readAnalysis(apiKey, partId, job)
-        if (stream.aborted) return
+        if (stream.aborted) {
+          return
+        }
         await stream.writeSSE({ event: 'analysis', data: JSON.stringify(analysis) })
-        if (analysis.status !== 'pending') return
+        if (analysis.status !== 'pending') {
+          return
+        }
       }
     }
   } finally {
@@ -109,7 +117,9 @@ export const registerAnalysisRoutes = (app: Hono<AppEnv>) => {
         try {
           await streamAnalysis(apiKey, partId, jobId, stream)
         } catch (error) {
-          if (stream.aborted) return
+          if (stream.aborted) {
+            return
+          }
           const message =
             error instanceof EngineError
               ? publicEngineErrorMessage(error.status)

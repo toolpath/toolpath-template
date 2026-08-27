@@ -52,7 +52,9 @@ export const setConnection = async (c: Context<AppEnv>, apiKey: string): Promise
  */
 export const readApiKey = async (c: Context<AppEnv>): Promise<string | null> => {
   const token = getCookie(c, CONNECTION_COOKIE)
-  if (!token) return null
+  if (!token) {
+    return null
+  }
 
   try {
     const { payload } = await jwtDecrypt(token, connectionKey, {
@@ -61,7 +63,9 @@ export const readApiKey = async (c: Context<AppEnv>): Promise<string | null> => 
       keyManagementAlgorithms: ['dir'],
       contentEncryptionAlgorithms: ['A256GCM'],
     })
-    if (typeof payload.apiKey === 'string' && payload.apiKey) return payload.apiKey
+    if (typeof payload.apiKey === 'string' && payload.apiKey) {
+      return payload.apiKey
+    }
     clearConnection(c)
     return null
   } catch {

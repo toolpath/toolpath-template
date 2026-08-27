@@ -45,14 +45,18 @@ delete (report as Record<string, unknown>)['thumbnailUrl']
 export const openCube = async (page: Page, query = ''): Promise<void> => {
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url())
-    if (url.pathname === '/api/session') return route.fulfill({ json: { connected: true } })
-    if (url.pathname === '/api/parts/part-1/events')
+    if (url.pathname === '/api/session') {
+      return route.fulfill({ json: { connected: true } })
+    }
+    if (url.pathname === '/api/parts/part-1/events') {
       return route.fulfill({
         contentType: 'text/event-stream',
         body: `event: analysis\ndata: ${JSON.stringify({ status: 'ready', report })}\n\n`,
       })
-    if (url.pathname === '/api/parts/part-1/mesh')
+    }
+    if (url.pathname === '/api/parts/part-1/mesh') {
       return route.fulfill({ contentType: 'model/gltf-binary', body: mesh })
+    }
     return route.fallback()
   })
   await page.goto(`/parts/part-1?job=job-1${query}`)

@@ -43,7 +43,9 @@ export const START: PickModeState = {
  * held direction — holding one is only meaningful while a click paints.
  */
 export const switchMode = (state: PickModeState, mode: PickMode): PickModeState => {
-  if (mode === state.mode) return state
+  if (mode === state.mode) {
+    return state
+  }
 
   return {
     mode,
@@ -62,11 +64,16 @@ export const switchMode = (state: PickModeState, mode: PickMode): PickModeState 
  * an answer to.
  */
 export const paintFace = (state: PickModeState, region: number): PickModeState => {
-  if (state.mode !== 'direction' || state.holding === null) return state
+  if (state.mode !== 'direction' || state.holding === null) {
+    return state
+  }
 
   const painted = new Set(state.painted)
-  if (painted.has(region)) painted.delete(region)
-  else painted.add(region)
+  if (painted.has(region)) {
+    painted.delete(region)
+  } else {
+    painted.add(region)
+  }
 
   return { ...state, painted }
 }
@@ -88,8 +95,12 @@ export const paintReading = (
   region: number,
   regions: ReadonlyArray<number>,
 ): PickModeState => {
-  if (state.mode !== 'direction' || state.holding === null) return state
-  if (regions.length === 0) return paintFace(state, region)
+  if (state.mode !== 'direction' || state.holding === null) {
+    return state
+  }
+  if (regions.length === 0) {
+    return paintFace(state, region)
+  }
 
   const painted = new Set(state.painted)
   // Judged on the face that was clicked: it is the one somebody pointed at, and
@@ -97,8 +108,11 @@ export const paintReading = (
   const removing = painted.has(region)
 
   for (const idx of regions) {
-    if (removing) painted.delete(idx)
-    else painted.add(idx)
+    if (removing) {
+      painted.delete(idx)
+    } else {
+      painted.add(idx)
+    }
   }
 
   return { ...state, painted }
@@ -106,7 +120,9 @@ export const paintReading = (
 
 /** Pressing an arrow holds that way up; pressing it again lets go. */
 export const holdDirection = (state: PickModeState, index: number): PickModeState => {
-  if (state.holding === index) return { ...state, holding: null, painted: new Set() }
+  if (state.holding === index) {
+    return { ...state, holding: null, painted: new Set() }
+  }
   return { ...state, holding: index }
 }
 

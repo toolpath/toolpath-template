@@ -2,13 +2,13 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { CaretDownIcon, PencilSimpleIcon } from '@phosphor-icons/react'
 import { Button, Input, TextArea } from '@toolpath/ui'
-import { bandCss } from '../shared/bands'
+import { bandCss } from 'shared/bands'
 import { COMPLETE, Caption, NumberBox } from './number-box'
 import { KindIcon } from './feature-icons'
-import { METRICS } from '../shared/metrics'
-import type { RuleHit } from '../shared/rule-text'
-import { costlyCount, worstOf } from '../shared/rules-summary'
-import type { FeatureScore } from '../shared/feature-score'
+import { METRICS } from 'shared/metrics'
+import type { RuleHit } from 'shared/rule-text'
+import { costlyCount, worstOf } from 'shared/rules-summary'
+import type { FeatureScore } from 'shared/feature-score'
 import { ScoreBadge } from './score-badge'
 import {
   displayDecimals,
@@ -17,8 +17,8 @@ import {
   ruleLimits,
   toDisplay,
   unitSuffix,
-} from '../shared/rule-text'
-import type { Band, FlagRule, MatchRule, Rule, RuleType, ThresholdRule } from '../shared/rules'
+} from 'shared/rule-text'
+import type { Band, FlagRule, MatchRule, Rule, RuleType, ThresholdRule } from 'shared/rules'
 import {
   BANDS,
   FLAG_TESTS,
@@ -28,10 +28,10 @@ import {
   bandName,
   judgesPlan,
   plainType,
-} from '../shared/rules'
-import type { Unit } from '../shared/units'
-import { decimalsFor } from '../shared/units'
-import { rowAttributes } from '../shared/row-nav'
+} from 'shared/rules'
+import type { Unit } from 'shared/units'
+import { decimalsFor } from 'shared/units'
+import { rowAttributes } from 'shared/row-nav'
 
 /**
  * A rule, editable.
@@ -120,7 +120,9 @@ const ThresholdColumn = ({ range, children }: { range?: string; children: ReactN
 const BandDots = ({ rule, unit }: { rule: Rule; unit: Unit }) => {
   const limits = ruleLimits(rule, unit)
 
-  if (limits.length === 0) return null
+  if (limits.length === 0) {
+    return null
+  }
 
   return (
     <ul className="flex flex-wrap items-center gap-1">
@@ -354,7 +356,7 @@ const Settings = ({
   onRemove,
 }: {
   rule: Rule
-  types: readonly string[]
+  types: ReadonlyArray<string>
   unit: Unit
   onChange: (rule: Rule) => void
   onRemove: () => void
@@ -796,9 +798,9 @@ export const RuleCard = ({
   onHover,
 }: {
   rule: Rule
-  hits: readonly RuleHit[]
+  hits: ReadonlyArray<RuleHit>
   scores: ReadonlyMap<string, FeatureScore>
-  types: readonly string[]
+  types: ReadonlyArray<string>
   unit: Unit
   /** Whether the rule is showing anything at all below its name. */
   open: boolean
@@ -810,7 +812,7 @@ export const RuleCard = ({
   onChange: (rule: Rule) => void
   onRemove: () => void
   onChoose: (tag: string) => void
-  onHover: (tags: string[]) => void
+  onHover: (tags: Array<string>) => void
 }) => {
   const [showAll, setShowAll] = useState(false)
   const shown = showAll ? hits : hits.slice(0, 4)

@@ -334,7 +334,9 @@ export const byBestReading = (
       // No rule reached it, so the unjudged default is what ranks it — worth
       // counting, because a part where that is most of the readings is a part
       // whose plan rests on a number nobody set deliberately.
-      if (reading.band === null) bit.unjudgedRank += 1
+      if (reading.band === null) {
+        bit.unjudgedRank += 1
+      }
 
       return {
         ...reading,
@@ -345,7 +347,9 @@ export const byBestReading = (
     .sort((a, b) => {
       // Refused readings last, whatever they score — that is what a floor is.
       const byRefusal = Number(a.refused) - Number(b.refused)
-      if (byRefusal !== 0) return byRefusal
+      if (byRefusal !== 0) {
+        return byRefusal
+      }
 
       const byScore = b.score - a.score
       const byBand = rankOf(a.band) - rankOf(b.band)
@@ -385,7 +389,9 @@ export const byBestReading = (
    * `settled` keeps every later pass off it.
    */
   for (const feature of features) {
-    if (!settled.has(feature.featureTag)) continue
+    if (!settled.has(feature.featureTag)) {
+      continue
+    }
 
     const held = new Set<number>()
     for (const idx of coveredRegions(keep, feature)) {
@@ -405,8 +411,12 @@ export const byBestReading = (
      * argued out of the reading that swept it up.
      */
     for (const feature of features) {
-      if (settled.has(feature.featureTag)) continue
-      if (passes.every((pass) => keep.assigned[feature.featureTag]?.[pass] === undefined)) continue
+      if (settled.has(feature.featureTag)) {
+        continue
+      }
+      if (passes.every((pass) => keep.assigned[feature.featureTag]?.[pass] === undefined)) {
+        continue
+      }
       const held = new Set<number>()
       for (const idx of feature.regionIdxs) {
         cutBy.set(idx, {
@@ -437,8 +447,11 @@ export const byBestReading = (
   for (const reading of readings) {
     for (const idx of reading.feature.regionIdxs) {
       const list = readingsPerFace.get(idx)
-      if (list) list.push(reading)
-      else readingsPerFace.set(idx, [reading])
+      if (list) {
+        list.push(reading)
+      } else {
+        readingsPerFace.set(idx, [reading])
+      }
     }
   }
 
@@ -457,9 +470,15 @@ export const byBestReading = (
     without: ReadonlySet<PartFeature>,
   ): (typeof readings)[number] | null => {
     for (const reading of readingsPerFace.get(idx) ?? []) {
-      if (!held.includes(reading.direction)) continue
-      if (without.has(reading.feature)) continue
-      if (skipUndercut(reading.feature, onlyUndercut)) continue
+      if (!held.includes(reading.direction)) {
+        continue
+      }
+      if (without.has(reading.feature)) {
+        continue
+      }
+      if (skipUndercut(reading.feature, onlyUndercut)) {
+        continue
+      }
       return reading
     }
     return null
@@ -468,8 +487,12 @@ export const byBestReading = (
   /** What a face is currently worth: its holder's score over its area. */
   const worthNow = (idx: number): number => {
     const holder = cutBy.get(idx)
-    if (!holder) return 0
-    if (holder.score === Number.POSITIVE_INFINITY) return Number.POSITIVE_INFINITY
+    if (!holder) {
+      return 0
+    }
+    if (holder.score === Number.POSITIVE_INFINITY) {
+      return Number.POSITIVE_INFINITY
+    }
     return holder.score * (areaOfRegion.get(idx) ?? 0)
   }
 
@@ -516,16 +539,25 @@ export const byBestReading = (
     for (const idx of reading.feature.regionIdxs) {
       const holder = cutBy.get(idx)
       // Ground another setup already cuts is never ours to take.
-      if (holder?.score === Number.POSITIVE_INFINITY) return null
+      if (holder?.score === Number.POSITIVE_INFINITY) {
+        return null
+      }
 
-      if (holder) displaced.add(holder.feature)
-      else free = true
+      if (holder) {
+        displaced.add(holder.feature)
+      } else {
+        free = true
+      }
 
       gained += reading.score * (areaOfRegion.get(idx) ?? 0)
     }
 
-    if (displaced.size === 0) return free ? displaced : null
-    if (!mayDisplace) return null
+    if (displaced.size === 0) {
+      return free ? displaced : null
+    }
+    if (!mayDisplace) {
+      return null
+    }
 
     /*
      * What the swap is worth, valuing stranded ground at what would pick it up.
@@ -549,19 +581,26 @@ export const byBestReading = (
     for (const feature of displaced) {
       for (const idx of holds.get(feature) ?? []) {
         lost += worthNow(idx)
-        if (mine.has(idx)) continue
+        if (mine.has(idx)) {
+          continue
+        }
 
         const area = areaOfRegion.get(idx) ?? 0
         const fallback = fallbackFor(idx, gone)
         gained += (fallback?.score ?? 0) * area
-        if (fallback) pickedUpBy.add(fallback.feature)
-        else coverageLoss += area
+        if (fallback) {
+          pickedUpBy.add(fallback.feature)
+        } else {
+          coverageLoss += area
+        }
       }
     }
 
     let coverageGain = 0
     for (const idx of reading.feature.regionIdxs) {
-      if (!cutBy.has(idx)) coverageGain += areaOfRegion.get(idx) ?? 0
+      if (!cutBy.has(idx)) {
+        coverageGain += areaOfRegion.get(idx) ?? 0
+      }
     }
 
     /*
@@ -594,7 +633,9 @@ export const byBestReading = (
      * is charged for the fragmentation it causes.
      */
 
-    if (coverageGain !== coverageLoss) return coverageGain > coverageLoss ? displaced : null
+    if (coverageGain !== coverageLoss) {
+      return coverageGain > coverageLoss ? displaced : null
+    }
 
     return gained > lost ? displaced : null
   }
@@ -603,7 +644,9 @@ export const byBestReading = (
     // Everything it displaces gives up all of its ground, not just the faces
     // that were contested — see `wouldTake`.
     for (const feature of displaced) {
-      for (const idx of holds.get(feature) ?? []) cutBy.delete(idx)
+      for (const idx of holds.get(feature) ?? []) {
+        cutBy.delete(idx)
+      }
       holds.delete(feature)
     }
 
@@ -633,11 +676,17 @@ export const byBestReading = (
     let worth = 0
 
     for (const reading of readings) {
-      if (reading.direction !== index) continue
-      if (reading.feature.regionIdxs.some((idx) => taken.has(idx))) continue
+      if (reading.direction !== index) {
+        continue
+      }
+      if (reading.feature.regionIdxs.some((idx) => taken.has(idx))) {
+        continue
+      }
 
       const displaced = wouldTake(reading, true)
-      if (!displaced) continue
+      if (!displaced) {
+        continue
+      }
 
       const gain = reading.feature.regionIdxs.reduce((total, idx) => {
         const area = areaOfRegion.get(idx) ?? 0
@@ -645,8 +694,12 @@ export const byBestReading = (
         return total + area * (reading.score - (now < 0 ? 0 : now))
       }, 0)
 
-      if (gain <= 0) continue
-      for (const idx of reading.feature.regionIdxs) taken.add(idx)
+      if (gain <= 0) {
+        continue
+      }
+      for (const idx of reading.feature.regionIdxs) {
+        taken.add(idx)
+      }
       worth += gain
     }
 
@@ -707,7 +760,9 @@ export const byBestReading = (
    * a shop says how it feels about setups.
    */
   const worthHolding = () => {
-    if (waysUp === null || waysUp.free === true) return 0
+    if (waysUp === null || waysUp.free === true) {
+      return 0
+    }
 
     return SETUP_BASE * wholePart * BAND_PRICE[bandOnScale(waysUp, held.length + 1)]
   }
@@ -724,7 +779,9 @@ export const byBestReading = (
    */
   const waysUp = scaleFor(limits, 'setups')
   const priceOfAnother = (): number => {
-    if (waysUp === null || waysUp.free === true) return 0
+    if (waysUp === null || waysUp.free === true) {
+      return 0
+    }
 
     return SETUP_BASE * wholePart * BAND_PRICE[bandOnScale(waysUp, held.length + 1)]
   }
@@ -746,12 +803,16 @@ export const byBestReading = (
    */
   if (waysUp !== null) {
     for (let at = 1; at <= held.length; at += 1) {
-      if (bandOnScale(waysUp, at) === 'no go') bit.waysUpForced += 1
+      if (bandOnScale(waysUp, at) === 'no go') {
+        bit.waysUpForced += 1
+      }
     }
   }
 
   const mayHoldAnother = (): boolean => {
-    if (waysUp === null || bandOnScale(waysUp, held.length + 1) !== 'no go') return true
+    if (waysUp === null || bandOnScale(waysUp, held.length + 1) !== 'no go') {
+      return true
+    }
     bit.waysUp += 1
     return false
   }
@@ -788,10 +849,14 @@ export const byBestReading = (
    * reading blocked on one face keeps the rest instead of losing everything.
    */
   const takeFree = (reading: (typeof readings)[number]): boolean => {
-    if (skipUndercut(reading.feature, onlyUndercut)) return false
+    if (skipUndercut(reading.feature, onlyUndercut)) {
+      return false
+    }
 
     const free = reading.feature.regionIdxs.filter((idx) => !cutBy.has(idx))
-    if (free.length === 0) return false
+    if (free.length === 0) {
+      return false
+    }
 
     const mine = holds.get(reading.feature) ?? new Set<number>()
     for (const idx of free) {
@@ -812,11 +877,17 @@ export const byBestReading = (
       working = false
       for (const onlyForced of [true, false]) {
         for (const reading of readings) {
-          if (onlyForced && !bought.includes(reading.direction)) continue
-          if (!held.includes(reading.direction)) continue
+          if (onlyForced && !bought.includes(reading.direction)) {
+            continue
+          }
+          if (!held.includes(reading.direction)) {
+            continue
+          }
 
           if (mayPart) {
-            if (takeFree(reading)) working = true
+            if (takeFree(reading)) {
+              working = true
+            }
             continue
           }
 
@@ -835,11 +906,17 @@ export const byBestReading = (
     let changed = false
     for (const onlyForced of [true, false]) {
       for (const reading of readings) {
-        if (onlyForced && !bought.includes(reading.direction)) continue
-        if (!held.includes(reading.direction)) continue
+        if (onlyForced && !bought.includes(reading.direction)) {
+          continue
+        }
+        if (!held.includes(reading.direction)) {
+          continue
+        }
 
         if (mayPart) {
-          if (takeBetter(reading)) changed = true
+          if (takeBetter(reading)) {
+            changed = true
+          }
           continue
         }
 
@@ -911,10 +988,14 @@ export const byBestReading = (
    * seventy-seven plainly is.
    */
   const takeBetter = (reading: (typeof readings)[number]): boolean => {
-    if (skipUndercut(reading.feature, onlyUndercut)) return false
+    if (skipUndercut(reading.feature, onlyUndercut)) {
+      return false
+    }
     // Settled ground is not for sale. A lock is the one thing in a plan an
     // offer may not argue with.
-    if (settled.has(reading.feature.featureTag)) return false
+    if (settled.has(reading.feature.featureTag)) {
+      return false
+    }
 
     // A refused reading may pick up ground nobody wants; it may never take any.
     if (reading.refused) {
@@ -925,9 +1006,13 @@ export const byBestReading = (
     let changed = false
     for (const idx of reading.feature.regionIdxs) {
       const holder = cutBy.get(idx)
-      if (!holder || holder.feature === reading.feature) continue
+      if (!holder || holder.feature === reading.feature) {
+        continue
+      }
       // Ground another setup already cuts is never ours to take.
-      if (holder.score === Number.POSITIVE_INFINITY) continue
+      if (holder.score === Number.POSITIVE_INFINITY) {
+        continue
+      }
       /*
        * The price is for **starting an operation**, not for moving a face.
        *
@@ -943,10 +1028,14 @@ export const byBestReading = (
        * round cap stopped them, and the loser of that trade was whichever the
        * cap happened to leave holding it.
        */
-      if (settled.has(holder.feature.featureTag)) continue
+      if (settled.has(holder.feature.featureTag)) {
+        continue
+      }
 
       const gain = reading.score - holder.score
-      if (gain <= 0) continue
+      if (gain <= 0) {
+        continue
+      }
 
       const running = (holds.get(reading.feature)?.size ?? 0) > 0
       /*
@@ -981,14 +1070,18 @@ export const byBestReading = (
       // know about it.
       bit.rounds = { used: round + 1, capped: round + 1 === ROUNDS }
       fillFree()
-      if (!swapOnce()) break
+      if (!swapOnce()) {
+        break
+      }
     }
     fillFree()
   }
 
   for (;;) {
     assignHeld()
-    if (!mayBuy || !mayHoldAnother()) break
+    if (!mayBuy || !mayHoldAnother()) {
+      break
+    }
 
     /*
      * Only now is a new direction worth its re-fixture — and which one is
@@ -1002,16 +1095,22 @@ export const byBestReading = (
         held.includes(index) ? { index, worth: 0 } : { index, worth: worthOf(index) },
       )
       .filter((offer) => {
-        if (offer.worth > priceOfAnother()) return true
+        if (offer.worth > priceOfAnother()) {
+          return true
+        }
         // Worth something, but not its price — which is the price doing its
         // job. A direction reaching nothing at all is not the limit's doing.
-        if (offer.worth > 0) bit.newDirectionGain += 1
+        if (offer.worth > 0) {
+          bit.newDirectionGain += 1
+        }
         return false
       })
       .sort((a, b) => b.worth - a.worth)
 
     const next = offers[0]
-    if (!next) break
+    if (!next) {
+      break
+    }
     held.push(next.index)
   }
 
@@ -1026,25 +1125,37 @@ export const byBestReading = (
    * coverage bar quietly read 94%.
    */
   for (;;) {
-    if (!mayBuy || !mayHoldAnother()) break
+    if (!mayBuy || !mayHoldAnother()) {
+      break
+    }
 
     const missing = new Set<number>()
     for (const reading of readings) {
       for (const idx of reading.feature.regionIdxs) {
-        if (!cutBy.has(idx)) missing.add(idx)
+        if (!cutBy.has(idx)) {
+          missing.add(idx)
+        }
       }
     }
-    if (missing.size === 0) break
+    if (missing.size === 0) {
+      break
+    }
 
     const offers = directions
       .map((_direction, index) => {
-        if (held.includes(index)) return { index, area: 0 }
+        if (held.includes(index)) {
+          return { index, area: 0 }
+        }
 
         const reached = new Set<number>()
         for (const reading of readings) {
-          if (reading.direction !== index || skipUndercut(reading.feature, onlyUndercut)) continue
+          if (reading.direction !== index || skipUndercut(reading.feature, onlyUndercut)) {
+            continue
+          }
           for (const idx of reading.feature.regionIdxs) {
-            if (missing.has(idx)) reached.add(idx)
+            if (missing.has(idx)) {
+              reached.add(idx)
+            }
           }
         }
 
@@ -1070,8 +1181,12 @@ export const byBestReading = (
        * those slivers can hold the way up by hand.
        */
       .filter((offer) => {
-        if (offer.area > worthHolding()) return true
-        if (offer.area > 0) bit.sliverFloor += 1
+        if (offer.area > worthHolding()) {
+          return true
+        }
+        if (offer.area > 0) {
+          bit.sliverFloor += 1
+        }
         return false
       })
       .sort((a, b) => b.area - a.area)
@@ -1079,7 +1194,9 @@ export const byBestReading = (
     const next = offers[0]
     // Nothing left worth a way up — the rest is slivers, or ground the Engine
     // reported no reading for from any direction.
-    if (!next) break
+    if (!next) {
+      break
+    }
 
     held.push(next.index)
 
@@ -1142,10 +1259,14 @@ export const byBestReading = (
   for (const feature of chosen) {
     const index = indexOf.get(directionKey(feature.machiningDirection))
     const setup = index === undefined ? undefined : byIndex.get(index)
-    if (!setup) continue
+    if (!setup) {
+      continue
+    }
 
     const held = assigned[feature.featureTag] ?? {}
-    if (passes.every((pass) => held[pass] !== undefined)) continue
+    if (passes.every((pass) => held[pass] !== undefined)) {
+      continue
+    }
 
     /*
      * What it did not win, per pass — the note the plan has carried since the

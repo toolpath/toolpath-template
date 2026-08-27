@@ -36,9 +36,13 @@ const number = (value: unknown): string =>
 
 const depthOf = (feature: PartFeature): number | null => {
   const sheet = feature.datasheet
-  if (!sheet) return null
+  if (!sheet) {
+    return null
+  }
   const { zMin, zMax } = sheet as { zMin?: unknown; zMax?: unknown }
-  if (typeof zMin !== 'number' || typeof zMax !== 'number') return null
+  if (typeof zMin !== 'number' || typeof zMax !== 'number') {
+    return null
+  }
   return zMax - zMin
 }
 
@@ -144,16 +148,22 @@ export const sameHoles = (
   features: ReadonlyArray<PartFeature>,
   feature: PartFeature,
 ): Array<PartFeature> => {
-  if (!isHole(feature)) return [feature]
+  if (!isHole(feature)) {
+    return [feature]
+  }
 
   const key = holeKey(feature)
   const depth = depthOf(feature)
   // A hole the Engine could not measure is only ever itself — gathering on a
   // missing number would sweep every unmeasured hole on the part into one row.
-  if (key.includes('?') || depth === null) return [feature]
+  if (key.includes('?') || depth === null) {
+    return [feature]
+  }
 
   return features.filter((other) => {
-    if (!isHole(other) || holeKey(other) !== key) return false
+    if (!isHole(other) || holeKey(other) !== key) {
+      return false
+    }
     const theirs = depthOf(other)
     return theirs !== null && sameDepth(depth, theirs)
   })
@@ -188,10 +198,14 @@ export const groupAcrossPart = (
   const placed = new Set<string>()
 
   for (const reading of readings) {
-    if (placed.has(reading.featureTag)) continue
+    if (placed.has(reading.featureTag)) {
+      continue
+    }
 
     const rest = sameHoles(part, reading).filter((hole) => hole.featureTag !== reading.featureTag)
-    for (const hole of rest) placed.add(hole.featureTag)
+    for (const hole of rest) {
+      placed.add(hole.featureTag)
+    }
     placed.add(reading.featureTag)
 
     // Keyed by the reading rather than by the tool: this is the row the

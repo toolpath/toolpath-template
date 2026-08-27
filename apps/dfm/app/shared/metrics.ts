@@ -49,9 +49,15 @@ const worstAgainst = (
 const sizesNote = (machine: MachineSizes | undefined): string => {
   const say = (e: MachineEnvelope) => `${String(e.x)} × ${String(e.y)} × ${String(e.z)} mm`
 
-  if (machine?.max && machine.min) return `against ${say(machine.min)} to ${say(machine.max)}`
-  if (machine?.max) return `against a largest of ${say(machine.max)}`
-  if (machine?.min) return `against a smallest of ${say(machine.min)}`
+  if (machine?.max && machine.min) {
+    return `against ${say(machine.min)} to ${say(machine.max)}`
+  }
+  if (machine?.max) {
+    return `against a largest of ${say(machine.max)}`
+  }
+  if (machine?.min) {
+    return `against a smallest of ${say(machine.min)}`
+  }
 
   return 'no part sizes have been set, so nothing to compare against'
 }
@@ -324,8 +330,12 @@ const flag = (value: boolean | undefined): number | null =>
  * `null` is still the answer where either side was never reported.
  */
 const ratio = (top: number | null, bottom: number | null): number | null => {
-  if (top === null || bottom === null) return null
-  if (bottom === 0) return top === 0 ? null : Number.POSITIVE_INFINITY
+  if (top === null || bottom === null) {
+    return null
+  }
+  if (bottom === 0) {
+    return top === 0 ? null : Number.POSITIVE_INFINITY
+  }
 
   return top / bottom
 }
@@ -439,7 +449,9 @@ const requiredCutter = (datasheet: FeatureDatasheet): number | null => {
   const { cd, path } = cdAt(datasheet)
 
   const band = cutterFromBand(cd, path)
-  if (band) return band.value
+  if (band) {
+    return band.value
+  }
 
   /*
    * **Every band reported, and every one of them zero.**
@@ -462,7 +474,9 @@ const requiredCutter = (datasheet: FeatureDatasheet): number | null => {
   const stated0 = [cd?.ignore?.min, cd?.deviate?.min, cd?.effectiveAdaptive?.min].map((raw) =>
     stated(raw),
   )
-  if (stated0.some((value) => value === 0)) return 0
+  if (stated0.some((value) => value === 0)) {
+    return 0
+  }
 
   return null
 }
@@ -597,7 +611,9 @@ const nested = (
   const source = facts.kind === 'Chamfer' ? facts.three : facts
   const path = facts.kind === 'Chamfer' ? `facts.three.${key}` : `facts.${key}`
 
-  if (!source) return { value: undefined, path }
+  if (!source) {
+    return { value: undefined, path }
+  }
 
   switch (key) {
     case 'filletHeight':
@@ -680,7 +696,9 @@ const FLAT_WITHIN = 0.5
  * milled would be inventing the one fact this turns on.
  */
 const milled = (datasheet: FeatureDatasheet): boolean => {
-  if (factsOf(datasheet)?.kind !== 'Hole') return true
+  if (factsOf(datasheet)?.kind !== 'Hole') {
+    return true
+  }
 
   const tip = kindNumber(datasheet, 'Hole', 'fullConeDeg')
 

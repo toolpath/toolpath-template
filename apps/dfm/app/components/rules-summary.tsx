@@ -1,14 +1,14 @@
 import { useState } from 'react'
 
-import { bandCss } from '../shared/bands'
-import { formatMetric } from '../shared/rule-text'
-import type { RulesSummary, WorstReading } from '../shared/rules-summary'
-import type { Band } from '../shared/rules'
-import { BANDS, bandName } from '../shared/rules'
-import type { Unit } from '../shared/units'
+import { bandCss } from 'shared/bands'
+import { formatMetric } from 'shared/rule-text'
+import type { RulesSummary, WorstReading } from 'shared/rules-summary'
+import type { Band } from 'shared/rules'
+import { BANDS, bandName } from 'shared/rules'
+import type { Unit } from 'shared/units'
 import { Heading } from './heading'
 import { KindIcon } from './feature-icons'
-import { rowAttributes } from '../shared/row-nav'
+import { rowAttributes } from 'shared/row-nav'
 
 /** How many of the worst readings the panel draws before it offers the rest. */
 const SHOWN = 6
@@ -36,7 +36,7 @@ export const RulesSummaryPanel = ({
   unit: Unit
   onPickBand: (band: Band | null) => void
   onChoose: (tag: string) => void
-  onHover: (tags: string[]) => void
+  onHover: (tags: Array<string>) => void
 }) => {
   const [all, setAll] = useState(false)
 
@@ -185,7 +185,7 @@ const WorstRow = ({
   reading: WorstReading
   unit: Unit
   onChoose: (tag: string) => void
-  onHover: (tags: string[]) => void
+  onHover: (tags: Array<string>) => void
 }) => (
   <button
     className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-2xs text-ink-body hover:bg-ground/60"

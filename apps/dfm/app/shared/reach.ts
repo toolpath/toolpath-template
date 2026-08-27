@@ -50,7 +50,9 @@ export const forcedRegions = (features: ReadonlyArray<PartFeature>): Set<number>
   const forced = new Set<number>()
 
   for (const [idx, canReach] of directionsPerRegion(features)) {
-    if (canReach.size === 1) forced.add(idx)
+    if (canReach.size === 1) {
+      forced.add(idx)
+    }
   }
 
   return forced
@@ -100,7 +102,9 @@ export const undercutOnly = (features: ReadonlyArray<PartFeature>): Set<number> 
   for (const feature of features) {
     for (const idx of feature.regionIdxs) {
       seen.add(idx)
-      if (!isUndercut(feature)) ordinary.add(idx)
+      if (!isUndercut(feature)) {
+        ordinary.add(idx)
+      }
     }
   }
 

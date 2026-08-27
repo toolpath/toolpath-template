@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useState, type ReactNode } from 'react'
 import type { Vec3 } from '@toolpath/api'
 
 import { Heading } from './heading'
@@ -7,23 +7,23 @@ import { GENERATOR_ICONS } from './panel-icons'
 import { FaceCount } from './face-count'
 import { PassButtons } from './pass-buttons'
 import { ReadingRow, readingRowClass } from './reading-row'
-import { directionCss } from '../shared/direction-colors'
-import { directionLabel } from '../shared/report'
+import { directionCss } from 'shared/direction-colors'
+import { directionLabel } from 'shared/report'
 import { LockIcon, LockOpenIcon } from '@phosphor-icons/react'
-import type { FeatureVerdict } from '../shared/rules'
-import { typeLabel } from '../shared/part-summary'
-import { isMade } from '../shared/make-feature'
-import { moveThroughList } from '../shared/list-keys'
-import { groupHoles } from '../shared/hole-groups'
-import { planCoverage, setupGroups, uncutFaces, unreachableFaces } from '../shared/plan-summary'
-import { GENERATORS, PICKS_WAYS_UP, type Generator } from '../shared/generate'
-import type { PartFeature } from '../shared/contracts'
-import type { FeatureScore } from '../shared/feature-score'
-import type { PartFaces, Pass, SetupPlan } from '../shared/setups'
-import { PASSES, cutState, cutsFrom, faceCounts } from '../shared/setups'
-import { type FacePart, facesOf } from '../shared/faces'
-import { formatArea, type Unit } from '../shared/units'
-import { rowAttributes } from '../shared/row-nav'
+import type { FeatureVerdict } from 'shared/rules'
+import { typeLabel } from 'shared/part-summary'
+import { isMade } from 'shared/make-feature'
+import { moveThroughList } from 'shared/list-keys'
+import { groupHoles } from 'shared/hole-groups'
+import { planCoverage, setupGroups, uncutFaces, unreachableFaces } from 'shared/plan-summary'
+import { GENERATORS, PICKS_WAYS_UP, type Generator } from 'shared/generate'
+import type { PartFeature } from 'shared/contracts'
+import type { FeatureScore } from 'shared/feature-score'
+import type { PartFaces, Pass, SetupPlan } from 'shared/setups'
+import { PASSES, cutState, cutsFrom, faceCounts } from 'shared/setups'
+import { type FacePart, facesOf } from 'shared/faces'
+import { formatArea, type Unit } from 'shared/units'
+import { rowAttributes } from 'shared/row-nav'
 import { usePartView } from './part-view'
 
 /**
@@ -99,7 +99,7 @@ const FaceLines = ({
   plan: SetupPlan
   showingPass: Pass
   unit: Unit
-  onHover: (tags: string[]) => void
+  onHover: (tags: Array<string>) => void
 }) => (
   <ul className="ml-5 flex flex-col border-l border-edge">
     {facesOf(report, plan, feature, showingPass).map((row) => (
@@ -170,7 +170,7 @@ export const SetupsPanel = ({
 }: {
   focusedTag: string | null
   onChoose: (featureTag: string) => void
-  onHover: (tags: string[]) => void
+  onHover: (tags: Array<string>) => void
   onSetPass: (features: ReadonlyArray<PartFeature>, passes: ReadonlyArray<Pass>) => void
   /** Open a reading's faces, in place of the datasheet. */
   onShowFaces: (featureTag: string) => void
@@ -187,7 +187,7 @@ export const SetupsPanel = ({
    * question is about one of those buttons, and hiding the rest would make
    * cancelling look like leaving the page.
    */
-  choosing: React.ReactNode
+  choosing: ReactNode
   /** Which press has the chooser standing, so that one lights. */
   choosingHow: Generator | null
   /** Whether the mapping panel is showing the faces nothing cuts. */
@@ -207,8 +207,11 @@ export const SetupsPanel = ({
   const toggleHoles = (key: string) => {
     setOpenHoles((current) => {
       const next = new Set(current)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
       return next
     })
   }
@@ -216,8 +219,11 @@ export const SetupsPanel = ({
   const toggleFold = (id: string) => {
     setFolded((current) => {
       const next = new Set(current)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
       return next
     })
   }

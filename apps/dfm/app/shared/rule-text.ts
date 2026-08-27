@@ -26,13 +26,17 @@ export const formatMetric = (
   metric: MetricId | undefined,
   unit: Unit,
 ): string => {
-  if (value === null) return '—'
+  if (value === null) {
+    return '—'
+  }
 
   // A number whose metric is unknown is a raw datasheet field — the inputs to a
   // ratio, say. Rounding one of those to a ratio's single decimal turns 6.35
   // into 6.3 and quietly loses what the Engine actually reported, so it is
   // shown as it stands with any float noise trimmed off the end.
-  if (metric === undefined) return String(Number(value.toFixed(3)))
+  if (metric === undefined) {
+    return String(Number(value.toFixed(3)))
+  }
 
   const shown = toDisplay(value, metric, unit).toFixed(displayDecimals(metric, unit))
   const suffix = unitSuffix(metric, unit)
@@ -63,8 +67,10 @@ export const ruleLimits = (
   rule: Rule,
   unit: Unit,
   names?: Partial<Record<Band, string>>,
-): RuleLimit[] => {
-  if (rule.type !== 'threshold' && rule.type !== 'range') return []
+): Array<RuleLimit> => {
+  if (rule.type !== 'threshold' && rule.type !== 'range') {
+    return []
+  }
 
   const edge = (value: number | null) =>
     value === null ? '∞' : formatMetric(value, rule.metric, unit)
@@ -80,16 +86,24 @@ export const ruleLimits = (
 
 /** What a rule applies to, in words rather than a list of twenty type names. */
 export const ruleAudience = (rule: Rule): string => {
-  if (rule.featureTypes.length === 0) return 'every feature'
-  if (rule.featureTypes.length > 4) return `${rule.featureTypes.length} feature types`
+  if (rule.featureTypes.length === 0) {
+    return 'every feature'
+  }
+  if (rule.featureTypes.length > 4) {
+    return `${rule.featureTypes.length} feature types`
+  }
 
   return rule.featureTypes.map((type) => type.replaceAll('_', ' ')).join(', ')
 }
 
 /** What a rule reads, named as the panel names it. */
 export const ruleReads = (rule: Rule): string => {
-  if (rule.expression) return rule.expression
-  if (rule.type === 'baseline') return 'the kind of feature it is'
+  if (rule.expression) {
+    return rule.expression
+  }
+  if (rule.type === 'baseline') {
+    return 'the kind of feature it is'
+  }
 
   return METRICS.find((metric) => metric.id === rule.metric)?.label ?? rule.metric ?? ''
 }
@@ -108,8 +122,12 @@ export const ruleReads = (rule: Rule): string => {
 export const toDisplay = (value: number, metric: MetricId | undefined, unit: Unit): number => {
   const quantity = metricQuantity(metric)
 
-  if (quantity === 'length') return convertLength(value, MODEL_UNIT, unit)
-  if (quantity === 'area') return convertArea(value, MODEL_UNIT, unit)
+  if (quantity === 'length') {
+    return convertLength(value, MODEL_UNIT, unit)
+  }
+  if (quantity === 'area') {
+    return convertArea(value, MODEL_UNIT, unit)
+  }
 
   return value
 }
@@ -117,8 +135,12 @@ export const toDisplay = (value: number, metric: MetricId | undefined, unit: Uni
 export const fromDisplay = (value: number, metric: MetricId | undefined, unit: Unit): number => {
   const quantity = metricQuantity(metric)
 
-  if (quantity === 'length') return convertLength(value, unit, MODEL_UNIT)
-  if (quantity === 'area') return convertArea(value, unit, MODEL_UNIT)
+  if (quantity === 'length') {
+    return convertLength(value, unit, MODEL_UNIT)
+  }
+  if (quantity === 'area') {
+    return convertArea(value, unit, MODEL_UNIT)
+  }
 
   return value
 }
@@ -181,16 +203,18 @@ export interface RuleHit {
  * the feature that limit is worst about.
  */
 export const ruleHits = (
-  verdicts: readonly FeatureVerdict[],
-  features: readonly PartFeature[],
-): Map<string, RuleHit[]> => {
+  verdicts: ReadonlyArray<FeatureVerdict>,
+  features: ReadonlyArray<PartFeature>,
+): Map<string, Array<RuleHit>> => {
   const byTag = new Map(features.map((feature) => [feature.featureTag, feature]))
-  const hits = new Map<string, RuleHit[]>()
+  const hits = new Map<string, Array<RuleHit>>()
 
   for (const verdict of verdicts) {
     const feature = byTag.get(verdict.tag)
 
-    if (!feature) continue
+    if (!feature) {
+      continue
+    }
 
     for (const result of verdict.results) {
       const found = hits.get(result.rule.id) ?? []

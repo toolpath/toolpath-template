@@ -76,10 +76,10 @@ const regions = [
   { idx: 3, shapeKind: 'Cylinder' },
 ]
 
-const rowsFor = (subject: PartFeature, others: PartFeature[] = [], unit: 'mm' | 'in' = 'mm') =>
+const rowsFor = (subject: PartFeature, others: Array<PartFeature> = [], unit: 'mm' | 'in' = 'mm') =>
   measurements({ feature: subject, features: [subject, ...others], regions, unit })
 
-const valueOf = (subject: PartFeature, key: string, others: PartFeature[] = []) =>
+const valueOf = (subject: PartFeature, key: string, others: Array<PartFeature> = []) =>
   rowsFor(subject, others).find((row) => row.key === key)?.value
 
 describe('partTop', () => {
@@ -178,7 +178,9 @@ describe('measurements', () => {
     const subject = feature({ datasheet: { zMax: 10, zMin: 4, wallishArea: 1 } })
 
     // A number a shop cannot trace is one they have to take on faith.
-    for (const row of rowsFor(subject)) expect(row.from).not.toBe('')
+    for (const row of rowsFor(subject)) {
+      expect(row.from).not.toBe('')
+    }
   })
 })
 
@@ -207,7 +209,9 @@ describe('stripMeasurements', () => {
     const subject = feature({ datasheet: { zMax: 10, zMin: 4 } })
     const rows = rowsFor(subject)
 
-    for (const row of stripMeasurements(rows)) expect(rows).toContain(row)
+    for (const row of stripMeasurements(rows)) {
+      expect(rows).toContain(row)
+    }
   })
 })
 

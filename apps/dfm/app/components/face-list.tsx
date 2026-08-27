@@ -7,19 +7,19 @@ import { PassButtons } from './pass-buttons'
 import { ReadingRow, readingRowClass } from './reading-row'
 import { panelButtonClass } from './panel-button'
 import { CutFrom } from './cut-from'
-import { directionLabel, kindOf } from '../shared/report'
-import { typeLabel } from '../shared/part-summary'
-import { isMade, readsAs } from '../shared/make-feature'
-import { moveThroughList } from '../shared/list-keys'
-import { cutElsewhere, facesOf, type FacePart, type FaceRow } from '../shared/faces'
-import { settledSetup, setupForReading } from '../shared/plan-actions'
-import { FACE_COLORS } from '../shared/selection-colors'
-import { PASSES, cutsFace, faceCounts } from '../shared/setups'
-import type { Pass, SetupPlan } from '../shared/setups'
-import type { PartFeature } from '../shared/contracts'
-import type { FeatureScore } from '../shared/feature-score'
-import { formatArea, type Unit } from '../shared/units'
-import { KEYNAV, ROW, keynavAttributes, rowAttributes } from '../shared/row-nav'
+import { directionLabel, kindOf } from 'shared/report'
+import { typeLabel } from 'shared/part-summary'
+import { isMade, readsAs } from 'shared/make-feature'
+import { moveThroughList } from 'shared/list-keys'
+import { cutElsewhere, facesOf, type FacePart, type FaceRow } from 'shared/faces'
+import { settledSetup, setupForReading } from 'shared/plan-actions'
+import { FACE_COLORS } from 'shared/selection-colors'
+import { PASSES, cutsFace, faceCounts } from 'shared/setups'
+import type { Pass, SetupPlan } from 'shared/setups'
+import type { PartFeature } from 'shared/contracts'
+import type { FeatureScore } from 'shared/feature-score'
+import { formatArea, type Unit } from 'shared/units'
+import { KEYNAV, ROW, keynavAttributes, rowAttributes } from 'shared/row-nav'
 import { usePartView } from './part-view'
 
 /**
@@ -174,7 +174,7 @@ export const FaceList = ({
   cutting: ReadonlyArray<Pass>
   /** Put every face this reading covers in, or take them all out. */
   /** The types the part already uses, so a renamed reading is named like the rest. */
-  types: readonly string[]
+  types: ReadonlyArray<string>
   /**
    * Rename what this reading **is**.
    *
@@ -230,7 +230,9 @@ export const FaceList = ({
    * be off screen, so finding it by hand is the work this removes.
    */
   useEffect(() => {
-    if (reveal === null) return
+    if (reveal === null) {
+      return
+    }
     setOpen(reveal)
     document
       .querySelector(`[${KEYNAV}="faces"] [${ROW}="${String(reveal)}"]`)
@@ -268,8 +270,12 @@ export const FaceList = ({
   ].map((group) => ({
     ...group,
     rows: found.filter((row) => {
-      if (row.passes.length === PASSES.length) return group.key === 'both'
-      if (row.passes.length === 0) return group.key === 'none'
+      if (row.passes.length === PASSES.length) {
+        return group.key === 'both'
+      }
+      if (row.passes.length === 0) {
+        return group.key === 'none'
+      }
       return group.key === row.passes[0]
     }),
   }))
@@ -807,7 +813,9 @@ export const FaceList = ({
                     more than the plan says.
                   */
                       ref={(box) => {
-                        if (box) box.indeterminate = row.passes.length === 1
+                        if (box) {
+                          box.indeterminate = row.passes.length === 1
+                        }
                       }}
                       aria-checked={row.passes.length === 1 ? 'mixed' : row.passes.length > 0}
                       aria-label={`Cut face ${String(row.idx)} from ${directionLabel(

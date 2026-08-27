@@ -18,7 +18,7 @@ const DOWN = TEST_DIRECTIONS[1]!
 
 const wall = testFeature('wall-1', 'wall', DOWN, [0])
 const profile = testFeature('profile-1', 'profile', UP, [0, 1, 2])
-const features: PartFeature[] = [wall, profile]
+const features: Array<PartFeature> = [wall, profile]
 const report = { ...testPart(), features }
 
 /** A tick in the panel, which means both passes. */

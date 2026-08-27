@@ -1,6 +1,6 @@
-import { bandCss } from '../shared/bands'
-import type { FeatureScore } from '../shared/feature-score'
-import { bandName } from '../shared/rules'
+import { bandCss } from 'shared/bands'
+import type { FeatureScore } from 'shared/feature-score'
+import { bandName } from 'shared/rules'
 
 /**
  * How hard a feature is, small enough to sit at the end of any row.
@@ -26,7 +26,9 @@ import { bandName } from '../shared/rules'
  * and "nobody looked" is not one.
  */
 export const ScoreBadge = ({ score }: { score: FeatureScore | undefined }) => {
-  if (!score || score.band === null || score.score === null) return null
+  if (!score || score.band === null || score.score === null) {
+    return null
+  }
 
   const colour = bandCss(score.band)
 

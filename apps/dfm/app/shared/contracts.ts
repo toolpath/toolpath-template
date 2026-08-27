@@ -12,7 +12,7 @@ export type PartFeature = Omit<ApiPartFeature, 'featureId'> & {
 }
 
 export type PartReport = Omit<PartResponse, 'features'> & {
-  features: PartFeature[]
+  features: Array<PartFeature>
 }
 
 /** Report data which is safe to serialize into an API response or Server-Sent Event. */
@@ -46,8 +46,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 // Validate the event envelope before it affects UI state. Keep this small and dependency-free:
 // the full report has already been validated by Engine and redacted by the server.
 export const parseAnalysisEvent = (value: unknown): AnalysisEvent => {
-  if (!isRecord(value) || typeof value.status !== 'string')
+  if (!isRecord(value) || typeof value.status !== 'string') {
     throw new Error('Invalid analysis event')
+  }
 
   if (
     value.status === 'pending' &&

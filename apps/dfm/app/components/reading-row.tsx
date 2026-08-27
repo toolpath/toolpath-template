@@ -1,10 +1,10 @@
 import { KindIcon } from './feature-icons'
 import { ScoreBadge } from './score-badge'
-import { directionLabel, kindOf } from '../shared/report'
-import { isMade } from '../shared/make-feature'
-import { typeLabel } from '../shared/part-summary'
-import type { PartFeature } from '../shared/contracts'
-import type { FeatureScore } from '../shared/feature-score'
+import { directionLabel, kindOf } from 'shared/report'
+import { isMade } from 'shared/make-feature'
+import { typeLabel } from 'shared/part-summary'
+import type { PartFeature } from 'shared/contracts'
+import type { FeatureScore } from 'shared/feature-score'
 
 /**
  * One shape for "a reading", wherever it is being read.

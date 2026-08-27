@@ -4,7 +4,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { ReadingRow } from './reading-row'
-import { TEST_DIRECTIONS, testFeature } from '../shared/test-part'
+import { TEST_DIRECTIONS, testFeature } from 'shared/test-part'
 
 /**
  * One shape for "a reading", wherever it is being read.

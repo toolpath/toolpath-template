@@ -85,7 +85,9 @@ export const coveringAll = (
   features: ReadonlyArray<PartFeature>,
   faces: ReadonlyArray<number>,
 ): Array<PartFeature> => {
-  if (faces.length === 0) return []
+  if (faces.length === 0) {
+    return []
+  }
 
   return features
     .filter((feature) => faces.every((idx) => feature.regionIdxs.includes(idx)))
@@ -125,23 +127,33 @@ export const readsAs = (
   direction: Vec3,
   faces: ReadonlyArray<number>,
 ): Array<TypeGuess> => {
-  if (faces.length === 0) return []
+  if (faces.length === 0) {
+    return []
+  }
 
   const chosen = new Set(faces)
   const key = directionKey(direction)
   const votes = new Map<string, { faces: Set<number>; kinds: Set<string> }>()
 
   for (const feature of features) {
-    if (directionKey(feature.machiningDirection) !== key) continue
+    if (directionKey(feature.machiningDirection) !== key) {
+      continue
+    }
 
     const covered = feature.regionIdxs.filter((idx) => chosen.has(idx))
-    if (covered.length === 0) continue
+    if (covered.length === 0) {
+      continue
+    }
 
     const vote = votes.get(feature.featureType) ?? { faces: new Set(), kinds: new Set() }
-    for (const idx of covered) vote.faces.add(idx)
+    for (const idx of covered) {
+      vote.faces.add(idx)
+    }
 
     const kind = (facts(feature) as Record<string, unknown> | null)?.['kind']
-    if (typeof kind === 'string') vote.kinds.add(kind)
+    if (typeof kind === 'string') {
+      vote.kinds.add(kind)
+    }
     votes.set(feature.featureType, vote)
   }
 
@@ -176,7 +188,7 @@ export interface Draft {
    */
   named: boolean
   /** Chosen by clicking the part, in the part's own face order. */
-  faces: readonly number[]
+  faces: ReadonlyArray<number>
   /**
    * Whether a click runs a chain from the last face to this one.
    *
@@ -199,7 +211,7 @@ export interface Draft {
    * knows what they mean to do with it — asking again afterwards is asking them
    * to say the same thing twice.
    */
-  passes: readonly Pass[]
+  passes: ReadonlyArray<Pass>
 }
 
 export const EMPTY_DRAFT: Draft = {
@@ -266,7 +278,9 @@ export const withGuess = (
   features: ReadonlyArray<PartFeature>,
   directions: ReadonlyArray<Vec3>,
 ): Draft => {
-  if (draft.named) return draft
+  if (draft.named) {
+    return draft
+  }
 
   const vector = draft.direction === null ? null : directions[draft.direction]
   const best = vector ? readsAs(features, vector, draft.faces)[0] : undefined
@@ -294,11 +308,17 @@ const TOGETHER = 0.999
 export const relationTo = (a: Vec3, b: Vec3): Relation => {
   const one = normalize(a)
   const other = normalize(b)
-  if (!one || !other) return 'different'
+  if (!one || !other) {
+    return 'different'
+  }
 
   const along = dot(one, other)
-  if (along >= TOGETHER) return 'same'
-  if (along <= -TOGETHER) return 'opposite'
+  if (along >= TOGETHER) {
+    return 'same'
+  }
+  if (along <= -TOGETHER) {
+    return 'opposite'
+  }
   return 'different'
 }
 
@@ -351,7 +371,9 @@ const joinsFrom = (
    */
   if (touching && touching.size > 0) {
     const joins = new Map<number, Set<number>>()
-    for (const [idx, neighbours] of touching) joins.set(idx, new Set(neighbours))
+    for (const [idx, neighbours] of touching) {
+      joins.set(idx, new Set(neighbours))
+    }
     return joins
   }
 
@@ -359,11 +381,17 @@ const joinsFrom = (
   const joins = new Map<number, Set<number>>()
 
   for (const feature of features) {
-    if (directionKey(feature.machiningDirection) !== key) continue
+    if (directionKey(feature.machiningDirection) !== key) {
+      continue
+    }
 
     for (const idx of feature.regionIdxs) {
       const neighbours = joins.get(idx) ?? new Set<number>()
-      for (const other of feature.regionIdxs) if (other !== idx) neighbours.add(other)
+      for (const other of feature.regionIdxs) {
+        if (other !== idx) {
+          neighbours.add(other)
+        }
+      }
       joins.set(idx, neighbours)
     }
   }
@@ -378,7 +406,9 @@ export const chainBetween = (
   to: number,
   touching?: Touching,
 ): Array<number> => {
-  if (from === to) return [from]
+  if (from === to) {
+    return [from]
+  }
 
   const joins = joinsFrom(features, direction, touching)
 
@@ -388,19 +418,27 @@ export const chainBetween = (
 
   while (queue.length > 0) {
     const at = queue.shift()!
-    if (at === to) break
+    if (at === to) {
+      break
+    }
 
     for (const next of joins.get(at) ?? []) {
-      if (cameFrom.has(next)) continue
+      if (cameFrom.has(next)) {
+        continue
+      }
       cameFrom.set(next, at)
       queue.push(next)
     }
   }
 
-  if (!cameFrom.has(to)) return []
+  if (!cameFrom.has(to)) {
+    return []
+  }
 
   const run = [to]
-  while (run[0] !== from) run.unshift(cameFrom.get(run[0]!)!)
+  while (run[0] !== from) {
+    run.unshift(cameFrom.get(run[0]!)!)
+  }
   return run
 }
 
@@ -428,9 +466,15 @@ export const perimeterFrom = (
   const faces = new Set<number>()
 
   for (const feature of features) {
-    if (directionKey(feature.machiningDirection) !== key) continue
-    if (!isProfile(feature)) continue
-    for (const idx of feature.regionIdxs) faces.add(idx)
+    if (directionKey(feature.machiningDirection) !== key) {
+      continue
+    }
+    if (!isProfile(feature)) {
+      continue
+    }
+    for (const idx of feature.regionIdxs) {
+      faces.add(idx)
+    }
   }
 
   return [...faces].sort((a, b) => a - b)
@@ -482,7 +526,9 @@ export const runsIn = (
       run.push(at)
 
       for (const next of joins.get(at) ?? []) {
-        if (!left.has(next)) continue
+        if (!left.has(next)) {
+          continue
+        }
         left.delete(next)
         queue.push(next)
       }
@@ -517,13 +563,19 @@ export const growRun = (
   faces: ReadonlyArray<number>,
   touching: Touching,
 ): Array<number> => {
-  if (faces.length === 0) return []
+  if (faces.length === 0) {
+    return []
+  }
 
   const key = directionKey(direction)
   const reachable = new Set<number>()
   for (const feature of features) {
-    if (directionKey(feature.machiningDirection) !== key) continue
-    for (const idx of feature.regionIdxs) reachable.add(idx)
+    if (directionKey(feature.machiningDirection) !== key) {
+      continue
+    }
+    for (const idx of feature.regionIdxs) {
+      reachable.add(idx)
+    }
   }
 
   const run = new Set(faces)
@@ -532,7 +584,9 @@ export const growRun = (
   while (queue.length > 0) {
     const at = queue.shift()!
     for (const next of touching.get(at) ?? []) {
-      if (run.has(next) || !reachable.has(next)) continue
+      if (run.has(next) || !reachable.has(next)) {
+        continue
+      }
       run.add(next)
       queue.push(next)
     }
@@ -564,7 +618,9 @@ export const cutFrom = (
   feature: PartFeature,
   direction: Vec3,
 ): PartFeature => {
-  if (!isMade(feature)) return feature
+  if (!isMade(feature)) {
+    return feature
+  }
 
   const guess = readsAs(features, direction, feature.regionIdxs)[0]
 

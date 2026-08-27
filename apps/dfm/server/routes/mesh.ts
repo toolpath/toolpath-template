@@ -20,12 +20,16 @@ export const registerMeshRoutes = (app: Hono<AppEnv>) => {
       const load = async () => {
         const report = await getPartReport(apiKey, partId, jobId)
         const url = format === 'glb' ? report?.meshGlbUrl : report?.meshStlUrl
-        if (!url) throw new EngineError(404, 'mesh_unavailable', 'load mesh')
+        if (!url) {
+          throw new EngineError(404, 'mesh_unavailable', 'load mesh')
+        }
         return fetch(url)
       }
 
       let artifact = await load()
-      if (!artifact.ok) artifact = await load()
+      if (!artifact.ok) {
+        artifact = await load()
+      }
       if (!artifact.ok) {
         throw new EngineError(artifact.status, 'mesh_unavailable', 'load mesh')
       }

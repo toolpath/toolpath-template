@@ -4,17 +4,17 @@ import { RuleCard } from './rule-editor'
 import { Heading } from './heading'
 import { RulesSummaryPanel } from './rules-summary'
 import { PlanChoices } from './plan-choices'
-import type { WhatBit } from '../shared/best-reading'
-import { judgesFeatures, judgesPlan } from '../shared/rules'
-import type { RulesSummary } from '../shared/rules-summary'
-import type { Band } from '../shared/rules'
-import type { RulesState } from '../shared/use-rules'
-import type { Unit } from '../shared/units'
-import type { PartFeature } from '../shared/contracts'
-import type { FeatureScore } from '../shared/feature-score'
-import { ruleHits } from '../shared/rule-text'
-import { moveThroughList } from '../shared/list-keys'
-import { keynavAttributes } from '../shared/row-nav'
+import type { WhatBit } from 'shared/best-reading'
+import { judgesFeatures, judgesPlan } from 'shared/rules'
+import type { RulesSummary } from 'shared/rules-summary'
+import type { Band } from 'shared/rules'
+import type { RulesState } from 'shared/use-rules'
+import type { Unit } from 'shared/units'
+import type { PartFeature } from 'shared/contracts'
+import type { FeatureScore } from 'shared/feature-score'
+import { ruleHits } from 'shared/rule-text'
+import { moveThroughList } from 'shared/list-keys'
+import { keynavAttributes } from 'shared/row-nav'
 
 /**
  * The limits the part is being judged against, and every one of them editable.
@@ -56,17 +56,17 @@ export const RulesPanel = ({
    * page is open.
    */
   now: { setups: number; mapped: number }
-  features: readonly PartFeature[]
+  features: ReadonlyArray<PartFeature>
   /** How hard each feature is, for the rows a rule bit on. */
   scores: ReadonlyMap<string, FeatureScore>
   /** What this set makes of this part, computed once for the page. */
   summary: RulesSummary
   /** The feature types this part actually has, for aiming a rule. */
-  types: readonly string[]
+  types: ReadonlyArray<string>
   unit: Unit
   focusedTag: string | null
   onChoose: (tag: string) => void
-  onHover: (tags: string[]) => void
+  onHover: (tags: Array<string>) => void
 }) => {
   // Folded by default. Fifteen rules with their limits and what each caught is
   // several screens of panel, and the question somebody arrives with is which
@@ -96,7 +96,9 @@ export const RulesPanel = ({
   const [pending, setPending] = useState(false)
 
   useEffect(() => {
-    if (!pending) return
+    if (!pending) {
+      return
+    }
     const written = set.rules.at(-1)
     if (written) {
       setEditing(written.id)
@@ -272,8 +274,11 @@ export const RulesPanel = ({
             onOpen={() =>
               setOpen((shown) => {
                 const next = new Set(shown)
-                if (next.has(rule.id)) next.delete(rule.id)
-                else next.add(rule.id)
+                if (next.has(rule.id)) {
+                  next.delete(rule.id)
+                } else {
+                  next.add(rule.id)
+                }
                 return next
               })
             }
@@ -326,8 +331,11 @@ export const RulesPanel = ({
               onOpen={() =>
                 setOpen((shown) => {
                   const next = new Set(shown)
-                  if (next.has(rule.id)) next.delete(rule.id)
-                  else next.add(rule.id)
+                  if (next.has(rule.id)) {
+                    next.delete(rule.id)
+                  } else {
+                    next.add(rule.id)
+                  }
                   return next
                 })
               }

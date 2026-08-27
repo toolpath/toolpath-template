@@ -26,7 +26,11 @@ export interface BandFeature {
   readonly tag: string
   readonly label: string
   readonly featureType: string
-  readonly rules: readonly { readonly name: string; readonly band: Band; readonly weight: number }[]
+  readonly rules: ReadonlyArray<{
+    readonly name: string
+    readonly band: Band
+    readonly weight: number
+  }>
 }
 
 export interface RulesSummary {
@@ -39,9 +43,9 @@ export interface RulesSummary {
   readonly spoke: number
   readonly rules: number
   /** Every reading that cost something, worst first — the panel draws a few. */
-  readonly worst: readonly WorstReading[]
+  readonly worst: ReadonlyArray<WorstReading>
   /** The features behind each band's count, so pressing one can show them. */
-  readonly byBand: Readonly<Record<Band, readonly BandFeature[]>>
+  readonly byBand: Readonly<Record<Band, ReadonlyArray<BandFeature>>>
 }
 
 /**
@@ -54,9 +58,9 @@ export interface RulesSummary {
  * be taken on trust.
  */
 export const rulesSummary = (
-  verdicts: readonly FeatureVerdict[],
-  features: readonly PartFeature[],
-  rules: readonly Rule[],
+  verdicts: ReadonlyArray<FeatureVerdict>,
+  features: ReadonlyArray<PartFeature>,
+  rules: ReadonlyArray<Rule>,
 ): RulesSummary => {
   /*
    * **Only the features handed in**, all the way through.
@@ -72,11 +76,13 @@ export const rulesSummary = (
 
   const part = scorePart(judged)
   const spoke = new Set<string>()
-  const readings: WorstReading[] = []
+  const readings: Array<WorstReading> = []
 
   for (const verdict of judged) {
     const feature = byTag.get(verdict.tag)
-    if (!feature) continue
+    if (!feature) {
+      continue
+    }
 
     for (const result of verdict.results) {
       spoke.add(result.rule.id)
@@ -112,7 +118,7 @@ export const rulesSummary = (
    * produced the counts — two walks over the same verdicts is how a list comes
    * to disagree with the number above it.
    */
-  const byBand: Record<Band, BandFeature[]> = {
+  const byBand: Record<Band, Array<BandFeature>> = {
     easy: [],
     alright: [],
     meh: [],
@@ -122,7 +128,9 @@ export const rulesSummary = (
 
   for (const verdict of judged) {
     const feature = byTag.get(verdict.tag)
-    if (!feature || !verdict.band) continue
+    if (!feature || !verdict.band) {
+      continue
+    }
 
     byBand[verdict.band].push({
       tag: verdict.tag,
@@ -152,12 +160,12 @@ export const rulesSummary = (
 }
 
 /** Which features a rule's readings landed on, once the filters have had a say. */
-export const costlyCount = (hits: readonly { band: Band }[]): number => {
+export const costlyCount = (hits: ReadonlyArray<{ band: Band }>): number => {
   return hits.filter((hit) => bandRank(hit.band) >= bandRank('meh')).length
 }
 
 /** The worst band a rule handed out, which is how hard it is being on this part. */
-export const worstOf = (hits: readonly { band: Band }[]): Band | null => {
+export const worstOf = (hits: ReadonlyArray<{ band: Band }>): Band | null => {
   return hits.reduce<Band | null>(
     (worst, hit) => (worst === null || bandRank(hit.band) > bandRank(worst) ? hit.band : worst),
     null,

@@ -4,12 +4,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MapFeaturesPanel } from './map-features'
 import { PartViewProvider, type PartView } from './part-view'
-import { EMPTY_PLAN } from '../shared/setups'
-import { lockSetup, setPassFor } from '../shared/plan-actions'
-import { TEST_DIRECTIONS, testFeature, testPart, testReport } from '../shared/test-part'
-import type { FeatureScore } from '../shared/feature-score'
-import type { PartFeature } from '../shared/contracts'
-import type { UncutFace } from '../shared/plan-summary'
+import { EMPTY_PLAN } from 'shared/setups'
+import { lockSetup, setPassFor } from 'shared/plan-actions'
+import { TEST_DIRECTIONS, testFeature, testPart, testReport } from 'shared/test-part'
+import type { FeatureScore } from 'shared/feature-score'
+import type { PartFeature } from 'shared/contracts'
+import type { UncutFace } from 'shared/plan-summary'
 
 /**
  * The panel where the mapping is done. The two interactions that cannot be
@@ -34,7 +34,7 @@ const testHole = (tag: string, region: number, direction = TEST_DIRECTIONS[0]!):
 const holes = [testHole('hole-a', 2), testHole('hole-b', 3), testHole('hole-c', 5)]
 const features = [pocket, wall, profile, ...holes]
 
-const uncutFace = (idx: number, from: number[], area = 10): UncutFace => ({
+const uncutFace = (idx: number, from: Array<number>, area = 10): UncutFace => ({
   idx,
   shape: 'planar',
   area,
@@ -715,7 +715,9 @@ describe('a row whose work a settled setup is holding', () => {
 
   const rowFor = (name: string) => {
     const row = screen.getByText(name).closest('li')
-    if (row === null) throw new Error(`no row for ${name}`)
+    if (row === null) {
+      throw new Error(`no row for ${name}`)
+    }
     return within(row)
   }
 

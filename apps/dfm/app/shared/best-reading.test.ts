@@ -106,7 +106,9 @@ describe('an arrangement the rules chose', () => {
     const seen = new Set<number>()
 
     for (const feature of part.features) {
-      if (!plan.assigned[feature.featureTag]?.rough) continue
+      if (!plan.assigned[feature.featureTag]?.rough) {
+        continue
+      }
       for (const idx of feature.regionIdxs) {
         expect(seen.has(idx)).toBe(false)
         seen.add(idx)

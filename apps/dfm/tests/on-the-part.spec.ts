@@ -45,9 +45,13 @@ const drawn = (page: Page) =>
 
 const at = async (page: Page, point: { x: number; y: number }, modifier?: 'Meta') => {
   const box = (await page.locator('canvas').boundingBox())!
-  if (modifier) await page.keyboard.down(modifier)
+  if (modifier) {
+    await page.keyboard.down(modifier)
+  }
   await page.mouse.click(box.x + box.width * point.x, box.y + box.height * point.y)
-  if (modifier) await page.keyboard.up(modifier)
+  if (modifier) {
+    await page.keyboard.up(modifier)
+  }
   await drawn(page)
 }
 
@@ -825,7 +829,9 @@ test('every colour in the app answers to the theme', async ({ page }) => {
      */
     const solidShade = (colour: string): number | null => {
       const rgb = /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/.exec(colour)
-      if (!rgb) return null
+      if (!rgb) {
+        return null
+      }
       const [r, g, b] = [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])]
       return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
     }
@@ -833,7 +839,9 @@ test('every colour in the app answers to the theme', async ({ page }) => {
     return [...document.querySelectorAll('*')]
       .filter((node) => {
         const box = node.getBoundingClientRect()
-        if (box.width < 40 || box.height < 20) return false
+        if (box.width < 40 || box.height < 20) {
+          return false
+        }
         const shade = solidShade(getComputedStyle(node).backgroundColor)
         return shade !== null && shade < 0.25
       })
