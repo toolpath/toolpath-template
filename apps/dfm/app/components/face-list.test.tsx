@@ -23,8 +23,7 @@ const report = testReport(features)
 
 /** What every FaceList in here is looking at, with the plan under test in it. */
 const view = (plan: SetupPlan): PartView => ({
-  report,
-  features,
+  part: report,
   directions: TEST_DIRECTIONS,
   plan,
   scores: new Map(),

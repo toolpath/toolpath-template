@@ -1,4 +1,4 @@
-import { directionIndexOf, sameDirection, type PartPick } from '@toolpath/viewer'
+import { directionIndexOf, type PartPick } from '@toolpath/viewer'
 import { type Arrows, arrowsFor, arrowsVisible, nextArrows, shownArrow } from 'shared/arrows'
 import { type PaintMode, loadPaintMode, savePaintMode } from 'shared/paint'
 import { type Unit, loadUnit, saveUnit } from 'shared/units'
@@ -17,7 +17,7 @@ import {
   scopeToDirection,
   stepThrough,
 } from 'shared/selection'
-import { featureFromTags, filterFeatures, tagsOfType } from 'shared/report'
+import { featureFromTags, filterFeatures, reachableFrom, tagsOfType } from 'shared/report'
 import { gatheredReadings, peekTarget } from 'shared/picks'
 import { partClick } from 'shared/part-click'
 import { focusedRow, listAt, rowAt, rowsIn } from 'shared/row-nav'
@@ -413,15 +413,10 @@ export const PartInspector = ({
     }
 
     const direction = holding === null ? null : report.candidateDirections[holding]
-    setSelection((current) =>
-      scopeToDirection(current, (tag) => {
-        if (!direction) {
-          return true
-        }
-        const feature = report.features.find((each) => each.featureTag === tag)
-        return feature ? sameDirection(feature.machiningDirection, direction) : false
-      }),
-    )
+    // The part's readings, not the report's: a reading somebody drew here is
+    // not in the report, and `reachableFrom` says what looking for it there
+    // cost.
+    setSelection((current) => scopeToDirection(current, reachableFrom(part.features, direction)))
   }
 
   /**
@@ -2166,7 +2161,8 @@ export const PartInspector = ({
   const view = useMemo(
     () => ({
       /*
-       * **The part**, not the report it came from.
+       * **The part**, not the report it came from — see `PartView`, which now
+       * says so in its own name rather than in a comment somebody has to find.
        *
        * `made` says why, a few hundred lines up: readings somebody drew here are
        * merged into one part rather than carried beside it, because otherwise
@@ -2181,8 +2177,7 @@ export const PartInspector = ({
        * face of a reading you had just drawn listed everything except the
        * reading you drew.
        */
-      report: part,
-      features: part.features,
+      part,
       directions: part.candidateDirections,
       plan,
       scores,
@@ -2190,16 +2185,7 @@ export const PartInspector = ({
       unit,
       showingPass,
     }),
-    [
-      part,
-      part.features,
-      part.candidateDirections,
-      plan,
-      scores,
-      rules.verdicts,
-      unit,
-      showingPass,
-    ],
+    [part, part.candidateDirections, plan, scores, rules.verdicts, unit, showingPass],
   )
 
   return (

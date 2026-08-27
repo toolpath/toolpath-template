@@ -57,21 +57,10 @@ const uncutFace = (idx: number, from: Array<number>, area = 10): UncutFace => ({
 const panel = (
   overrides: Partial<Parameters<typeof MapFeaturesPanel>[0]> & Partial<PartView> = {},
 ) => {
-  const {
-    report,
-    features: shown,
-    directions,
-    plan,
-    scores,
-    verdicts,
-    unit,
-    showingPass,
-    ...props
-  } = overrides
+  const { part, directions, plan, scores, verdicts, unit, showingPass, ...props } = overrides
 
   const view: PartView = {
-    report: report ?? testReport(features),
-    features: shown ?? features,
+    part: part ?? testReport(features),
     directions: directions ?? TEST_DIRECTIONS,
     plan: plan ?? EMPTY_PLAN,
     scores: scores ?? new Map<string, FeatureScore>(),
@@ -665,8 +654,7 @@ describe('the rows survive a re-render', () => {
     }
 
     const view: PartView = {
-      report: testReport(features),
-      features,
+      part: testReport(features),
       directions: TEST_DIRECTIONS,
       plan: EMPTY_PLAN,
       scores: new Map<string, FeatureScore>(),

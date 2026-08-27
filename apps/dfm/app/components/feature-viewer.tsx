@@ -249,7 +249,7 @@ export const FeatureViewer = ({
   /** A click that hit nothing in the scene. */
   onClearSelection: () => void
 }) => {
-  const { report, unit, showingPass, verdicts } = usePartView()
+  const { part, unit, showingPass, verdicts } = usePartView()
 
   const viewerRef = useRef<ViewerHandle>(null)
   // The cut is a mode: its handle stands over the part's centre, which is also
@@ -388,12 +388,12 @@ export const FeatureViewer = ({
   }
   const viewerReport = useMemo<PartReport>(
     () => ({
-      ...report,
-      meshGlbUrl: report.hasMeshGlb ? meshUrl(report.partId, jobId, 'glb') : null,
-      meshStlUrl: report.hasMeshStl ? meshUrl(report.partId, jobId, 'stl') : null,
+      ...part,
+      meshGlbUrl: part.hasMeshGlb ? meshUrl(part.partId, jobId, 'glb') : null,
+      meshStlUrl: part.hasMeshStl ? meshUrl(part.partId, jobId, 'stl') : null,
       thumbnailUrl: null,
     }),
-    [jobId, report],
+    [jobId, part],
   )
 
   return (
@@ -465,8 +465,8 @@ export const FeatureViewer = ({
           a filter people get stuck in. */}
         {activeDirection === null ? null : (
           <span className="flex items-center gap-2 rounded bg-warning/20 px-2 py-1 text-2xs text-ink shadow-sm">
-            Only {directionLabel(report.candidateDirections[activeDirection] ?? ORIGIN)} ·
-            everything else is hidden from a click
+            Only {directionLabel(part.candidateDirections[activeDirection] ?? ORIGIN)} · everything
+            else is hidden from a click
             <Button size="sm" variant="secondary" onClick={() => onPickDirection(activeDirection)}>
               Clear
             </Button>
@@ -690,8 +690,8 @@ export const FeatureViewer = ({
           )}
         </div>
       </div>
-      {report.hasMeshGlb || report.hasMeshStl ? (
-        <MeshErrorBoundary key={`${report.partId}:${jobId}`}>
+      {part.hasMeshGlb || part.hasMeshStl ? (
+        <MeshErrorBoundary key={`${part.partId}:${jobId}`}>
           <Suspense
             fallback={
               <div className="grid size-full place-items-center text-sm text-ink-muted">
@@ -730,7 +730,7 @@ export const FeatureViewer = ({
                 }}
               />
               <DirectionArrows
-                directions={report.candidateDirections}
+                directions={part.candidateDirections}
                 activeDirection={activeDirection}
                 shownDirection={shownDirection}
                 visible={arrowsVisible}

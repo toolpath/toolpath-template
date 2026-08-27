@@ -174,6 +174,34 @@ export const tagsOfType = (
     .map((feature) => feature.featureTag)
 }
 
+/**
+ * Whether the way up being held can reach the reading a tag names.
+ *
+ * Takes the readings rather than a report, like everything else here — and that
+ * is the bug this was lifted out of rather than a matter of taste. It lived as
+ * a closure over `report.features` in `part-inspector`, so a reading somebody
+ * drew here was not in the list it searched, the lookup found nothing, and the
+ * `false` below dropped it: holding the very way up a made reading is cut from
+ * took it out of the list it belongs at the top of.
+ *
+ * Nothing held reaches everything, which is what puts the whole list back when
+ * an arrow is released.
+ */
+export const reachableFrom = (
+  features: ReadonlyArray<PartFeature>,
+  direction: Vec3 | null,
+): ((tag: string) => boolean) => {
+  if (!direction) {
+    return () => true
+  }
+
+  const byTag = new Map(features.map((feature) => [feature.featureTag, feature]))
+  return (tag) => {
+    const feature = byTag.get(tag)
+    return feature ? sameDirection(feature.machiningDirection, direction) : false
+  }
+}
+
 export const featureFromTags = (
   features: ReadonlyArray<PartFeature>,
   tags: ReadonlyArray<string>,

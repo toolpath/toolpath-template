@@ -203,7 +203,7 @@ export const FaceList = ({
   /** Change which passes a click on the part claims. */
   onCutting: (passes: ReadonlyArray<Pass>) => void
 }) => {
-  const { report, plan, directions, scores, showingPass, unit } = usePartView()
+  const { part, plan, directions, scores, showingPass, unit } = usePartView()
 
   /**
    * The face being worked on: expanded, and lit on the part.
@@ -241,7 +241,7 @@ export const FaceList = ({
 
   const toggle = (idx: number) => setOpen((shown) => (shown === idx ? null : idx))
 
-  const found = facesOf(report, plan, feature, showingPass)
+  const found = facesOf(part, plan, feature, showingPass)
 
   /**
    * The faces, grouped by **what the plan does with each**.
@@ -294,7 +294,7 @@ export const FaceList = ({
    * reading called Wall is a sentence that costs a line and says nothing.
    */
   const reads = readsAs(
-    report.features,
+    part.features,
     feature.machiningDirection,
     rows.map((row) => row.idx),
   ).filter((guess) => guess.featureType !== feature.featureType)
@@ -331,7 +331,7 @@ export const FaceList = ({
       passes: cutting.filter((pass) => row.cutBy[pass] === null && !row.passes.includes(pass)),
     }))
     .filter((row) => row.passes.length > 0)
-  const elsewhere = cutElsewhere(report, plan, feature, showingPass)
+  const elsewhere = cutElsewhere(part, plan, feature, showingPass)
 
   /*
    * A reading held by a setup somebody has settled.

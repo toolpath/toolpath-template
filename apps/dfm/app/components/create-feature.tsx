@@ -113,7 +113,7 @@ export const CreateFeature = ({
   /** Leave the mode entirely. */
   onDone: () => void
 }) => {
-  const { directions, report, scores, unit, plan } = usePartView()
+  const { directions, part, scores, unit, plan } = usePartView()
 
   const vector = draft.direction === null ? null : directions[draft.direction]
   /**
@@ -125,7 +125,7 @@ export const CreateFeature = ({
    */
   const cutNow = new Map<number, string>()
   for (const face of draft.faces) {
-    for (const other of report.features) {
+    for (const other of part.features) {
       if (!PASSES.some((pass) => cutsFace(plan, other, pass, face))) {
         continue
       }
@@ -134,19 +134,19 @@ export const CreateFeature = ({
     }
   }
 
-  const already = coveringAll(report.features, draft.faces)
+  const already = coveringAll(part.features, draft.faces)
   const sameWayUp = vector
     ? already.filter((each) => relationTo(vector, each.machiningDirection) === 'same')
     : []
-  const guesses = vector ? readsAs(report.features, vector, draft.faces) : []
-  const byIdx = new Map(report.regions.map((region) => [region.idx, region]))
-  const perimeter = vector ? perimeterFrom(report.features, vector) : []
-  const runs = vector ? runsIn(report.features, vector, draft.faces, touching) : []
+  const guesses = vector ? readsAs(part.features, vector, draft.faces) : []
+  const byIdx = new Map(part.regions.map((region) => [region.idx, region]))
+  const perimeter = vector ? perimeterFrom(part.features, vector) : []
+  const runs = vector ? runsIn(part.features, vector, draft.faces, touching) : []
   /*
    * Profile, when the Engine has a contour from here — and the run the chosen
    * faces sit in when it does not, which on a real part is most ways up.
    */
-  const grown = vector ? growRun(report.features, vector, draft.faces, touching) : []
+  const grown = vector ? growRun(part.features, vector, draft.faces, touching) : []
   /*
    * The Engine's own contour where it has one, and otherwise the run the chosen
    * faces sit in.

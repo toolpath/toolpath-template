@@ -906,7 +906,7 @@ const MapFeaturesPanelView = ({
   onShowFaces: (featureTag: string) => void
   onHover: (tags: Array<string>) => void
 }) => {
-  const { directions, features, plan, scores, unit, report, showingPass } = usePartView()
+  const { directions, part, plan, scores, unit, showingPass } = usePartView()
   /*
    * What the locks hold, worked out once for the whole panel.
    *
@@ -914,7 +914,7 @@ const MapFeaturesPanelView = ({
    * same walk over every feature on the part each time. Done per row it is the
    * list's own N+1; done here it is one pass, and the rows read it.
    */
-  const claims = useMemo(() => lockedClaims(plan, features), [plan, features])
+  const claims = useMemo(() => lockedClaims(plan, part.features), [plan, part.features])
 
   /*
    * One way up, not four.
@@ -925,7 +925,7 @@ const MapFeaturesPanelView = ({
    * already pointed at one asks them to make it twice. So this shows what the
    * held way up would cut of what is painted, and nothing else.
    */
-  const offers = offersFor(directions, features, painted)
+  const offers = offersFor(directions, part.features, painted)
   const heldOffer = offers.find((offer) => offer.index === holding) ?? null
   const holdingLabel =
     holding === null ? '' : directionLabel(directions[holding] ?? { x: 0, y: 0, z: 0 })
@@ -994,7 +994,7 @@ const MapFeaturesPanelView = ({
    * itself. Getting that backwards would offer holes nobody painted.
    */
   const holeGroups = (readings: ReadonlyArray<PartFeature>, across: boolean) =>
-    across ? groupAcrossPart(features, readings) : groupHoles(readings)
+    across ? groupAcrossPart(part.features, readings) : groupHoles(readings)
 
   const activeLabel =
     activeDirection === null
@@ -1143,7 +1143,7 @@ const MapFeaturesPanelView = ({
                 flagElsewhere
                 key={holes.key}
                 feature={holes.holes[0]!}
-                report={report}
+                report={part}
                 siblings={holes.holes}
                 open={opened.has(holes.holes[0]!.featureTag)}
                 onToggle={openGroup}
@@ -1343,7 +1343,7 @@ const MapFeaturesPanelView = ({
                                   claims={claims}
                                   key={holes.key}
                                   feature={holes.holes[0]!}
-                                  report={report}
+                                  report={part}
                                   siblings={holes.holes}
                                   open={opened.has(holes.holes[0]!.featureTag)}
                                   onToggle={openGroup}
@@ -1425,7 +1425,7 @@ const MapFeaturesPanelView = ({
                         key={holes.key}
                         feature={holes.holes[0]!}
                         flagElsewhere
-                        report={report}
+                        report={part}
                         siblings={holes.holes}
                         open={opened.has(holes.holes[0]!.featureTag)}
                         onToggle={openGroup}
@@ -1498,7 +1498,7 @@ const MapFeaturesPanelView = ({
                         claims={claims}
                         key={holes.key}
                         feature={holes.holes[0]!}
-                        report={report}
+                        report={part}
                         siblings={holes.holes}
                         open={opened.has(holes.holes[0]!.featureTag)}
                         onToggle={openGroup}

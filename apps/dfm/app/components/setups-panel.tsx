@@ -196,7 +196,7 @@ const SetupsPanelView = ({
   onShowUncut: () => void
   onClearAll: () => void
 }) => {
-  const { report, features, showingPass, unit, directions, plan, scores, verdicts } = usePartView()
+  const { part, showingPass, unit, directions, plan, scores, verdicts } = usePartView()
 
   // Folded by default is wrong — a direction with nothing shown under it reads
   // as empty. So they open, and folding is what somebody does to get one out of
@@ -228,10 +228,10 @@ const SetupsPanelView = ({
     })
   }
 
-  const coverage = planCoverage(report, features, plan)
-  const groups = setupGroups(report, features, directions, plan, verdicts)
-  const left = uncutFaces(report, features, plan)
-  const unreachable = unreachableFaces(report, features)
+  const coverage = planCoverage(part, part.features, plan)
+  const groups = setupGroups(part, part.features, directions, plan, verdicts)
+  const left = uncutFaces(part, part.features, plan)
+  const unreachable = unreachableFaces(part, part.features)
 
   /*
    * What is not cut yet, in words, for the tooltip.
@@ -244,7 +244,7 @@ const SetupsPanelView = ({
   const said = [
     left.length === 0
       ? 'Every face the Engine found a reading for is cut'
-      : `${String(left.length)} of ${String(report.regions.length)} faces have no way up in the roughing pass`,
+      : `${String(left.length)} of ${String(part.regions.length)} faces have no way up in the roughing pass`,
     unreachable.length > 0
       ? `${String(unreachable.length)} of those have no reading from any way up — the Engine reported nothing that reaches them`
       : null,
@@ -678,7 +678,7 @@ const SetupsPanelView = ({
                         <li>
                           <FaceLines
                             feature={feature}
-                            report={{ ...report, features }}
+                            report={part}
                             plan={plan}
                             showingPass={showingPass}
                             unit={unit}

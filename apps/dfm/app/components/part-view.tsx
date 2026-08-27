@@ -2,7 +2,7 @@ import { createContext, useContext, type ReactNode } from 'react'
 
 import type { Vec3 } from '@toolpath/api'
 
-import type { PartFeature, PublicInspectionReport } from 'shared/contracts'
+import type { PublicInspectionReport } from 'shared/contracts'
 import type { FeatureScore } from 'shared/feature-score'
 import type { FeatureVerdict } from 'shared/rules'
 import type { Pass, SetupPlan } from 'shared/setups'
@@ -28,16 +28,39 @@ import type { Unit } from 'shared/units'
  * being made.
  */
 export interface PartView {
-  /** The Engine's report, as the server passed it on. */
-  report: PublicInspectionReport
   /**
-   * Every reading on the part, including the ones somebody made.
+   * The part every panel on this page is looking at: the Engine's report with
+   * the readings somebody drew here merged into its `features`.
    *
-   * Not `report.features`: a made reading is an ordinary reading to every list
-   * that draws one, and a panel reaching past this to the report would not see
-   * it.
+   * **Not the report as the server passed it on**, and the distinction is a bug
+   * somebody has already hit. `made` in `part-inspector` says why the drawn
+   * readings are merged in rather than carried beside the reported ones:
+   * otherwise every list, the plan, the coverage and the paint each need to
+   * know about a second source — "and the one that forgot would quietly leave a
+   * made reading out of the plan it is part of".
+   *
+   * This context was that second source twice over. It was handed the raw
+   * report, so `report.features` was the Engine's list and panels reading it
+   * stopped seeing made readings — clicking a face of a reading you had just
+   * drawn listed every reading of that face except the one you drew. The repair
+   * pointed the field at the part and left a second `features` beside it, so
+   * the same object carried two lists that were equal only by convention.
+   *
+   * It is one object and one list now, under the name of the thing it actually
+   * is. `part.features` cannot disagree with itself, and it does not invite the
+   * reading that `report.features` did — that the list is what the Engine
+   * reported, which is exactly the wrong idea and is why five panels reached
+   * for it.
+   *
+   * Narrowing the type to keep the readings out of reach is not the answer, and
+   * was tried: `feature-viewer` spreads this whole object into the mesh
+   * viewer's own report prop, and `face-list` hands it to `facesOf` and
+   * `cutElsewhere`. All three answer "what owns this face" from the `features`
+   * they find on it, and a spread still type-checks, so they return to the
+   * original bug in silence. What keeps this honest is that there is only one
+   * list to reach for.
    */
-  features: ReadonlyArray<PartFeature>
+  part: PublicInspectionReport
   /** The ways up the part can be held, in the order the arrows number them. */
   directions: ReadonlyArray<Vec3>
   /** The arrangement on screen. */
