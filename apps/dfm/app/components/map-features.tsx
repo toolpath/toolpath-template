@@ -29,7 +29,7 @@ import { EMPTY_DRAFT, type Draft, type Touching } from 'shared/make-feature'
 import { INFER_SCOPES, type Infer } from 'shared/infer'
 import type { Proposal } from 'shared/proposal'
 import { formatArea, formatLength, type Unit } from 'shared/units'
-import { keynavAttributes, rowAttributes } from 'shared/row-nav'
+import { KEYNAV, ROW, keynavAttributes, rowAttributes } from 'shared/row-nav'
 import { usePartView } from './part-view'
 
 /**
@@ -970,6 +970,13 @@ const MapFeaturesPanelView = ({
    *
    * Only while the uncut list has the panel — elsewhere a face click means
    * something else entirely, and `openFace` is not what shows it.
+   *
+   * **Scoped to this list**, and through `row-nav` rather than the attribute
+   * spelled out. A face row is named by its region index, and the editor's face
+   * list names its rows the same way — two lists in one column, drawn at the
+   * same time, over the same numbers. Unscoped, a picked face with no row here
+   * — one that is already cut, or one this way up filters out — walked past
+   * this list and scrolled *that* one instead.
    */
   useEffect(() => {
     if (!showingUncut || pickedFace == null) {
@@ -978,7 +985,7 @@ const MapFeaturesPanelView = ({
 
     setOpenFace(pickedFace)
     document
-      .querySelector(`[data-row="${CSS.escape(String(pickedFace))}"]`)
+      .querySelector(`[${KEYNAV}="unmapped"] [${ROW}="${CSS.escape(String(pickedFace))}"]`)
       ?.scrollIntoView({ block: 'nearest' })
   }, [showingUncut, pickedFace])
   const openGroup = (key: string) =>

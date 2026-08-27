@@ -1729,6 +1729,18 @@ export const PartInspector = ({
   const showUncut = (): void => {
     // Five answers to one question, and exactly one is lit — naming any of the
     // others is how you leave the one you are in.
+    /*
+     * Create borrowed the arrows, and this is one of the doors out of it.
+     *
+     * `setDraft(null)` below is that door, and a loan is only ever given back
+     * by the mode that took it — so leaving Create this way used to walk out
+     * still holding them, and the part stayed covered in arrows nothing on
+     * screen explained. `onMake` gives them back on its own way out; this is
+     * the same act, for the exit that goes through here instead.
+     */
+    if (draft !== null) {
+      returnArrows()
+    }
     setDraft(null)
     setJustMade(null)
     /*

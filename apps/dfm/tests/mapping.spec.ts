@@ -1713,3 +1713,23 @@ test('the uncut list leaves the arrows where it found them', async ({ page }) =>
   await page.getByRole('button', { name: /Not cut yet/ }).click()
   await expect(arrows).toContainText('All')
 })
+
+test('leaving Create for the uncut list gives Create its arrows back', async ({ page }) => {
+  /*
+   * The other side of the test above, and the one it opened.
+   *
+   * Leaving the arrows alone is right for the mode's own toggle — but pressing
+   * `Not cut yet` also puts Create down, and Create had *borrowed* them. A loan
+   * is given back by the mode that took it, so this door out of Create walked
+   * away still holding them and the part kept ten arrows nothing on screen
+   * explained. `leaving Create without choosing a way up takes its arrows with
+   * it` covers the By feature door; this covers the one through here.
+   */
+  const arrows = page.getByRole('button', { name: /^Direction arrows:/ })
+
+  await page.getByRole('button', { name: 'Create', exact: true }).click()
+  await expect(arrows).toHaveAccessibleName('Direction arrows: every candidate way up')
+
+  await showUncut(page)
+  await expect(arrows).toHaveAccessibleName('Direction arrows: no arrows')
+})
