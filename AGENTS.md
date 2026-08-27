@@ -70,13 +70,34 @@ template's Hono routes or UI structure when a user reworks the application.
 
 ## Code Styling
 
-- When using typescript to type an array of items, never use `Items[]`, always use `Array<Items>`, reading from left to right this is more explicit.
-- Never write if statements on a single line. Always write brackets and multiline if statements.
-- Never use `function functionName() {}` syntax for function definitions. Always use `const functionName = () => {}` syntax instead. `pnpm check-style` enforces this and runs first in `pnpm check`. Route modules export the component separately (`const Route = () => {}` then `export default Route`) rather than as a default declaration.
-- Always import parts of React individually, e.g. `ReactNode`, `FC`, etc. instead of writing `React.ReactNode`, `React.FC`. The only exception is in cases like `MouseEvent` where there is already a `MouseEvent` on the global namespace, so `React.MouseEvent` is more explicit.
-- When possible, do not use style props. Always use Tailwind CSS classes.
-- Use the supported `components/*`, `client/*`, `routes/*`, `shared/*`, and
-  `server/*` aliases instead of relative imports when one applies.
+Every rule below is either proven by a command or marked as judgment. A rule with
+a sensor is not a matter of taste: the gate fails and the work stops. A rule
+without one is a preference a reviewer has to carry in their head, and agents
+drift off those the longer a session runs — so when a judgment rule starts being
+violated, give it a check rather than restating it here.
+
+| Rule                                                                 | Proven by          |
+| -------------------------------------------------------------------- | ------------------ |
+| `const name = () => {}`, never `function name() {}`                  | `pnpm check-style` |
+| `Array<Item>`, never `Item[]` — left to right is more explicit       | `pnpm lint`        |
+| Braces and multiple lines on every `if`, never a single-line one     | `pnpm lint`        |
+| Import React members individually (`ReactNode`), never `React.X`     | `pnpm lint`        |
+| `components/*`, `client/*`, `routes/*`, `shared/*` aliases in `app/` | `pnpm lint`        |
+| Only `apps/dfm/server` uses the Toolpath SDK at runtime              | `pnpm lint`        |
+| The layering under Project Map                                       | `pnpm lint`        |
+| Tailwind classes for styling; `style={{}}` only for a computed value | judgment           |
+| `@toolpath/ui` components over hand-authored HTML, while it is used  | judgment           |
+
+What the checks cannot carry:
+
+- `React.MouseEvent` and the other names a DOM global already takes are the
+  documented exception. The check allows exactly those and nothing else.
+- Route modules export the component separately (`const Route = () => {}` then
+  `export default Route`) rather than as a default declaration.
+- `style={{}}` is right for a value only known at runtime — a band or direction
+  colour, a computed width. Everything static is a Tailwind class.
+- `apps/dfm/server` deliberately keeps relative imports into `app/shared`:
+  production runs `tsx server/prod.ts` with no bundler to resolve an alias.
 
 ## Project Map
 
@@ -85,9 +106,31 @@ template's Hono routes or UI structure when a user reworks the application.
   Toolpath SDK or handles the user's API key.
 - `apps/dfm/app/shared/` contains pure contracts and domain logic. Keep new
   behavior that can be pure and tested here.
+- `apps/dfm/docs/` is the written spec for the part viewer. Read
+  `apps/dfm/docs/README.md` before changing selection, highlighting, directions,
+  or the setup plan: its tables name the exact file that decides each behavior,
+  and its testing section fixes where each kind of test belongs.
 - `apps/dfm/tests/` contains Playwright end-to-end coverage.
 - `apps/dfm/app/**/*.test.*` and `apps/dfm/server/**/*.test.ts` contain Vitest
   coverage.
+
+### Layering
+
+`pnpm lint` fails on any of these, so they are facts about the code rather than
+intentions about it:
+
+- Nothing under `app/` may import `server/`. This is the API-key boundary, and
+  it holds for an alias import as well as a relative one.
+- `app/shared/` imports only `app/shared/`, which is what keeps it pure and
+  cheap to test.
+- `app/components/` may reach `client/` and `shared/`, never `routes/`.
+- `server/` may import `app/shared/` for the shared contracts, and nothing else
+  from `app/`.
+- `app/` may import Toolpath SDK **types**; a runtime import would ship the SDK
+  to the browser.
+
+The rules live in `eslint.config.js`. Adding a layer means adding it there too,
+or the boundary is a comment rather than a check.
 
 ## Safety and Secrets
 
@@ -130,13 +173,18 @@ After editing:
 
 Run commands from the repository root unless noted otherwise.
 
-| Purpose                          | Command                          |
-| -------------------------------- | -------------------------------- |
-| Install dependencies             | `pnpm install --frozen-lockfile` |
-| Run the development app          | `pnpm dev`                       |
-| Check function-declaration style | `pnpm check-style`               |
-| Build, typecheck, and unit test  | `pnpm check`                     |
-| Run end-to-end tests             | `pnpm test:e2e`                  |
+| Purpose                            | Command                          |
+| ---------------------------------- | -------------------------------- |
+| Install dependencies               | `pnpm install --frozen-lockfile` |
+| Run the development app            | `pnpm dev`                       |
+| Check function-declaration style   | `pnpm check-style`               |
+| Check style rules and the layering | `pnpm lint`                      |
+| Build, typecheck, and unit test    | `pnpm check`                     |
+| Run end-to-end tests               | `pnpm test:e2e`                  |
+
+`pnpm check` runs `check-style`, `lint`, `build`, `check-types`, and `test`, in
+that order, so the cheap checks fail first. `pnpm lint --fix` settles the
+formatting-shaped rules on its own.
 
 `pnpm check` is the normal fast gate. Before pushing a significant change,
 also run the dependency audit, end-to-end tests, and the production
@@ -144,11 +192,8 @@ Docker build when the affected area makes those checks relevant. Only run docker
 
 ## Formatting
 
-`pnpm setup:local` installs the Husky pre-commit hook. The hook runs Prettier on
-staged files automatically and stages the formatted results. Agents do not need
-to run `pnpm format` or `pnpm format:check` as part of normal work. Run either
-command only when the user explicitly asks for formatting or when the commit
-hook cannot be used.
+The Husky pre-commit hook installed by `pnpm setup:local` runs Prettier on staged
+files. Run `pnpm format` only when the user asks or the hook cannot be used.
 
 ## Git Workflow
 

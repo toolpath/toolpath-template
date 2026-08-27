@@ -9,8 +9,11 @@ Run checks from the repository root. This is a pnpm 10/Turborepo workspace;
 do not substitute `npm`, `npx`, or a bare `tsc` command.
 
 1. Inspect `git status --short` first and leave unrelated work untouched.
-2. Run `pnpm check`. It is the normal fast gate and runs the workspace build,
-   type generation/type-checking, and unit tests.
+2. Run `pnpm check`. It is the normal fast gate: `check-style`, `lint`, the
+   workspace build, type generation/type-checking, and unit tests, in that
+   order. `pnpm lint` also enforces the layering, so a boundary violation
+   fails here rather than in review; `pnpm lint --fix` settles the
+   formatting-shaped rules.
 3. Run `pnpm audit` as a separate dependency-health check. Report an audit
    failure as a finding; do not change dependencies unless the user asks.
 4. Run `pnpm test:e2e` when the user requests full verification, the change
