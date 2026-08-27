@@ -72,7 +72,7 @@ template's Hono routes or UI structure when a user reworks the application.
 
 - When using typescript to type an array of items, never use `Items[]`, always use `Array<Items>`, reading from left to right this is more explicit.
 - Never write if statements on a single line. Always write brackets and multiline if statements.
-- Never use `function functionName() {}` syntax for function definitions. Always use `const functionName = () => {}` syntax instead.
+- Never use `function functionName() {}` syntax for function definitions. Always use `const functionName = () => {}` syntax instead. `pnpm check-style` enforces this and runs first in `pnpm check`. Route modules export the component separately (`const Route = () => {}` then `export default Route`) rather than as a default declaration.
 - Always import parts of React individually, e.g. `ReactNode`, `FC`, etc. instead of writing `React.ReactNode`, `React.FC`. The only exception is in cases like `MouseEvent` where there is already a `MouseEvent` on the global namespace, so `React.MouseEvent` is more explicit.
 - When possible, do not use style props. Always use Tailwind CSS classes.
 - Use the supported `components/*`, `client/*`, `routes/*`, `shared/*`, and
@@ -130,12 +130,13 @@ After editing:
 
 Run commands from the repository root unless noted otherwise.
 
-| Purpose                         | Command                          |
-| ------------------------------- | -------------------------------- |
-| Install dependencies            | `pnpm install --frozen-lockfile` |
-| Run the development app         | `pnpm dev`                       |
-| Build, typecheck, and unit test | `pnpm check`                     |
-| Run end-to-end tests            | `pnpm test:e2e`                  |
+| Purpose                          | Command                          |
+| -------------------------------- | -------------------------------- |
+| Install dependencies             | `pnpm install --frozen-lockfile` |
+| Run the development app          | `pnpm dev`                       |
+| Check function-declaration style | `pnpm check-style`               |
+| Build, typecheck, and unit test  | `pnpm check`                     |
+| Run end-to-end tests             | `pnpm test:e2e`                  |
 
 `pnpm check` is the normal fast gate. Before pushing a significant change,
 also run the dependency audit, end-to-end tests, and the production
