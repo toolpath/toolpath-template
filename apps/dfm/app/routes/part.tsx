@@ -19,7 +19,7 @@ const FailedPart = ({ message }: { message: string }) => (
   </main>
 )
 
-export default function PartRoute() {
+const PartRoute = () => {
   const { partId } = useParams()
   const [searchParams] = useSearchParams()
   const jobId = searchParams.get('job')
@@ -46,3 +46,5 @@ const ActivePart = ({ partId, jobId }: { partId: string; jobId: string }) => {
     </main>
   )
 }
+
+export default PartRoute

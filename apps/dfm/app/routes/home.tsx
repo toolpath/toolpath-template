@@ -6,7 +6,7 @@ import { usePartUpload } from '../client/use-part-upload'
 import { useSession } from '../client/use-session'
 import { Card } from '@toolpath/ui'
 
-export default function HomeRoute() {
+const HomeRoute = () => {
   const session = useSession()
   const partUpload = usePartUpload()
 
@@ -48,3 +48,5 @@ export default function HomeRoute() {
     </main>
   )
 }
+
+export default HomeRoute
