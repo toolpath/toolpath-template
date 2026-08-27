@@ -1,9 +1,21 @@
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router'
-import appCss from './styles.css?url'
 import { THEME_SCRIPT } from './shared/theme'
 
+/*
+ * Imported for its side effect rather than through `links()`.
+ *
+ * `./styles.css?url` handed React Router a URL to link, and Vite's dev server
+ * invalidates a changed file by appending its own query — producing
+ * `/app/styles.css?t=…&url`, which it then 404s. The page came back with no
+ * stylesheet at all and React never mounted: a blank document, every time this
+ * file was edited, until the dev server was restarted.
+ *
+ * A plain import has Vite own the injection instead, which is what it is for.
+ * The font sheet stays in `links()` below, being a real URL on another origin.
+ */
+import './styles.css'
+
 export const links = () => [
-  { rel: 'stylesheet', href: appCss },
   // The portal's type scale: Open Sans for UI copy, Nunito for headings, and
   // Roboto Mono for identifiers and measured values.
   { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
