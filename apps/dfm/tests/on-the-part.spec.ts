@@ -896,3 +896,35 @@ test('the sizes a shop takes are judged against the part on screen', async ({ pa
   await type('Largest, Z', '30')
   await expect(page.getByText(/20\.80 mm outside what you take/)).toBeVisible()
 })
+
+test('a reading drawn here is listed by the faces it was drawn on', async ({ page }) => {
+  /*
+   * Paul, after drawing one: it appeared in the plan once confirmed, and then
+   * clicking one of its own faces listed everything except it.
+   *
+   * `made` says why in `part-inspector`: readings drawn here are merged into
+   * one part rather than carried beside it, because otherwise every list, the
+   * plan, the coverage and the paint each need to know about a second source —
+   * "and the one that forgot would quietly leave a made reading out". The view
+   * context was handed the raw report and became that second source, so the
+   * viewer answered "what owns this face" without the readings drawn on it.
+   */
+  await page.getByRole('button', { name: 'Create', exact: true }).click()
+  await page.getByRole('button', { name: '+Z', exact: true }).click()
+  await at(page, FACE)
+  await at(page, OTHER)
+  await page.getByRole('button', { name: 'Create feature' }).click()
+  await expect(page.getByText(/It is a reading like any other now/)).toBeVisible()
+
+  // Out of Create, and back to reading the part by face.
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'By feature', exact: true }).click()
+
+  // Click a face the drawn reading was drawn on.
+  await at(page, FACE)
+
+  const rows = page.locator('[data-keynav="map"] [data-row]')
+  await expect(rows.first()).toBeVisible()
+  // A reading like any other means listed like any other.
+  await expect(page.locator('[data-keynav="map"] [data-row^="made-"]')).toHaveCount(1)
+})
