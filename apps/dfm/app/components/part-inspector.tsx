@@ -1736,17 +1736,17 @@ export const PartInspector = ({
     // others is how you leave the one you are in.
     setDraft(null)
     setJustMade(null)
-    setShowingUncut((current) => {
-      // Its filter is a click on an arrow, so entering it puts the arrows on
-      // screen — the same reason By direction does. A mode whose only gesture
-      // is invisible is one nobody starts.
-      if (current) {
-        returnArrows()
-      } else {
-        borrowArrows()
-      }
-      return !current
-    })
+    /*
+     * The arrows are left alone.
+     *
+     * Entering used to turn them all on, on the reasoning that the filter is a
+     * click on an arrow and a mode whose only gesture is invisible is one
+     * nobody starts. But the gesture here is a click on **the part** — find the
+     * gap, look at what could cut it — and a way up is a narrowing somebody
+     * reaches for afterwards, if at all. Turning ten arrows on over a list of
+     * faces buried the thing the list is about.
+     */
+    setShowingUncut((current) => !current)
   }
 
   /*
@@ -2370,6 +2370,7 @@ export const PartInspector = ({
                   holding={picking.holding}
                   focusedTag={focusedTag}
                   faces={selection.picks.length}
+                  pickedFace={selection.picks.at(-1)?.region ?? null}
                   highlighted={litDirection?.index ?? null}
                   showingUncut={showingUncut}
                   making={draft}

@@ -928,3 +928,34 @@ test('a reading drawn here is listed by the faces it was drawn on', async ({ pag
   // A reading like any other means listed like any other.
   await expect(page.locator('[data-keynav="map"] [data-row^="made-"]')).toHaveCount(1)
 })
+
+test('a face clicked on the part opens its row in the uncut list', async ({ page }) => {
+  /*
+   * The uncut list is read by clicking the part: find the gap, look at what
+   * could cut it. Pressing a row already picks the face on the part — the two
+   * halves of one gesture — and the way back did not exist, so a click out
+   * there left the list where it was and somebody scrolled it themselves.
+   */
+  await page.getByRole('tab', { name: 'Directions' }).click()
+  await page.getByRole('button', { name: /Not cut yet/ }).click()
+
+  // Nothing is open to begin with.
+  await expect(page.locator('[data-row][aria-expanded="true"]')).toHaveCount(0)
+
+  await at(page, FACE)
+
+  // The face that was clicked is the row that opened, and it opened onto the
+  // readings that could cut it.
+  const open = page.locator('[data-row][aria-expanded="true"]')
+  await expect(open).toHaveCount(1)
+  const which = await open.getAttribute('data-row')
+  expect(which).toMatch(/^\d+$/)
+
+  // A different face moves it rather than opening a second.
+  await at(page, OTHER)
+  await expect(page.locator('[data-row][aria-expanded="true"]')).toHaveCount(1)
+  await expect(page.locator('[data-row][aria-expanded="true"]')).not.toHaveAttribute(
+    'data-row',
+    which!,
+  )
+})
