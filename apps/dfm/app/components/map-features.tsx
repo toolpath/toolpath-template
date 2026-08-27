@@ -1,4 +1,4 @@
-import { memo, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, memo, useMemo, useState, type ReactNode } from 'react'
 import type { Vec3 } from '@toolpath/api'
 
 import { FaceCount } from './face-count'
@@ -803,6 +803,7 @@ const MapFeaturesPanelView = ({
   showingUncut,
   uncut,
   onPickFace,
+  pickedFace,
   making,
   handedTags,
   types,
@@ -852,6 +853,15 @@ const MapFeaturesPanelView = ({
   uncut: ReadonlyArray<UncutFace>
   /** Pick one from the list — the same act as clicking it on the part. */
   onPickFace: (region: number) => void
+  /**
+   * The face last picked on the part, or null.
+   *
+   * The uncut list is read by clicking the part — find the gap, look at what
+   * could cut it — so a click out there has to arrive in here. Without it the
+   * two halves of one gesture sat in different components and only one of them
+   * happened.
+   */
+  pickedFace?: number | null
   /** The reading being drawn, if one is. */
   making: Draft | null
   /**
@@ -949,6 +959,28 @@ const MapFeaturesPanelView = ({
    * of. Closing is the same press that opened it.
    */
   const [openFace, setOpenFace] = useState<number | null>(null)
+
+  /*
+   * A face picked on the part opens its row here, and brings it into view.
+   *
+   * The same pairing the row's own press makes in the other direction: opening
+   * a row picks the face, so picking a face opens the row. A list of gaps you
+   * have to find your own place in after clicking one of them is a list you
+   * scroll twice.
+   *
+   * Only while the uncut list has the panel — elsewhere a face click means
+   * something else entirely, and `openFace` is not what shows it.
+   */
+  useEffect(() => {
+    if (!showingUncut || pickedFace == null) {
+      return
+    }
+
+    setOpenFace(pickedFace)
+    document
+      .querySelector(`[data-row="${CSS.escape(String(pickedFace))}"]`)
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [showingUncut, pickedFace])
   const openGroup = (key: string) =>
     setOpened((current) => {
       const next = new Set(current)

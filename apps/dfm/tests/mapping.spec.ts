@@ -1693,3 +1693,23 @@ test('the run order the chooser was given is the order the plan comes out in', a
 
   await expect(page.locator('[data-setup]')).toHaveCount(2)
 })
+
+test('the uncut list leaves the arrows where it found them', async ({ page }) => {
+  /*
+   * Entering used to turn every arrow on, on the reasoning that the filter is a
+   * click on an arrow. But the gesture here is a click on the *part* — find the
+   * gap, look at what could cut it — and ten arrows over a list of faces bury
+   * the thing the list is about.
+   */
+  const arrows = page.getByRole('button', { name: /Direction arrows/ })
+  await expect(arrows).toContainText('Off')
+
+  await showUncut(page)
+  await expect(arrows).toContainText('Off')
+
+  // And a shop that does want them keeps them: the mode does not touch either way.
+  await arrows.click()
+  await expect(arrows).toContainText('All')
+  await page.getByRole('button', { name: /Not cut yet/ }).click()
+  await expect(arrows).toContainText('All')
+})
