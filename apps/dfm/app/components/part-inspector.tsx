@@ -1938,7 +1938,23 @@ export const PartInspector = ({
    */
   const view = useMemo(
     () => ({
-      report,
+      /*
+       * **The part**, not the report it came from.
+       *
+       * `made` says why, a few hundred lines up: readings somebody drew here are
+       * merged into one part rather than carried beside it, because otherwise
+       * every list, the plan, the coverage and the paint each need to know about
+       * a second source — "and the one that forgot would quietly leave a made
+       * reading out of the plan it is part of".
+       *
+       * Handing the raw report to this context was that second source. Five
+       * components read `report.features` through it, all five were given `part`
+       * before the context existed, and all five stopped seeing made readings:
+       * the viewer answered "what owns this face" without them, so clicking a
+       * face of a reading you had just drawn listed everything except the
+       * reading you drew.
+       */
+      report: part,
       features: part.features,
       directions: part.candidateDirections,
       plan,
@@ -1948,7 +1964,7 @@ export const PartInspector = ({
       showingPass,
     }),
     [
-      report,
+      part,
       part.features,
       part.candidateDirections,
       plan,
