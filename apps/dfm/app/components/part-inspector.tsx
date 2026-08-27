@@ -444,7 +444,15 @@ export const PartInspector = ({
    * analysed them and answered properly (`withEngineDatasheet`). Changing this
    * to `part.features` looks like an obvious fix and is the bug.
    */
-  const rules = useRules(report.features)
+  /*
+   * The part's own size, measured off the mesh by the viewer.
+   *
+   * `useRules` has always taken a bounding box and nobody ever gave it one, so
+   * `partSides` was null and every rule that reads the part rather than a
+   * feature stood down — including the sizes a shop says it takes.
+   */
+  const [partSides, setPartSides] = useState<ReadonlyArray<number> | null>(null)
+  const rules = useRules(report.features, partSides ?? undefined)
   /** How each feature came out, for the rows that name one. */
   const scores = useMemo(() => featureScores(rules.verdicts), [rules.verdicts])
   /**
@@ -1882,6 +1890,7 @@ export const PartInspector = ({
       </aside>
     ) : (
       <RulesPanel
+        partSides={partSides}
         /*
          * What each limit decided on the last arrangement built.
          *
@@ -2034,6 +2043,7 @@ export const PartInspector = ({
             paintMode={paintMode}
             unit={unit}
             onUnit={chooseUnit}
+            onPartSides={setPartSides}
             showingPass={showingPass}
             onShowingPass={setShowingPass}
             cutBy={cutBy}

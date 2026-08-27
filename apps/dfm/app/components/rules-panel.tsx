@@ -31,6 +31,7 @@ export const RulesPanel = ({
   summary,
   types,
   unit,
+  partSides,
   focusedTag,
   onChoose,
   onHover,
@@ -63,6 +64,8 @@ export const RulesPanel = ({
   /** The feature types this part actually has, for aiming a rule. */
   types: readonly string[]
   unit: Unit
+  /** The part's own size, for the sizes-taken card. Null before a mesh lands. */
+  partSides?: ReadonlyArray<number> | null
   focusedTag: string | null
   onChoose: (tag: string) => void
   onHover: (tags: string[]) => void
@@ -293,6 +296,7 @@ export const RulesPanel = ({
           limits={set.plan}
           onChange={rules.updatePlan}
           refused={bit?.worstBand}
+          partSides={partSides}
           revision={rules.revision}
           unit={unit}
         />

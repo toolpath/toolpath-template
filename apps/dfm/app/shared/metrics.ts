@@ -45,6 +45,29 @@ const worstAgainst = (
   return sides.reduce((worst, side, at) => Math.max(worst, by(side, sorted[at] ?? 0)), 0)
 }
 
+/**
+ * How far a part falls outside the sizes a shop takes, either end.
+ *
+ * `null` where the shop has not said, which is not the same as zero: with
+ * neither end given there is nothing to be outside of, and whatever reads this
+ * has to stand down rather than pass the part.
+ *
+ * Exported because two things ask it — the metric a rule reads, and the panel
+ * where somebody enters the sizes and wants to know what they just said about
+ * the part in front of them. Asking it twice is how the two would drift.
+ */
+export const outsideSizes = (
+  sides: ReadonlyArray<number>,
+  machine: MachineSizes | undefined,
+): number | null => {
+  if (!machine || (!machine.max && !machine.min)) return null
+
+  const over = machine.max ? worstAgainst(sides, machine.max, (side, most) => side - most) : 0
+  const under = machine.min ? worstAgainst(sides, machine.min, (side, least) => least - side) : 0
+
+  return Math.max(0, over, under)
+}
+
 /** What the panel says it compared against, which is nothing until a shop says. */
 const sizesNote = (machine: MachineSizes | undefined): string => {
   const say = (e: MachineEnvelope) => `${String(e.x)} × ${String(e.y)} × ${String(e.z)} mm`

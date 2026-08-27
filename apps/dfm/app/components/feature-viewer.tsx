@@ -158,6 +158,7 @@ export const FeatureViewer = ({
   paintMode,
   unit,
   onUnit,
+  onPartSides,
   showingPass,
   onShowingPass,
   cutBy,
@@ -209,6 +210,14 @@ export const FeatureViewer = ({
   /** What the size readout is spoken in. Shared with every panel. */
   unit: Unit
   onUnit: (unit: Unit) => void
+  /**
+   * The part's three sides, once the mesh has been measured.
+   *
+   * Handed upward because the report carries no size — it describes features,
+   * not stock — so the geometry on screen is the only source, and the rules
+   * that judge the part itself have no other way to learn it.
+   */
+  onPartSides?: (sides: ReadonlyArray<number>) => void
   /** Which pass the standing wash means. */
   showingPass: Pass
   onShowingPass: (pass: Pass) => void
@@ -270,6 +279,18 @@ export const FeatureViewer = ({
     loadBanana(typeof window === 'undefined' ? null : window.localStorage),
   )
   const [partBox, setPartBox] = useState<Box3 | null>(null)
+
+  /*
+   * Measured once, read twice: the corner shows it, and the rules that judge
+   * the part itself are told about it.
+   */
+  const measurePart = useCallback(
+    (box: Box3) => {
+      setPartBox(box)
+      onPartSides?.(sidesOf(box))
+    },
+    [onPartSides],
+  )
   /*
    * Read after mount, unlike the class on `<html>`, which a script in the head
    * has already set. This is only the button's idea of what is showing.
@@ -668,7 +689,7 @@ export const FeatureViewer = ({
                * Still a button, because pressing it is still the quickest way
                * to change the unit.
                */
-              className="pointer-events-auto flex h-8 items-center whitespace-nowrap rounded px-1 font-mono text-3xs tabular-nums text-ink-dim transition hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-info"
+              className="pointer-events-auto flex h-8 items-center whitespace-nowrap rounded px-1 font-mono text-2xs tabular-nums text-ink-muted transition hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-info"
             >
               {formatSides(sidesOf(partBox), unit)}
             </button>
@@ -725,7 +746,7 @@ export const FeatureViewer = ({
                   <Axes size={35} />
                 </>
               ) : null}
-              <PartSize onMeasured={setPartBox} />
+              <PartSize onMeasured={measurePart} />
               {/* Its own boundary with no fallback: the mesh is fetched the
                   first time somebody asks for it, and the part must not be
                   replaced by "Loading…" while a banana arrives. */}

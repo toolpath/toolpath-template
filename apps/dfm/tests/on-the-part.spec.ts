@@ -818,3 +818,38 @@ test('every colour in the app answers to the theme', async ({ page }) => {
 
   expect(dark).toEqual([])
 })
+
+test('the sizes a shop takes are judged against the part on screen', async ({ page }) => {
+  /*
+   * `useRules` has always taken a bounding box and nobody ever gave it one, so
+   * `partSides` was null, every rule that reads the part rather than a feature
+   * stood down, and the sizes somebody entered were a number the app wrote down
+   * and never looked at again.
+   *
+   * The cube is 50.8mm on every side, so the two verdicts are a long way apart
+   * rather than a rounding: it fits a 100mm shop and is 20.8mm past a 30mm one.
+   */
+  await page.getByRole('tab', { name: 'Rules' }).click()
+  await page.getByRole('button', { name: 'What part sizes do you take?', exact: true }).click()
+
+  // Nothing set: nothing judged, but the part still says how big it is.
+  await expect(page.getByText(/Nothing is set, so nothing is judged/)).toBeVisible()
+  await expect(page.getByText(/50\.80 × 50\.80 × 50\.80 mm/).first()).toBeVisible()
+
+  const type = async (label: string, value: string) => {
+    const box = page.getByRole('textbox', { name: label })
+    await box.fill(value)
+    await box.blur()
+  }
+
+  await type('Largest, X', '100')
+  await type('Largest, Y', '100')
+  await type('Largest, Z', '100')
+  await expect(page.getByText(/This part fits/)).toBeVisible()
+
+  // Shrink the shop under the part and the verdict turns, with the overhang.
+  await type('Largest, X', '30')
+  await type('Largest, Y', '30')
+  await type('Largest, Z', '30')
+  await expect(page.getByText(/20\.80 mm outside what you take/)).toBeVisible()
+})
