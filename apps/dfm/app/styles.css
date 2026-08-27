@@ -110,18 +110,29 @@
   color-scheme: dark;
 }
 
-* {
-  box-sizing: border-box;
-}
-body {
-  margin: 0;
-  min-width: 320px;
-  color: var(--ink-body);
-  background: var(--ground);
-}
-button,
-input {
-  font: inherit;
+/*
+ * The resets belong in `base`, and it is not a tidiness point.
+ *
+ * Tailwind puts its utilities in `@layer utilities`, and an unlayered rule
+ * beats a layered one whatever the specificity — so `button, input { font:
+ * inherit }` sitting outside every layer quietly won against `text-2xs`,
+ * `font-mono` and every other font utility, on every button and input in the
+ * app. They were in the markup, generated in the stylesheet, and doing nothing.
+ */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    min-width: 320px;
+    color: var(--ink-body);
+    background: var(--ground);
+  }
+  button,
+  input {
+    font: inherit;
+  }
 }
 
 /* Keep an API key visually private without marking it as a browser-managed password field. */

@@ -382,7 +382,7 @@ export const FeatureViewer = ({
   )
 
   return (
-    <section className="viewport relative size-full min-h-[32rem] bg-ground">
+    <section className="viewport @container relative size-full min-h-[32rem] bg-ground">
       <div className="absolute left-3 top-3 z-10 flex flex-col items-start gap-1.5">
         <div className="flex items-center gap-1.5">
           {/* A shelf rather than a toggle: what the part is coloured by is the
@@ -483,7 +483,23 @@ export const FeatureViewer = ({
         side by side wherever it fits, stacked where it does not, and never one
         control hidden under another.
       */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex flex-wrap items-center justify-center gap-1.5 px-3">
+      <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex flex-wrap items-end justify-center gap-1.5 px-3">
+        {/*
+          An empty first side, so the shelf is centred on the canvas rather than
+          on whatever is left over beside the reading.
+
+          Equal sides, so the shelf sits on the middle of the canvas rather
+          than on the middle of what is left beside the reading. The reading is
+          a plain line of text now rather than a shelf of its own, which is
+          what makes both fit: it was 199px wide while every font utility on it
+          was being overridden, and it is a little over half that now.
+
+          Under a 30rem canvas even that will not go, so the reading takes the
+          line beneath. A **container** query and not a media one, because what
+          decides is the width the two panels leave — which somebody can drag
+          without touching the window.
+        */}
+        <div className="min-w-0 flex-1 basis-0 @max-[30rem]:hidden" />
         <div className="flex flex-col items-center gap-1.5">
           {sectioning ? (
             /* Its own row above the shelf, so starting a section does not shove
@@ -587,8 +603,18 @@ export const FeatureViewer = ({
               <SquareHalfIcon />
             </ToolButton>
             <span aria-hidden="true" className="mx-0.5 h-5 w-px bg-edge-strong" />
-            {/* Divided off the rest: everything left of the rule changes what you
-              are looking at, and this changes how the page is lit. */}
+            {/* Divided off the rest: everything left of the rule changes what
+              you are looking at, and these two change how you are reading it —
+              which unit the numbers are in, and how the page is lit. */}
+            <button
+              type="button"
+              aria-label={`Units: ${unit}. Switch to ${unit === 'mm' ? 'in' : 'mm'}`}
+              title={`Reading in ${unit} — press for ${unit === 'mm' ? 'in' : 'mm'}`}
+              onClick={() => onUnit(unit === 'mm' ? 'in' : 'mm')}
+              className="grid h-6 place-items-center rounded px-1.5 text-2xs font-bold uppercase tracking-wide text-ink-muted transition hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-info"
+            >
+              {unit}
+            </button>
             <ToolButton
               label={
                 theme === 'dark' ? 'Dark theme — press for light' : 'Light theme — press for dark'
@@ -615,7 +641,7 @@ export const FeatureViewer = ({
           viewport the two absolute corners sat on top of each other, and the
           thing they hid was the toolbar.
         */}
-        <div className="flex flex-wrap items-center justify-center gap-1.5">
+        <div className="flex min-w-0 flex-1 basis-0 justify-end @max-[30rem]:basis-full">
           {/*
             One button, not two. There are exactly two units and a machinist
             works in one of them all day, so this shows what is being read and
@@ -625,24 +651,6 @@ export const FeatureViewer = ({
             heading on one tab: every number on every page is in this unit, and
             the reading next to it is the most obvious thing to want it for.
           */}
-          {/*
-            The unit, beside the size it is spoken in — the most obvious thing
-            to want it for, and the reading right of it changes with it.
-
-            `pointer-events-auto` on the shelf: the strip around it has none, and
-            a control nobody can press is worse than one that is not there.
-          */}
-          <span className={SHELF}>
-            <button
-              type="button"
-              aria-label={`Units: ${unit}. Switch to ${unit === 'mm' ? 'in' : 'mm'}`}
-              title={`Reading in ${unit} — press for ${unit === 'mm' ? 'in' : 'mm'}`}
-              onClick={() => onUnit(unit === 'mm' ? 'in' : 'mm')}
-              className="grid h-6 place-items-center rounded px-1.5 text-2xs font-bold uppercase tracking-wide text-ink-muted transition hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-info"
-            >
-              {unit}
-            </button>
-          </span>
           {partBox === null ? null : (
             <button
               type="button"
@@ -651,7 +659,16 @@ export const FeatureViewer = ({
               }`}
               title={`Show ${unit === 'mm' ? 'inches' : 'millimetres'}`}
               onClick={() => onUnit(unit === 'mm' ? 'in' : 'mm')}
-              className={`${SHELF} whitespace-nowrap px-2 font-mono text-2xs tabular-nums text-ink-muted transition hover:border-edge-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/75`}
+              /*
+               * No shelf of its own: it is a reading rather than a control, and
+               * a box around it made it the loudest thing on the canvas — three
+               * numbers with a border, sitting level with the shelf and asking
+               * to be pressed as hard as the section tool.
+               *
+               * Still a button, because pressing it is still the quickest way
+               * to change the unit.
+               */
+              className="pointer-events-auto flex h-8 items-center whitespace-nowrap rounded px-1 font-mono text-3xs tabular-nums text-ink-dim transition hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-info"
             >
               {formatSides(sidesOf(partBox), unit)}
             </button>

@@ -723,9 +723,18 @@ test('the size reading and the view controls do not sit on each other', async ({
     shelf.y >= reading.y + reading.height
   expect(apart).toBe(true)
 
-  // And on one line. One row is 34px with its border and padding; the four it
-  // wrapped to before this were nearer a hundred.
+  // And on one line. One row is a shade over 30px; the four it wrapped to
+  // before this were nearer a hundred.
   expect(reading.height).toBeLessThan(50)
+
+  /*
+   * The shelf sits on the middle of the canvas, not on the middle of what is
+   * left beside the reading. It has been dragged left twice — once by a spacer
+   * that shrank to nothing, once by hiding that spacer without saying what
+   * should centre it instead.
+   */
+  const canvas = (await page.locator('section.viewport').boundingBox())!
+  expect(Math.abs(shelf.x + shelf.width / 2 - (canvas.x + canvas.width / 2))).toBeLessThan(2)
 })
 
 test('the theme takes the model window with it', async ({ page }) => {
