@@ -30,11 +30,15 @@ import { describe, expect, it } from 'vitest'
  *
  * **Adding a file to this list is a claim**: that it wants the Engine's answer
  * rather than the plan's. Say which in a comment beside the use.
+ *
+ * Listed by path rather than by file name. A bare `report.ts` exempted every
+ * file under `app/` that happened to share the name — including one in another
+ * layer, which is exactly where the substitution is wrong.
  */
 const MAY_READ = new Set([
   // The plan layer. These are what everything else asks instead.
-  'setups.ts',
-  'faces.ts',
+  'app/shared/setups.ts',
+  'app/shared/faces.ts',
   /*
    * Reachability, and it is the Engine's answer by definition.
    *
@@ -44,26 +48,25 @@ const MAY_READ = new Set([
    * reachable from this one. So the Engine's list is the right one here, and
    * `cutRegions` would be the wrong question entirely.
    */
-  'reach.ts',
-  'best-reading.ts',
-  'generate.ts',
-  'infer.ts',
-  'proposal.ts',
-  'map-features.ts',
-  'make-feature.ts',
-  'merge.ts',
-  'hole-groups.ts',
-  'worst-case.ts',
-  'setup-offers.ts',
-  'paint.ts',
-  'highlighting.ts',
-  'selection.ts',
-  'picks.ts',
-  'plan-actions.ts',
-  'plan-summary.ts',
-  'directions.ts',
-  'direction-rows.ts',
-  'test-part.ts',
+  'app/shared/reach.ts',
+  'app/shared/best-reading.ts',
+  'app/shared/generate.ts',
+  'app/shared/infer.ts',
+  'app/shared/proposal.ts',
+  'app/shared/map-features.ts',
+  'app/shared/make-feature.ts',
+  'app/shared/hole-groups.ts',
+  'app/shared/worst-case.ts',
+  'app/shared/setup-offers.ts',
+  'app/shared/paint.ts',
+  'app/shared/highlighting.ts',
+  'app/shared/selection.ts',
+  'app/shared/picks.ts',
+  'app/shared/plan-actions.ts',
+  'app/shared/plan-summary.ts',
+  'app/shared/directions.ts',
+  'app/shared/direction-rows.ts',
+  'app/shared/test-part.ts',
   /*
    * The rules layer, and it is a different claim rather than an exception.
    *
@@ -73,10 +76,10 @@ const MAY_READ = new Set([
    * way up. So the Engine's list is the right one here, and would be even if
    * the plan said something different.
    */
-  'measurements.ts',
-  'metrics.ts',
-  'report.ts',
-  'rule-text.ts',
+  'app/shared/measurements.ts',
+  'app/shared/metrics.ts',
+  'app/shared/report.ts',
+  'app/shared/rule-text.ts',
 ])
 
 const walk = (dir: string): Array<string> =>
@@ -88,11 +91,16 @@ const walk = (dir: string): Array<string> =>
     return entry.name.endsWith('.ts') || entry.name.endsWith('.tsx') ? [path] : []
   })
 
+const appRoot = join(import.meta.dirname, '..')
+
+/** The path as this file names it: `app/shared/setups.ts`, wherever the repo sits. */
+const named = (path: string) => `app/${path.slice(appRoot.length + 1)}`
+
 describe('who may ask the Engine what a reading covers', () => {
   it('keeps the plan layer the only place that reads regionIdxs', () => {
-    const offenders = walk(join(import.meta.dirname, '..'))
+    const offenders = walk(appRoot)
       .filter((path) => !path.includes('.test.'))
-      .filter((path) => !MAY_READ.has(path.split('/').at(-1) ?? ''))
+      .filter((path) => !MAY_READ.has(named(path)))
       .filter((path) => {
         const source = readFileSync(path, 'utf8')
 
@@ -102,7 +110,7 @@ describe('who may ask the Engine what a reading covers', () => {
           .split('\n')
           .some((line) => line.includes('regionIdxs') && !line.trim().startsWith('*'))
       })
-      .map((path) => path.slice(path.indexOf('/app/') + 1))
+      .map(named)
 
     /*
      * The components that legitimately do. Each is asking about a reading the

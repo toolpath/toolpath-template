@@ -42,7 +42,7 @@ Otherwise choose the smallest level that protects the behavior:
 
 ## A rule may want a sensor instead of a test
 
-Some behavior is not reachable by rendering anything. Two existing tests read
+Some behavior is not reachable by rendering anything. Four existing tests read
 source files directly rather than exercising a component, and a new
 repository-wide invariant usually belongs alongside them:
 
@@ -50,6 +50,13 @@ repository-wide invariant usually belongs alongside them:
   light/dark role parity.
 - `app/kit-usage.test.ts` ratchets raw `<button>` against the `@toolpath/ui`
   kit. When a migration lands, lower its `BUDGET` in the same change.
+- `app/shared/reported-regions.test.ts` holds the allowlist of files that may
+  read `regionIdxs` rather than asking the plan what a reading cuts. Adding a
+  path to it is a claim; put the reason beside the use.
+- `app/shared/redaction.test.ts` builds its fixture from the installed SDK's own
+  `PartResponse` declaration, so a URL field added upstream cannot slip through
+  `toPublicInspectionReport` unnoticed. A failure there is an SDK handing out a
+  URL nobody has decided about yet.
 
 If the behavior is really a convention rather than a case, the sensor may belong
 in `eslint.config.js` or `scripts/check-style.mjs` instead. AGENTS.md § Code

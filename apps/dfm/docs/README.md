@@ -114,7 +114,6 @@ And a third, which everything past the parity plan is downstream of:
 | `app/shared/proposal.ts`            | The standing offer, held as a set of **faces**                       |
 | `app/shared/faces.ts`               | One reading's faces, and moving one of them                          |
 | `app/shared/make-feature.ts`        | Drawing a reading the Engine did not report                          |
-| `app/shared/merge.ts`               | Machining several readings as one                                    |
 | `app/shared/worst-case.ts`          | The numbers a merged or extended reading carries, and whose they are |
 | **Wiring**                          |                                                                      |
 | `app/components/part-inspector.tsx` | The page: all of the above, wired together                           |

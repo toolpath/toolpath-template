@@ -110,9 +110,32 @@ What the checks cannot carry:
   rendering one: an unlayered `font: inherit` beat every Tailwind font utility
   silently, and a role defined in one theme keeps the other theme's value.
 
-Three sensors carry the table: `eslint.config.js`, `scripts/check-style.mjs`,
-and the two source-reading tests above. Adding a rule means adding it to one of
-them, or it is a preference rather than a rule.
+Four sensors carry the table: `eslint.config.js`, `scripts/check-style.mjs`,
+`app/styles.test.ts`, and `app/kit-usage.test.ts`. Adding a rule means adding it
+to one of them, or it is a preference rather than a rule.
+
+### Rules with a sensor that are not styling rules
+
+Two more tests read source rather than exercise a component, and they enforce
+the two invariants that have actually cost this app the most. They are not in
+the table above because neither is about style, but they fail `pnpm test` the
+same way, and a failure in either is the rule being broken rather than a flaky
+test.
+
+- `app/shared/reported-regions.test.ts` — **who may read `regionIdxs`.** It is
+  what the _Engine_ reported for a reading; `cutRegions(plan, feature, pass)` is
+  what the **plan** has it cutting, and since partial claims the two differ. The
+  same substitution caused four bugs weeks apart (F51, F58, F62, and the
+  direction wash), each looking like a different kind of bug. The test holds an
+  allowlist by path; adding a file to it is a claim that the file wants the
+  Engine's answer, and the reason belongs beside the use.
+- `app/shared/redaction.test.ts` — **that the redaction covers the whole type.**
+  `toPublicInspectionReport` strips three named URL fields, which is a denylist,
+  and a denylist is only correct about the SDK version it was written against. A
+  fourth URL added upstream would compile, pass `contracts.test.ts`, and reach
+  the browser. The test builds its fixture from the SDK's own declaration and
+  pins the URL surface of every generated model, so an SDK bump that hands out a
+  new URL is a decision somebody has to make rather than a silent leak.
 
 ## Project Map
 
@@ -248,8 +271,9 @@ one only when the code under it moves.
   and `CreatePartResponse` (`uploadUrl`, which is the presigned upload the
   browser is meant to receive) are the only models that declare a URL at all —
   `Region` and `PartFeature` declare none. So the redaction covers the whole
-  type rather than the fields somebody remembered. Check it again when the SDK
-  version moves.
+  type rather than the fields somebody remembered. This no longer needs
+  re-deriving on an SDK bump: `app/shared/redaction.test.ts` reads that same
+  declaration and fails when it changes.
 - **The browser calls only app-owned endpoints.** The one external `fetch` under
   `app/` is the presigned `PUT` at `app/client/api.ts:45`, which is the
   documented direct upload. No Toolpath host appears anywhere else in the
