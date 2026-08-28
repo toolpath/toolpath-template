@@ -1,13 +1,13 @@
 import { InfoIcon } from '@phosphor-icons/react'
 import { Tooltip } from '@toolpath/ui'
-import { bandCss } from '../shared/bands'
-import { formatMetric, ruleLimits } from '../shared/rule-text'
-import type { Band, FeatureVerdict, Rule, RuleResult } from '../shared/rules'
-import { bandName, readEveryRule, scoreFeature } from '../shared/rules'
-import type { MetricId, PartContext } from '../shared/metrics'
-import { PART_METRICS, metricFormula, metricQuantity, metricSources } from '../shared/metrics'
-import type { PartFeature } from '../shared/contracts'
-import type { Unit } from '../shared/units'
+import { bandCss } from 'shared/bands'
+import { formatMetric, ruleLimits } from 'shared/rule-text'
+import type { Band, FeatureVerdict, Rule, RuleResult } from 'shared/rules'
+import { bandName, readEveryRule, scoreFeature } from 'shared/rules'
+import type { MetricId, PartContext } from 'shared/metrics'
+import { PART_METRICS, metricFormula, metricQuantity, metricSources } from 'shared/metrics'
+import type { PartFeature } from 'shared/contracts'
+import type { Unit } from 'shared/units'
 
 /**
  * Where a number came from: the arithmetic, then the datasheet fields behind it
@@ -32,7 +32,9 @@ const Working = ({
   const formula = metricFormula(metric, feature, part)
   const readings = metricSources(metric, feature, part)
 
-  if (readings.length === 0) return null
+  if (readings.length === 0) {
+    return null
+  }
 
   // A source is a raw datasheet field, and for a ratio or a count it is *not*
   // in the metric's own units — the inputs to an L/D are two lengths, and
@@ -64,7 +66,9 @@ const Working = ({
 const Limits = ({ rule, band, unit }: { rule: Rule; band: Band | null; unit: Unit }) => {
   const limits = ruleLimits(rule, unit)
 
-  if (limits.length === 0) return null
+  if (limits.length === 0) {
+    return null
+  }
 
   return (
     <span className="flex flex-col gap-0.5">
@@ -143,7 +147,7 @@ export const RuleVerdict = ({
   part,
 }: {
   feature: PartFeature
-  rules: readonly Rule[]
+  rules: ReadonlyArray<Rule>
   verdict: FeatureVerdict
   unit: Unit
   /**
@@ -162,29 +166,27 @@ export const RuleVerdict = ({
   const silent = readings.filter((reading) => reading.band === null)
 
   return (
-    <section className="mt-4 border-t border-zinc-800 pt-3">
-      <h3 className="text-2xs font-bold uppercase tracking-wider text-zinc-500">Difficulty</h3>
+    <section className="mt-4 border-t border-edge pt-3">
+      <h3 className="text-2xs font-bold uppercase tracking-wider text-ink-dim">Difficulty</h3>
 
       <div className="mt-1.5 flex items-center gap-2">
         <span
-          className="rounded px-1.5 py-0.5 text-2xs font-semibold text-zinc-950"
+          className="rounded px-1.5 py-0.5 text-2xs font-semibold text-ground"
           style={{ background: bandCss(verdict.band) }}
         >
           {verdict.band === null ? 'unjudged' : bandName(verdict.band)}
         </span>
         {score === null ? null : (
-          <span className="text-2xs text-zinc-400">
+          <span className="text-2xs text-ink-muted">
             scores{' '}
-            <span className="font-semibold tabular-nums text-zinc-100">
-              {(score * 100).toFixed(0)}
-            </span>{' '}
+            <span className="font-semibold tabular-nums text-ink">{(score * 100).toFixed(0)}</span>{' '}
             across {results.length} {results.length === 1 ? 'rule' : 'rules'}
           </span>
         )}
       </div>
 
       {results.length === 0 ? (
-        <p className="mt-1.5 text-2xs text-zinc-400">
+        <p className="mt-1.5 text-2xs text-ink-muted">
           No rule reached this feature. That is not the same as easy — every rule and what it read
           is below.
         </p>
@@ -197,7 +199,7 @@ export const RuleVerdict = ({
               style={{ borderColor: bandCss(result.band) }}
             >
               <div className="flex items-baseline gap-1.5 text-xs">
-                <span className="min-w-0 shrink truncate text-zinc-300">{result.rule.name}</span>
+                <span className="min-w-0 shrink truncate text-ink-body">{result.rule.name}</span>
 
                 {/* The working is a hover away rather than under every row:
                     printed under all sixteen it tripled the height of the panel
@@ -209,7 +211,7 @@ export const RuleVerdict = ({
                 >
                   <button
                     aria-label={`How ${result.rule.name} is worked out`}
-                    className="shrink-0 text-zinc-500 hover:text-zinc-200"
+                    className="shrink-0 text-ink-dim hover:text-ink-strong"
                     type="button"
                   >
                     <InfoIcon className="size-3" />
@@ -218,7 +220,7 @@ export const RuleVerdict = ({
 
                 <span aria-hidden="true" className="min-w-2 flex-1" />
 
-                <span className="shrink-0 tabular-nums text-zinc-400">
+                <span className="shrink-0 tabular-nums text-ink-muted">
                   {result.rule.type === 'baseline'
                     ? bandName(result.band)
                     : formatMetric(result.value, result.rule.metric, unit)}
@@ -231,14 +233,14 @@ export const RuleVerdict = ({
 
       {silent.length === 0 ? null : (
         <details className="mt-2">
-          <summary className="cursor-pointer text-2xs text-zinc-500 underline decoration-dotted">
+          <summary className="cursor-pointer text-2xs text-ink-dim underline decoration-dotted">
             {silent.length} {silent.length === 1 ? 'rule' : 'rules'} said nothing
           </summary>
           <ul className="mt-1 flex flex-col gap-0.5">
             {silent.map((reading) => (
               <li
                 key={reading.rule.id}
-                className="flex items-baseline justify-between gap-2 text-2xs text-zinc-500"
+                className="flex items-baseline justify-between gap-2 text-2xs text-ink-dim"
               >
                 <span className="min-w-0 truncate">{reading.rule.name}</span>
                 <span className="shrink-0">{reading.silence}</span>

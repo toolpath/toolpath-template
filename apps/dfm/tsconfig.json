@@ -14,8 +14,7 @@
       "components/*": ["app/components/*"],
       "client/*": ["app/client/*"],
       "routes/*": ["app/routes/*"],
-      "shared/*": ["app/shared/*"],
-      "server/*": ["server/*"]
+      "shared/*": ["app/shared/*"]
     },
     "resolveJsonModule": true,
     "isolatedModules": true,
@@ -23,5 +22,12 @@
     "verbatimModuleSyntax": true,
     "types": ["node", "vite/client"]
   },
-  "include": ["app", "server", "vite.config.ts", "vitest.config.ts", "playwright.config.ts"]
+  "include": [
+    "app",
+    "server",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "test.matchers.ts",
+    "playwright.config.ts"
+  ]
 }

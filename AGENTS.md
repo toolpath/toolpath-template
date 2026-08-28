@@ -70,13 +70,72 @@ template's Hono routes or UI structure when a user reworks the application.
 
 ## Code Styling
 
-- When using typescript to type an array of items, never use `Items[]`, always use `Array<Items>`, reading from left to right this is more explicit.
-- Never write if statements on a single line. Always write brackets and multiline if statements.
-- Never use `function functionName() {}` syntax for function definitions. Always use `const functionName = () => {}` syntax instead.
-- Always import parts of React individually, e.g. `ReactNode`, `FC`, etc. instead of writing `React.ReactNode`, `React.FC`. The only exception is in cases like `MouseEvent` where there is already a `MouseEvent` on the global namespace, so `React.MouseEvent` is more explicit.
-- When possible, do not use style props. Always use Tailwind CSS classes.
-- Use the supported `components/*`, `client/*`, `routes/*`, `shared/*`, and
-  `server/*` aliases instead of relative imports when one applies.
+Every rule below is either proven by a command or marked as judgment. A rule with
+a sensor is not a matter of taste: the gate fails and the work stops. A rule
+without one is a preference a reviewer has to carry in their head, and agents
+drift off those the longer a session runs — so when a judgment rule starts being
+violated, give it a check rather than restating it here.
+
+| Rule                                                                 | Proven by          |
+| -------------------------------------------------------------------- | ------------------ |
+| `const name = () => {}`, never `function name() {}`                  | `pnpm check-style` |
+| `Array<Item>`, never `Item[]` — left to right is more explicit       | `pnpm lint`        |
+| Braces and multiple lines on every `if`, never a single-line one     | `pnpm lint`        |
+| Import React members individually (`ReactNode`), never `React.X`     | `pnpm lint`        |
+| `components/*`, `client/*`, `routes/*`, `shared/*` aliases in `app/` | `pnpm lint`        |
+| Only `apps/dfm/server` uses the Toolpath SDK at runtime              | `pnpm lint`        |
+| The layering under Project Map                                       | `pnpm lint`        |
+| Every colour role defined under both `:root` and `.dark`             | `pnpm test`        |
+| Font resets stay inside `@layer base`, where a utility can win       | `pnpm test`        |
+| `@toolpath/ui` components over hand-authored HTML, while it is used  | `pnpm test`        |
+| Tailwind classes for styling; `style={{}}` only for a computed value | judgment           |
+
+What the checks cannot carry:
+
+- `React.MouseEvent` and the other names a DOM global already takes are the
+  documented exception. The check allows exactly those and nothing else.
+- Route modules export the component separately (`const Route = () => {}` then
+  `export default Route`) rather than as a default declaration.
+- `style={{}}` is right for a value only known at runtime — a band or direction
+  colour, a computed width. Everything static is a Tailwind class.
+- `apps/dfm/server` deliberately keeps relative imports into `app/shared`:
+  production runs `tsx server/prod.ts` with no bundler to resolve an alias.
+- The kit rule is a **ratchet, not a ban**. `app/kit-usage.test.ts` pins raw
+  `<button>` at its current count so it can fall but not rise; the kit exports
+  `Button` and `IconButton`, and both take `aria-*` and `title` through. Reach
+  for the kit in new code, and lower the budget in that file whenever a
+  migration lands. A failure there is the rule being broken, not a flaky test.
+- The two stylesheet rules live in `app/styles.test.ts`, which reads
+  `app/styles.css` directly. Neither is visible in a component or catchable by
+  rendering one: an unlayered `font: inherit` beat every Tailwind font utility
+  silently, and a role defined in one theme keeps the other theme's value.
+
+Four sensors carry the table: `eslint.config.js`, `scripts/check-style.mjs`,
+`app/styles.test.ts`, and `app/kit-usage.test.ts`. Adding a rule means adding it
+to one of them, or it is a preference rather than a rule.
+
+### Rules with a sensor that are not styling rules
+
+Two more tests read source rather than exercise a component, and they enforce
+the two invariants that have actually cost this app the most. They are not in
+the table above because neither is about style, but they fail `pnpm test` the
+same way, and a failure in either is the rule being broken rather than a flaky
+test.
+
+- `app/shared/reported-regions.test.ts` — **who may read `regionIdxs`.** It is
+  what the _Engine_ reported for a reading; `cutRegions(plan, feature, pass)` is
+  what the **plan** has it cutting, and since partial claims the two differ. The
+  same substitution caused four bugs weeks apart (F51, F58, F62, and the
+  direction wash), each looking like a different kind of bug. The test holds an
+  allowlist by path; adding a file to it is a claim that the file wants the
+  Engine's answer, and the reason belongs beside the use.
+- `app/shared/redaction.test.ts` — **that the redaction covers the whole type.**
+  `toPublicInspectionReport` strips three named URL fields, which is a denylist,
+  and a denylist is only correct about the SDK version it was written against. A
+  fourth URL added upstream would compile, pass `contracts.test.ts`, and reach
+  the browser. The test builds its fixture from the SDK's own declaration and
+  pins the URL surface of every generated model, so an SDK bump that hands out a
+  new URL is a decision somebody has to make rather than a silent leak.
 
 ## Project Map
 
@@ -85,9 +144,31 @@ template's Hono routes or UI structure when a user reworks the application.
   Toolpath SDK or handles the user's API key.
 - `apps/dfm/app/shared/` contains pure contracts and domain logic. Keep new
   behavior that can be pure and tested here.
+- `apps/dfm/docs/` is the written spec for the part viewer. Read
+  `apps/dfm/docs/README.md` before changing selection, highlighting, directions,
+  or the setup plan: its tables name the exact file that decides each behavior,
+  and its testing section fixes where each kind of test belongs.
 - `apps/dfm/tests/` contains Playwright end-to-end coverage.
 - `apps/dfm/app/**/*.test.*` and `apps/dfm/server/**/*.test.ts` contain Vitest
   coverage.
+
+### Layering
+
+`pnpm lint` fails on any of these, so they are facts about the code rather than
+intentions about it:
+
+- Nothing under `app/` may import `server/`. This is the API-key boundary, and
+  it holds for an alias import as well as a relative one.
+- `app/shared/` imports only `app/shared/`, which is what keeps it pure and
+  cheap to test.
+- `app/components/` may reach `client/` and `shared/`, never `routes/`.
+- `server/` may import `app/shared/` for the shared contracts, and nothing else
+  from `app/`.
+- `app/` may import Toolpath SDK **types**; a runtime import would ship the SDK
+  to the browser.
+
+The rules live in `eslint.config.js`. Adding a layer means adding it there too,
+or the boundary is a comment rather than a check.
 
 ## Safety and Secrets
 
@@ -130,12 +211,18 @@ After editing:
 
 Run commands from the repository root unless noted otherwise.
 
-| Purpose                         | Command                          |
-| ------------------------------- | -------------------------------- |
-| Install dependencies            | `pnpm install --frozen-lockfile` |
-| Run the development app         | `pnpm dev`                       |
-| Build, typecheck, and unit test | `pnpm check`                     |
-| Run end-to-end tests            | `pnpm test:e2e`                  |
+| Purpose                            | Command                          |
+| ---------------------------------- | -------------------------------- |
+| Install dependencies               | `pnpm install --frozen-lockfile` |
+| Run the development app            | `pnpm dev`                       |
+| Check function-declaration style   | `pnpm check-style`               |
+| Check style rules and the layering | `pnpm lint`                      |
+| Build, typecheck, and unit test    | `pnpm check`                     |
+| Run end-to-end tests               | `pnpm test:e2e`                  |
+
+`pnpm check` runs `check-style`, `lint`, `build`, `check-types`, and `test`, in
+that order, so the cheap checks fail first. `pnpm lint --fix` settles the
+formatting-shaped rules on its own.
 
 `pnpm check` is the normal fast gate. Before pushing a significant change,
 also run the dependency audit, end-to-end tests, and the production
@@ -143,11 +230,8 @@ Docker build when the affected area makes those checks relevant. Only run docker
 
 ## Formatting
 
-`pnpm setup:local` installs the Husky pre-commit hook. The hook runs Prettier on
-staged files automatically and stages the formatted results. Agents do not need
-to run `pnpm format` or `pnpm format:check` as part of normal work. Run either
-command only when the user explicitly asks for formatting or when the commit
-hook cannot be used.
+The Husky pre-commit hook installed by `pnpm setup:local` runs Prettier on staged
+files. Run `pnpm format` only when the user asks or the hook cannot be used.
 
 ## Git Workflow
 
@@ -174,3 +258,33 @@ IMPORTANT - these guidelines are ONLY relevant when reviewing code, otherwise ig
   - performance impact
   - maintainability
 - Flag N+1 queries, unpaginated queries, excessive bundle growth, unnecessary rerenders, and large response payloads.
+
+### Already checked, and clean
+
+A review on 2026-08-27 established each of these and found nothing to fix. They
+are recorded so the next review spends its attention somewhere new. Re-derive
+one only when the code under it moves.
+
+- **Report redaction is complete.** `toPublicInspectionReport`
+  (`app/shared/contracts.ts:28`) strips `meshGlbUrl`, `meshStlUrl`, and
+  `thumbnailUrl`. In `@toolpath/api` 0.2.3, `PartResponse` (those three fields)
+  and `CreatePartResponse` (`uploadUrl`, which is the presigned upload the
+  browser is meant to receive) are the only models that declare a URL at all —
+  `Region` and `PartFeature` declare none. So the redaction covers the whole
+  type rather than the fields somebody remembered. This no longer needs
+  re-deriving on an SDK bump: `app/shared/redaction.test.ts` reads that same
+  declaration and fails when it changes.
+- **The browser calls only app-owned endpoints.** The one external `fetch` under
+  `app/` is the presigned `PUT` at `app/client/api.ts:45`, which is the
+  documented direct upload. No Toolpath host appears anywhere else in the
+  client.
+- **The API key never leaves the server.** HttpOnly, Secure, SameSite=Lax
+  `A256GCM` JWE cookie, HKDF domain-separated from `APP_SESSION_SECRET`. Engine
+  failures log the status and the operation, never the key or an artifact URL.
+- **`banana.glb` is not a bundle problem.** 746 KiB, but it is a `public/`
+  asset, off by default, and deliberately not preloaded — `useGLTF.preload` at
+  module scope would fetch it on every page load, for something almost nobody
+  turns on (`app/components/banana.tsx:149`).
+- **There is no coverage tooling.** Nothing in the repo configures coverage, so
+  there is no coverage number to report. That is a gap in what can be measured,
+  not a failing check — do not substitute a different tool and call it coverage.

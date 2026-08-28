@@ -59,3 +59,9 @@ pnpm --filter @toolpath/dfm test
 pnpm --filter @toolpath/dfm build
 pnpm --filter @toolpath/dfm test:e2e
 ```
+
+These four narrow a loop while working on one thing. `pnpm check`, from the
+repository root, is the gate: it adds `pnpm check-style` and `pnpm lint`, and
+`lint` is what proves the layering described above — that `app/` never imports
+`server/`, and that the Toolpath SDK is imported for its types only outside
+`server/`. Neither is caught by any of the four commands here.

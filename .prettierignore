@@ -2,3 +2,8 @@ apps/*/build/
 apps/*/.react-router/
 apps/*/test-results/
 apps/*/playwright-report/
+
+# pnpm writes this file in its own compact style. Formatting it makes every
+# install rewrite it back, so an unrelated `pnpm install` lands thousands of
+# lines of churn.
+pnpm-lock.yaml

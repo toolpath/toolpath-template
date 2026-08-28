@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { parseAnalysisEvent, type AnalysisEvent } from '../shared/contracts'
+import { parseAnalysisEvent, type AnalysisEvent } from 'shared/contracts'
 
 const initialState: AnalysisEvent = {
   status: 'pending',
@@ -20,7 +20,9 @@ export const useAnalysisEvents = (partId: string, jobId: string) => {
       try {
         const next = parseAnalysisEvent(JSON.parse(event.data))
         setState(next)
-        if (next.status !== 'pending') events.close()
+        if (next.status !== 'pending') {
+          events.close()
+        }
       } catch {
         events.close()
         setState({

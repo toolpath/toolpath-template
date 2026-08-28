@@ -7,9 +7,11 @@ import {
   pickFace,
   scopeToDirection,
   stepCandidate,
+  focusWithin,
+  stepThrough,
 } from './selection'
 
-const pick = (region: number, ranked: string[], holding = false): PartPick => ({
+const pick = (region: number, ranked: Array<string>, holding = false): PartPick => ({
   region,
   owners: ranked,
   ranked,
@@ -141,7 +143,9 @@ describe('isEmptySelection', () => {
     expect(isEmptySelection(NOTHING_SELECTED)).toBe(true)
     expect(isEmptySelection(pickFace(NOTHING_SELECTED, wallA))).toBe(false)
     // A reading named in the list holds no faces, and is still a selection.
-    expect(isEmptySelection({ picks: [], candidates: [], focused: 'pocket' })).toBe(false)
+    expect(isEmptySelection({ picks: [], candidates: [], focused: 'pocket', alone: false })).toBe(
+      false,
+    )
   })
 })
 
@@ -155,5 +159,90 @@ describe('stepCandidate', () => {
 
   it('does nothing when there is nothing to walk', () => {
     expect(stepCandidate(NOTHING_SELECTED, 1)).toEqual(NOTHING_SELECTED)
+  })
+})
+
+describe('naming a reading from inside the face list', () => {
+  it('leaves the picked faces and the list alone', () => {
+    // §3.2: an answer to the question the list is already asking, not a new
+    // question. Clearing here empties the list a reading was just chosen from.
+    const state = {
+      picks: [pick(0, ['a', 'b'])],
+      candidates: ['a', 'b'],
+      focused: 'a',
+      alone: false,
+    }
+
+    const next = focusWithin(state, 'b')
+
+    expect(next.focused).toBe('b')
+    expect(next.candidates).toEqual(['a', 'b'])
+    expect(next.picks).toHaveLength(1)
+  })
+
+  it('says when a hole was named on its own, so the part lights only that one', () => {
+    /*
+     * Naming a hole normally names all sixteen. Inside an opened group it does
+     * not: that row is the one place somebody has pointed at *this one*, and
+     * lighting the other fifteen would be the app ignoring them.
+     */
+    const state = { picks: [], candidates: [], focused: 'a', alone: false }
+
+    expect(focusWithin(state, 'b').alone).toBe(false)
+    expect(focusWithin(state, 'b', true).alone).toBe(true)
+  })
+
+  it('lets go of it again the moment a fresh question is asked', () => {
+    // A click on the part, or a direction filter, is not about one hole.
+    const named = focusWithin(
+      { picks: [], candidates: ['a'], focused: 'a', alone: false },
+      'a',
+      true,
+    )
+
+    expect(stepCandidate(named, 1).alone).toBe(false)
+  })
+})
+
+describe('arrowing through the list as it is displayed', () => {
+  const shown = ['a', 'b', 'c']
+
+  it('follows the order on screen, not the order the click produced', () => {
+    expect(stepThrough(shown, 'a', 1)).toBe('b')
+    expect(stepThrough(shown, 'b', -1)).toBe('a')
+  })
+
+  it('wraps at both ends', () => {
+    expect(stepThrough(shown, 'c', 1)).toBe('a')
+    expect(stepThrough(shown, 'a', -1)).toBe('c')
+  })
+
+  it('starts at the top when nothing is being read', () => {
+    expect(stepThrough(shown, null, 1)).toBe('a')
+  })
+
+  it('starts at the top when what is being read is not in the list', () => {
+    // A reading chosen elsewhere is not a position in this list.
+    expect(stepThrough(shown, 'gone', 1)).toBe('a')
+  })
+
+  it('has nowhere to go in an empty list', () => {
+    expect(stepThrough([], null, 1)).toBeNull()
+  })
+})
+
+describe('clicking the same face again', () => {
+  it('walks its readings rather than stopping at the end', () => {
+    /*
+     * A face has five to eight readings and only one can be on screen, so a
+     * second click means "not that one, the next". `pickFace` clears when a walk
+     * returns to where it started; the page wraps instead, because the readings
+     * are a list somebody is reading down. Escape and empty space are how you
+     * put it all down.
+     */
+    const shown = ['a', 'b', 'c']
+
+    expect(stepThrough(shown, 'a', 1)).toBe('b')
+    expect(stepThrough(shown, 'c', 1)).toBe('a')
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PublicInspectionReport } from './contracts'
-import { duration, partSummary } from './part-summary'
+import { duration, partSummary, pluralLabel, typeLabel } from './part-summary'
 
 const PZ = { x: 0, y: 0, z: 1 }
 const NY = { x: 0, y: -1, z: 0 }
@@ -54,7 +54,9 @@ describe('partSummary', () => {
 
   it('counts nothing against no question', () => {
     // A column equal to the one beside it is a column nobody reads.
-    for (const entry of partSummary(report).types) expect(entry.inDirection).toBeNull()
+    for (const entry of partSummary(report).types) {
+      expect(entry.inDirection).toBeNull()
+    }
   })
 
   it('lists the feature types commonest first', () => {
@@ -85,5 +87,35 @@ describe('duration', () => {
   it('stays in milliseconds until they stop being readable', () => {
     expect(duration(92)).toBe('92 ms')
     expect(duration(42780)).toBe('42.78 s')
+  })
+})
+
+describe('naming a feature type', () => {
+  it('reads as a noun phrase rather than a heading', () => {
+    // A column of title-cased types reads as a list of headings, and the
+    // mapping panel names a reading the same way this list does.
+    expect(typeLabel('through_hole')).toBe('Through hole')
+    expect(typeLabel('undercut_filleted_tslot')).toBe('Undercut filleted tslot')
+    expect(typeLabel('Wall')).toBe('Wall')
+    // camelCase is left alone: the Engine reports both spellings depending on
+    // kernel version, and splitting one of them renames types across a page.
+    expect(typeLabel('BlindHole')).toBe('BlindHole')
+  })
+})
+
+describe('the same label, said of several', () => {
+  it('says a row of sixteen as sixteen', () => {
+    // A singular in front of a count makes the reader correct it themselves.
+    expect(pluralLabel(typeLabel('blind_hole'))).toBe('Blind holes')
+    expect(pluralLabel(typeLabel('pocket'))).toBe('Pockets')
+  })
+
+  it('takes -es after a sibilant, which is where the regular rule earns its keep', () => {
+    expect(pluralLabel('Boss')).toBe('Bosses')
+    expect(pluralLabel('Notch')).toBe('Notches')
+  })
+
+  it('works on the datasheet heading, which is title-cased', () => {
+    expect(pluralLabel('Blind Hole')).toBe('Blind Holes')
   })
 })

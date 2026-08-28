@@ -16,9 +16,11 @@
     "build": "turbo run build --output-logs=errors-only",
     "check-types": "turbo run check-types --output-logs=errors-only",
     "test": "pnpm test:setup && turbo run test --output-logs=errors-only",
-    "test:setup": "node --test scripts/setup-local.test.mjs",
+    "test:setup": "node --test scripts/setup-local.test.mjs scripts/check-style.test.mjs",
     "test:e2e": "pnpm --filter @toolpath/dfm test:e2e",
-    "check": "pnpm build && pnpm check-types && pnpm test",
+    "check-style": "node scripts/check-style.mjs",
+    "lint": "eslint .",
+    "check": "pnpm check-style && pnpm lint && pnpm build && pnpm check-types && pnpm test",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -26,9 +28,14 @@
     "*": "prettier --write --ignore-unknown"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.9.1",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-boundaries": "7.2.0",
     "husky": "9.1.7",
     "lint-staged": "17.3.0",
     "prettier": "3.6.2",
-    "turbo": "2.10.10"
+    "turbo": "2.10.10",
+    "typescript-eslint": "8.68.0"
   }
 }

@@ -5,6 +5,7 @@ import {
   featureFromTags,
   featureSummary,
   filterFeatures,
+  reachableFrom,
   tagsOfType,
 } from './report'
 
@@ -81,5 +82,37 @@ describe('tagsOfType', () => {
 
   test('lights nothing when no type is open', () => {
     expect(tagsOfType(features, null, null)).toEqual([])
+  })
+})
+
+describe('reachableFrom', () => {
+  /*
+   * The list this is asked about is the **part's**, and a reading somebody drew
+   * here is only in that one. Asked with the report's readings instead, a made
+   * tag is not found, the answer is "no", and holding the way up that reading is
+   * cut from drops it from the list it belongs at the top of — which is the bug
+   * this was lifted out of `part-inspector` to pin.
+   */
+  const made: PartFeature = {
+    ...wall,
+    featureTag: 'made-1',
+    machiningDirection: { x: 0, y: 0, z: 1 },
+  }
+
+  test('a reading drawn here is reached from the way up it is cut from', () => {
+    expect(reachableFrom([hole, made], { x: 0, y: 0, z: 1 })('made-1')).toBe(true)
+  })
+
+  test('and is not reached from a way up it is not cut from', () => {
+    expect(reachableFrom([hole, made], { x: -1, y: 0, z: 0 })('made-1')).toBe(false)
+  })
+
+  test('a tag no reading answers to is reached from nowhere', () => {
+    expect(reachableFrom([hole, made], { x: 0, y: 0, z: 1 })('absent')).toBe(false)
+  })
+
+  test('nothing held reaches everything, so releasing an arrow puts the list back', () => {
+    const anything = reachableFrom([hole, made], null)
+    expect([anything('made-1'), anything('absent')]).toEqual([true, true])
   })
 })

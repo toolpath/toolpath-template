@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { moveThroughList } from './list-keys'
 
-function list(count: number) {
+const list = (count: number) => {
   const container = document.createElement('div')
   for (let at = 0; at < count; at += 1) {
     const row = document.createElement('button')

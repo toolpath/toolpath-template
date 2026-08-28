@@ -9,7 +9,7 @@
  * rules do.
  */
 export const Heading = ({ children }: { children: string }) => (
-  <h3 className="mb-1 mt-5 text-2xs font-bold uppercase tracking-wider text-zinc-500 first:mt-0">
+  <h3 className="mb-1 mt-5 text-2xs font-bold uppercase tracking-wider text-ink-dim first:mt-0">
     {children}
   </h3>
 )

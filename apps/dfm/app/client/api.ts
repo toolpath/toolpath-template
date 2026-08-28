@@ -1,5 +1,5 @@
-import type { ApiProblem } from '../shared/contracts'
-import { validateCadFile } from '../shared/cad'
+import type { ApiProblem } from 'shared/contracts'
+import { validateCadFile } from 'shared/cad'
 
 export class AppApiError extends Error {
   constructor(
@@ -53,11 +53,12 @@ const uploadToEngine = async (file: File, uploadUrl: string): Promise<void> => {
       502,
     )
   }
-  if (!response.ok)
+  if (!response.ok) {
     throw new AppApiError(
       `Could not upload the CAD file (HTTP ${response.status}).`,
       response.status,
     )
+  }
 }
 
 /** Creates an Engine part, uploads directly to its short-lived PUT URL, then starts analysis. */
@@ -66,7 +67,9 @@ export const uploadPart = async (
   { onPhaseChange }: UploadPartOptions = {},
 ): Promise<{ partId: string; jobId: string }> => {
   const validationError = validateCadFile(file)
-  if (validationError) throw new AppApiError(validationError, 400)
+  if (validationError) {
+    throw new AppApiError(validationError, 400)
+  }
 
   onPhaseChange?.('creating-part')
   const { partId, uploadUrl } = await api<{ partId: string; uploadUrl: string }>('/api/parts', {

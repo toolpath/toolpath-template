@@ -1,3 +1,6 @@
+// `FeatureType` is a string enum, not the SDK client: no key, no network, and
+// `Object.values` below needs its members at runtime.
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports
 import { FeatureType as EngineFeatureType } from '@toolpath/api'
 import type { FeatureType } from '@toolpath/viewer'
 import type { Rule, RuleSet } from './rules'
@@ -96,6 +99,44 @@ const CONTOURED: ReadonlyArray<FeatureType> = [EngineFeatureType.ContourSurface]
 /** Cavities and profiles, where a corner can be drawn sharp. */
 const CORNERED: ReadonlyArray<FeatureType> = [...CAVITIES, EngineFeatureType.Profile]
 
+/**
+ * The rules that judge the **arrangement** rather than a feature.
+ *
+ * They replaced six prices — a points threshold, two size floors, a re-fixture
+ * price, a sliver floor and an operation cost — in three different currencies,
+ * none of which appeared anywhere else in the app. A shop could move any of
+ * them, press generate, and get the same plan back, with no way to tell a wrong
+ * number from an irrelevant one.
+ *
+ * These ask the two questions those six were circling, in the vocabulary the
+ * shop already writes its rules in: *how many times will you flip the part*,
+ * and *how much work should one operation do*. Where the bands fall is the
+ * whole of the tuning; {@link BAND_PRICE} turns a band into an argument the
+ * arrangement can have with itself, so there is no base price beside them.
+ *
+ * First in the list because they are read first: everything below judges one
+ * feature, and these two judge what the plan does with all of them.
+ */
+export const PLAN_RULES: ReadonlyArray<Rule> = [
+  {
+    id: 'plan-setups',
+    type: 'threshold',
+    scope: 'part',
+    name: 'Setups the plan runs',
+    metric: 'setups',
+    direction: 'higher is harder',
+    // Two is easy, three fine, four a nuisance, five rats — a shape most shops
+    // would recognise. No refusal: a wall nobody asked for quietly leaves
+    // ground uncut, which is the failure a coverage bar reading 94% does not
+    // explain.
+    thresholds: [2, 3, 4, 5],
+    weight: 20,
+    enabled: true,
+    featureTypes: [],
+    note: 'How many times you are willing to flip the part. Not a limit — a price: each band doubles what the next setup has to earn before it is bought. Set a refusal and that one is a wall.',
+  },
+]
+
 export const DEFAULT_RULES: ReadonlyArray<Rule> = [
   {
     id: 'milling-ld',
@@ -105,7 +146,7 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
     direction: 'higher is harder',
     thresholds: [3, 5, 6, 8],
     noGo: 12,
-    weight: 14,
+    weight: 15,
     enabled: true,
     // Everything an endmill makes, and the holes one makes too: a bore
     // bottomed at 180° is flat, and a flat bottom is not something a drill
@@ -122,7 +163,7 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
     metric: 'drillingLD',
     direction: 'higher is harder',
     thresholds: [3, 5, 8, 12],
-    weight: 14,
+    weight: 15,
     enabled: true,
     featureTypes: HOLES,
     note: 'Reach down to the bottom of the hole over its diameter. Past about 4:1 a standard drill wants pecking or a longer series.',
@@ -137,7 +178,7 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
     // 7/64, 3/32 and 1/16. A shop that has to sharpen a 3 mm drill twice a
     // shift does not call a 3 mm hole easy.
     thresholds: [3.969, 2.778, 2.381, 1.5875],
-    weight: 2,
+    weight: 5,
     enabled: true,
     featureTypes: HOLES,
     note: "Below the smallest drill on the shelf, a hole is somebody's special order.",
@@ -151,7 +192,7 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
     // A cavity is only as narrow as the tool that clears it, and a tool that
     // small is fragile before it is unavailable. Eighth, sixteenth, and down.
     thresholds: [6.35, 4.7625, 3.175, 2],
-    weight: 2,
+    weight: 5,
     // Off in the prototype because the footprint it read was not trustworthy on
     // every shape; off here for a harder reason — the Engine does not report a
     // footprint at all. Kept because a rule set is a shop's document.
@@ -186,22 +227,36 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
      * `facts.hasSharpCorner` is the obvious field and the app read it for
      * months — but the Engine only reports it on fillets and contours, so a
      * sharp corner in a pocket or against a wall went unremarked. The widest
-     * cutter a feature admits is reported on nearly every type, and where that
-     * is **zero** the Engine is saying the same thing in a way it says
-     * everywhere: no round tool goes in there.
+     * cutter a feature admits is reported on nearly every type.
      *
-     * Nothing to tune either way: a cutter is round, so a corner drawn sharp
-     * cannot be milled at all. How small a radius is worth *having* is the
-     * preferred milling radius rule's question.
+     * **And it is a threshold, not a test for zero.** Zero is the Engine saying
+     * no tool fits at all, which is plainly a sharp corner — but so is a band
+     * of two tenths of a millimetre, because nobody owns that cutter and
+     * nobody would run it if they did. Paul's line: *anything needing a 0.01 in
+     * tool is effectively a sharp corner*. Where exactly that falls is a shop's
+     * to draw, so it is drawn here, with an operator and a number that can both
+     * be changed, rather than buried in what the metric reports.
      */
     metric: 'minCutterDiameter',
-    op: '=',
-    against: 0,
+    op: '≤',
+    // 0.01 in, in millimetres — the model's unit. Written as the arithmetic so
+    // the inch it came from survives being read back.
+    against: 0.01 * 25.4,
     raises: 'no go',
-    weight: 10,
+    weight: 15,
     enabled: true,
-    featureTypes: CORNERED,
-    note: 'A cutter is round, so a corner drawn sharp cannot be milled. It wants a radius, a broach or an EDM.',
+    /*
+     * **Every type.** It was aimed at cavities and profiles, on the reasoning
+     * that those are the things with corners — and it meant the rule never
+     * reached a `Wall` whose datasheet says plainly that no tool fits it.
+     *
+     * The audience was doing the metric's job. A feature that reports no
+     * cutter is a sharp corner whatever the Engine called it, and one that
+     * reports nothing at all is silence — so the measurement already decides
+     * who this speaks about, and narrowing it by type only ever loses cases.
+     */
+    featureTypes: [],
+    note: 'A cutter is round, so a corner drawn sharp cannot be milled — and one needing a cutter nobody holds is sharp in every sense that matters. It wants a radius, a broach or an EDM.',
   },
   {
     id: 'cutter-diameter',
@@ -223,7 +278,7 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
      * tightening end costs anything, so only the tightening end is scored.
      */
     thresholds: [6.35, 3.175, 1.6002, 1.27],
-    weight: 2,
+    weight: 5,
     enabled: true,
     featureTypes: CAVITIES,
     note: 'The tightest internal radius the feature leaves room for — half the cutter diameter the Engine reports. The smaller it gets, the more slowly it has to be cut and the more fragile the tool.',
@@ -239,7 +294,7 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
     tolerance: 0.0254,
     matched: 'easy',
     unmatched: 'meh',
-    weight: 2,
+    weight: 10,
     enabled: true,
     featureTypes: HOLES,
     note: 'A hole on a stocked drill size is one pass with a tool already in the cabinet. Anything else is a reamer, an interpolated bore, or an order.',
@@ -260,6 +315,35 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
     note: 'A floor blend on a stock bull nose radius is one pass. Anything else has to be surfaced with a ball.',
   },
   {
+    id: 'standard-fillet-radius',
+    type: 'match',
+    name: 'Standard outer fillet radii',
+    /*
+     * The same field and the same question as the floor radii above, asked of
+     * the blend on the outside of the part rather than the one at the bottom of
+     * a pocket. Paul's: an outer fillet on a stock radius is a pass with a tool
+     * already in the holder, and one that is not wants a ball crawling over it.
+     *
+     * **Check this against a real outer fillet.** `floorFilletRadius` reads
+     * `facts.filletRadius`, which is where the Engine reports the blend on the
+     * feature families that carry one — but which field an `OuterFillet`
+     * carries its own radius in has not been confirmed on a part yet. If it
+     * turns out to be somewhere else, this rule wants a metric of its own and
+     * nothing else here changes.
+     */
+    metric: 'floorFilletRadius',
+    // The same tenth, thirty and sixty thou the floor radii use: it is the same
+    // cabinet of tools.
+    standards: [0.254, 0.762, 1.524],
+    tolerance: 0.0508,
+    matched: 'easy',
+    unmatched: 'rats',
+    weight: 2,
+    enabled: true,
+    featureTypes: [EngineFeatureType.OuterFillet, EngineFeatureType.InnerFillet],
+    note: 'An outer blend on a stock radius is one pass with a tool already in the holder. Anything else has to be surfaced with a ball.',
+  },
+  {
     id: 'standard-chamfer-angle',
     type: 'match',
     name: 'Standard chamfer angles',
@@ -268,7 +352,7 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
     tolerance: 1,
     matched: 'easy',
     unmatched: 'meh',
-    weight: 2,
+    weight: 3,
     enabled: true,
     featureTypes: BEVELLED,
     note: 'A chamfer at an angle the shop already grinds for is one pass with a chamfer mill.',
@@ -300,37 +384,12 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
     // No hard limit. Surfacing is expensive, never impossible: a big surfaced
     // area is a quote nobody likes, not a part that cannot be made, and calling
     // it a no go put parts past a limit the shop had not actually set.
-    weight: 4,
+    weight: 5,
     enabled: true,
     // Only the kinds that need a ball or bull nose driven over the whole
     // surface. A flat floor of the same area is one facing pass.
     featureTypes: CONTOURED,
     note: 'How much 3D surfacing there is, from two square inches to eight. That any at all is rats is set by the feature type baseline; this is how much of it there is.',
-  },
-  {
-    id: 'part-size',
-    type: 'threshold',
-    name: 'Part size against the machine',
-    metric: 'partOverMachine',
-    direction: 'higher is harder',
-    /*
-     * How far past the machine, not how big.
-     *
-     * The machine is three numbers and is set beside the rules — a shop says
-     * "30 × 16 × 20", and a single longest-side limit throws away the fact that
-     * a long thin part fits a machine a cube of the same length does not. This
-     * reads the overhang: zero fits, and each threshold is how far past you are
-     * willing to be before it stops being a job for this shop.
-     *
-     * A quarter inch of overhang might be re-fixturing; four inches is a
-     * different machine. Refused past that.
-     */
-    thresholds: [0, 6.35, 25.4, 101.6],
-    noGo: 101.6,
-    weight: 3,
-    enabled: true,
-    featureTypes: [],
-    note: 'How far the part exceeds the machine, side for side. Set the machine beside the rules; zero means it fits.',
   },
   {
     id: 'kind-baseline',
@@ -354,10 +413,19 @@ export const DEFAULT_RULES: ReadonlyArray<Rule> = [
       undercut_tslot: 'rats',
       undercut_filleted_tslot: 'rats',
       undercut_dovetail: 'rats',
-      // A concave blend between two surfaces. Whatever its radius, it is a ball
-      // or a bull nose walked along it at a stepover — the same surfacing job
-      // as a contour, and priced the same way.
+      /*
+       * A blend between two surfaces. Whatever its radius, it is a ball or a
+       * bull nose walked along it at a stepover — the same surfacing job as a
+       * contour, and priced the same way.
+       *
+       * **Both of them, Paul's.** The outer one was left out on the reasoning
+       * that a convex blend is reachable where a concave one is not, which is
+       * true of *access* and beside the point: it is still surfaced, and it is
+       * still an operation of its own on work a profile was going to do
+       * anyway.
+       */
       inner_fillet: 'rats',
+      outer_fillet: 'rats',
       // A face at an angle to every axis. It is either surfaced, or the part is
       // tipped to get square to it and that is another setup; both are the
       // expensive answer to a face that would have been one pass if it were
@@ -442,7 +510,7 @@ const copyOfDefaults = (
 export const DEFAULT_RULE_SET: RuleSet = {
   id: 'default',
   name: 'Toolpath defaults',
-  rules: copyOfDefaults(),
+  rules: [...PLAN_RULES, ...copyOfDefaults()],
   plan: { ...DEFAULT_PLAN_LIMITS },
 }
 
@@ -466,45 +534,48 @@ export const DEFAULT_RULE_SET: RuleSet = {
 export const SENDCUTSEND: RuleSet = {
   id: 'preset-sendcutsend',
   name: 'Justin Grey Labs',
-  rules: copyOfDefaults([
-    {
-      id: 'milling-ld',
-      // "at least the radius of the cutter being used, or at least one fifth
-      // the height of the wall — whichever is greater": a fillet a fifth of the
-      // depth is a reach of 2.5 times the cutter's diameter.
-      thresholds: [1, 1.5, 2, 2.5],
-      noGo: 2.5,
-      note: 'Their corner fillets must be at least a fifth of the wall height, which is a reach of 2.5 times the cutter diameter.',
-    },
-    {
-      id: 'drilling-ld',
-      // 8× diameter up to 0.500 in, 4× above it. The tighter of the two is the
-      // one a rule can state.
-      thresholds: [2, 4, 6, 8],
-      noGo: 8,
-      note: 'Holes up to 0.500 in go 8 diameters deep; bigger than that, 4.',
-    },
-    {
-      id: 'min-hole-diameter',
-      // They publish one number: 0.0629 in, the smallest they drill. Anything
-      // above it they take, so the bands sit just above the refusal rather than
-      // inventing a scale they never stated.
-      thresholds: [2.5, 2, 1.8, 1.598],
-      noGo: 1.598,
-      note: 'Their smallest drilled hole is 0.0629 in. Above that they do not say, so the bands sit close to the limit.',
-    },
-    {
-      id: 'cutter-diameter',
-      // Their floor is a 0.0625 in internal radius, so a 0.125 in cutter, and
-      // they publish nothing above it — a corner too big for any cutter they
-      // hold is cut with a smaller one and a bit more time. So the bands run
-      // down to their floor and stop there, and below it is a refusal because
-      // it is a limit they have stated rather than one we have inferred.
-      thresholds: [6.35, 3.175, 2, 1.5875] as [number, number, number, number],
-      noGo: 1.5875,
-      note: 'Their smallest machined internal radius is 0.0625 in, which is a 0.125 in cutter. They publish no upper limit.',
-    },
-  ]),
+  rules: [
+    ...PLAN_RULES,
+    ...copyOfDefaults([
+      {
+        id: 'milling-ld',
+        // "at least the radius of the cutter being used, or at least one fifth
+        // the height of the wall — whichever is greater": a fillet a fifth of the
+        // depth is a reach of 2.5 times the cutter's diameter.
+        thresholds: [1, 1.5, 2, 2.5],
+        noGo: 2.5,
+        note: 'Their corner fillets must be at least a fifth of the wall height, which is a reach of 2.5 times the cutter diameter.',
+      },
+      {
+        id: 'drilling-ld',
+        // 8× diameter up to 0.500 in, 4× above it. The tighter of the two is the
+        // one a rule can state.
+        thresholds: [2, 4, 6, 8],
+        noGo: 8,
+        note: 'Holes up to 0.500 in go 8 diameters deep; bigger than that, 4.',
+      },
+      {
+        id: 'min-hole-diameter',
+        // They publish one number: 0.0629 in, the smallest they drill. Anything
+        // above it they take, so the bands sit just above the refusal rather than
+        // inventing a scale they never stated.
+        thresholds: [2.5, 2, 1.8, 1.598],
+        noGo: 1.598,
+        note: 'Their smallest drilled hole is 0.0629 in. Above that they do not say, so the bands sit close to the limit.',
+      },
+      {
+        id: 'cutter-diameter',
+        // Their floor is a 0.0625 in internal radius, so a 0.125 in cutter, and
+        // they publish nothing above it — a corner too big for any cutter they
+        // hold is cut with a smaller one and a bit more time. So the bands run
+        // down to their floor and stop there, and below it is a refusal because
+        // it is a limit they have stated rather than one we have inferred.
+        thresholds: [6.35, 3.175, 2, 1.5875] as [number, number, number, number],
+        noGo: 1.5875,
+        note: 'Their smallest machined internal radius is 0.0625 in, which is a 0.125 in cutter. They publish no upper limit.',
+      },
+    ]),
+  ],
 }
 
 export const PRESET_SETS: ReadonlyArray<RuleSet> = [DEFAULT_RULE_SET, SENDCUTSEND]

@@ -11,21 +11,23 @@
  */
 export type Unit = 'in' | 'mm'
 
-export const UNITS: readonly Unit[] = ['mm', 'in']
-
 /** The unit the report itself is in, whatever the file was drawn in. */
 export const MODEL_UNIT: Unit = 'mm'
 
 const PER_INCH = 25.4
 
 export const convertLength = (value: number, from: Unit, to: Unit): number => {
-  if (from === to) return value
+  if (from === to) {
+    return value
+  }
   return from === 'in' ? value * PER_INCH : value / PER_INCH
 }
 
 /** Areas scale with the square of the length conversion. */
 export const convertArea = (value: number, from: Unit, to: Unit): number => {
-  if (from === to) return value
+  if (from === to) {
+    return value
+  }
   return from === 'in' ? value * PER_INCH ** 2 : value / PER_INCH ** 2
 }
 
@@ -52,10 +54,10 @@ const STORAGE_KEY = 'part-viewer.unit'
  * a machinist works in one of them all day and should not set it again after
  * opening a report.
  */
-export function loadUnit(storage: Pick<Storage, 'getItem'> | null): Unit {
+export const loadUnit = (storage: Pick<Storage, 'getItem'> | null): Unit => {
   return storage?.getItem(STORAGE_KEY) === 'in' ? 'in' : 'mm'
 }
 
-export function saveUnit(storage: Pick<Storage, 'setItem'> | null, unit: Unit): void {
+export const saveUnit = (storage: Pick<Storage, 'setItem'> | null, unit: Unit): void => {
   storage?.setItem(STORAGE_KEY, unit)
 }

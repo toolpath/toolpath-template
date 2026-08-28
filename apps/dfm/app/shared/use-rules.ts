@@ -110,7 +110,9 @@ export const useRules = (
   const loadPreset = useCallback((id: string) => {
     const selected = PRESET_SETS.find((set) => set.id === id)
 
-    if (!selected) return
+    if (!selected) {
+      return
+    }
 
     setPresetId(selected.id)
     setRevision((current) => current + 1)
@@ -134,19 +136,46 @@ export const useRules = (
     [boundingBox, features, ruleSet],
   )
 
-  return {
-    verdicts,
-    score: useMemo(() => scorePart(verdicts), [verdicts]),
-    ruleSet,
-    presets: PRESET_SETS,
-    presetId,
-    revision,
-    dirty: !sameRuleSet(selectedPreset, ruleSet),
-    updateRule,
-    updatePlan,
-    addRule,
-    removeRule,
-    loadPreset,
-    resetRules,
-  }
+  const score = useMemo(() => scorePart(verdicts), [verdicts])
+  const dirty = !sameRuleSet(selectedPreset, ruleSet)
+
+  /*
+   * One object while nothing in it has changed.
+   *
+   * This is handed straight to the rules panel as a prop, and a fresh literal
+   * each render is a new identity — which is enough on its own to re-render a
+   * memoised panel on every one of the page's thirty-odd state changes,
+   * however stable everything inside it is.
+   */
+  return useMemo(
+    () => ({
+      verdicts,
+      score,
+      ruleSet,
+      presets: PRESET_SETS,
+      presetId,
+      revision,
+      dirty,
+      updateRule,
+      updatePlan,
+      addRule,
+      removeRule,
+      loadPreset,
+      resetRules,
+    }),
+    [
+      verdicts,
+      score,
+      ruleSet,
+      presetId,
+      revision,
+      dirty,
+      updateRule,
+      updatePlan,
+      addRule,
+      removeRule,
+      loadPreset,
+      resetRules,
+    ],
+  )
 }

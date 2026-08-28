@@ -56,6 +56,10 @@ pnpm test:e2e # Run playwright E2E tests
 pnpm --filter @toolpath/dfm docker:build # Build DFM app docker container
 ```
 
+`pnpm check` runs the style check, `pnpm lint`, the build, type-checking, and
+the unit tests, cheapest first. `pnpm lint` also enforces the layering that
+keeps your API key server-side, so run `pnpm check` rather than its parts.
+
 The application uses released `@toolpath/api`, `@toolpath/ui`, and `@toolpath/viewer` NPM packages.
 
 See [the application README](apps/dfm/README.md) for architecture and request-flow
