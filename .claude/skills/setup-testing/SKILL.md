@@ -27,9 +27,12 @@ in `docs/directions-replay.md`. These four rules are not preferences, and
   so none of that stack is reachable elsewhere, and three logged bugs reached
   users because nothing could catch them. Putting a click-on-part test anywhere
   else does not test it.
-- **Never import captured Engine JSON.** Build reports by hand with
-  `tests/part-fixture.ts`; a foreign report tests another codebase's
-  normalization too.
+- **Never capture a real part's report and check it in.** Build reports by hand
+  with `tests/part-fixture.ts`; a foreign report tests another codebase's
+  normalization too. The single exception is the vendored viewer cube that
+  `tests/cube-fixture.ts` reads — geometry cannot be written out by hand, and
+  `@toolpath/viewer` publishes `dist` only, so there is nothing to import. Do
+  not add a second exception without the same kind of reason.
 
 Otherwise choose the smallest level that protects the behavior:
 

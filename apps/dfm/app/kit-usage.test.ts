@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 /**
@@ -13,20 +14,31 @@ import { describe, expect, it } from 'vitest'
  * Lower BUDGET whenever a migration lands. That is the whole maintenance
  * burden, and a failure here is the rule being violated rather than a flaky
  * test.
+ *
+ * Counted over the whole of `app/`, not `app/components` alone. Every raw
+ * control happens to live there today, so widening the walk did not move the
+ * number — but a button written into a route module, or into a folder somebody
+ * adds next year, would otherwise have been ground the ratchet never held.
  */
 const BUDGET = 78
 
-const componentsDir = 'app/components'
+const appDir = 'app'
 
-const rawButtonsIn = (file: string) => {
-  const source = readFileSync(`${componentsDir}/${file}`, 'utf8')
+/** Every hand-written component file, at any depth. */
+const componentFiles = (dir: string): Array<string> =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) {
+      return componentFiles(path)
+    }
+    return path.endsWith('.tsx') && !path.endsWith('.test.tsx') ? [path] : []
+  })
 
-  return source.match(/<button[\s>]/g)?.length ?? 0
-}
+const rawButtonsIn = (file: string) =>
+  readFileSync(file, 'utf8').match(/<button[\s>]/g)?.length ?? 0
 
 describe('hand-authored controls only fall', () => {
-  const counted = readdirSync(componentsDir)
-    .filter((file) => file.endsWith('.tsx') && !file.endsWith('.test.tsx'))
+  const counted = componentFiles(appDir)
     .map((file) => ({ file, count: rawButtonsIn(file) }))
     .filter(({ count }) => count > 0)
     .sort((a, b) => b.count - a.count)

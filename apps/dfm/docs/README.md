@@ -147,10 +147,18 @@ Three rules about where a test goes, and the reasons are in
   `face-list.test.tsx` renders a component importing the kit. They are the
   cheapest coverage available for anything list-shaped.
 - **Everything else is Playwright**, against a report built by hand with
-  `tests/part-fixture.ts`. Never import captured Engine JSON: the data is this
-  app's, and a foreign report tests another codebase's normalisation too.
+  `tests/part-fixture.ts`. Never capture a real part's report and check it in:
+  the data is this app's, and a foreign report tests another codebase's
+  normalisation too.
 - **Anything that begins with a click on the part goes in
   `tests/on-the-part.spec.ts`**, against `tests/cube-fixture.ts` — the one
   fixture that mounts geometry. Every hand-built report sets `hasMeshGlb: false`,
   so for a long time none of that stack was tested at all, and three of the bugs
   in the findings reached a user because nothing could catch them (F51).
+
+  That fixture is the **one exception** to the rule above, and it is a narrow
+  one: `tests/fixtures/local-0.3.0-cube.json` and its `.glb` are the viewer
+  package's own cube, not a captured part, and geometry is the one thing that
+  cannot be written out by hand. `@toolpath/viewer` publishes `dist` only, so
+  vendoring the pair is the only way to keep that spec running. Read
+  `cube-fixture.ts`'s header before adding anything beside it.
