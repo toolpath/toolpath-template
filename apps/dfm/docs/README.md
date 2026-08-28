@@ -14,6 +14,7 @@ plan for how the part gets held.
 | [directions-parity-plan.md](directions-parity-plan.md)         | What the Directions page _is_ — the interaction inventory, and what is built            |
 | [directions-parity-findings.md](directions-parity-findings.md) | F1–F67: why each instruction in the replay exists, each one a bug or a wrong turn first |
 | [migration.md](migration.md)                                   | **How this work got here, and what is still outstanding** — read this before the PR     |
+| [review-backlog.md](review-backlog.md)                         | Reviewed defects **not yet fixed**, with the evidence for each — start a session here   |
 
 The three `directions-*` pages are one set and are read in that order: the replay
 says what to do, the plan says what the thing is, the findings say why. They live
@@ -30,6 +31,14 @@ tests and then by hand on a real part, with what that turned up.
 `staging.md` is referenced by the sandbox's own copy of this index and was
 deliberately not ported: it aimed the work at `toolpath/apps/part-viewer`, a
 directory PR #50 deleted. `migration.md` replaces it.
+
+`review-backlog.md` holds reviewed defects that are **not fixed yet**, and only
+those. `d03be3b` retired the previous one once its every item had been fixed, on
+the reasoning that a standing document saying "not fixed" about fixed things is
+worse than no document — that reasoning still holds, so delete an entry when it
+lands rather than ticking it, and retire the page again when it empties. Git
+history is the record of what was fixed. Recover the previous one with
+`git show f7eff96:apps/dfm/docs/review-backlog.md`.
 
 ## Where these specs came from
 
