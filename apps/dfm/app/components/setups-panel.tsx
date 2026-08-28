@@ -309,10 +309,18 @@ const SetupsPanelView = ({
                 key={generator.how}
                 type="button"
                 onClick={() => onGenerate(generator.how)}
+                /*
+                 * Off until the Engine can answer it.
+                 *
+                 * Greyed rather than gone: the row is a set of alternatives,
+                 * and a set that quietly changes size teaches people to count
+                 * it again every time. It stays in place, wearing the reason.
+                 */
+                disabled={generator.comingSoon}
                 // What each one does, on hover. Four two-line cards were the
                 // tallest thing on the panel, describing a question most people
                 // have already answered.
-                title={generator.note}
+                title={generator.comingSoon ? `Coming soon — ${generator.note}` : generator.note}
                 // Lit while its own chooser stands: two of these open one
                 // rather than writing a plan, and a question on screen with
                 // nothing showing which press asked it is a question people
@@ -324,6 +332,16 @@ const SetupsPanelView = ({
               >
                 {GENERATOR_ICONS[generator.icon]()}
                 <span className="truncate">{generator.name}</span>
+                {generator.comingSoon ? (
+                  /*
+                   * The flag carries the whole message on a button whose grey
+                   * would otherwise read as *not yet, for some reason you have
+                   * to work out* — broken, or waiting on something you did.
+                   */
+                  <span className="ml-auto shrink-0 rounded-sm border border-edge px-1 text-[9px] font-bold uppercase leading-4 tracking-wide text-ink-faint">
+                    Soon
+                  </span>
+                ) : null}
               </button>
             ),
           )}
@@ -459,6 +477,14 @@ const SetupsPanelView = ({
                   <span>
                     <span className="font-semibold text-ink-body">{generator.name}</span> —{' '}
                     {generator.note}
+                    {/*
+                      The list is advice on which press to make, so an offer
+                      that cannot be pressed has to say so here too — otherwise
+                      it sends people to a button that will not answer.
+                    */}
+                    {generator.comingSoon ? (
+                      <span className="text-ink-faint"> (coming soon)</span>
+                    ) : null}
                   </span>
                 </li>
               ),

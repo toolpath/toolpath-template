@@ -72,6 +72,15 @@ export const GENERATORS: ReadonlyArray<{
   note: string
   /** Which mark it wears. Named here so the panel keeps no second list. */
   icon: GeneratorIcon
+  /**
+   * Offered, but not yet answerable.
+   *
+   * The Engine's API carries parts, features and jobs — it does not return a
+   * plan, so there is no analysis of its own to read. The offer stays on the
+   * panel because it says what is coming; it is off, and says why, rather than
+   * disappearing and reappearing without explanation.
+   */
+  comingSoon?: true
 }> = [
   {
     how: 'pick directions',
@@ -98,6 +107,7 @@ export const GENERATORS: ReadonlyArray<{
     note: 'the directions nothing else can reach',
   },
   {
+    comingSoon: true,
     how: 'from toolpath',
     icon: 'toolpath',
     name: 'From Toolpath',

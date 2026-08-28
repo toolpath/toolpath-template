@@ -368,3 +368,32 @@ describe('splitting a feature between ways up', () => {
     expect(cut.size).toBeLessThanOrEqual(2)
   })
 })
+
+/**
+ * The offers that cannot be answered yet.
+ *
+ * `from toolpath` reads an analysis the Engine does not publish: the SDK carries
+ * parts, features, jobs and keys, and nothing that returns a plan. So the offer
+ * is greyed rather than removed, and the flag saying so lives on `GENERATORS`
+ * where the panel reads it — the alternative was a second list in the component,
+ * which is what this file exists to prevent.
+ */
+describe('offers not answerable yet', () => {
+  it('marks From Toolpath as coming soon', () => {
+    const offer = GENERATORS.find((generator) => generator.how === 'from toolpath')
+
+    expect(offer?.comingSoon).toBe(true)
+  })
+
+  it('marks nothing else, so re-enabling it is the one flag', () => {
+    const waiting = GENERATORS.filter((generator) => generator.comingSoon).map((g) => g.how)
+
+    expect(waiting).toEqual(['from toolpath'])
+  })
+
+  it('keeps it among the offers that pick ways up, so the row does not resize', () => {
+    // Greyed in place. An offer that vanishes and returns teaches people to
+    // count the row every time they open the panel.
+    expect(PICKS_WAYS_UP).toContain('from toolpath')
+  })
+})
