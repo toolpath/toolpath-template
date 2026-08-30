@@ -1,13 +1,13 @@
-import type { PartFeature, PublicInspectionReport } from '../shared/contracts'
+import type { PartFeature, PublicInspectionReport } from '@toolpath/part-contracts'
 import { KindIcon } from './feature-icons'
 import { duration, partSummary } from '../shared/part-summary'
-import { directionLabel } from '../shared/report'
+import { directionLabel } from '@toolpath/part-contracts/report'
 import { directionCss } from '../shared/direction-colors'
-import { moveThroughList } from '../shared/list-keys'
+import { moveThroughList } from '@toolpath/domain/list-keys'
 import { Heading } from './heading'
 import type { FeatureScore } from '../shared/feature-score'
 import { ScoreBadge } from './score-badge'
-import type { Unit } from '../shared/units'
+import type { Unit } from '@toolpath/domain/units'
 
 const Count = ({ label, value }: { label: string; value: string | number }) => (
   <div className="flex items-baseline justify-between gap-4 py-1">

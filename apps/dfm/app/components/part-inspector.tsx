@@ -1,11 +1,11 @@
 import { directionIndexOf, sameDirection, type PartPick } from '@toolpath/viewer'
 import { type Arrows, arrowsVisible, shownArrow } from '../shared/arrows'
 import { type PaintMode, loadPaintMode, savePaintMode } from '../shared/paint'
-import { type Unit, loadUnit, saveUnit } from '../shared/units'
+import { type Unit, loadUnit, saveUnit } from '@toolpath/domain/units'
 import { Panels, Tabs } from '@toolpath/ui'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import type { PublicInspectionReport } from '../shared/contracts'
+import type { PublicInspectionReport } from '@toolpath/part-contracts'
 import {
   NOTHING_SELECTED,
   type SelectionState,
@@ -14,8 +14,8 @@ import {
   pickFace,
   scopeToDirection,
   stepCandidate,
-} from '../shared/selection'
-import { featureFromTags, filterFeatures, tagsOfType } from '../shared/report'
+} from '@toolpath/part-contracts/selection'
+import { featureFromTags, filterFeatures, tagsOfType } from '@toolpath/part-contracts/report'
 import { listHighlight } from '../shared/highlighting'
 import { useRules } from '../shared/use-rules'
 import { featureScores } from '../shared/feature-score'
@@ -29,6 +29,15 @@ import { RulesPanel } from './rules-panel'
 import { FeatureViewer } from './feature-viewer'
 
 type ViewerTab = 'inspector' | 'rules'
+
+/**
+ * This application's own key for the shared unit preference.
+ *
+ * `@toolpath/domain/units` deliberately does not pick one: the catalog runs on
+ * the same origin in some deployments, and which applications share a unit is
+ * a decision each of them makes rather than inherits.
+ */
+const UNIT_STORAGE_KEY = 'part-viewer.unit'
 
 /**
  * A 1px divider needs a grab area wider than 1px, and that area has to come out
@@ -185,12 +194,12 @@ export const PartInspector = ({
   // a unit that differed between the two would hydrate as a flash of the wrong
   // numbers.
   useEffect(() => {
-    setUnit(loadUnit(globalThis.localStorage ?? null))
+    setUnit(loadUnit(globalThis.localStorage ?? null, UNIT_STORAGE_KEY))
   }, [])
 
   const chooseUnit = (next: Unit) => {
     setUnit(next)
-    saveUnit(globalThis.localStorage ?? null, next)
+    saveUnit(globalThis.localStorage ?? null, UNIT_STORAGE_KEY, next)
   }
   /**
    * Once a feature is being read, its own way up is the only one worth drawing.
@@ -207,7 +216,10 @@ export const PartInspector = ({
   )
   /** Naming a feature in the list is a different question from the one a click asked. */
   const choose = (featureTag: string) => {
-    setSelection({ picks: [], candidates: [], focused: featureTag })
+    // `alone` arrived with the shared selection model: this reading stands for
+    // itself only when it is named from inside its own hole group, which this
+    // list is not.
+    setSelection({ picks: [], candidates: [], focused: featureTag, alone: false })
     setTypeIsAsking(false)
   }
 

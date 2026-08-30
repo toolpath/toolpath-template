@@ -1,0 +1,54 @@
+feature,when,tool types,for,rule,level,note
+*,,*,,diameter <= largest tool diameter,must,The widest cutter that reaches every corner (cd min): past it the tool cannot finish the feature — terminal finishing rules for everything — Paul's call
+*,,*,,flute length >= feature depth,must,The flutes must cover the cut or the shank rubs
+Through*,,*,,flute length >= feature depth + through overcut,must,A through cut runs past the bottom by the overcut
+*,,*end mill,,diameter <= largest tool diameter - corner clearance,should,Within 5 % of the tightest corner: an exact-size tool loads up in the corner — Paul's rule; the engine's min radius reduction
+*,filleted,flat end mill,,form is not flat end mill,must,A flat end cannot finish a filleted floor — terminal finishing only
+*,filleted,bull nose end mill,,corner radius <= floor fillet radius,must,A bigger nose cannot sit in the fillet
+*,filleted,*,,form in order bull nose end mill; ball end mill,rank,A filleted floor wants a bull nose; a ball is usable and ranked last — Paul's call
+*,filleted,*,,corner radius closest to floor fillet radius,rank,Exact match first then the least under: Paul's rule for filleted pockets
+*Pocket,not filleted,bull nose end mill,,corner radius <= finishing radius limit,should,A bull nose standing in for a flat end leaves a radius on a floor the model draws sharp: the engine's bullnose substitution limit
+*Boss,not filleted,bull nose end mill,,corner radius <= finishing radius limit,should,Same as a pocket floor
+BlindHole,not filleted,bull nose end mill,,corner radius <= finishing radius limit,should,Same as a pocket floor; a wall or profile is cut by the side and its nose radius is free
+Wall,,*,,corner radius <= corner radius - through overcut,must,A wall is cut by the side: the nose must clear the floor it runs past
+Profile,,*,,corner radius <= corner radius - through overcut,must,Same as a wall
+*Hole,,drill,,diameter <= hole diameter + drill oversize,must,The API's largest drill diameter is this with the engine's 0.001 in
+*Hole,,drill,,diameter >= hole diameter - drill undersize,must,A smaller drill is a pilot not the hole
+*Hole,,*end mill,,diameter <= largest tool diameter,must,10/11 of the hole: room to helix
+BlindHole,pointed bottom,drill,,tip angle <= tip angle + drill angle tolerance shallower,should,A 140° drill in a 118° hole leaves a shallower cone
+BlindHole,pointed bottom,drill,,tip angle >= tip angle - drill angle tolerance sharper,should,A sharper drill leaves a step at the bottom
+BlindHole,flat bottom,drill,,tip angle = 180,must,A counterbore stays flat: no pointed drill ever
+BlindHole,pointed bottom,drill,,tip angle closest to tip angle,rank,
+BlindHole,pointed bottom and hole diameter <= 25.4,*,,form is drill,prefer,A pointed blind hole up to an inch is drilled — Paul's rule
+ThroughHole,hole diameter <= 25.4,*,,form is drill,prefer,A through hole up to an inch is drilled — Paul's rule; a flat-bottomed hole has boring rules instead
+Chamfer,,chamfer mill,,tip angle = chamfer included angle + chamfer angle tolerance,must,The tool's point angle is the whole cone: twice the bevel's angle from the axis; 0.15° in the engine
+Chamfer,,chamfer mill,,flute length >= slant length,must,The cutting edge covers the bevel
+Sink,,chamfer mill,,tip angle = chamfer included angle + chamfer angle tolerance,must,
+UndercutTslot,,slot mill,,diameter <= entry width,must,It goes in through the opening
+UndercutFilletedTslot,,slot mill,,diameter <= entry width,must,
+UndercutDovetail,,dovetail mill,,tip angle = taper angle + chamfer angle tolerance,must,
+UndercutFilletedDovetail,,dovetail mill,,tip angle = taper angle + chamfer angle tolerance,must,
+Thread*,,thread mill,,diameter <= hole diameter - thread mill margin,must,98 % of the minor diameter
+*,ball only,*,,form is ball end mill,must,The kernel says only a ball finishes this surface without a cusp
+ContourSurface,,*,,form is not flat end mill,must,A flat end cannot finish a 3D surface: the engine's invalid finishing type — terminal finishing rules for everything
+SlantedFace,,*,,form is not flat end mill,must,Same as a contour surface
+*Fillet,,*,,form is not flat end mill,must,Same as a contour surface
+ContourSurface,,*,,form in order bull nose end mill; ball end mill; flat end mill,rank,The engine's order for 3D: a ball has zero speed at the tip
+SlantedFace,,*,,form in order bull nose end mill; ball end mill; flat end mill,rank,
+*Fillet,,*,,form in order bull nose end mill; ball end mill; flat end mill,rank,
+Chamfer,,*,,form in order chamfer mill; ball end mill; radius mill; flat end mill,rank,The engine's order for a chamfer
+Sink,,*,,form in order chamfer mill; counter sink; spot drill; ball end mill,rank,
+Face,,*,,form is not ball end mill,prefer,The engine does not face with a ball
+Wall,,*,,form in order flat end mill; bull nose end mill,rank,The engine's order for a wall
+Profile,,*,,form in order flat end mill; bull nose end mill,rank,
+*Pocket,not filleted,*,,form in order flat end mill; bull nose end mill; ball end mill,rank,A sharp floor wants a flat end
+*Boss,not filleted,*,,form in order flat end mill; bull nose end mill; ball end mill,rank,
+*Hole,,*,,form in order drill; flat end mill; bull nose end mill; ball end mill,rank,The engine's finish order for a hole
+*,,*,,diameter closest to largest tool diameter - corner clearance,rank,The best tool is the one 5 % under the tightest corner; then the nearest under it — Paul's rule
+*,,*,,L/D smallest,rank,Among tools that reach — the shorter: the ideal L/D is the least that clears the holder at full depth — Paul's rule
+*,,*,,brand priority,rank,The brand tiles
+*,,*,holder,radial clearance >= radial holder clearance,must,The holder must clear the walls sideways at the stickout it needs
+*,,*,holder,axial clearance >= axial holder clearance,must,The holder nose must clear the part top
+*,,*,holder,held share >= least hold,must,Below a quarter of the tool in the holder it is not compatible
+*,,*,holder,held share >= good hold,prefer,A quarter to a third held is possible but bad: ranked after the good ones
+*,,*,holder,collet series smallest,rank,A smaller nose clears more

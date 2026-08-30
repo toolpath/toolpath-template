@@ -1,7 +1,7 @@
 import { Link, useParams, useSearchParams } from 'react-router'
 import { Card } from '@toolpath/ui'
 import { PartInspector } from '../components/part-inspector'
-import { useAnalysisEvents } from '../client/use-analysis-events'
+import { useAnalysisEvents } from '@toolpath/part-client'
 
 const FailedPart = ({ message }: { message: string }) => (
   <main className="grid min-h-screen place-items-center bg-zinc-950 p-6 text-zinc-100">

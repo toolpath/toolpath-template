@@ -19,8 +19,8 @@ import {
 } from '../shared/rule-text'
 import type { Band, FlagRule, MatchRule, Rule, RuleType, ThresholdRule } from '../shared/rules'
 import { BANDS, FLAG_TESTS, RULE_TYPES, asType, bandName, plainType } from '../shared/rules'
-import type { Unit } from '../shared/units'
-import { decimalsFor } from '../shared/units'
+import type { Unit } from '@toolpath/domain/units'
+import { decimalsFor } from '@toolpath/domain/units'
 
 /**
  * A rule, editable.

@@ -1,7 +1,7 @@
 import { Button } from '@toolpath/ui'
 import { useState } from 'react'
 import type { UploadStatus } from '../client/use-part-upload'
-import { CAD_EXTENSIONS } from '../shared/cad'
+import { CAD_EXTENSIONS } from '@toolpath/part-contracts'
 
 const uploadLabel = (status: UploadStatus): string => {
   switch (status) {

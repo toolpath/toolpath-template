@@ -2,7 +2,7 @@ import { AppHeader } from '../components/app-header'
 import { ConnectionPanel } from '../components/connection-panel'
 import { UploadPanel } from '../components/upload-panel'
 import { usePartUpload } from '../client/use-part-upload'
-import { useSession } from '../client/use-session'
+import { useSession } from '@toolpath/part-client'
 import { Card } from '@toolpath/ui'
 
 export default function HomeRoute() {

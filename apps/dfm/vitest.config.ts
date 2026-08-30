@@ -12,7 +12,7 @@ export default defineConfig({
         inline: ['@toolpath/ui', '@toolpath/viewer', 'camera-controls', 'react-resizable-panels'],
       },
     },
-    include: ['app/**/*.test.{ts,tsx}', 'server/**/*.test.ts'],
+    include: ['app/**/*.test.{ts,tsx}'],
     setupFiles: ['./test.setup.ts'],
   },
 })

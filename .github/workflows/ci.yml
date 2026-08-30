@@ -20,7 +20,12 @@ jobs:
           node-version: 24.18.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The Husky pre-commit hook formats staged files, but it does not run on a
+      # rebase, an amend with --no-verify, or an edit made through the web UI.
+      # Without this step nothing in CI proves the formatting rule at all.
+      - run: pnpm format:check
       - run: pnpm check
       - run: pnpm --filter @toolpath/dfm exec playwright install --with-deps chromium
+      - run: pnpm --filter @toolpath/catalog exec playwright install --with-deps chromium
       - run: pnpm test:e2e
       - run: pnpm --filter @toolpath/dfm docker:build

@@ -1,0 +1,60 @@
+{
+  "name": "@toolpath/part-contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The app-owned shape of a Toolpath part report, and the pure logic every application reads it with",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./datasheet": {
+      "types": "./dist/datasheet.d.ts",
+      "import": "./dist/datasheet.js"
+    },
+    "./measurements": {
+      "types": "./dist/measurements.d.ts",
+      "import": "./dist/measurements.js"
+    },
+    "./hole-groups": {
+      "types": "./dist/hole-groups.d.ts",
+      "import": "./dist/hole-groups.js"
+    },
+    "./report": {
+      "types": "./dist/report.d.ts",
+      "import": "./dist/report.js"
+    },
+    "./picks": {
+      "types": "./dist/picks.d.ts",
+      "import": "./dist/picks.js"
+    },
+    "./selection": {
+      "types": "./dist/selection.d.ts",
+      "import": "./dist/selection.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@toolpath/api": "0.2.3",
+    "@toolpath/domain": "workspace:*",
+    "@toolpath/viewer": "0.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "jsdom": "30.0.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

@@ -1,9 +1,15 @@
 import { METRICS, type MetricId, metricQuantity } from './metrics'
 import type { Band, FeatureVerdict, Rule } from './rules'
 import { bandName, bandRank, bandRanges, rangeSpectrum } from './rules'
-import type { PartFeature } from './contracts'
-import { directionLabel, featureSummary } from './report'
-import { MODEL_UNIT, type Unit, convertArea, convertLength, decimalsFor } from './units'
+import type { PartFeature } from '@toolpath/part-contracts'
+import { directionLabel, featureSummary } from '@toolpath/part-contracts/report'
+import {
+  MODEL_UNIT,
+  type Unit,
+  convertArea,
+  convertLength,
+  decimalsFor,
+} from '@toolpath/domain/units'
 
 /**
  * Rule verdicts, in words.

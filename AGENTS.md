@@ -1,8 +1,10 @@
 # Toolpath Template Agent Guide
 
-This repository is a customer-facing design-for-manufacturability application
-built with React Router, React, Hono, TypeScript, Vitest, Playwright, pnpm, and
-Turborepo. It is a github template that user's can use to build their own products from with ease using Toolpath's API. The user may rework things significantly so be sure to check the current repo state rather than fully relying on this document, if the user makes signigicant changes be sure to update this document along with them so future AI Agents know how to work in their repo.
+This repository is a pnpm/Turborepo workspace holding **more than one
+customer-facing application** built with React Router, React, Hono, TypeScript,
+Vitest, Playwright, pnpm, and Turborepo — a design-for-manufacturability
+application in `apps/dfm`, a static tool catalog in `apps/catalog`, and the
+packages they share in `packages/`. It is a github template that user's can use to build their own products from with ease using Toolpath's API. The user may rework things significantly so be sure to check the current repo state rather than fully relying on this document, if the user makes signigicant changes be sure to update this document along with them so future AI Agents know how to work in their repo.
 
 ## What is Toolpath
 
@@ -70,24 +72,168 @@ template's Hono routes or UI structure when a user reworks the application.
 
 ## Code Styling
 
-- When using typescript to type an array of items, never use `Items[]`, always use `Array<Items>`, reading from left to right this is more explicit.
-- Never write if statements on a single line. Always write brackets and multiline if statements.
-- Never use `function functionName() {}` syntax for function definitions. Always use `const functionName = () => {}` syntax instead.
-- Always import parts of React individually, e.g. `ReactNode`, `FC`, etc. instead of writing `React.ReactNode`, `React.FC`. The only exception is in cases like `MouseEvent` where there is already a `MouseEvent` on the global namespace, so `React.MouseEvent` is more explicit.
-- When possible, do not use style props. Always use Tailwind CSS classes.
-- Use the supported `components/*`, `client/*`, `routes/*`, `shared/*`, and
-  `server/*` aliases instead of relative imports when one applies.
+Every rule below is either proven by a command or marked as judgment. A rule with
+a sensor is not a matter of taste: the gate fails and the work stops. A rule
+without one is a preference a reviewer has to carry in their head, and agents
+drift off those the longer a session runs — on 2026-08-28 one session wrote
+eighty single-line `if`s against a rule stated two paragraphs above. So when a
+judgment rule starts being violated, give it a check rather than restating it.
+
+| Rule                                                                 | Proven by          |
+| -------------------------------------------------------------------- | ------------------ |
+| `const name = () => {}`, never `function name() {}`                  | `pnpm check-style` |
+| `Array<Item>`, never `Item[]` — left to right is more explicit       | `pnpm lint`        |
+| Braces and multiple lines on every `if`, never a single-line one     | `pnpm lint`        |
+| Import React members individually (`ReactNode`), never `React.X`     | `pnpm lint`        |
+| `components/*`, `client/*`, `routes/*`, `shared/*` aliases in `app/` | `pnpm lint`        |
+| Only `@toolpath/part-server` uses the Toolpath SDK at runtime        | `pnpm lint`        |
+| Nothing in `packages/` imports an application                        | `pnpm lint`        |
+| A relative import inside a package carries its `.js` extension       | `pnpm lint`        |
+| The layering under Project Map                                       | `pnpm lint`        |
+| Tailwind classes for styling; `style={{}}` only for a computed value | judgment           |
+| `@toolpath/ui` components over hand-authored HTML, while it is used  | judgment           |
+
+What the checks cannot carry:
+
+- `React.MouseEvent` and the other names a DOM global already takes are the
+  documented exception. The check allows exactly those and nothing else.
+- Route modules export the component separately (`const Route = () => {}` then
+  `export default Route`) rather than as a default declaration.
+- `style={{}}` is right for a value only known at runtime — a direction colour,
+  a computed width. Everything static is a Tailwind class.
+- `apps/*/server` deliberately keeps relative imports into `app/shared`:
+  production runs `tsx server/prod.ts` with no bundler to resolve an alias.
+
+**`apps/dfm` is outside the sensors for now.** It is the template's copy, and
+the branch that settled its styling and layering (`paul/directions-mapping` in
+the DFM repository, with its own `eslint.config.js` and `check-style`) has not
+landed here. The day it does, add `apps/dfm` to `LINTED` in `eslint.config.js`
+and to `SEARCHED_DIRECTORIES` in `scripts/check-style.mjs`, and delete this
+paragraph.
+
+### Layering
+
+`pnpm lint` fails on any of these, so they are facts about the code rather than
+intentions about it:
+
+- Nothing under `app/` may import `server/`. This is the API-key boundary, and
+  it holds for an alias import as well as a relative one.
+- `app/shared/` imports only `app/shared/` and packages, which is what keeps it
+  pure and cheap to test.
+- `app/components/` may reach `client/` and `shared/`, never `routes/`.
+- `server/` may import `app/shared/` for the shared contracts, and nothing else
+  from `app/`.
+- A package imports other packages and nothing under `apps/`.
+- `app/` may import Toolpath SDK **types**; a runtime import would ship the SDK
+  to the browser.
+
+The rules live in `eslint.config.js`. Adding a layer means adding it there too,
+or the boundary is a comment rather than a check.
 
 ## Project Map
 
-- `apps/dfm/app/` is the browser React application.
-- `apps/dfm/server/` is the Hono server and the only place that uses the
-  Toolpath SDK or handles the user's API key.
-- `apps/dfm/app/shared/` contains pure contracts and domain logic. Keep new
-  behavior that can be pure and tested here.
-- `apps/dfm/tests/` contains Playwright end-to-end coverage.
-- `apps/dfm/app/**/*.test.*` and `apps/dfm/server/**/*.test.ts` contain Vitest
-  coverage.
+The workspace is `apps/*` and `packages/*`. Every application follows the same
+internal layout, so what is true of `apps/dfm` below is true of the next
+application unless that application says otherwise.
+
+- `apps/dfm/` is the DFM application. `app/` is the browser React application,
+  `server/` composes the shared part API, `app/shared/` is this application's
+  own pure logic, `tests/` is Playwright coverage, and `app/**/*.test.*` is
+  Vitest coverage.
+- `apps/catalog/` is the tool catalog. Its **tool data is bundled at build
+  time** and filtered in the browser — `app/shared/catalog.ts` is the only
+  module that touches it — while its `server/` serves the shared part API,
+  because uploading and analysing a part needs the user's API key.
+  See `docs/TOOL-CATALOG-PLAN.md`.
+- `packages/domain/` (`@toolpath/domain`) is pure helpers more than one
+  application needs — unit conversion and formatting, class composition,
+  keyboard movement through a list.
+- `packages/part-contracts/` (`@toolpath/part-contracts`) is the app-owned shape
+  of a part report, the datasheet readers, and the feature-selection model. Its
+  root export is server-safe; `/report`, `/picks` and `/selection` reach
+  `@toolpath/viewer` and are browser-only, and `/datasheet` is the viewer-free
+  half a server or a data package can read.
+- `packages/part-server/` (`@toolpath/part-server`) is `createPartApi`: the BYOK
+  connection cookie, part upload, analysis events, and the mesh relay. **This is
+  the only place any application's API key is handled.**
+- `packages/part-client/` (`@toolpath/part-client`) is the browser half of that
+  API: typed fetches and the session and analysis-event hooks.
+- `packages/catalog-data/` (`@toolpath/catalog-data`) is the tool catalog's data
+  contract, its pure record-to-catalog transform, the tool-fit calculation, and
+  the committed sample dataset.
+- `docs/` holds planning documents that outlive a single change.
+  `docs/FEATURE-DEFAULTS.md` is the guide to the catalog's feature datasheet,
+  `apps/catalog/app/shared/feature-defaults.csv`, and `docs/RULES.md` the
+  guide to its rules sheet, `rules.csv` and `knobs.csv` beside it — the files
+  in the catalog meant to be edited by someone who does not write code. Keep
+  them that way: a new field, condition, rule shape or knob is declared in
+  `feature-defaults.ts` / `rules.ts` and documented in the guide, never
+  hard-coded into the panel. The rules were seeded from Toolpath's engine
+  (`docs/ENGINE-TOOL-MATCHING.md`); `docs/RULES-PLAN.md` is the plan they
+  belong to, and any matching rule or tool-type order belongs in the sheet.
+
+## Shared Code Between Applications
+
+This repository has more than one application on purpose, and code that serves
+both of them belongs in `packages/`, not in one application with the other
+reaching across into it.
+
+- **Never import from one application into another.** `apps/catalog` importing
+  `apps/dfm/app/shared/...` is the failure this section exists to prevent. If
+  two applications need the same thing, it moves to a package.
+- **The second consumer is the trigger.** Do not build a package for code one
+  application uses. Extract when the second application needs it — and extract
+  it then rather than copying it, because a copy is a divergence with a delay
+  on it.
+- **Extract the pure part, not the coupling.** What moves is the logic that
+  depends on nothing but its arguments. A helper that reaches for a router, a
+  Toolpath client, or a storage key belongs in the application until the part
+  that is pure can be separated from the part that is not — which usually means
+  passing the coupled thing in as a parameter.
+- **A package owns its own tests.** Moving code out of an application without
+  moving its coverage turns a shared dependency into a place where a break is
+  found by whichever application happens to run first.
+- **Packages are private and built with `tsc`**, exposing subpath exports from
+  `dist/`. Relative imports inside a package carry the `.js` extension so the
+  emitted JavaScript runs under Node without a bundler. Applications depend on
+  them with `workspace:*`; Turborepo's `^build` ordering handles the rest.
+- **Nothing in `packages/` may import an application or a framework router.**
+  The one package that handles an API key is `@toolpath/part-server`, which
+  exists precisely so that handling happens in exactly one place; no other
+  package may read `APP_SESSION_SECRET` or construct a Toolpath client.
+- **Watch what a barrel export drags in.** `@toolpath/part-contracts` is split
+  into subpaths because its report readers import `@toolpath/viewer`, which
+  installs camera controls against a DOM at import time — enough to break a Hono
+  server that only wanted a type. A package used by both a server and a browser
+  keeps its server-safe surface reachable without the browser half.
+- **Say what changed on the way out.** When extraction changes a signature — as
+  parameterising the unit-preference storage key did — record it in the plan
+  document, because the next reader will otherwise assume the package is a
+  verbatim move.
+
+## Vendor Tool Data
+
+- **The scraper is not developed in this repository.** `@toolpath/tool-scraper`
+  lives in the `ui_packages` repository. Do not add scraping code here, and do
+  not copy an older scraper in from elsewhere.
+- Ingestion consumes the scraper's **records** (`ToolRecord`), never its vendor
+  CSVs. A scraped CSV keeps that vendor's own column labels, and those collide
+  with ISO 13399 while meaning something else — Kennametal's `D1` is a cutting
+  diameter, ISO's `D1` is a fixing hole. Only a vendor's own scraper adapter may
+  read that vendor's CSV; this repository takes the handoff at the record seam,
+  which is also what lets an updated scraper be plugged in without anything
+  downstream of `buildCatalog` changing.
+- **Geometry keeps the scraper's field names** (`DC`, `SFDM`, `OAL`, `LCF`,
+  `RE`, `NOF`, `SIG`, …), with the ISO code recorded alongside. Renaming one
+  here would put a translation table between the two vocabularies, which is
+  where a `SFDM` silently becomes a `DC`.
+- **Guids are minted by the scraper**, never here: a guid is `uuid5` under the
+  brand's namespace, and a wrong seed is every one of that vendor's guids,
+  permanently.
+- **Never commit scraped vendor data.** It is the vendor's, it is a working
+  file, and this repository is public. `scrape-out/` is gitignored.
+- Every stated fact a vendor did not publish carries its provenance — vendor,
+  derived, or assumed — and the UI shows anything that is not the vendor's.
 
 ## Safety and Secrets
 
@@ -95,12 +241,36 @@ template's Hono routes or UI structure when a user reworks the application.
   private URL into chat.
 - Never read, print, summarize, stage, or commit `.env` files. Checking that a
   file exists is safe; reading its contents is not.
-- During initial setup, agents may run `pnpm setup:local` to create
-  `apps/dfm/.env` and install dependencies. It generates the session secret
+- During initial setup, agents may run `pnpm setup:local` to create each
+  application's `.env` and install dependencies. It generates the session secret
   directly in the file without displaying it and leaves an existing file
   unchanged.
-- `APP_SESSION_SECRET` and `TOOLPATH_API_BASE_URL` belong only in
-  `apps/dfm/.env` locally and in the deployment platform's secret store.
+- `APP_SESSION_SECRET` and `TOOLPATH_API_BASE_URL` belong only in each
+  application's own `.env` locally — `apps/dfm/.env` and `apps/catalog/.env` —
+  and in the deployment platform's secret store. `pnpm setup:local` creates both
+  with independent generated secrets; two applications must not share one.
+
+## Testing
+
+Where a test goes is a rule, not a preference; `docs/TOOL-CATALOG-PLAN.md`
+§ Testing has the reasons, and the DFM application's `docs/README.md` the
+original. For the catalog:
+
+- **Pure logic goes in `app/shared/*.test.ts`.** That is the bulk of the value
+  and the cheapest place to add coverage. Prefer moving logic there over
+  testing it through a component — `shared/part-interaction.ts` exists because
+  the arrow rules were untestable while they lived in the route.
+- **Component tests work**, including for components importing `@toolpath/ui`
+  and, with the viewer package mocked, `@toolpath/viewer` —
+  `components/part-viewer.test.tsx` pins the props that reach it.
+- **Anything that begins with a click on the part goes in
+  `tests/on-the-part.spec.ts`**, against `tests/cube-fixture.ts` — the only
+  fixture that mounts geometry. Nothing else can reach that stack.
+- **Never capture a real part's report and check it in.** The vendored viewer
+  cube is the one exception, for the one reason `cube-fixture.ts` gives.
+- **A rule may want a sensor instead of a test.** `eslint.config.js`,
+  `scripts/check-style.mjs` and the CI `format:check` step read source rather
+  than exercise it. A new repository-wide invariant usually belongs beside them.
 
 ## Working Style
 
@@ -118,7 +288,8 @@ template's Hono routes or UI structure when a user reworks the application.
 Before editing:
 
 - Search for an existing pattern or shared package before adding an abstraction, dependency, or
-  duplicate helper.
+  duplicate helper. Check `packages/` first, and check the other application second: finding the
+  same logic there means the change is an extraction, not a second copy.
 - Decide which contract, data model, environment, and deployment boundaries the change touches.
 
 After editing:
@@ -130,12 +301,37 @@ After editing:
 
 Run commands from the repository root unless noted otherwise.
 
-| Purpose                         | Command                          |
-| ------------------------------- | -------------------------------- |
-| Install dependencies            | `pnpm install --frozen-lockfile` |
-| Run the development app         | `pnpm dev`                       |
-| Build, typecheck, and unit test | `pnpm check`                     |
-| Run end-to-end tests            | `pnpm test:e2e`                  |
+| Purpose                          | Command                          |
+| -------------------------------- | -------------------------------- |
+| Install dependencies             | `pnpm install --frozen-lockfile` |
+| Run the DFM app (port 5173)      | `pnpm dev`                       |
+| Run the tool catalog (port 5174) | `pnpm dev:catalog`               |
+| Check function-declaration style | `pnpm check-style`               |
+| Check style rules and layering   | `pnpm lint`                      |
+| Build, typecheck, and unit test  | `pnpm check`                     |
+| Run every end-to-end test        | `pnpm test:e2e`                  |
+| Run one application's e2e tests  | `pnpm test:e2e:dfm` / `:catalog` |
+| Work in one workspace project    | `pnpm --filter <name> <script>`  |
+
+`pnpm check` runs `check-style`, `lint`, `build`, `check-types` and `test`, in
+that order, so the cheap checks fail first. It covers every application and
+package in the workspace, so a change to a shared package is verified against
+both of its consumers. `pnpm lint --fix` settles the formatting-shaped rules on
+its own.
+
+`pnpm check` builds every package, and the catalog dev server links those
+packages' `dist/` folders — on 2026-08-29 a `pnpm check` under a running dev
+server left Vite serving outdated optimised dependencies and every page black.
+The catalog now pre-bundles its dependencies at start-up, has a root
+`ErrorBoundary`, and a boot watchdog that replaces "Loading the catalog…" with
+what to do if nothing hydrates. The dev-server adapter hands anything it does not exclude to React Router
+as a document — `apps/catalog/dev-server-exclude.ts` is the list, with a test
+— so a new kind of imported asset (a `?raw` sheet, a JSON) goes on that list
+or its hot update blanks the tab. If a page ever shows that message for more
+than ten seconds, restart the dev server with a clean cache:
+`rm -rf apps/catalog/node_modules/.vite && pnpm dev:catalog`. Never diagnose a
+blank page by guessing: load it headless (Playwright is installed) and read the
+console.
 
 `pnpm check` is the normal fast gate. Before pushing a significant change,
 also run the dependency audit, end-to-end tests, and the production

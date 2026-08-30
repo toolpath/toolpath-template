@@ -3,7 +3,7 @@ import { formatMetric } from '../shared/rule-text'
 import type { RulesSummary, WorstReading } from '../shared/rules-summary'
 import type { Band } from '../shared/rules'
 import { BANDS, bandName } from '../shared/rules'
-import type { Unit } from '../shared/units'
+import type { Unit } from '@toolpath/domain/units'
 import { Heading } from './heading'
 import { KindIcon } from './feature-icons'
 

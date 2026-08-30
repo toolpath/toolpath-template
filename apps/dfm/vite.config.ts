@@ -11,6 +11,10 @@ export default defineConfig(({ mode }) => {
     // Server configuration reads the environment explicitly above. Prevent Vite
     // from performing a second, client-oriented .env load.
     envDir: false,
+    // Stated rather than left to Vite's default, because a second application
+    // in this workspace has the same default: two apps silently competing for
+    // one port is a confusing way to find that out.
+    server: { port: 5173, strictPort: true },
     // Development only: mount the Hono API alongside Vite's SPA dev server on one origin.
     plugins: [
       tsconfigPaths(),

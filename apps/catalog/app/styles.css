@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+@import '@toolpath/ui/theme.css';
+
+:root {
+  color-scheme: dark;
+  font-family: var(--font-body);
+  background: var(--color-zinc-950);
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--color-zinc-300);
+  background: var(--color-zinc-950);
+}
+button,
+input {
+  font: inherit;
+}

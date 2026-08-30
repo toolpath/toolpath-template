@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import { METRICS, metricFormula, metricSources, partContext, readMetrics } from './metrics'
-import { measurements } from './measurements'
+import { measurements } from '@toolpath/part-contracts/measurements'
 
 /**
  * The metrics are arithmetic over the Engine's datasheet, so what these pin is

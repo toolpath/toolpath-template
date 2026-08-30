@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["DOM", "DOM.AsyncIterable", "DOM.Iterable", "ES2022"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "client/*": ["app/client/*"],
+      "components/*": ["app/components/*"],
+      "routes/*": ["app/routes/*"],
+      "shared/*": ["app/shared/*"],
+      "server/*": ["server/*"]
+    },
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "verbatimModuleSyntax": true,
+    "types": ["@testing-library/jest-dom", "node", "vite/client"]
+  },
+  "include": ["app", "server", "vite.config.ts", "vitest.config.ts", "playwright.config.ts"]
+}

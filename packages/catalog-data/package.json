@@ -1,0 +1,44 @@
+{
+  "name": "@toolpath/catalog-data",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The tool catalog's data contract, its pure record-to-catalog transform, and a committed sample dataset",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./sample-catalog.json": "./fixtures/sample-catalog.json",
+    "./vendors/regofix": {
+      "types": "./dist/vendors/regofix.d.ts",
+      "import": "./dist/vendors/regofix.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "fixtures"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:sample": "pnpm build && node scripts/build-sample-catalog.mjs",
+    "ingest": "pnpm build && node scripts/ingest.mjs",
+    "rebuild": "pnpm build && node scripts/rebuild.mjs",
+    "scrape": "pnpm build && node scripts/scrape.mjs",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@toolpath/domain": "workspace:*",
+    "@toolpath/part-contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

@@ -30,10 +30,10 @@ See https://developers.toolpath.com/ for documentation on using the Toolpath API
    pnpm setup:local
    ```
 
-   This creates `apps/dfm/.env`, a private file that stays on your computer and
-   is not added to GitHub. It generates the session secret without displaying it
-   and sets the standard Toolpath API URL. It also installs the application
-   files it needs.
+   This creates a private `.env` for each application — `apps/dfm/.env` and
+   `apps/catalog/.env` — that stays on your computer and is not added to GitHub.
+   It generates each session secret without displaying it and sets the standard
+   Toolpath API URL. It also installs the application files it needs.
 
    This also installs the Husky pre-commit hook. It formats staged files automatically before each
    commit so you can have nice formatting without having to think about it.
@@ -51,15 +51,31 @@ See https://developers.toolpath.com/ for documentation on using the Toolpath API
 ## Development
 
 ```sh
-pnpm check # Run all quality checks
-pnpm test:e2e # Run playwright E2E tests
+pnpm check # Run all quality checks, across every application and package
+pnpm test:e2e # Run every Playwright E2E suite
+pnpm dev # Start the DFM app on http://localhost:5173
+pnpm dev:catalog # Start the tool catalog on http://localhost:5174
 pnpm --filter @toolpath/dfm docker:build # Build DFM app docker container
 ```
 
+Both applications pin their development port, so the two can run side by side.
+In production they default to ports 3000 and 3001 respectively.
+
 The application uses released `@toolpath/api`, `@toolpath/ui`, and `@toolpath/viewer` NPM packages.
 
-See [the application README](apps/dfm/README.md) for architecture and request-flow
-details.
+See [the DFM application README](apps/dfm/README.md) for architecture and
+request-flow details.
+
+## The applications in this workspace
+
+| Path           | What it is                                                                   |
+| -------------- | ---------------------------------------------------------------------------- |
+| `apps/dfm`     | The DFM application: upload a part, analyse it, inspect features and rules.  |
+| `apps/catalog` | The tool catalog: browse cutting tools, and match them to a part's features. |
+| `packages/`    | What the applications share, including the one place an API key is handled.  |
+
+Code needed by both applications belongs in `packages/` rather than in one of
+them — see `AGENTS.md` and [`docs/TOOL-CATALOG-PLAN.md`](docs/TOOL-CATALOG-PLAN.md).
 
 ## License
 

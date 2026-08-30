@@ -1,0 +1,17 @@
+knob,value,unit,note
+corner clearance,5,%,Under the tightest corner a tool should stay by this much: Paul's 5 % against load spikes; the engine's min_radius_reduction is 0.05
+drill oversize,0.1,mm,A drill may be this much wider than the hole: Toolpath UI default 0.004 in; the engine itself uses 0.001 in (the API's largest drill diameter)
+drill undersize,0.1,mm,A drill may be this much narrower than the hole: Toolpath UI default 0.004 in
+drill angle tolerance shallower,35,deg,A drill tip may be this much shallower (wider) than a blind hole's bottom: engine drillAngleTolerancePlus
+drill angle tolerance sharper,0,deg,A drill tip may be this much sharper than the bottom; 0 because a sharper tip leaves a step: engine drillAngleToleranceMinus
+finishing radius limit,0.025,mm,The largest bull-nose radius that may stand in for a flat end on a floor the model draws sharp: engine maxBullnoseEndmillFinishingRadius 0.001 in
+through overcut,0.127,mm,How far a through cut runs past the bottom: engine through_feature_overcut_finish 0.005 in (rough is 0.010 in)
+chamfer angle tolerance,0.15,deg,How far a chamfer or dovetail tool's angle may differ from the feature's: engine chamfer_angle_tolerance_rad
+thread mill margin,2,%,A thread mill stays this much under the minor diameter: engine 0.98 × minor
+good hold,33,%,Share of the overall length that stays in the holder: the stickout runs from the flute length up to what leaves this much — 2/3 of the tool out at most — and an assembly holding at least this much is good
+least hold,25,%,Share of the overall length in the holder below which an assembly is not compatible: Paul's quarter
+radial holder clearance,0.508,mm,Room wanted between the holder and the part sideways: Paul's 0.02 in; engine radial_holder_clearance 0.01 in
+axial holder clearance,0.508,mm,Room wanted between the holder nose and the part top: Paul's 0.02 in; engine axial_holder_clearance 0.01 in
+least stickout,12.7,mm,The shortest stickout worth setting a tool up at: Paul's 0.5 in — the default stands out at least this far where the tool's length allows
+stickout step,3.175,mm,The default stickout lands on this increment for inch tools: Paul's 1/8 in — the step nearest what the holder needs and never under it
+metric stickout step,3,mm,The default stickout lands on this increment for metric tools

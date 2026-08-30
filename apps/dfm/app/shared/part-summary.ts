@@ -1,5 +1,5 @@
-import type { PublicInspectionReport } from './contracts'
-import { directionLabel } from './report'
+import type { PublicInspectionReport } from '@toolpath/part-contracts'
+import { directionLabel } from '@toolpath/part-contracts/report'
 
 /**
  * What the Engine found, before anybody has clicked anything.

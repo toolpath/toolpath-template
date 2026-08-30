@@ -1,5 +1,5 @@
-import type { PartFeature } from './contracts'
-import { directionLabel, featureSummary } from './report'
+import type { PartFeature } from '@toolpath/part-contracts'
+import { directionLabel, featureSummary } from '@toolpath/part-contracts/report'
 import type { Band, FeatureVerdict, Rule } from './rules'
 import { BANDS, bandRank, scorePart } from './rules'
 

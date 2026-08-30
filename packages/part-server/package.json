@@ -1,0 +1,38 @@
+{
+  "name": "@toolpath/part-server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Hono part API every Toolpath application in this workspace serves: BYOK session, part upload, analysis events, mesh",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "0.9.0",
+    "@toolpath/api": "0.2.3",
+    "@toolpath/part-contracts": "workspace:*",
+    "eventsource-parser": "4.0.0",
+    "hono": "4.13.0",
+    "jose": "6.2.8",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

@@ -1,5 +1,5 @@
 import type { CdData, FeatureDatasheet, FeatureDatasheetFacts } from '@toolpath/api'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 
 /**
  * A stable key for a machining direction, for grouping features cut the same

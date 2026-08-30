@@ -6,11 +6,11 @@ import { RulesSummaryPanel } from './rules-summary'
 import type { RulesSummary } from '../shared/rules-summary'
 import type { Band } from '../shared/rules'
 import type { RulesState } from '../shared/use-rules'
-import type { Unit } from '../shared/units'
-import type { PartFeature } from '../shared/contracts'
+import type { Unit } from '@toolpath/domain/units'
+import type { PartFeature } from '@toolpath/part-contracts'
 import type { FeatureScore } from '../shared/feature-score'
 import { ruleHits } from '../shared/rule-text'
-import { moveThroughList } from '../shared/list-keys'
+import { moveThroughList } from '@toolpath/domain/list-keys'
 
 /**
  * The limits the part is being judged against, and every one of them editable.

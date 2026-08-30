@@ -1,12 +1,22 @@
 import { CheckIcon, CopyIcon } from '@phosphor-icons/react'
 import { Badge, Button, IconButton, Tooltip } from '@toolpath/ui'
 import { useEffect, useRef, useState } from 'react'
-import type { PartFeature, PublicInspectionReport } from '../shared/contracts'
+import type { PartFeature, PublicInspectionReport } from '@toolpath/part-contracts'
 import { directionCss } from '../shared/direction-colors'
-import { moveThroughList } from '../shared/list-keys'
-import { measurements, stripMeasurements, STRIP_LABELS } from '../shared/measurements'
-import { asRecord, directionLabel, facts, featureSummary, rawDatasheet } from '../shared/report'
-import type { Unit } from '../shared/units'
+import { moveThroughList } from '@toolpath/domain/list-keys'
+import {
+  measurements,
+  stripMeasurements,
+  STRIP_LABELS,
+} from '@toolpath/part-contracts/measurements'
+import {
+  asRecord,
+  directionLabel,
+  facts,
+  featureSummary,
+  rawDatasheet,
+} from '@toolpath/part-contracts/report'
+import type { Unit } from '@toolpath/domain/units'
 import type { FeatureVerdict, Rule } from '../shared/rules'
 import type { PartContext } from '../shared/metrics'
 import { RuleVerdict } from './rule-verdict'

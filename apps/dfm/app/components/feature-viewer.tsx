@@ -15,12 +15,12 @@ import type { PartPick, SectionPlacement, SectionState } from '@toolpath/viewer'
 import { type Arrows, nextArrows } from '../shared/arrows'
 import { READING_COLORS } from '../shared/selection-colors'
 import { loadShowAids, saveShowAids } from '../shared/scene-aids'
-import { directionLabel } from '../shared/report'
+import { directionLabel } from '@toolpath/part-contracts/report'
 import { PAINT_MODE_LABELS, type PaintMode, paintWash } from '../shared/paint'
 import type { Band } from '../shared/rules'
 import { Button } from '@toolpath/ui'
 import { ToolButton } from './tool-button'
-import type { PartReport, PublicInspectionReport } from '../shared/contracts'
+import type { PartReport, PublicInspectionReport } from '@toolpath/part-contracts'
 
 class MeshErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state: { error: Error | null } = { error: null }

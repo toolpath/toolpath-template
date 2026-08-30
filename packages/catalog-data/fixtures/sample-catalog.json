@@ -1,0 +1,729 @@
+{
+  "version": 4,
+  "builtAt": "2026-08-27",
+  "families": [
+    {
+      "id": "sample-vhm-endmills",
+      "name": "Sample solid carbide end mills",
+      "brand": "WIDIA",
+      "vendor": "Kennametal",
+      "unitSystem": "metric",
+      "toolTypes": [
+        "endmill"
+      ],
+      "toolCount": 4,
+      "source": null
+    },
+    {
+      "id": "sample-solid-drills",
+      "name": "Sample solid carbide drills, 3×D",
+      "brand": "Kennametal",
+      "vendor": "Kennametal",
+      "unitSystem": "metric",
+      "toolTypes": [
+        "drill"
+      ],
+      "toolCount": 3,
+      "source": null
+    },
+    {
+      "id": "sample-inch-taps",
+      "name": "Sample inch spiral-flute taps",
+      "brand": "WIDIA",
+      "vendor": "Kennametal",
+      "unitSystem": "inch",
+      "toolTypes": [
+        "tap"
+      ],
+      "toolCount": 2,
+      "source": null
+    }
+  ],
+  "tools": [
+    {
+      "guid": "11111111-1111-5111-8111-111111111101",
+      "familyId": "sample-vhm-endmills",
+      "brand": "WIDIA",
+      "vendor": "Kennametal",
+      "catalogNumber": "TDMX0300",
+      "materialNumber": null,
+      "toolType": "endmill",
+      "unitSystem": "metric",
+      "geometry": {
+        "DC": 3,
+        "LCF": 8,
+        "OAL": 50,
+        "RE": 0,
+        "NOF": 4,
+        "SFDM": 6,
+        "LBH": 11,
+        "LD": 3.67
+      },
+      "materialGroups": [
+        "P",
+        "M"
+      ],
+      "productLink": null,
+      "provenance": {
+        "DC": "vendor-stated",
+        "LCF": "vendor-stated",
+        "OAL": "vendor-stated",
+        "RE": "vendor-stated",
+        "NOF": "vendor-stated",
+        "SFDM": "vendor-stated",
+        "LBH": "derived",
+        "LD": "derived",
+        "form": "derived"
+      },
+      "form": "flat end mill"
+    },
+    {
+      "guid": "11111111-1111-5111-8111-111111111102",
+      "familyId": "sample-vhm-endmills",
+      "brand": "WIDIA",
+      "vendor": "Kennametal",
+      "catalogNumber": "TDMX0500",
+      "materialNumber": null,
+      "toolType": "endmill",
+      "unitSystem": "metric",
+      "geometry": {
+        "DC": 5,
+        "LCF": 13,
+        "OAL": 57,
+        "RE": 0.5,
+        "NOF": 4,
+        "SFDM": 6,
+        "LBH": 18,
+        "LD": 3.6
+      },
+      "materialGroups": [
+        "P",
+        "M"
+      ],
+      "productLink": null,
+      "provenance": {
+        "DC": "vendor-stated",
+        "LCF": "vendor-stated",
+        "OAL": "vendor-stated",
+        "RE": "vendor-stated",
+        "NOF": "vendor-stated",
+        "SFDM": "vendor-stated",
+        "LBH": "derived",
+        "LD": "derived",
+        "form": "derived"
+      },
+      "form": "bull nose end mill"
+    },
+    {
+      "guid": "11111111-1111-5111-8111-111111111103",
+      "familyId": "sample-vhm-endmills",
+      "brand": "WIDIA",
+      "vendor": "Kennametal",
+      "catalogNumber": "TDMX0800",
+      "materialNumber": null,
+      "toolType": "endmill",
+      "unitSystem": "metric",
+      "geometry": {
+        "DC": 8,
+        "LCF": 19,
+        "OAL": 63,
+        "RE": 1,
+        "NOF": 4,
+        "SFDM": 8,
+        "LBH": 27,
+        "LD": 3.38
+      },
+      "materialGroups": [
+        "P",
+        "M"
+      ],
+      "productLink": null,
+      "provenance": {
+        "DC": "vendor-stated",
+        "LCF": "vendor-stated",
+        "OAL": "vendor-stated",
+        "RE": "vendor-stated",
+        "NOF": "vendor-stated",
+        "SFDM": "vendor-stated",
+        "LBH": "derived",
+        "LD": "derived",
+        "form": "derived"
+      },
+      "form": "bull nose end mill"
+    },
+    {
+      "guid": "11111111-1111-5111-8111-111111111104",
+      "familyId": "sample-vhm-endmills",
+      "brand": "WIDIA",
+      "vendor": "Kennametal",
+      "catalogNumber": "TDMX1200",
+      "materialNumber": null,
+      "toolType": "endmill",
+      "unitSystem": "metric",
+      "geometry": {
+        "DC": 12,
+        "LCF": 26,
+        "OAL": 83,
+        "RE": 2,
+        "NOF": 5,
+        "SFDM": 12,
+        "LBH": 38,
+        "LD": 3.17
+      },
+      "materialGroups": [
+        "P",
+        "M"
+      ],
+      "productLink": null,
+      "provenance": {
+        "DC": "vendor-stated",
+        "LCF": "vendor-stated",
+        "OAL": "vendor-stated",
+        "RE": "vendor-stated",
+        "NOF": "vendor-stated",
+        "SFDM": "vendor-stated",
+        "LBH": "derived",
+        "LD": "derived",
+        "form": "derived"
+      },
+      "form": "bull nose end mill"
+    },
+    {
+      "guid": "22222222-2222-5222-8222-222222222201",
+      "familyId": "sample-solid-drills",
+      "brand": "Kennametal",
+      "vendor": "Kennametal",
+      "catalogNumber": "B041A03000",
+      "materialNumber": null,
+      "toolType": "drill",
+      "unitSystem": "metric",
+      "geometry": {
+        "DC": 3,
+        "LCF": 12,
+        "OAL": 62,
+        "SIG": 140,
+        "SFDM": 6,
+        "LBH": 15,
+        "LD": 5
+      },
+      "materialGroups": [
+        "P",
+        "M",
+        "K"
+      ],
+      "productLink": null,
+      "provenance": {
+        "DC": "vendor-stated",
+        "LCF": "vendor-stated",
+        "OAL": "vendor-stated",
+        "SIG": "derived",
+        "SFDM": "vendor-stated",
+        "LBH": "derived",
+        "LD": "derived",
+        "form": "derived"
+      },
+      "form": "drill"
+    },
+    {
+      "guid": "22222222-2222-5222-8222-222222222202",
+      "familyId": "sample-solid-drills",
+      "brand": "Kennametal",
+      "vendor": "Kennametal",
+      "catalogNumber": "B041A06000",
+      "materialNumber": null,
+      "toolType": "drill",
+      "unitSystem": "metric",
+      "geometry": {
+        "DC": 6,
+        "LCF": 24,
+        "OAL": 82,
+        "SIG": 140,
+        "SFDM": 6,
+        "LBH": 30,
+        "LD": 5
+      },
+      "materialGroups": [
+        "P",
+        "M",
+        "K"
+      ],
+      "productLink": null,
+      "provenance": {
+        "DC": "vendor-stated",
+        "LCF": "vendor-stated",
+        "OAL": "vendor-stated",
+        "SIG": "derived",
+        "SFDM": "vendor-stated",
+        "LBH": "derived",
+        "LD": "derived",
+        "form": "derived"
+      },
+      "form": "drill"
+    },
+    {
+      "guid": "22222222-2222-5222-8222-222222222203",
+      "familyId": "sample-solid-drills",
+      "brand": "Kennametal",
+      "vendor": "Kennametal",
+      "catalogNumber": "B041A10000",
+      "materialNumber": null,
+      "toolType": "drill",
+      "unitSystem": "metric",
+      "geometry": {
+        "DC": 10,
+        "LCF": 40,
+        "OAL": 103,
+        "SIG": 140,
+        "SFDM": 10,
+        "LBH": 50,
+        "LD": 5
+      },
+      "materialGroups": [
+        "P",
+        "M",
+        "K"
+      ],
+      "productLink": null,
+      "provenance": {
+        "DC": "vendor-stated",
+        "LCF": "vendor-stated",
+        "OAL": "vendor-stated",
+        "SIG": "derived",
+        "SFDM": "vendor-stated",
+        "LBH": "derived",
+        "LD": "derived",
+        "form": "derived"
+      },
+      "form": "drill"
+    },
+    {
+      "guid": "33333333-3333-5333-8333-333333333301",
+      "familyId": "sample-inch-taps",
+      "brand": "WIDIA",
+      "vendor": "Kennametal",
+      "catalogNumber": "VTSFT0250",
+      "materialNumber": null,
+      "toolType": "tap",
+      "unitSystem": "inch",
+      "geometry": {
+        "DC": 6.35,
+        "LCF": 15.875,
+        "OAL": 63.5,
+        "NOF": 3,
+        "SFDM": 6.35,
+        "ZEFP": 3,
+        "LBH": 22.23,
+        "LD": 3.5
+      },
+      "materialGroups": [],
+      "productLink": null,
+      "provenance": {
+        "DC": "vendor-stated",
+        "LCF": "vendor-stated",
+        "OAL": "vendor-stated",
+        "NOF": "vendor-stated",
+        "SFDM": "assumed",
+        "LBH": "derived",
+        "LD": "derived",
+        "form": "assumed"
+      },
+      "form": "tap right hand"
+    },
+    {
+      "guid": "33333333-3333-5333-8333-333333333302",
+      "familyId": "sample-inch-taps",
+      "brand": "WIDIA",
+      "vendor": "Kennametal",
+      "catalogNumber": "VTSFT0375",
+      "materialNumber": null,
+      "toolType": "tap",
+      "unitSystem": "inch",
+      "geometry": {
+        "DC": 9.525,
+        "LCF": 19.05,
+        "OAL": 76.2,
+        "NOF": 3,
+        "SFDM": 7.938,
+        "ZEFP": 3,
+        "LBH": 28.58,
+        "LD": 3
+      },
+      "materialGroups": [],
+      "productLink": null,
+      "provenance": {
+        "DC": "vendor-stated",
+        "LCF": "vendor-stated",
+        "OAL": "vendor-stated",
+        "NOF": "vendor-stated",
+        "SFDM": "assumed",
+        "LBH": "derived",
+        "LD": "derived",
+        "form": "assumed"
+      },
+      "form": "tap right hand"
+    }
+  ],
+  "holders": [
+    {
+      "guid": "44444444-4444-5444-8444-444444444401",
+      "familyId": "sample-bt30-holders",
+      "brand": "Kennametal",
+      "vendor": "Kennametal",
+      "catalogNumber": "BT30ER16060M",
+      "materialNumber": null,
+      "taper": "BT30",
+      "contact": "taper",
+      "clamping": "collet",
+      "gaugeLength": 60,
+      "colletSeries": "ER16",
+      "boreDiameter": null,
+      "noseDiameter": 34,
+      "noseLength": 8,
+      "bodyDiameter": 42,
+      "bodyLength": 3,
+      "projection": 11.6,
+      "flangeDiameter": 46,
+      "colletProtrusion": 2,
+      "productLink": null,
+      "cadModelUrl": null,
+      "provenance": {
+        "gaugeLength": "vendor-stated",
+        "noseDiameter": "assumed",
+        "noseLength": "assumed",
+        "bodyDiameter": "assumed",
+        "bodyLength": "assumed",
+        "projection": "derived",
+        "flangeDiameter": "derived",
+        "colletProtrusion": "assumed"
+      }
+    },
+    {
+      "guid": "44444444-4444-5444-8444-444444444402",
+      "familyId": "sample-bt30-holders",
+      "brand": "Kennametal",
+      "vendor": "Kennametal",
+      "catalogNumber": "BT30ER20070M",
+      "materialNumber": null,
+      "taper": "BT30",
+      "contact": "taper",
+      "clamping": "collet",
+      "gaugeLength": 70,
+      "colletSeries": "ER20",
+      "boreDiameter": null,
+      "noseDiameter": 34,
+      "noseLength": 8,
+      "bodyDiameter": 42,
+      "bodyLength": 3,
+      "projection": 21.6,
+      "flangeDiameter": 46,
+      "colletProtrusion": 2,
+      "productLink": null,
+      "cadModelUrl": null,
+      "provenance": {
+        "gaugeLength": "vendor-stated",
+        "noseDiameter": "assumed",
+        "noseLength": "assumed",
+        "bodyDiameter": "assumed",
+        "bodyLength": "assumed",
+        "projection": "derived",
+        "flangeDiameter": "derived",
+        "colletProtrusion": "assumed"
+      }
+    },
+    {
+      "guid": "44444444-4444-5444-8444-444444444403",
+      "familyId": "sample-bt30-holders",
+      "brand": "Kennametal",
+      "vendor": "Kennametal",
+      "catalogNumber": "BT30SF0600M",
+      "materialNumber": null,
+      "taper": "BT30",
+      "contact": "taper",
+      "clamping": "shrink",
+      "gaugeLength": 80,
+      "colletSeries": null,
+      "boreDiameter": 6,
+      "noseDiameter": 24,
+      "noseLength": 8,
+      "bodyDiameter": 32,
+      "bodyLength": 3,
+      "projection": 31.6,
+      "flangeDiameter": 46,
+      "colletProtrusion": null,
+      "productLink": null,
+      "cadModelUrl": null,
+      "provenance": {
+        "gaugeLength": "vendor-stated",
+        "noseDiameter": "assumed",
+        "noseLength": "assumed",
+        "bodyDiameter": "assumed",
+        "bodyLength": "assumed",
+        "projection": "derived",
+        "flangeDiameter": "derived",
+        "colletProtrusion": "assumed"
+      }
+    }
+  ],
+  "collets": [
+    {
+      "guid": "55555555-5555-5555-8555-555555555501",
+      "familyId": "sample-er16-collets",
+      "brand": "Kennametal",
+      "vendor": "Kennametal",
+      "catalogNumber": "ER16-3",
+      "materialNumber": null,
+      "series": "ER16",
+      "clampMin": 2,
+      "clampMax": 3,
+      "clampLength": 18,
+      "productLink": null,
+      "provenance": {
+        "clampMin": "vendor-stated",
+        "clampMax": "vendor-stated",
+        "clampLength": "assumed"
+      }
+    },
+    {
+      "guid": "55555555-5555-5555-8555-555555555502",
+      "familyId": "sample-er16-collets",
+      "brand": "Kennametal",
+      "vendor": "Kennametal",
+      "catalogNumber": "ER16-6",
+      "materialNumber": null,
+      "series": "ER16",
+      "clampMin": 5,
+      "clampMax": 6,
+      "clampLength": 18,
+      "productLink": null,
+      "provenance": {
+        "clampMin": "vendor-stated",
+        "clampMax": "vendor-stated",
+        "clampLength": "assumed"
+      }
+    },
+    {
+      "guid": "55555555-5555-5555-8555-555555555503",
+      "familyId": "sample-er16-collets",
+      "brand": "Kennametal",
+      "vendor": "Kennametal",
+      "catalogNumber": "ER16-8",
+      "materialNumber": null,
+      "series": "ER16",
+      "clampMin": 7,
+      "clampMax": 8,
+      "clampLength": 18,
+      "productLink": null,
+      "provenance": {
+        "clampMin": "vendor-stated",
+        "clampMax": "vendor-stated",
+        "clampLength": "assumed"
+      }
+    },
+    {
+      "guid": "55555555-5555-5555-8555-555555555504",
+      "familyId": "sample-er20-collets",
+      "brand": "Kennametal",
+      "vendor": "Kennametal",
+      "catalogNumber": "ER20-10",
+      "materialNumber": null,
+      "series": "ER20",
+      "clampMin": 9,
+      "clampMax": 10,
+      "clampLength": 24,
+      "productLink": null,
+      "provenance": {
+        "clampMin": "vendor-stated",
+        "clampMax": "vendor-stated",
+        "clampLength": "assumed"
+      }
+    },
+    {
+      "guid": "55555555-5555-5555-8555-555555555505",
+      "familyId": "sample-er20-collets",
+      "brand": "Kennametal",
+      "vendor": "Kennametal",
+      "catalogNumber": "ER20-12",
+      "materialNumber": null,
+      "series": "ER20",
+      "clampMin": 11,
+      "clampMax": 12,
+      "clampLength": 24,
+      "productLink": null,
+      "provenance": {
+        "clampMin": "vendor-stated",
+        "clampMax": "vendor-stated",
+        "clampLength": "assumed"
+      }
+    }
+  ],
+  "facets": {
+    "terms": [
+      {
+        "key": "form",
+        "label": "Tool",
+        "values": [
+          {
+            "value": "bull nose end mill",
+            "count": 3
+          },
+          {
+            "value": "drill",
+            "count": 3
+          },
+          {
+            "value": "flat end mill",
+            "count": 1
+          },
+          {
+            "value": "tap right hand",
+            "count": 2
+          }
+        ]
+      },
+      {
+        "key": "toolType",
+        "label": "Tool type",
+        "values": [
+          {
+            "value": "drill",
+            "count": 3
+          },
+          {
+            "value": "endmill",
+            "count": 4
+          },
+          {
+            "value": "tap",
+            "count": 2
+          }
+        ]
+      },
+      {
+        "key": "brand",
+        "label": "Brand",
+        "values": [
+          {
+            "value": "Kennametal",
+            "count": 3
+          },
+          {
+            "value": "WIDIA",
+            "count": 6
+          }
+        ]
+      },
+      {
+        "key": "unitSystem",
+        "label": "Published in",
+        "values": [
+          {
+            "value": "inch",
+            "count": 2
+          },
+          {
+            "value": "metric",
+            "count": 7
+          }
+        ]
+      },
+      {
+        "key": "familyId",
+        "label": "Family",
+        "values": [
+          {
+            "value": "sample-inch-taps",
+            "count": 2
+          },
+          {
+            "value": "sample-solid-drills",
+            "count": 3
+          },
+          {
+            "value": "sample-vhm-endmills",
+            "count": 4
+          }
+        ]
+      },
+      {
+        "key": "NOF",
+        "label": "Flutes",
+        "values": [
+          {
+            "value": "3",
+            "count": 2
+          },
+          {
+            "value": "4",
+            "count": 3
+          },
+          {
+            "value": "5",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "key": "materialGroups",
+        "label": "Workpiece material",
+        "values": [
+          {
+            "value": "K",
+            "count": 3
+          },
+          {
+            "value": "M",
+            "count": 7
+          },
+          {
+            "value": "P",
+            "count": 7
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "key": "DC",
+        "label": "Cutting diameter",
+        "min": 3,
+        "max": 12
+      },
+      {
+        "key": "LBH",
+        "label": "Length below holder",
+        "min": 11,
+        "max": 50
+      },
+      {
+        "key": "LCF",
+        "label": "Flute length",
+        "min": 8,
+        "max": 40
+      },
+      {
+        "key": "LD",
+        "label": "L/D",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "key": "OAL",
+        "label": "Overall length",
+        "min": 50,
+        "max": 103
+      },
+      {
+        "key": "RE",
+        "label": "Corner radius",
+        "min": 0,
+        "max": 2
+      },
+      {
+        "key": "SFDM",
+        "label": "Shank diameter",
+        "min": 6,
+        "max": 12
+      }
+    ]
+  }
+}
