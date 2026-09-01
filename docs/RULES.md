@@ -155,9 +155,21 @@ end mill's own row wants the second. Reading the second as the first threw
 the right-sized drill out of every hole (2026-08-31).
 
 **Tool fields** (numbers off the catalog): `diameter`, `flute length`,
-`flute length past the corner`, `length below holder`, `overall length`,
-`L/D`, `corner radius`, `flutes`, `tip angle`, `shank diameter`, `shoulder
-length`, `shoulder diameter`. Words: `form`, `shank`, `brand`.
+`flute length past the corner`, `length below holder`, `reach at full
+stickout`, `overall length`, `L/D`, `corner radius`, `flutes`, `tip angle`,
+`shank diameter`, `shoulder length`, `shoulder diameter`. Words: `form`,
+`shank`, `brand`.
+
+`length below holder` and `reach at full stickout` are two ends of the same
+tool. A tool **starts** at its own head length — tip to the neck-or-shank
+transition — which is what Toolpath's own tool editor tells you to use when
+the stickout is unknown, and what the `length below holder` column shows; the
+`L/D` beside it is that stickout over the diameter, so it is the ratio the
+tool would really run at. `reach at full stickout` is how far it can be
+**pulled out**: the overall length less the shank the shop's minimum clamping
+length keeps in the holder, capped by the shank the tool actually has. Reach
+rules want the second one — a tool that gets there by standing further out is
+eligible — and anything about how the tool will run wants the first.
 
 `flute length past the corner` is the flute length less the corner radius,
 and it is what a cut with nothing under it wants: a through cut is taken past

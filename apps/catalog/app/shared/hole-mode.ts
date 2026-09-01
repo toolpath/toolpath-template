@@ -162,7 +162,7 @@ export const reaches = (tool: CatalogTool, reach: ThreadReach | null): boolean =
   if (reach.clears) {
     return reach.clears(tool)
   }
-  const below = tool.geometry.LBH
+  const below = tool.geometry.LBHX ?? tool.geometry.LBH
   return below === undefined || below >= reach.below
 }
 
@@ -173,7 +173,9 @@ const fallsShortBy = (tool: CatalogTool, reach: ThreadReach): number =>
     tool.geometry.LCF === undefined ? 0 : reach.depth - tool.geometry.LCF,
     // Only where the drop is what was measured: a swept tool either clears or
     // does not, and there is no shortfall to sort by.
-    reach.clears || tool.geometry.LBH === undefined ? 0 : reach.below - tool.geometry.LBH,
+    reach.clears || (tool.geometry.LBHX ?? tool.geometry.LBH) === undefined
+      ? 0
+      : reach.below - (tool.geometry.LBHX ?? tool.geometry.LBH ?? 0),
   )
 
 /**
@@ -201,7 +203,7 @@ export const shortfallOf = (
   if (reach.clears) {
     return { code: 'LBH', by: null }
   }
-  const below = tool.geometry.LBH
+  const below = tool.geometry.LBHX ?? tool.geometry.LBH
   return below === undefined
     ? null
     : { code: 'LBH', by: Math.round((reach.below - below) * 1000) / 1000 }

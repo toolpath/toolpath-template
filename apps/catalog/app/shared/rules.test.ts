@@ -428,6 +428,14 @@ describe('the vocabulary', () => {
     expect(TOOL_NUMBERS['diameter']?.read(t)).toBe(6)
     expect(TOOL_NUMBERS['L/D']?.read(t)).toBe(3)
     expect(TOOL_NUMBERS['tip angle']?.read(t)).toBeNull()
+    /**
+     * The two ends of the same tool: where it starts, and how far it can be
+     * pulled out (Paul, 2026-09-01). The reach rules read the second.
+     */
+    expect(TOOL_NUMBERS['length below holder']?.read(t)).toBe(18)
+    expect(TOOL_NUMBERS['reach at full stickout']?.read(tool('flat end mill', { LBHX: 34 }))).toBe(
+      34,
+    )
     for (const name of Object.keys(TOOL_NUMBERS)) {
       expect(typeof TOOL_NUMBERS[name]?.read).toBe('function')
     }

@@ -757,11 +757,17 @@ export const ToolTable = ({
                      * **The tool's own length below the holder, until a holder
                      * says otherwise** (Paul, 2026-09-01).
                      *
-                     * On its own a tool stands out by what its shank allows —
-                     * the overall length less the clamping length. Choose a
-                     * holder and the part decides instead: the stack has to
-                     * come out far enough to clear it, and where that is a
-                     * different number the cell says so rather than quietly
+                     * On its own a tool stands out by its **own head length**,
+                     * which is where Toolpath starts a tool whose stickout
+                     * nobody has stated, and the L/D beside it is the ratio it
+                     * would run at (Paul, 2026-09-01). How much further it can
+                     * be pulled — the overall length less the shop's clamping
+                     * length — is the reach the rules judge it on, and is not
+                     * a number anybody sets.
+                     *
+                     * Choose a holder and the part decides instead: the stack
+                     * has to come out far enough to clear it, and where that is
+                     * a different number the cell says so rather than quietly
                      * showing a figure nobody entered.
                      */
                     const own = tool.geometry.LBH

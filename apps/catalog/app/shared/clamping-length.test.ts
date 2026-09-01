@@ -4,8 +4,9 @@ import {
   clampShortfall,
   clampWanted,
   clampedLength,
-  lengthBelowHolder,
+  maxStickout,
   shankLength,
+  startingStickout,
   withClampingLength,
 } from './clamping-length'
 
@@ -49,7 +50,7 @@ describe('how much shank a shop holds', () => {
    */
   it('measures the diameters against the shank', () => {
     expect(clampedLength(keyseat, RULE)).toBe(38.1)
-    expect(lengthBelowHolder(keyseat, RULE)).toBe(39.9)
+    expect(maxStickout(keyseat, RULE)).toBe(39.9)
   })
 
   /** Where a vendor states no shank, the cut stands in — there is nothing else. */
@@ -58,11 +59,11 @@ describe('how much shank a shop holds', () => {
   })
 })
 
-describe('what that leaves below the holder', () => {
+describe('how far it can be pulled out', () => {
   /** The overall length less the shank held: 57 less 3×⌀6 is 39. */
   it('is the overall length less what is clamped', () => {
-    expect(lengthBelowHolder(sixMil, RULE)).toBe(39)
-    expect(lengthBelowHolder(stated, RULE)).toBe(21)
+    expect(maxStickout(sixMil, RULE)).toBe(39)
+    expect(maxStickout(stated, RULE)).toBe(21)
   })
 
   /**
@@ -82,13 +83,13 @@ describe('what that leaves below the holder', () => {
     expect(shankLength(necked)).toBe(51)
     expect(clampWanted(necked, RULE)).toBe(60)
     expect(clampedLength(necked, RULE)).toBe(51)
-    expect(lengthBelowHolder(necked, RULE)).toBe(53)
+    expect(maxStickout(necked, RULE)).toBe(53)
     expect(clampShortfall(necked, RULE)).toBe(9)
   })
 
   /** Which is the same rule on a plain tool: the flutes are never in the holder. */
   it('keeps the flutes out of the holder', () => {
-    expect(lengthBelowHolder(tool({ DC: 6, LCF: 13, OAL: 15 }), RULE)).toBe(13)
+    expect(maxStickout(tool({ DC: 6, LCF: 13, OAL: 15 }), RULE)).toBe(13)
     expect(clampShortfall(tool({ DC: 6, LCF: 13, OAL: 15 }), RULE)).toBe(16)
   })
 
@@ -98,20 +99,27 @@ describe('what that leaves below the holder', () => {
     expect(clampShortfall(stated, RULE)).toBeNull()
   })
 
-  it('leaves the catalog’s own numbers alone where the rule says nothing', () => {
+  it('says nothing about the ceiling where the rule says nothing', () => {
     const off = { vendorSpec: false, perDiameter: 0 }
 
-    expect(lengthBelowHolder(sixMil, off)).toBeNull()
-    expect(withClampingLength([sixMil], off)[0]?.geometry.LBH).toBe(19)
+    expect(maxStickout(sixMil, off)).toBeNull()
   })
 
   /** L/D is `LBH ÷ DC`, so it has to follow or the two columns disagree. */
-  it('carries the ratio with it', () => {
+  /**
+   * **The column shows the stickout the tool starts at** (Paul, 2026-09-01:
+   * "L/D column should show starting stickout. Do what Toolpath does"), which
+   * is its head length — 13 mm of flute on this one. How far it may be pulled
+   * out is `LBHX`, and that is what the reach rules read.
+   */
+  it('starts at the head, and carries the ceiling and the ratio with it', () => {
     const [read] = withClampingLength([stated], RULE)
 
-    expect(read?.geometry.LBH).toBe(21)
-    expect(read?.geometry.LD).toBe(3.5)
+    expect(read?.geometry.LBH).toBe(13)
+    expect(read?.geometry.LD).toBe(2.17)
+    expect(read?.geometry.LBHX).toBe(21)
     expect(read?.provenance.LBH).toBe('derived')
+    expect(read?.provenance.LBHX).toBe('derived')
   })
 
   it('leaves a tool that states no diameter or length alone', () => {

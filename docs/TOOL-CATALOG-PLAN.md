@@ -438,20 +438,53 @@ cannot be inside one. A ⌀20 necked bull nose with 51 mm of shank was being ask
 for 60 mm and reported 44 mm below the holder, which is a chuck closed on the
 neck.
 
+**And the rule stopped deciding the stickout** (Paul, 2026-09-01, after the
+comparison below: "L/D column should show starting stickout. Do what Toolpath
+does"). A tool now **starts** at its own head length and the clamping rule is
+the **ceiling** on how far it may be pulled out:
+
+- `LBH` — the starting stickout, the head length. What the column shows, and
+  what `LD` is computed from, so the ratio is the one it would run at.
+- `LBHX` — the overall length less what the shop keeps clamped, capped by the
+  shank. What the reach rules read: `reach at full stickout >= depth below
+top`.
+
+Toolpath's own convention, from `toolpath_ui`'s `tool_v1.ts`: _"If stickout is
+unknown, match it to Shoulder Length rather than making it shorter"_, with
+`shoulderLength ≤ protrudingLength ≤ overallLength` validated in the add-in.
+Nothing in `ToolpathPackages` or `toolpath_ui` defaults a stickout to a
+multiple of diameter; the Engine computes the required stickout from the reach
+curve and the holder's own profile (`calc_required_stickout`, `depth_map.jl`).
+
+The measured reason, over the 17,470-tool scrape:
+
+| rule                 | median L/D | over 10 | worst | shank too short |
+| -------------------- | ---------- | ------- | ----- | --------------- |
+| 3×D clamped (before) | 13.0       | 58 %    | 1125  | 58 % of ⌀20–60  |
+| 2.5×D clamped        | 13.5       | 60 %    | 1187  | 9 % of ⌀20–60   |
+| head length (now)    | 3.0        | 9 %     | 67    | —               |
+
+A fixed multiple of the shank was wrong at both ends: it gave a ⌀1 drill 46 mm
+of stickout, and more than half of the big shanks had not got the shank to
+give it.
+
 What is not yet done, in the order it is worth doing:
 
 1. **Say it on the tool.** `clampShortfall` returns how much shank the rule
    wanted and the tool has not got. Nothing shows it yet; the length-below-holder
    column is the place, beside the figure it explains.
-2. **Decide whether it is a refusal.** A tool that cannot be held the way a shop
+2. **Whether the ceiling is still 3×D.** As a ceiling it only bites on deep
+   features; 2.5×D over ½″ would clear the 58 % of big shanks that cannot meet
+   3×D at all. One knob row when Paul says.
+3. **Decide whether it is a refusal.** A tool that cannot be held the way a shop
    holds tools is arguably not eligible for the feature at all, which is a rules
    sheet question — a `must` on the clamping knob rather than a note — and
    Paul's to answer.
-3. **Vendor `LSCN` first.** Every stated clamping length is exempt from all of
+4. **Vendor `LSCN` first.** Every stated clamping length is exempt from all of
    this, because it is the manufacturer's own answer for that tool. No vendor in
    this catalog publishes one yet; when the scraper carries it, the cap should
    apply to the rule of thumb only.
-4. **Stickout is the other direction.** `holder-choice.ts` grades a stack by how
+5. **Stickout is the other direction.** `holder-choice.ts` grades a stack by how
    far it must stand out to clear the part; that measurement starts at the
    holder nose and is unaffected by this cap, but the two must agree about where
    the shank begins. They both read `LCF` and `shoulder-length`; a tool whose

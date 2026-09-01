@@ -118,45 +118,93 @@ export const clampShortfall = (tool: CatalogTool, rule: ClampingRule): number | 
 }
 
 /**
- * What is left below the holder: the overall length less the shank held.
+ * **The stickout a tool starts at**: its own head, and not a millimetre more.
  *
- * Never negative — a tool with nothing to spare is pushed all the way in, and
- * the hold band is what says whether that is a problem.
+ * *"If stickout is unknown, match it to Shoulder Length rather than making it
+ * shorter"* — `toolpath_ui/packages/tools/src/assets/tool_v1.ts`, the
+ * description on ISO 13399's `LPR`, which the add-in also validates
+ * (`shoulderLength ≤ protrudingLength ≤ overallLength`). The shoulder length
+ * is the cutting head, tip to the neck-or-shank transition; below it there is
+ * nothing a holder could grip anyway.
+ *
+ * **This replaced a multiple of the diameter** (Paul, 2026-09-01, after the
+ * comparison: "L/D column should show starting stickout. Do what Toolpath
+ * does"). Clamping 3×D and calling the remainder the stickout was wrong at
+ * both ends of the catalog: it handed a ⌀1 drill 46 mm of stickout — L/D 46,
+ * which nobody runs — and 58 % of ⌀20–60 shanks had not got the shank to give
+ * it. Over the 17,470-tool scrape it put the median L/D at 13 and 58 % of the
+ * catalog past L/D 10; starting at the head puts the median at 3.
+ *
+ * The shop's clamping rule is still the ceiling — see {@link maxStickout}.
  */
-export const lengthBelowHolder = (tool: CatalogTool, rule: ClampingRule): number | null => {
+export const startingStickout = (tool: CatalogTool): number | null => {
+  const from = shankFrom(tool)
+  const { OAL } = tool.geometry
+  if (from <= 0) {
+    return null
+  }
+  return OAL === undefined ? from : Math.round(Math.min(from, OAL) * 100) / 100
+}
+
+/**
+ * **How far the tool can be pulled out**: the overall length less the shank
+ * the shop insists on keeping in the holder.
+ *
+ * The reach question, and the only thing the clamping rule now decides. A tool
+ * is eligible for a feature it can reach at *some* stickout between its head
+ * and this — which is what the reach curve works out properly once a holder is
+ * chosen, and this is the same question asked without one.
+ *
+ * Never less than the starting stickout, and never negative.
+ */
+export const maxStickout = (tool: CatalogTool, rule: ClampingRule): number | null => {
   const clamped = clampedLength(tool, rule)
   const { OAL } = tool.geometry
   if (clamped === null || OAL === undefined) {
     return null
   }
-  return Math.round(Math.max(0, OAL - clamped) * 100) / 100
+  const pulled = Math.max(0, OAL - clamped)
+  const start = startingStickout(tool)
+  return Math.round(Math.max(pulled, start ?? 0) * 100) / 100
 }
 
 /**
  * The catalog as this shop reads it.
  *
  * Applied once, where the tools are read, so nothing downstream has to know
- * the rule exists: the judge, the columns and the filters all see a tool whose
- * `LBH` already has the shank it holds taken out of it. `LD` follows, because
- * it is `LBH ÷ DC` and would otherwise disagree with the column beside it.
+ * the rule exists. Each tool comes out with:
+ *
+ * - **`LBH`** — the stickout it starts at, its own head length. This is the
+ *   number the column shows and the one `LD` is computed from, because it is
+ *   the stickout the tool would actually run at (Paul, 2026-09-01).
+ * - **`LBHX`** — how far it *can* be pulled out under the shop's clamping
+ *   rule. The reach rules read this one: a tool that can reach a feature by
+ *   standing further out is eligible for it.
  */
 export const withClampingLength = (
   tools: ReadonlyArray<CatalogTool>,
   rule: ClampingRule,
-): ReadonlyArray<CatalogTool> => {
-  if (!rule.vendorSpec && rule.perDiameter <= 0) {
-    return tools
-  }
-  return tools.map((tool) => {
-    const below = lengthBelowHolder(tool, rule)
+): ReadonlyArray<CatalogTool> =>
+  tools.map((tool) => {
+    const start = startingStickout(tool)
     const { DC } = tool.geometry
-    if (below === null || DC === undefined || DC <= 0) {
+    if (start === null || DC === undefined || DC <= 0) {
       return tool
     }
+    const most = maxStickout(tool, rule) ?? start
     return {
       ...tool,
-      geometry: { ...tool.geometry, LBH: below, LD: Math.round((below / DC) * 100) / 100 },
-      provenance: { ...tool.provenance, LBH: 'derived' as const, LD: 'derived' as const },
+      geometry: {
+        ...tool.geometry,
+        LBH: start,
+        LD: Math.round((start / DC) * 100) / 100,
+        LBHX: most,
+      },
+      provenance: {
+        ...tool.provenance,
+        LBH: 'derived' as const,
+        LD: 'derived' as const,
+        LBHX: 'derived' as const,
+      },
     }
   })
-}
