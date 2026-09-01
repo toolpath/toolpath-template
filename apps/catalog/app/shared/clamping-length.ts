@@ -79,26 +79,19 @@ export const clampWanted = (tool: CatalogTool, rule: ClampingRule): number | nul
 }
 
 /**
- * What this rule keeps in the holder — **never more shank than the tool has**.
+ * What this rule keeps in the holder.
  *
- * **The rule cannot reach past the shank** (Paul, 2026-09-01: "below holder
- * rule is not possible in this scenario… build a plan to ensure length below
- * holder is not set in impossible areas"). A ⌀20 necked bull nose 104 mm long
- * with 53 mm of shoulder has 51 mm of shank; 3×D asks for 60. Taken at its
- * word it left 44 mm below the holder — less than the 53 mm of neck and flute
- * that cannot be inside one, which is a chuck closed on the relief. Capped, the
- * answer is the honest one: everything below the shank is below the holder.
- *
- * {@link clampShortfall} says by how much the rule was refused, for the tools
- * where the shop's own rule is not achievable.
+ * The rule's own answer wherever the tool can take it, and where it cannot,
+ * whatever {@link lengthBelowHolder} leaves — the two are one subtraction
+ * apart, and the drawing shades the held part from this one.
  */
 export const clampedLength = (tool: CatalogTool, rule: ClampingRule): number | null => {
-  const wanted = clampWanted(tool, rule)
-  const shank = shankLength(tool)
-  if (wanted === null) {
-    return null
+  const below = lengthBelowHolder(tool, rule)
+  const { OAL } = tool.geometry
+  if (below === null || OAL === undefined) {
+    return clampWanted(tool, rule)
   }
-  return shank === null ? wanted : Math.round(Math.min(wanted, shank) * 100) / 100
+  return Math.round((OAL - below) * 100) / 100
 }
 
 /**
@@ -118,93 +111,68 @@ export const clampShortfall = (tool: CatalogTool, rule: ClampingRule): number | 
 }
 
 /**
- * **The stickout a tool starts at**: its own head, and not a millimetre more.
+ * What is left below the holder.
  *
- * *"If stickout is unknown, match it to Shoulder Length rather than making it
- * shorter"* — `toolpath_ui/packages/tools/src/assets/tool_v1.ts`, the
- * description on ISO 13399's `LPR`, which the add-in also validates
- * (`shoulderLength ≤ protrudingLength ≤ overallLength`). The shoulder length
- * is the cutting head, tip to the neck-or-shank transition; below it there is
- * nothing a holder could grip anyway.
+ * **Measured from the top of the tool down** (Paul, 2026-09-01, twice, and the
+ * second time with the arithmetic: "our rule should be Length Below Holder =
+ * OAL − (Minimum Clamping Length Multiplier × SFDM)"). The shop's rule says
+ * how much *shank* stays in the holder; everything else is out, and the tool
+ * is not pushed in further than that because a shorter stickout is somebody's
+ * decision rather than a default.
  *
- * **This replaced a multiple of the diameter** (Paul, 2026-09-01, after the
- * comparison: "L/D column should show starting stickout. Do what Toolpath
- * does"). Clamping 3×D and calling the remainder the stickout was wrong at
- * both ends of the catalog: it handed a ⌀1 drill 46 mm of stickout — L/D 46,
- * which nobody runs — and 58 % of ⌀20–60 shanks had not got the shank to give
- * it. Over the 17,470-tool scrape it put the median L/D at 13 and 58 % of the
- * catalog past L/D 10; starting at the head puts the median at 3.
+ * **Except where that would bury the head.** A ⌀20 necked bull nose 104 mm
+ * long with 53 mm of shoulder gets 44 mm from the rule, which is less than the
+ * neck and the flutes and means a chuck closed on the relief. There the tool
+ * comes out to its head plus one shank diameter — a diameter of plain shank
+ * showing under the holder, which is Paul's rule for the case (2026-09-01:
+ * "when the vendor recc or Minimum Clamping Length Multiplier means the length
+ * below holder would be less than or equal to the shoulder length, do the
+ * shoulder length + SFDM = LBH").
  *
- * The shop's clamping rule is still the ceiling — see {@link maxStickout}.
+ * Never past the overall length: a tool too short to hold at all is held by
+ * all of it, and the reach rules refuse it on the number rather than on a
+ * negative.
  */
-export const startingStickout = (tool: CatalogTool): number | null => {
-  const from = shankFrom(tool)
+export const lengthBelowHolder = (tool: CatalogTool, rule: ClampingRule): number | null => {
+  const wanted = clampWanted(tool, rule)
   const { OAL } = tool.geometry
-  if (from <= 0) {
+  if (wanted === null || OAL === undefined) {
     return null
   }
-  return OAL === undefined ? from : Math.round(Math.min(from, OAL) * 100) / 100
-}
-
-/**
- * **How far the tool can be pulled out**: the overall length less the shank
- * the shop insists on keeping in the holder.
- *
- * The reach question, and the only thing the clamping rule now decides. A tool
- * is eligible for a feature it can reach at *some* stickout between its head
- * and this — which is what the reach curve works out properly once a holder is
- * chosen, and this is the same question asked without one.
- *
- * Never less than the starting stickout, and never negative.
- */
-export const maxStickout = (tool: CatalogTool, rule: ClampingRule): number | null => {
-  const clamped = clampedLength(tool, rule)
-  const { OAL } = tool.geometry
-  if (clamped === null || OAL === undefined) {
-    return null
+  const below = OAL - wanted
+  const head = shankFrom(tool)
+  if (head <= 0 || below > head) {
+    return Math.round(Math.max(0, below) * 100) / 100
   }
-  const pulled = Math.max(0, OAL - clamped)
-  const start = startingStickout(tool)
-  return Math.round(Math.max(pulled, start ?? 0) * 100) / 100
+  const shank = heldDiameter(tool) ?? 0
+  return Math.round(Math.min(OAL, head + shank) * 100) / 100
 }
 
 /**
  * The catalog as this shop reads it.
  *
  * Applied once, where the tools are read, so nothing downstream has to know
- * the rule exists. Each tool comes out with:
- *
- * - **`LBH`** — the stickout it starts at, its own head length. This is the
- *   number the column shows and the one `LD` is computed from, because it is
- *   the stickout the tool would actually run at (Paul, 2026-09-01).
- * - **`LBHX`** — how far it *can* be pulled out under the shop's clamping
- *   rule. The reach rules read this one: a tool that can reach a feature by
- *   standing further out is eligible for it.
+ * the rule exists: the judge, the columns and the filters all see a tool whose
+ * `LBH` already has the shank it holds taken out of it. `LD` follows, because
+ * it is `LBH ÷ DC` and would otherwise disagree with the column beside it.
  */
 export const withClampingLength = (
   tools: ReadonlyArray<CatalogTool>,
   rule: ClampingRule,
-): ReadonlyArray<CatalogTool> =>
-  tools.map((tool) => {
-    const start = startingStickout(tool)
+): ReadonlyArray<CatalogTool> => {
+  if (!rule.vendorSpec && rule.perDiameter <= 0) {
+    return tools
+  }
+  return tools.map((tool) => {
+    const below = lengthBelowHolder(tool, rule)
     const { DC } = tool.geometry
-    if (start === null || DC === undefined || DC <= 0) {
+    if (below === null || DC === undefined || DC <= 0) {
       return tool
     }
-    const most = maxStickout(tool, rule) ?? start
     return {
       ...tool,
-      geometry: {
-        ...tool.geometry,
-        LBH: start,
-        LD: Math.round((start / DC) * 100) / 100,
-        LBHX: most,
-      },
-      provenance: {
-        ...tool.provenance,
-        LBH: 'derived' as const,
-        LD: 'derived' as const,
-        LBHX: 'derived' as const,
-      },
+      geometry: { ...tool.geometry, LBH: below, LD: Math.round((below / DC) * 100) / 100 },
+      provenance: { ...tool.provenance, LBH: 'derived' as const, LD: 'derived' as const },
     }
   })
+}

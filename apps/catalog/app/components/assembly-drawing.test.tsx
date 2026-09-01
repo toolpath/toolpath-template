@@ -124,6 +124,12 @@ describe('the assembly, drawn', () => {
    * application's ramp, because the ramp flips under light mode and a drawing
    * is a drawing in either theme (Paul, 2026-09-01).
    */
+  /**
+   * **One set of colours per theme** (Paul, 2026-09-01: "2d tool visualization
+   * can't have the white background in dark mode — make it just barely lighter
+   * than any of the other backgrounds"). The tests run in the application's
+   * default, which is dark.
+   */
   it('paints the flutes gold, the body steel and the holder its own grey', () => {
     const connected = {
       ...assembly,
@@ -141,10 +147,22 @@ describe('the assembly, drawn', () => {
     )
     const painted = (selector: string) => container.querySelector(selector)?.getAttribute('fill')
 
-    expect(painted('[data-part="flutes"]')).toBe('#e6bf59')
-    expect(painted('[data-part="shank"]')).toBe('#c4c8ce')
-    expect(painted('[data-part="nose"]')).toBe('#9aa2ad')
-    expect(painted('[data-part="flange"]')).toBe('#78818d')
+    expect(painted('[data-part="flutes"]')).toBe('#c9a44b')
+    expect(painted('[data-part="shank"]')).toBe('#5b626c')
+    expect(painted('[data-part="nose"]')).toBe('#474d57')
+    expect(painted('[data-part="flange"]')).toBe('#3a4048')
+  })
+
+  /**
+   * And the sheet is a shade above the card rather than a white rectangle in a
+   * dark application — with the ink turned over to match.
+   */
+  it('draws on a dark sheet in dark mode', () => {
+    const { container } = render(<AssemblyDrawing tool={assembly.tool} unit="mm" dimensions />)
+    const svg = container.querySelector('svg')!
+
+    expect(svg.style.background).toBe('rgb(34, 37, 43)')
+    expect(container.querySelector('[data-centreline]')?.getAttribute('stroke')).toBe('#e8ebef')
   })
 
   it('says so rather than drawing a tool with no dimensions', () => {

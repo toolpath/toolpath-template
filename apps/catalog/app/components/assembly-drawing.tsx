@@ -25,6 +25,7 @@ import {
   dimensionsFor,
   laneOffset,
 } from 'shared/tool-dimensions'
+import { useTheme } from 'shared/use-theme'
 import { DimensionLines } from './dimension-lines'
 
 /**
@@ -68,22 +69,40 @@ import { DimensionLines } from './dimension-lines'
  * The sheet the tool is drawn on, and the ink it is drawn in.
  *
  * **Hard colours rather than the application's ramp** (Paul, 2026-09-01): a
- * drawing is a drawing in either theme, and the ramp flips under light mode —
- * a "light grey" written as a utility comes out dark on half the machines
- * that open it. These are the sheet, the linework and the two shades a tool
- * has: gold flutes and a steel body.
+ * drawing is a drawing, and a "light grey" written as a zinc utility comes out
+ * dark under the flipped ramp. So the sheet, the linework and the two shades a
+ * tool has — gold flutes, steel body — are stated here.
+ *
+ * **One set per theme** (Paul, 2026-09-01: "2d tool visualization can't have
+ * the white background in dark mode — make it just barely lighter than any of
+ * the other backgrounds"). A white sheet in a dark application is a torch. In
+ * dark it is a shade above the card it sits on, and the ink turns over with
+ * it: light lines on a dark ground rather than dark lines nobody can see.
  */
-const SHEET = {
-  // White: the sheet is a sheet, and the wash belongs to the panel around it
-  // (Paul, 2026-09-01).
-  ground: '#ffffff',
-  ink: '#3f4650',
-  centre: '#15181c',
-  dimension: '#606a76',
-  body: '#c4c8ce',
-  flutes: '#e6bf59',
-  holder: '#9aa2ad',
-  connection: '#78818d',
+const SHEETS = {
+  light: {
+    ground: '#ffffff',
+    ink: '#3f4650',
+    centre: '#15181c',
+    dimension: '#606a76',
+    body: '#c4c8ce',
+    flutes: '#e6bf59',
+    holder: '#9aa2ad',
+    connection: '#78818d',
+  },
+  dark: {
+    // A step above `zinc-900`, which is the card, and above the wash on it.
+    ground: '#22252b',
+    ink: '#c7cdd6',
+    centre: '#e8ebef',
+    dimension: '#8d97a4',
+    body: '#5b626c',
+    // The gold reads as gold on either ground, a shade deeper here so it does
+    // not glare against the greys around it.
+    flutes: '#c9a44b',
+    holder: '#474d57',
+    connection: '#3a4048',
+  },
 } as const
 
 /** The spindle connection: the flange, and the cone nobody states that leads up to it. */
@@ -332,6 +351,9 @@ export const AssemblyDrawing = ({
   dimensionSides = 'left',
 }: AssemblyDrawingProps) => {
   const hatch = `hatch-${useId().replace(/:/g, '')}`
+  // The sheet turns over with the application: see `SHEETS`.
+  const [theme] = useTheme()
+  const SHEET = SHEETS[theme]
   /**
    * The shape of the panel, measured.
    *

@@ -181,16 +181,6 @@ export const TOOL_NUMBERS: Readonly<Record<string, ToolNumber>> = {
   diameter: { unit: 'mm', read: geometry('DC') },
   'flute length': { unit: 'mm', read: geometry('LCF') },
   'length below holder': { unit: 'mm', read: geometry('LBH') },
-  /**
-   * How far the tool reaches when pulled out as far as the shop's clamping
-   * rule allows — `LBHX`, written by `shared/clamping-length.ts`.
-   *
-   * **The reach question is about the ceiling, not the starting point** (Paul,
-   * 2026-09-01). A tool sits at its own head length until something needs it
-   * further out; whether it *can* reach is a question about how far it can be
-   * pulled, which is the overall length less the shank the shop keeps held.
-   */
-  'reach at full stickout': { unit: 'mm', read: geometry('LBHX') },
   'overall length': { unit: 'mm', read: geometry('OAL') },
   'L/D': { unit: 'ratio', read: geometry('LD') },
   'corner radius': { unit: 'mm', read: geometry('RE') },

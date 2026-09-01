@@ -61,14 +61,11 @@ describe('what the sheet says about a feature', () => {
     expect(ranges.DC).toEqual({ max: 6 })
     expect(ranges.LCF).toEqual({ min: 12 })
     /**
-     * **Reach is not a filter any more** (Paul, 2026-09-01). It is a rule
-     * about how far a tool can be *pulled out* — `LBHX` — and the column on
-     * the panel says where a tool *starts*. Bounding the starting stickout by
-     * the depth would refuse every tool that reaches by standing further out,
-     * which is most of them. The judge still enforces the must, and the list
-     * says how many it removed.
+     * Reach is a rule of its own now (Paul, 2026-09-01): what stands out of
+     * the holder has to reach the bottom from the top of the part, so the
+     * panel bounds it like any other must — visible, and somebody's to clear.
      */
-    expect(ranges.LBH).toBeUndefined()
+    expect(ranges.LBH).toEqual({ min: 12 })
     // A should is still not a filter.
     expect(ranges.LD).toBeUndefined()
   })

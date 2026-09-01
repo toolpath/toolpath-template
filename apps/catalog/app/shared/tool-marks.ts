@@ -21,9 +21,6 @@ const CODES: Readonly<Record<string, string>> = {
   'flute length': 'LCF',
   'flute length past the corner': 'LCF',
   'length below holder': 'LBH',
-  // The reach rule is about how far the tool can be pulled out; the column it
-  // explains is the one that says where it starts.
-  'reach at full stickout': 'LBH',
   'overall length': 'OAL',
   'L/D': 'LD',
   'corner radius': 'RE',

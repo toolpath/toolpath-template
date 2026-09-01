@@ -757,17 +757,11 @@ export const ToolTable = ({
                      * **The tool's own length below the holder, until a holder
                      * says otherwise** (Paul, 2026-09-01).
                      *
-                     * On its own a tool stands out by its **own head length**,
-                     * which is where Toolpath starts a tool whose stickout
-                     * nobody has stated, and the L/D beside it is the ratio it
-                     * would run at (Paul, 2026-09-01). How much further it can
-                     * be pulled — the overall length less the shop's clamping
-                     * length — is the reach the rules judge it on, and is not
-                     * a number anybody sets.
-                     *
-                     * Choose a holder and the part decides instead: the stack
-                     * has to come out far enough to clear it, and where that is
-                     * a different number the cell says so rather than quietly
+                     * On its own a tool stands out by what its shank allows —
+                     * the overall length less the clamping length. Choose a
+                     * holder and the part decides instead: the stack has to
+                     * come out far enough to clear it, and where that is a
+                     * different number the cell says so rather than quietly
                      * showing a figure nobody entered.
                      */
                     const own = tool.geometry.LBH
@@ -867,15 +861,24 @@ export const ToolTable = ({
                         {/* Three words for what is wrong; the rule's own
                           sentence is behind them. */}
                         {mark && !mark.ok ? (
-                          <span className="text-2xs" title={mark.detail}>
+                          <span className="text-2xs whitespace-nowrap" title={mark.detail}>
                             {mark.why}
                           </span>
                         ) : null}
-                        {/* A fact about the column, in the colour of a fact:
-                          how far a drill is off the hole it is for. */}
+                        {/*
+                          A fact about the column, in the colour of a fact: how
+                          far a drill is off the hole it is for.
+
+                          **It wraps rather than truncating** (Paul, 2026-09-01:
+                          "the diameter match text cuts off for the drill
+                          diameter description"). Since the note names what it
+                          is measured from — "+0.004 from the specified tap
+                          drill" — clipping it to "+0…" left the one word that
+                          carried no information.
+                        */}
                         {mark?.ok && mark.note ? (
                           <span
-                            className="text-2xs min-w-0 truncate text-zinc-400"
+                            className="text-2xs min-w-0 text-right leading-tight whitespace-normal text-zinc-400"
                             title={mark.note}
                           >
                             {mark.note}
