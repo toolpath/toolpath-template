@@ -27,6 +27,105 @@ const show = (tools: ReadonlyArray<CatalogTool>, unit: 'in' | 'mm' = 'mm') =>
     </MemoryRouter>,
   )
 
+describe('a column that the rail also asks about', () => {
+  /**
+   * One filter, one place to answer it: the header opens the rail's own
+   * bubble rather than a second control for the same question (Paul,
+   * 2026-09-01).
+   */
+  it('hands its filter to the rail instead of opening its own', () => {
+    const onRailFilter = vi.fn()
+    render(
+      <MemoryRouter>
+        <ToolTable
+          tools={[tool]}
+          unit="mm"
+          onRange={() => {}}
+          onRailFilter={onRailFilter}
+          railKeys={{ DC: 'DC' }}
+        />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter by Diameter' }))
+
+    expect(onRailFilter).toHaveBeenCalledWith('DC')
+    // And no second control opened in the header.
+    expect(screen.queryByRole('textbox', { name: /Diameter/ })).not.toBeInTheDocument()
+  })
+
+  it('keeps its own control for a column the rail does not ask about', () => {
+    render(
+      <MemoryRouter>
+        <ToolTable tools={[tool]} unit="mm" onRange={() => {}} onRailFilter={() => {}} />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter by Diameter' }))
+
+    expect(screen.getByRole('combobox', { name: /How to compare Diameter/ })).toBeInTheDocument()
+  })
+})
+
+describe('a list of near misses', () => {
+  /**
+   * Nothing in the crib fits, so the list is what came closest — and a row
+   * nobody can use says so on the row (Paul, 2026-09-01).
+   */
+  it('marks every row when the list is the closest misses', () => {
+    render(
+      <MemoryRouter>
+        <ToolTable tools={[tool]} unit="mm" nearest />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText('near miss')).toBeInTheDocument()
+  })
+
+  it('marks nothing when the list is tools that fit', () => {
+    show([tool])
+
+    expect(screen.queryByText('near miss')).not.toBeInTheDocument()
+  })
+})
+
+describe('what a tool stands out', () => {
+  const held: CatalogTool = { ...tool, geometry: { DC: 12.7, NOF: 4, LBH: 40, OAL: 60 } }
+
+  /** On its own: the overall length less the shank the clamping rule holds. */
+  it('shows the tool’s own length below the holder', () => {
+    show([held])
+
+    expect(screen.getByText('40.00 mm')).toBeInTheDocument()
+  })
+
+  /**
+   * A holder chosen makes the part decide instead, and where that is a
+   * different number the cell says it was the holder (Paul, 2026-09-01).
+   */
+  it('says when a holder changed it', () => {
+    render(
+      <MemoryRouter>
+        <ToolTable
+          tools={[held]}
+          unit="mm"
+          holding={{
+            holdersFor: () => [],
+            colletsFor: () => [],
+            chosen: () => ({ holderGuid: 'h', colletGuid: null }),
+            requiredStickout: () => 47,
+            stickoutFor: () => 47,
+            onChoose: () => {},
+          }}
+        />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText('holder needs')).toBeInTheDocument()
+    expect(screen.getByText('47.00 mm')).toBeInTheDocument()
+  })
+})
+
 describe('ToolTable', () => {
   it('links a tool by the number a shop orders it with', () => {
     show([tool])

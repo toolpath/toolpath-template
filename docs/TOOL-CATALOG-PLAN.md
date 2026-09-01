@@ -28,8 +28,9 @@ from it.
 **The scraper is not edited here, and not reused from there.** The current
 version is `@toolpath/tool-scraper` in `/Users/paulclauss/dev/ui_packages` — one
 vendor-neutral core plus one adapter per manufacturer, a `Fetcher` passed as a
-parameter rather than a module global, provenance the types enforce, and three
-vendors working (Kennametal/WIDIA, REGO-FIX, Destiny Tool). It also carries the
+parameter rather than a module global, provenance the types enforce, and five
+vendors working (Kennametal/WIDIA, REGO-FIX, Destiny Tool, and — as of the
+2026-08-30 build — Harvey Tool and MariTool). It also carries the
 expensive knowledge: `docs/KENNAMETAL_CAD_API.md`, `KENNAMETAL_SPEEDFEED_API.md`
 and `REGOFIX_PRODUCTFINDER_API.md` record endpoints nobody could guess and the
 dead ends tried first.
@@ -261,6 +262,49 @@ really about the stack rather than the cutter.
   Real numbers as of 2026-08-28: 21 BT30 powRgrip holders and 321 collets across
   all 12 groups, and **2,838 of the 4,697 tools can be held** by a BT30
   powRgrip stack.
+
+  **A form the vendor states beats one this package derives** (2026-09-01).
+  `ScrapedTool.form` is optional and carried through `ingest` with
+  `vendor-stated` provenance, which `withDerived` then leaves alone. It exists
+  for Harvey's **2,261 keyseat cutters**: the scraper files them under
+  `kind: 'endmill'` — it has no finer kind — and their own `profile` fact cites
+  the page title that does, _"Keyseat Cutters - Square - Reduced Shank"_. On
+  the kind alone they ingest as flat end mills with a corner radius of zero,
+  and a 22 mm cutter with 1.6 mm of flute and twelve teeth was being offered to
+  finish a pocket floor (Paul, 2026-09-01: "are you sure this is a flat
+  endmill?"). `scripts/scrape.mjs` states `slot mill` for them, which is what a
+  CAM library calls a keyseat or woodruff cutter and what the rules sheet
+  already writes T-slot rows against.
+
+  **The right home is a kind of its own in the scraper's family table** — one
+  change there states it for every consumer, and this table of one entry goes
+  away. Worth raising with Justin along with the naming questions.
+
+  **MariTool followed on 2026-08-31, in `src/vendors/maritool.ts`**, under the
+  same stopgap rule and for the same reason: still no record seam for
+  toolholding. It is the first vendor here with holders that are **not** collet
+  chucks — a shrink-fit holder and a hydraulic chuck each grip a plain shank
+  directly, which is the catalog's `bore` clamping, and `Shank Size` is read
+  only on those (a collet chuck states it too and would otherwise claim a
+  capacity it does not have). MariTool mixes inch and millimetre parts inside
+  one family, so every cell is converted in the mapper against the vendor's own
+  convention — a metric cell is marked `mm`, an imperial one is bare — and a
+  cell that cannot be read that way is refused rather than guessed. `hydraulic`
+  maps to `bore`: the catalog's clamping says what the holder grips, not how it
+  closes.
+
+  Real numbers as of 2026-08-31: **511 MariTool holders** across CAT40, CAT50,
+  BT30, BT40 and HSK, of which 255 are collet chucks, 200 shrink-fit and 77
+  bore. 17 rows were left out and named — a bore holder with no readable
+  `Shank Size`, and `BT40-ER32-60`, which publishes no `Taper` row at all: a
+  holder whose spindle interface is unknown fits no machine, so the catalog
+  refuses it where the scrape's receipt keeps the hole.
+
+  **The ER collet chucks hold nothing yet.** No ER collet source is scraped —
+  the 321 collets in the catalog are REGO-FIX PG — so those 255 holders are
+  ingested and then never offered. The shrink-fit and hydraulic holders are
+  usable today, and they are the first direct-bore holding this catalog has
+  had.
 
   **Kennametal toolholding cannot be re-scraped at all**: no toolholding family
   records a `familyCode` — they were scraped by hand from codes read off the

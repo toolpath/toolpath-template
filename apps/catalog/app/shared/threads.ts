@@ -224,6 +224,58 @@ export const threadsFor = (
   )
 }
 
+/**
+ * The threads to offer for this hole, likeliest first — **one line per thread**.
+ *
+ * `threadsFor` lists every reading, and a spec often matches on two of them:
+ * the minor diameter is a twentieth of a millimetre under the tap drill, so
+ * one hole reads as both and the same thread appears twice. Offered as two
+ * buttons that is a choice between identical answers; offered as one, with the
+ * likelier reading named, it is the question somebody can actually answer.
+ *
+ * Three at most. Beyond that they are threads nobody would look at, and the
+ * full list is a dropdown away (Paul, 2026-09-01).
+ */
+export const threadOptions = (
+  holeDiameter: number,
+  limit = 3,
+  specs: ReadonlyArray<ThreadSpec> = THREADS,
+): Array<ThreadGuess> => {
+  const seen = new Set<string>()
+  const kept: Array<ThreadGuess> = []
+  for (const guess of threadsFor(holeDiameter, specs)) {
+    if (seen.has(guess.spec.name)) {
+      continue
+    }
+    seen.add(guess.spec.name)
+    kept.push(guess)
+    if (kept.length === limit) {
+      break
+    }
+  }
+  return kept
+}
+
+/**
+ * The thread this hole is, **read at one stated diameter**.
+ *
+ * `threadOptions` guesses which reading a hole was modelled at; this is for
+ * when somebody already knows — a shop whose CAD draws every tapped hole at
+ * the tap drill can say so once and have every hole on the part read that way
+ * (Paul, 2026-09-01). Nothing where no thread of that reading is near.
+ */
+export const threadAtReading = (
+  holeDiameter: number,
+  read: ThreadRead,
+  specs: ReadonlyArray<ThreadSpec> = THREADS,
+): ThreadGuess | null =>
+  threadsFor(holeDiameter, specs)
+    .filter((each) => each.read === read)
+    .sort((a, b) => a.off - b.off)[0] ?? null
+
+/** The readings a hole can be modelled at, in the order they are offered. */
+export const THREAD_READS: ReadonlyArray<ThreadRead> = ['tap drill', 'minor', 'nominal']
+
 /** The one to offer, or nothing where no thread is near the hole. */
 export const likelyThread = (
   holeDiameter: number,
@@ -246,7 +298,15 @@ export const threadNamed = (
  */
 export type HoleMode = 'plain' | 'cut tap' | 'form tap' | 'thread mill'
 
-export const HOLE_MODES: ReadonlyArray<HoleMode> = ['plain', 'cut tap', 'form tap', 'thread mill']
+/**
+ * The ways a thread is offered, in the order a shop reaches for them.
+ *
+ * **Thread milling is out for now** (Paul, 2026-09-01). The type still carries
+ * it and `drillFor` still knows the minor diameter it starts from, so it is a
+ * line in this list away from coming back; what has gone is the offer, which
+ * was a third chip on every thread and a tool nobody here is buying yet.
+ */
+export const HOLE_MODES: ReadonlyArray<HoleMode> = ['plain', 'cut tap', 'form tap']
 
 /** Rounded to a tenth, which is how a tap-drill chart is written. */
 const tenth = (value: number) => Math.round(value * 10) / 10

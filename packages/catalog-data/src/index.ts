@@ -143,6 +143,7 @@ export {
   colletsFor,
   compareHolders,
   holderFacet,
+  holderCanTake,
   holderNeedsCollet,
   holdersFor,
   isOnSize,

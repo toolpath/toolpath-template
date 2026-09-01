@@ -426,7 +426,7 @@ const Bom = () => {
   const remembered = partId && jobId ? recallPart(partId, jobId) : null
   const features = remembered?.report.features ?? []
   /**
-   * The sheet grouped by **assembly**: one row-group per tool, holder and
+   * The sheet grouped by **tool**: one row-group per tool, holder and
    * collet, whatever it machines.
    *
    * Paul (2026-08-31): "the tool assembly is the important thing, the geometry
@@ -437,8 +437,14 @@ const Bom = () => {
    * Two features that gave the same cutter different holders are two
    * assemblies, because they are two things to buy and set up.
    */
-  /** Which way the list is read: by what gets bought, or by what gets cut. */
-  const [grouping, setGrouping] = useState<'assembly' | 'feature'>('assembly')
+  /**
+   * Which way the list is read: by what gets bought, or by what gets cut.
+   *
+   * "Tool" rather than "assembly", which is Paul's word for it (2026-09-01):
+   * the row is a tool with its holding, and the thing somebody looks for in
+   * the list is the cutter.
+   */
+  const [grouping, setGrouping] = useState<'tool' | 'feature'>('tool')
 
   const assemblies = useMemo(() => {
     const groups = new Map<
@@ -461,31 +467,29 @@ const Bom = () => {
         /**
          * **The two ways a shop reads this list.**
          *
-         * Buying, it is a list of assemblies: one line per thing to order,
+         * Buying, it is a list of tools: one line per thing to order,
          * whatever it machines. Planning, it is a list of features: what each
          * one takes, whatever it costs. Same rows either way — what changes is
          * what the head leads with and what gets folded together (Paul,
          * 2026-08-31).
          */
         const key =
-          grouping === 'assembly'
+          grouping === 'tool'
             ? `${choice.toolGuid}|${choice.holderGuid ?? ''}|${choice.colletGuid ?? ''}`
             : `${featureTag}|${choice.toolGuid}`
         const had = groups.get(key) ?? {
           choice,
           features: [],
           tags: [],
-          title: grouping === 'assembly' ? (tool?.catalogNumber ?? 'this assembly') : named,
+          title: grouping === 'tool' ? (tool?.catalogNumber ?? 'this tool') : named,
         }
-        had.features.push(grouping === 'assembly' ? named : (tool?.catalogNumber ?? 'a tool'))
+        had.features.push(grouping === 'tool' ? named : (tool?.catalogNumber ?? 'a tool'))
         had.tags.push(featureTag)
         groups.set(key, had)
       }
     }
     const sections = [...groups.entries()].map(([key, group]) => ({ key, ...group }))
-    return grouping === 'assembly'
-      ? sections
-      : sections.sort((a, b) => a.title.localeCompare(b.title))
+    return grouping === 'tool' ? sections : sections.sort((a, b) => a.title.localeCompare(b.title))
   }, [sheet, features, grouping])
 
   /**
@@ -533,7 +537,7 @@ const Bom = () => {
             </Badge>
             <span className="text-2xs text-zinc-500">what has been decided for this part</span>
             <span className="flex gap-1">
-              {(['assembly', 'feature'] as const).map((each) => (
+              {(['tool', 'feature'] as const).map((each) => (
                 <button
                   key={each}
                   type="button"
@@ -574,7 +578,7 @@ const Bom = () => {
                 <thead>
                   <tr className="text-2xs border-b border-zinc-800 text-left tracking-wide text-zinc-400 uppercase">
                     <th scope="col" className="px-3 py-1.5 font-semibold">
-                      {grouping === 'assembly' ? 'Assembly' : 'Feature'}
+                      {grouping === 'tool' ? 'Tool' : 'Feature'}
                     </th>
                     <th scope="col" className="px-3 py-1.5 font-semibold">
                       Qty
@@ -627,7 +631,7 @@ const Bom = () => {
                     const named: AssemblyHead = {
                       tool: title,
                       /** "machines a pocket" one way round, "cut by a ⌀6" the other. */
-                      verb: grouping === 'assembly' ? 'machines' : 'cut by',
+                      verb: grouping === 'tool' ? 'machines' : 'cut by',
                       features: machines,
                       total: totalOf(choice),
                       onTotal: (many: number) =>

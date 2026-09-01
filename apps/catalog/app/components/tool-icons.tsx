@@ -426,15 +426,30 @@ export const toolTypeLabel = (toolType: string): string =>
   TOOL_FORMS.find((each) => each.value === normalise(toolType))?.label ?? toolType
 
 /**
+ * The forms whose shank is reduced by definition, so saying so adds nothing.
+ *
+ * A slot mill — a keyseat or woodruff cutter — is a disc of teeth on a neck;
+ * there is no full-shank one to tell it apart from, and "Reduced shank slot
+ * mill" is two words of noise on every one of them (Paul, 2026-09-01). The
+ * shank facet still reads `reduced`, because it is: what changes is only
+ * whether the label says a thing its own name already said.
+ */
+const SHANK_IS_THE_TYPE: ReadonlySet<string> = new Set(['slot mill'])
+
+/**
  * What a tool is, in its own words, with the shank in the name where it is
  * reduced: "Reduced shank bull nose end mill". Paul's call (2026-08-30) — a
  * neck is not a kind of tool, but it is the first thing a shop wants to know
- * about one, so it leads.
+ * about one, so it leads. Except where every tool of that form has one; see
+ * {@link SHANK_IS_THE_TYPE}.
  */
 export const formLabel = (tool: {
   readonly form: string
   readonly geometry: Readonly<Record<string, number>>
 }): string => {
+  const form = normalise(tool.form)
   const label = toolTypeLabel(tool.form)
-  return shankOf(tool) === 'reduced' ? `Reduced shank ${label.toLowerCase()}` : label
+  return shankOf(tool) === 'reduced' && !SHANK_IS_THE_TYPE.has(form)
+    ? `Reduced shank ${label.toLowerCase()}`
+    : label
 }

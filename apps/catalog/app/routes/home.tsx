@@ -3,12 +3,13 @@ import { useSearchParams } from 'react-router'
 import { Input } from '@toolpath/ui'
 import { MagnifyingGlassIcon } from '@phosphor-icons/react'
 import { AppHeader } from 'components/app-header'
-import { FilterPanel } from 'components/filter-panel'
+import { FACET_AXES, FilterPanel } from 'components/filter-panel'
 import { ToolTable } from 'components/tool-table'
 import { allTools, facets, searchableTools } from 'shared/catalog'
 import {
   EMPTY_QUERY,
   countBy,
+  countsByAxis,
   filterTools,
   queryFromSearch,
   searchWithQuery,
@@ -54,6 +55,16 @@ const Home = () => {
     return holdableTools(filterTools(searchableTools(), tools), holding)
   }, [query])
 
+  /**
+   * What each axis has left to offer, counted against every filter but its
+   * own — which is what lets the panel narrow itself: a vendor chosen takes
+   * the other vendors' families off the family axis (Paul, 2026-09-01).
+   */
+  const axisCounts = useMemo(
+    () => countsByAxis(searchableTools(), splitHolding(query).tools, FACET_AXES),
+    [query],
+  )
+
   const apply = (next: ToolQuery) => {
     setSearch(searchWithQuery(search, next, axes), { replace: true, preventScrollReset: true })
   }
@@ -68,7 +79,7 @@ const Home = () => {
             facets={facets}
             query={query}
             onQuery={apply}
-            counts={(key) => countBy(results, key)}
+            counts={(key) => axisCounts.get(key) ?? countBy(results, key)}
             unit={unit}
             holding={{ tapers, series: colletSeries }}
             // No part here, so the material is only ever a filter — it is read

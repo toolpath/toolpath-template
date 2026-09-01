@@ -3,6 +3,7 @@ import type { CatalogTool } from '@toolpath/catalog-data'
 import {
   EMPTY_QUERY,
   countBy,
+  countsByAxis,
   cycleTerm,
   filterTools,
   isEmptyQuery,
@@ -368,5 +369,56 @@ describe('the shank a tool has', () => {
         ['full', 1],
       ]),
     )
+  })
+})
+
+describe('what each axis has left to offer', () => {
+  const made = (guid: string, brand: string, familyId: string, form: string): CatalogTool =>
+    ({
+      guid,
+      catalogNumber: guid,
+      brand,
+      vendor: brand,
+      familyId,
+      form,
+      toolType: 'endmill',
+      geometry: { DC: 6 },
+      materialGroups: [],
+      provenance: {},
+    }) as unknown as CatalogTool
+
+  const CRIB = [
+    made('a', 'Harvey Tool', 'harvey_endmill_001', 'flat end mill'),
+    made('b', 'Harvey Tool', 'harvey_keyseat_009', 'slot mill'),
+    made('c', 'Kennametal', 'kendrill_txd', 'drill'),
+  ]
+
+  /**
+   * The panel narrows itself off these: a vendor chosen leaves only that
+   * vendor's families to offer (Paul, 2026-09-01).
+   */
+  it('counts a family axis against the vendor already chosen', () => {
+    const query = { ...EMPTY_QUERY, terms: { brand: ['Harvey Tool'] } }
+    const counts = countsByAxis(CRIB, query, ['familyId', 'brand'])
+
+    expect([...(counts.get('familyId') ?? [])].map(([value]) => value)).toEqual([
+      'harvey_endmill_001',
+      'harvey_keyseat_009',
+    ])
+  })
+
+  /** And an axis never narrows itself, or a second vendor could never be added. */
+  it('counts an axis against every filter but its own', () => {
+    const query = { ...EMPTY_QUERY, terms: { brand: ['Harvey Tool'] } }
+    const counts = countsByAxis(CRIB, query, ['brand'])
+
+    expect(counts.get('brand')?.get('Kennametal')).toBe(1)
+  })
+
+  it('counts the whole crib with nothing chosen', () => {
+    const counts = countsByAxis(CRIB, EMPTY_QUERY, ['form'])
+
+    expect(counts.get('form')?.get('drill')).toBe(1)
+    expect(counts.get('form')?.get('flat end mill')).toBe(1)
   })
 })

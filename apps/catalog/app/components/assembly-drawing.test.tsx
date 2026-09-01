@@ -61,6 +61,39 @@ describe('the assembly, drawn', () => {
     ).toEqual(['tip', 'flutes', 'shank', 'nose'])
   })
 
+  /**
+   * The dimensions are the panel's to ask for: the same drawing is used small,
+   * beside a list, where a dimension line is noise.
+   */
+  it('dimensions the tool only when it is asked to', () => {
+    const plain = render(<AssemblyDrawing tool={assembly.tool} assembly={assembly} unit="mm" />)
+    expect(plain.container.querySelector('[data-dimensions]')).toBeNull()
+
+    const { container } = render(
+      <AssemblyDrawing tool={assembly.tool} assembly={assembly} unit="mm" dimensions />,
+    )
+    const drawn = [...container.querySelectorAll('[data-dimension]')].map((each) =>
+      each.getAttribute('data-dimension'),
+    )
+
+    // With a holder: the stickout, and no overall length — most of the shank
+    // is inside the holder.
+    expect(drawn).toContain('stickout')
+    expect(drawn).not.toContain('OAL')
+    expect(drawn).toEqual(expect.arrayContaining(['DC', 'SFDM', 'LCF']))
+  })
+
+  /** The tool alone states its own overall length, and nothing about a holder. */
+  it('dimensions the overall length when the tool is drawn by itself', () => {
+    const { container } = render(<AssemblyDrawing tool={assembly.tool} unit="mm" dimensions />)
+    const drawn = [...container.querySelectorAll('[data-dimension]')].map((each) =>
+      each.getAttribute('data-dimension'),
+    )
+
+    expect(drawn).toContain('OAL')
+    expect(drawn).not.toContain('stickout')
+  })
+
   /** A collision is a picture: the part that meets the material turns red. */
   it('paints the part that meets the material', () => {
     const { container } = render(

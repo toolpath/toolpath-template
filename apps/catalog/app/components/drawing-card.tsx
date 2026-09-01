@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Card } from '@toolpath/ui'
 import {
   clearance,
@@ -12,6 +13,7 @@ import {
 } from '@toolpath/catalog-data'
 import type { ReachCurve } from '@toolpath/part-contracts'
 import { formatLength, type Unit } from '@toolpath/domain/units'
+import { classNames } from '@toolpath/domain/class-names'
 import { collets as allCollets, holders as allHolders } from 'shared/catalog'
 import { thresholdsFrom } from 'shared/holder-choice'
 import { drawnAssembly } from 'shared/drawn-assembly'
@@ -54,6 +56,11 @@ export const DrawingCard = ({
   margins,
   onMargins,
 }: DrawingCardProps) => {
+  /**
+   * Which of the two is drawn. Kept while the panel is up, so a shop reading
+   * cutters does not have to say so again on every tool it clicks.
+   */
+  const [view, setView] = useState<'tool' | 'assembly'>('assembly')
   const thresholds = thresholdsFrom()
   const { holder, required, limits, least, overLimit, stickout, band, assembly } = drawnAssembly(
     tool,
@@ -67,11 +74,36 @@ export const DrawingCard = ({
     <Card className="flex size-full min-h-0 flex-col overflow-hidden">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-zinc-900 px-3 py-2">
         <h3 className="text-2xs font-semibold tracking-wide text-zinc-400 uppercase">Drawing</h3>
+        {holder === null ? null : (
+          <span className="flex gap-1">
+            {(
+              [
+                ['tool', 'Tool'],
+                ['assembly', 'Tool + holder'],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={view === value}
+                onClick={() => setView(value)}
+                className={classNames(
+                  'text-2xs focus-visible:ring-info/60 rounded border px-2 py-0.5 transition focus-visible:ring-1 focus-visible:outline-none',
+                  view === value
+                    ? 'border-info/60 bg-info/15 text-info'
+                    : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </span>
+        )}
         {holder === null ? (
           <span className="text-2xs text-zinc-500">
             the tool alone — pick a holder to draw the assembly
           </span>
-        ) : limits === null ? (
+        ) : view === 'tool' ? null : limits === null ? (
           <span className="text-2xs text-zinc-500">
             this tool states no flute length, so there is no stickout to set
           </span>
@@ -106,7 +138,7 @@ export const DrawingCard = ({
           </span>
         )}
       </div>
-      {holder !== null && curve !== null ? (
+      {holder !== null && curve !== null && view === 'assembly' ? (
         <div className="text-2xs flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-zinc-900 px-3 py-1.5 text-zinc-500">
           <span>holder clearance</span>
           <LengthBox
@@ -133,10 +165,11 @@ export const DrawingCard = ({
       <div className="min-h-0 flex-1">
         <AssemblyDrawing
           tool={tool}
-          assembly={assembly}
+          assembly={view === 'assembly' ? assembly : null}
           unit={unit}
-          curve={curve}
+          curve={view === 'assembly' ? curve : null}
           margins={margins}
+          dimensions
         />
       </div>
     </Card>

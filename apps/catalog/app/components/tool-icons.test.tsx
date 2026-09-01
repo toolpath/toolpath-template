@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { render } from '@testing-library/react'
 import { TOOL_FORMS } from '@toolpath/catalog-data'
-import { ToolTypeIcon, hasToolTypeIcon } from './tool-icons'
+import { ToolTypeIcon, formLabel, hasToolTypeIcon } from './tool-icons'
 
 describe('a drawing for every tool the library names', () => {
   it('draws each type in the list', () => {
@@ -43,5 +43,36 @@ describe('a drawing for every tool the library names', () => {
     const right = render(<ToolTypeIcon toolType="tap right hand" />).container.innerHTML
     const left = render(<ToolTypeIcon toolType="tap left hand" />).container.innerHTML
     expect(left).not.toBe(right)
+  })
+})
+
+describe('what a tool is called', () => {
+  /** A real relief on an end mill is the first thing a shop wants to know. */
+  it('leads with the shank where it is reduced', () => {
+    expect(
+      formLabel({
+        form: 'bull nose end mill',
+        geometry: { DC: 6, LCF: 12, 'shoulder-diameter': 5.4, 'shoulder-length': 40 },
+      }),
+    ).toBe('Reduced shank bull nose end mill')
+  })
+
+  /**
+   * A slot mill is a disc of teeth on a neck — there is no full-shank one to
+   * tell it apart from, so the words say nothing (Paul, 2026-09-01).
+   */
+  it('says nothing about the shank of a tool that is always necked', () => {
+    expect(
+      formLabel({
+        form: 'slot mill',
+        geometry: { DC: 22.2, LCF: 1.6, 'shoulder-diameter': 12.7, 'shoulder-length': 20 },
+      }),
+    ).toBe('Slot mill')
+  })
+
+  it('names a tool with a full shank by its form alone', () => {
+    expect(formLabel({ form: 'flat end mill', geometry: { DC: 6, LCF: 12, SFDM: 6 } })).toBe(
+      'Flat end mill',
+    )
   })
 })

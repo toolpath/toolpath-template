@@ -311,8 +311,18 @@ export const marksFor = (
       caution: `leaves ${format(leaves, 'mm')} on the floor, which is allowed`,
     }
   }
-  // A filleted floor: exact is green, under is a caution, over is already a
-  // refusal by the rule that says a bigger nose cannot sit in the fillet.
+  /**
+   * A filleted floor: the column reads out the two radii and says nothing
+   * more.
+   *
+   * It wore a caution — an orange tick on every bull nose whose nose is under
+   * the model's fillet — and a warning nobody can read is worse than no
+   * warning (Paul, 2026-09-01: "I don't know what it means"). A nose that fits
+   * the fillet is allowed by the rules and is not a fault; what is worth
+   * knowing is which two numbers are being compared, so the mark states them.
+   * A nose *over* the fillet is refused outright by the rule that says a
+   * bigger nose cannot sit in it, and that refusal has its own red.
+   */
   if (
     marks.RE?.ok === true &&
     marks.RE.caution === undefined &&
@@ -321,10 +331,10 @@ export const marksFor = (
     leaves !== undefined &&
     floorFillet - leaves > 0.005
   ) {
-    marks.RE = {
-      ok: true,
-      caution: `${format(floorFillet - leaves, 'mm')} under the ${format(floorFillet, 'mm')} fillet`,
-    }
+    // The column already prints the tool's own radius, so the note is the
+    // number it is being read against and nothing more — a cell three words
+    // wide cannot hold a sentence (Paul, 2026-09-01).
+    marks.RE = { ok: true, note: `in ${format(floorFillet, 'mm')} fillet` }
   }
   // Cautions first, so a rule that rules the tool out has the last word on a
   // column both of them read.

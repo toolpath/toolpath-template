@@ -18,6 +18,8 @@ import type { ReachCurve } from '@toolpath/part-contracts'
 import { formatLength, type Unit } from '@toolpath/domain/units'
 import { classNames } from '@toolpath/domain/class-names'
 import { assemblyLabel } from 'shared/assemblies'
+import { dimensionsFor } from 'shared/tool-dimensions'
+import { DimensionLines } from './dimension-lines'
 
 /**
  * The assembly, drawn.
@@ -278,6 +280,14 @@ export interface AssemblyDrawingProps {
   readonly curve?: ReachCurve | null
   /** Room the shop wants kept between the stack and the part. */
   readonly margins?: Margins
+  /**
+   * Draw the dimensions: every stated length and width, on the tool.
+   *
+   * Off by default, because the drawing is also used small — on a card beside
+   * a list, where a dimension line is noise. The panel that has room turns it
+   * on (Paul, 2026-09-01).
+   */
+  readonly dimensions?: boolean
 }
 
 export const AssemblyDrawing = ({
@@ -286,6 +296,7 @@ export const AssemblyDrawing = ({
   unit,
   curve = null,
   margins = NO_MARGINS,
+  dimensions = false,
 }: AssemblyDrawingProps) => {
   const hatch = `hatch-${useId().replace(/:/g, '')}`
   /**
@@ -379,14 +390,34 @@ export const AssemblyDrawing = ({
    * with nothing beside it still sits in the middle (Paul, 2026-08-30).
    */
   const stack = outline.radius + 3
+  /**
+   * The dimensions, and the strip on the left they are drawn in.
+   *
+   * They go on the left because the part goes on the right, and a dimension
+   * line over a hatched section is unreadable. Each length runs in its own
+   * lane, nested shortest-innermost — `shared/tool-dimensions.ts` decides
+   * which, so the drawing only has to place them.
+   */
+  const drawn = dimensions ? dimensionsFor(tool, { assembly }) : null
+  const lanes = drawn === null ? 0 : drawn.lengths.length
+  const laneStep = fontSize * 2.9
+  /**
+   * The outermost lane, room for the word standing on it, and — where the
+   * sweep has clearances to report — the column those numbers already read in
+   * on the left, which the lanes must sit inboard of rather than under.
+   */
+  const laneRoom =
+    lanes === 0 ? 0 : lanes * laneStep + fontSize * 1.4 + (curve === null ? 0 : fontSize * 10)
   // Unmeasured — a server, or the first paint — the frame is the stack's own
   // and the part makes do with what is beside it. It never widens the frame.
-  const spare = panel ? Math.max(0, (height * panel.width) / panel.height - stack * 2) : 0
+  const spare = panel
+    ? Math.max(0, (height * panel.width) / panel.height - stack * 2 - laneRoom)
+    : 0
   const forPart = Math.max(0, Math.min(spare, partWanted + 2 - stack))
   // What the part has no use for is split, so a stack with nothing beside it
   // stays in the middle of the panel.
   const rest = (spare - forPart) / 2
-  const left = -stack - rest
+  const left = -stack - laneRoom - rest
   const right = stack + forPart + rest
   const width = right - left
   const x = (r: number) => r - left
@@ -746,6 +777,25 @@ export const AssemblyDrawing = ({
               )
             })()
           : null}
+
+        {/*
+          The dimensions, in the strip on the left of the stack — the part is
+          on the right, and a dimension line over a hatched section cannot be
+          read. `DimensionLines` draws them; this passes the frame.
+        */}
+        {drawn === null ? null : (
+          <DimensionLines
+            model={drawn}
+            unit={unit}
+            frame={{
+              x,
+              y,
+              fontSize,
+              laneAt: (lane) => x(-stack - (lane + 1) * laneStep),
+              edge: x(-outline.radius),
+            }}
+          />
+        )}
 
         {/* The axis. */}
         <line

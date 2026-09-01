@@ -1,100 +1,110 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { ThreadPicker } from './thread-picker'
 import { threadNamed } from 'shared/threads'
+import { ThreadPicker } from './thread-picker'
 
-describe('how a hole is made', () => {
+/** ⌀5.00 is M6×1's tap drill, which is the reading a hole is likeliest to be drawn at. */
+const TAP_DRILL_FOR_M6 = 5
+
+const show = (props: Partial<Parameters<typeof ThreadPicker>[0]> = {}) => {
+  const onChange = vi.fn()
+  render(
+    <ThreadPicker
+      holeDiameter={TAP_DRILL_FOR_M6}
+      mode="plain"
+      spec={null}
+      unit="mm"
+      onChange={onChange}
+      {...props}
+    />,
+  )
+  return onChange
+}
+
+describe('what the panel says about a hole before anything is chosen', () => {
   /**
-   * The model draws a threaded hole as a hole, so the panel guesses from the
-   * diameter — and choosing a mode takes the guess rather than making somebody
-   * find it (Paul, 2026-08-31).
+   * The whole point of the notice: a hole at somebody's tap drill is very
+   * probably threaded, and being told so on selection is the difference
+   * between finding the tap and knowing to look for one (Paul, 2026-09-01).
    */
-  it('takes the thread read off the hole when a mode is chosen', () => {
-    const onChange = vi.fn()
-    render(<ThreadPicker holeDiameter={5} mode="plain" spec={null} onChange={onChange} unit="mm" />)
-    fireEvent.click(screen.getByRole('button', { name: 'Cut tap' }))
+  it('says what the hole read as before anything is chosen', () => {
+    show()
 
-    expect(onChange).toHaveBeenCalledWith({
-      mode: 'cut tap',
-      spec: expect.objectContaining({ name: 'M6×1' }),
-    })
-  })
-
-  /** Four modes, because each starts from a different hole. */
-  it('offers every way of making a thread', () => {
-    render(<ThreadPicker holeDiameter={5} mode="plain" spec={null} onChange={vi.fn()} unit="mm" />)
-
-    for (const name of ['Plain', 'Cut tap', 'Form tap', 'Thread mill']) {
-      expect(screen.getByRole('button', { name })).toBeInTheDocument()
-    }
+    expect(screen.getByText(/is M6×1’s tap drill/)).toBeInTheDocument()
   })
 
   /**
-   * And says which hole the mode drills, because that is the number the drill
-   * list is judged against — a form tap starts four tenths bigger than a cut
-   * tap on an M6.
+   * The row is the thread and the chips are the ways to make it, each marked
+   * with the hole it starts from: a form tap wants a bigger hole than a cut
+   * tap, and that difference is the reason to print it (Paul, 2026-09-01).
    */
-  it('says what it read and what the mode drills', () => {
-    const { rerender } = render(
-      <ThreadPicker
-        holeDiameter={5}
-        mode="cut tap"
-        spec={threadNamed('M6×1')}
-        onChange={vi.fn()}
-        unit="mm"
-      />,
-    )
+  it('offers cut and form for each thread, each with its own drill', () => {
+    show()
 
-    expect(screen.getByText(/is this thread's tap drill/)).toBeInTheDocument()
-    expect(screen.getByText(/cut tap starts from ⌀5\.00 mm/)).toBeInTheDocument()
-
-    rerender(
-      <ThreadPicker
-        holeDiameter={5}
-        mode="form tap"
-        spec={threadNamed('M6×1')}
-        onChange={vi.fn()}
-        unit="mm"
-      />,
-    )
-
-    expect(screen.getByText(/form tap starts from ⌀5\.50 mm/)).toBeInTheDocument()
+    // A form tap wants `d − p/2`, half a millimetre more hole than the cut tap's.
+    expect(screen.getByRole('button', { name: 'M6×1 cut tap' })).toHaveTextContent('cut ⌀5.00')
+    expect(screen.getByRole('button', { name: 'M6×1 form tap' })).toHaveTextContent('form ⌀5.50')
   })
 
-  it('lets the thread be overridden from the whole table', () => {
-    const onChange = vi.fn()
-    render(
-      <ThreadPicker
-        holeDiameter={5}
-        mode="cut tap"
-        spec={threadNamed('M6×1')}
-        onChange={onChange}
-        unit="mm"
-      />,
-    )
-    fireEvent.change(screen.getByRole('combobox', { name: 'Thread' }), {
-      target: { value: 'M8×1.25' },
-    })
+  /** Thread milling is out for now (Paul, 2026-09-01), so it is not offered. */
+  it('offers no thread mill', () => {
+    show()
 
-    expect(onChange).toHaveBeenCalledWith({
-      mode: 'cut tap',
-      spec: expect.objectContaining({ name: 'M8×1.25' }),
-    })
+    expect(screen.queryByRole('button', { name: /thread mill/ })).not.toBeInTheDocument()
   })
 
-  /** And back to a plain hole, which is what most holes are. */
-  it('goes back to a plain hole', () => {
-    const onChange = vi.fn()
-    render(
-      <ThreadPicker
-        holeDiameter={5}
-        mode="cut tap"
-        spec={threadNamed('M6×1')}
-        onChange={onChange}
-        unit="mm"
-      />,
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Plain' }))
+  /** A hole near no thread has nothing to offer, and says nothing about one. */
+  it('claims nothing for a hole that reads as no thread', () => {
+    show({ holeDiameter: 0.4 })
+
+    expect(screen.queryByText(/is .*’s tap drill/)).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /Manually spec thread/ })).toBeInTheDocument()
+  })
+})
+
+describe('picking a thread', () => {
+  /** One click says both things: this hole is an M6, and it is cut-tapped. */
+  it('sets the thread and the method together', () => {
+    const onChange = show()
+
+    fireEvent.click(screen.getByRole('button', { name: 'M6×1 form tap' }))
+
+    expect(onChange).toHaveBeenCalledWith({ mode: 'form tap', spec: threadNamed('M6×1') })
+  })
+
+  /** And the way back out, without going through the list. */
+  it('goes back to a plain hole in one click', () => {
+    const onChange = show({ spec: threadNamed('M6×1'), mode: 'cut tap' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'plain hole' }))
+
+    expect(onChange).toHaveBeenCalledWith({ mode: 'plain', spec: null })
+  })
+
+  /**
+   * On show and labelled: behind a link it read as a sentence rather than a
+   * control, and nobody knew there was a way to say something else.
+   */
+  it('shows the full list, labelled for what it is', () => {
+    show()
+
+    expect(screen.getByRole('combobox', { name: /Manually spec thread/ })).toBeInTheDocument()
+  })
+
+  /** A thread the hole does not read as is still shown as the choice it is. */
+  it('shows a thread that is not on offer as the chosen one', () => {
+    show({ spec: threadNamed('M20×2.5'), mode: 'cut tap' })
+
+    expect(screen.getByRole('combobox', { name: /Manually spec thread/ })).toHaveValue('M20×2.5')
+  })
+
+  /** The list is also a way back: a plain hole is one of its options. */
+  it('goes back to a plain hole from the list', () => {
+    const onChange = show({ spec: threadNamed('M6×1'), mode: 'cut tap' })
+
+    fireEvent.change(screen.getByRole('combobox', { name: /Manually spec thread/ }), {
+      target: { value: '' },
+    })
 
     expect(onChange).toHaveBeenCalledWith({ mode: 'plain', spec: null })
   })

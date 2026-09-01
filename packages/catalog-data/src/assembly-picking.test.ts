@@ -151,6 +151,22 @@ describe('which holders will take a tool', () => {
     ])
   })
 
+  /**
+   * The collets are grouped by series once and the grouping is cached against
+   * the array — so a second list must not be answered out of the first's index.
+   * The failure a cache introduces, pinned before it can happen.
+   */
+  it('answers each collet list from its own collets', () => {
+    const onlyPg10 = COLLETS.filter((each) => each.series === 'PG10')
+
+    expect(holdersFor(tool(4), HOLDERS, onlyPg10)).toEqual([])
+    expect(holdersFor(tool(4), HOLDERS, COLLETS).map((each) => each.guid)).toEqual([
+      'h-pg6',
+      'h-pg6-long',
+      'h-pg6-plus',
+    ])
+  })
+
   it('narrows by the filter axes, AND across them', () => {
     expect(
       holdersFor(tool(6), HOLDERS, COLLETS, { contact: ['face'] }).map((each) => each.guid),

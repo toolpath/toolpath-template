@@ -17,7 +17,7 @@ Chamfer,,chamfer angle; depth below top; feature depth; largest tool diameter; s
 Fillet,,depth below top; feature depth; largest tool diameter; L/D,ball end mill; bull nose end mill; flat end mill,by material,,,,
 ContourSurface,,depth below top; feature depth; largest tool diameter; L/D; stepdown,ball end mill; bull nose end mill; flat end mill,by material,,,,
 FilletedPocket,,depth below top; feature depth; largest tool diameter; L/D; floor fillet radius,bull nose end mill; flat end mill; ball end mill,by material,,,,
-Thread,,hole diameter; feature depth; depth below top; thread,tap right hand; thread mill; drill,,,,,
+Thread,,hole diameter; feature depth; depth below top; thread,tap right hand; drill,,,,,
 FilletedOpenPocket,,depth below top; feature depth; largest tool diameter; L/D; floor fillet radius,bull nose end mill; flat end mill; ball end mill,by material,,,,
 FilletedBlindHole,,depth below top; feature depth; largest tool diameter; L/D; floor fillet radius,drill; bull nose end mill; flat end mill; ball end mill,by material,,,,
 Wall,,depth below top; feature depth; largest tool diameter; L/D,flat end mill; bull nose end mill,by material,,,,
@@ -35,5 +35,5 @@ UndercutWall,,depth below top; feature depth; largest tool diameter; L/D,lollipo
 USlot,,depth below top; feature depth; largest tool diameter; L/D,ball end mill; bull nose end mill,by material,,,,
 UndercutFilletedDovetail,,taper angle; depth below top; feature depth; largest tool diameter; floor fillet radius,dovetail mill,by material,,,,
 TaperedThroughHole,,depth below top; feature depth; hole diameter; L/D,tapered mill; drill,,,,,
-ThreadedBlindHole,,hole diameter; feature depth; depth below top; thread; tip angle,tap right hand; thread mill; drill,,,,,The drill is the pre-drill to the minor diameter
-ThreadedThroughHole,,hole diameter; feature depth; depth below top; thread,tap right hand; thread mill; drill,,,,,
+ThreadedBlindHole,,hole diameter; feature depth; depth below top; thread; tip angle,tap right hand; drill,,,,,The drill is the pre-drill to the minor diameter
+ThreadedThroughHole,,hole diameter; feature depth; depth below top; thread,tap right hand; drill,,,,,

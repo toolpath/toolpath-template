@@ -28,7 +28,10 @@ const pocket = (facts: Record<string, unknown> = {}): PartFeature =>
     datasheet: {
       zMin: -20,
       zMax: 0,
-      extendedZMax: 8,
+      // The pocket opens at the top of the part: 20 below it, which every tool
+      // here reaches. Reach became a rule of its own on 2026-09-01 and this
+      // example is about corner radii, not about length.
+      extendedZMax: 0,
       facts: {
         kind: 'Pocket',
         filletRadius: 1.5,
@@ -120,12 +123,16 @@ describe('one filleted pocket, nine tools, the committed sheet', () => {
     expect(z!.removed[0]?.text).toContain('not a type this feature considers')
   })
 
-  /** Within 5 % of the corner: usable, warned — an exact-size tool loads up in the corner. */
-  it('warns a tool inside the corner clearance, and keeps it', () => {
-    expect(standingOf(by(verdicts, 'D'))).toBe('warned')
-    expect(by(verdicts, 'D').warned[0]?.text).toContain(
-      'diameter 9.80 over 9.50 (largest tool diameter − corner clearance)',
-    )
+  /**
+   * A tool on the tightest corner is a tool that fits.
+   *
+   * It was warned by a 5 %-under rule — the downsize rule — and Paul took that
+   * out on 2026-09-01: a cutter that matches the feature's own geometry is the
+   * match, not a fault, and it leads the list.
+   */
+  it('keeps a tool on the corner, unwarned', () => {
+    expect(standingOf(by(verdicts, 'D'))).toBe('fits')
+    expect(by(verdicts, 'D').warned).toEqual([])
   })
 
   /** A long thin tool that reaches is not penalised for being long: if it is needed, it is needed. */
@@ -134,18 +141,19 @@ describe('one filleted pocket, nine tools, the committed sheet', () => {
     expect(by(verdicts, 'E').demoted).toEqual([])
   })
 
-  it('ranks the tool 5 % under the corner with the exact fillet radius first, then the smaller radii, then the warned', () => {
+  /** Widest first, then the exact fillet radius, then the smaller radii. */
+  it('ranks the tool that matches the feature’s own geometry first', () => {
     expect(orderVerdicts(verdicts).map((verdict) => verdict.tool.catalogNumber)).toEqual([
+      'D',
       'A',
       'B',
       'E',
-      'D',
     ])
     expect(standingOf(by(verdicts, 'A'))).toBe('fits')
     expect(by(verdicts, 'A').readings).toEqual([
       'bull nose end mill',
       'corner radius 1.50 = floor fillet radius',
-      'diameter 9.50 = largest tool diameter − corner clearance',
+      'diameter 9.50, 0.50 under largest tool diameter',
       'L/D 2.50',
     ])
     expect(by(verdicts, 'B').readings[1]).toBe('corner radius 1, 0.50 under floor fillet radius')

@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { ArrowSquareOutIcon } from '@phosphor-icons/react'
 import { Badge } from '@toolpath/ui'
+import { classNames } from '@toolpath/domain/class-names'
 import type { CatalogTool } from '@toolpath/catalog-data'
 import { formatLength, type Unit } from '@toolpath/domain/units'
 import { formatGeometry } from 'shared/geometry'
@@ -18,6 +20,11 @@ import type { Holding } from './tool-table'
  *
  * The long field-by-field sheet still lives on the tool's own page: this is
  * the working panel, not the reference.
+ *
+ * **The drawing shows the tool, or the tool and what holds it** (Paul,
+ * 2026-09-01), and says so with a switch rather than by whether a holder
+ * happens to have been chosen. Either way it is dimensioned — the lengths and
+ * widths the vendor states, drawn on the tool the way a drawing states them.
  */
 
 /** The numbers a tool is chosen on, in the order the question is asked. */
@@ -45,6 +52,11 @@ export interface ToolDetailsProps {
 }
 
 export const ToolDetails = ({ tool, unit, holding }: ToolDetailsProps) => {
+  /**
+   * Which of the two is drawn. Kept while the panel is up, so a shop reading
+   * cutters does not have to say so again on every tool it clicks.
+   */
+  const [view, setView] = useState<'tool' | 'stack'>('stack')
   const chosen = holding?.chosen(tool) ?? { holderGuid: null, colletGuid: null }
   const holders = holding?.holdersFor(tool) ?? []
   const collets = holding?.colletsFor(tool, chosen.holderGuid) ?? []
@@ -80,13 +92,40 @@ export const ToolDetails = ({ tool, unit, holding }: ToolDetailsProps) => {
         )}
       </div>
 
-      {/* The cutter alone until a holder is chosen, then the whole stack. */}
-      <ToolDrawing
-        tool={tool}
-        unit={unit}
-        {...(holderChosen === undefined ? {} : { holder: holderChosen })}
-        stickout={stickout}
-      />
+      {/* The cutter, or the whole stack — the switch says which. */}
+      <div className="flex flex-col gap-1">
+        {holderChosen === undefined ? null : (
+          <div className="flex justify-end gap-1">
+            {(
+              [
+                ['tool', 'Tool'],
+                ['stack', 'Tool + holder'],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={view === value}
+                onClick={() => setView(value)}
+                className={classNames(
+                  'text-2xs focus-visible:ring-info/60 rounded border px-2 py-0.5 transition focus-visible:ring-1 focus-visible:outline-none',
+                  view === value
+                    ? 'border-info/60 bg-info/15 text-info'
+                    : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        <ToolDrawing
+          tool={tool}
+          unit={unit}
+          {...(holderChosen === undefined || view === 'tool' ? {} : { holder: holderChosen })}
+          stickout={stickout}
+        />
+      </div>
 
       {/* The numbers it is chosen on: two columns, big enough to read across
           the desk, each saying what it is rather than only its code. */}

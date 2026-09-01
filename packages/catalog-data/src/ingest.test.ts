@@ -163,6 +163,53 @@ describe('ingest', () => {
   })
 })
 
+describe('a form the vendor states', () => {
+  /**
+   * Harvey's keyseat cutters are `kind: 'endmill'` with a corner radius of
+   * zero, which derives as a flat end mill — a 22 mm cutter with 1.6 mm of
+   * flute offered to finish a pocket floor (Paul, 2026-09-01). The vendor's
+   * own page title says what it is, and a stated form beats a derived one.
+   */
+  it('keeps a stated form over the one the geometry would derive', () => {
+    const { catalog } = ingest(
+      scrape({
+        families: [
+          family({
+            tools: [
+              tool({
+                form: 'slot mill',
+                geometry: { DC: 22.2, LCF: 1.57, OAL: 77.8, NOF: 12, SFDM: 12.7, RE: 0 },
+              }),
+            ],
+          }),
+        ],
+      }),
+    )
+
+    expect(catalog.tools[0]?.form).toBe('slot mill')
+    expect(catalog.tools[0]?.provenance.form).toBe('vendor-stated')
+  })
+
+  it('derives the form as before where none is stated', () => {
+    const { catalog } = ingest(scrape())
+
+    expect(catalog.tools[0]?.form).toBe('flat end mill')
+    // Assumed, not stated: no corner radius is published, so a square end is
+    // the reading rather than the vendor's word.
+    expect(catalog.tools[0]?.provenance.form).toBe('assumed')
+  })
+
+  /** A word this catalog does not speak is reported, not written in. */
+  it('reports a form it does not know and derives one instead', () => {
+    const { catalog, notes } = ingest(
+      scrape({ families: [family({ tools: [tool({ form: 'woodruff cutter' })] })] }),
+    )
+
+    expect(catalog.tools[0]?.form).toBe('flat end mill')
+    expect(notes.map((each) => each.code)).toContain('form')
+  })
+})
+
 describe('ingesting toolholding', () => {
   const holder = {
     guid: '44444444-4444-5444-8444-444444444401',

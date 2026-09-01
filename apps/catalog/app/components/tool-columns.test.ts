@@ -27,3 +27,34 @@ describe('the columns the list offers', () => {
     expect(unknown).toEqual([])
   })
 })
+
+/**
+ * **What the list opens with is a decision, not a leftover.**
+ *
+ * The column was "Stickout needed" — about a stack somebody had chosen a
+ * holder for, empty on a fresh list, and turning itself on anyway (Paul,
+ * 2026-08-31). It is the tool's own **length below holder** now: the overall
+ * length less the shank the clamping rule holds, which is a number every tool
+ * has and which decides whether it reaches (Paul, 2026-09-01). So it opens
+ * with the rest, and the holder and collet still wait to be asked for.
+ */
+describe('the columns a list opens with', () => {
+  it('opens with the numbers a tool is chosen on, reach among them', () => {
+    expect(TOOL_COLUMNS.filter((column) => column.default).map((column) => column.code)).toEqual([
+      'DC',
+      'LCF',
+      'LBH',
+      'LD',
+      'OAL',
+      'RE',
+      'NOF',
+      'SFDM',
+    ])
+  })
+
+  it('leaves the holder and the collet for somebody to ask for', () => {
+    for (const code of ['holder', 'collet']) {
+      expect(TOOL_COLUMNS.find((column) => column.code === code)?.default).toBe(false)
+    }
+  })
+})

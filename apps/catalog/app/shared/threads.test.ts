@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   drillFor,
   likelyThread,
+  threadOptions,
   makerOf,
   minorOf,
   threadNamed,
@@ -55,6 +56,25 @@ describe('reading a thread off a hole', () => {
 
     expect(guesses[0]?.spec.name).toBe('M6×1')
     expect(guesses.some((each) => each.spec.name === 'M6×1' && each.read === 'minor')).toBe(true)
+  })
+
+  /**
+   * One line per thread on the panel: a hole that reads as both the tap drill
+   * and the minor of one spec would otherwise offer the same answer twice.
+   */
+  it('offers each thread once, by its likeliest reading', () => {
+    const offered = threadOptions(4.918)
+    const names = offered.map((each) => each.spec.name)
+
+    expect(new Set(names).size).toBe(names.length)
+    expect(offered[0]?.spec.name).toBe('M6×1')
+    expect(offered[0]?.read).toBe('tap drill')
+  })
+
+  it('offers no more than it is asked for, and nothing for a hole near no thread', () => {
+    expect(threadOptions(5, 1).map((each) => each.spec.name)).toEqual(['M6×1'])
+    expect(threadOptions(4.918).length).toBeLessThanOrEqual(3)
+    expect(threadOptions(0.4)).toEqual([])
   })
 
   /** Nothing's tap drill is near ⌀16, so it reads as the nominal size it is. */

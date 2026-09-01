@@ -162,6 +162,22 @@ const Monogram = ({ brand, muted = false }: { brand: string; muted?: boolean }) 
  * it is held. The two ranges the rules fill in from the feature come last,
  * because they are usually already answered by the time anybody looks.
  */
+/**
+ * The axes whose options are narrowed by the rest of the query.
+ *
+ * The term axes that are properties of a tool, which is what a facet count can
+ * be measured over. The holding axes — a spindle taper, a collet series — are
+ * properties of the crib and are counted elsewhere (Paul, 2026-09-01).
+ */
+export const FACET_AXES: ReadonlyArray<string> = [
+  'brand',
+  'familyId',
+  'form',
+  'materialGroups',
+  'shank',
+  'NOF',
+]
+
 export const QUICK_FILTERS: ReadonlyArray<QuickFilter> = [
   {
     key: 'materialGroups',
@@ -902,6 +918,31 @@ export const FilterPanel = ({
     onQuery({ ...query, ranges })
   }
 
+  /**
+   * **What is left to choose, given everything already chosen** (Paul,
+   * 2026-09-01): with a vendor set, only that vendor's families are offered;
+   * with a type set, only the families that hold it.
+   *
+   * The counts are measured against every filter but this axis's own, so an
+   * axis never narrows itself — a chosen vendor does not hide the others, or
+   * a second one could never be added. A value already chosen stays whatever
+   * the count says, because taking somebody's own answer off the panel is
+   * worse than showing them a zero.
+   */
+  const narrowed = (
+    filter: QuickFilter,
+    options: ReadonlyArray<TileOption & { title?: string }>,
+  ): ReadonlyArray<TileOption & { title?: string }> => {
+    const counted = counts(filter.key)
+    if (counted.size === 0) {
+      return options
+    }
+    const chosen = chosenFor(filter)
+    return options.filter(
+      (each) => (counted.get(each.value) ?? 0) > 0 || chosen.includes(each.value),
+    )
+  }
+
   const optionsFor = (filter: QuickFilter): ReadonlyArray<TileOption & { title?: string }> => {
     if (filter.values === 'holders') {
       return holding.tapers.map((each) => ({ value: each, label: each }))
@@ -910,10 +951,13 @@ export const FilterPanel = ({
       return holding.series.map((each) => ({ value: each, label: each }))
     }
     if (filter.values) {
-      return filter.values
+      return narrowed(filter, filter.values)
     }
     const known = facets.terms.find((axis) => axis.key === filter.key)
-    return (known?.values ?? []).map((each) => ({ value: each.value, label: each.value }))
+    return narrowed(
+      filter,
+      (known?.values ?? []).map((each) => ({ value: each.value, label: each.value })),
+    )
   }
 
   const shownFilters = only
@@ -974,15 +1018,64 @@ export const FilterPanel = ({
           const counted = counts(filter.key)
 
           if (filter.shape === 'range') {
+            /**
+             * **A count says which counts there are** (Paul, 2026-09-01).
+             *
+             * Flutes are a handful of whole numbers, and which of them exist
+             * depends on everything else already chosen — a vendor, a family,
+             * a type. So the ones left are offered as chips beside the range,
+             * counted the same way every other axis is: against every filter
+             * but this one.
+             */
+            const present =
+              filter.kind === 'count'
+                ? [...counted.entries()]
+                    .map(([value, count]) => ({ value: Number(value), count }))
+                    .filter((each) => Number.isFinite(each.value) && each.count > 0)
+                    .sort((a, b) => a.value - b.value)
+                : []
+            const bound = query.ranges[filter.key]
+            const exactly = (value: number) => bound?.min === value && bound.max === value
             return (
               <Field key={filter.key} icon={filter.icon} label={filter.label} span={filter.span}>
-                <RangeFilter
-                  label={filter.label}
-                  bound={query.ranges[filter.key]}
-                  onBound={(bound) => setBound(filter.key, bound)}
-                  unit={unit}
-                  kind={filter.kind ?? 'length'}
-                />
+                <div className="flex flex-col gap-1">
+                  <RangeFilter
+                    label={filter.label}
+                    bound={bound}
+                    onBound={(next) => setBound(filter.key, next)}
+                    unit={unit}
+                    kind={filter.kind ?? 'length'}
+                  />
+                  {present.length === 0 ? null : (
+                    <div className="flex flex-wrap gap-1">
+                      {present.map((each) => (
+                        <button
+                          key={each.value}
+                          type="button"
+                          aria-pressed={exactly(each.value)}
+                          title={`${String(each.count)} of what is left`}
+                          onClick={() =>
+                            setBound(
+                              filter.key,
+                              exactly(each.value)
+                                ? undefined
+                                : { min: each.value, max: each.value },
+                            )
+                          }
+                          className={classNames(
+                            'text-2xs rounded border px-1.5 py-0.5 transition',
+                            exactly(each.value)
+                              ? 'border-info/60 bg-info/15 text-info'
+                              : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
+                          )}
+                        >
+                          {each.value}
+                          <span className="ml-1 text-zinc-600">{each.count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </Field>
             )
           }

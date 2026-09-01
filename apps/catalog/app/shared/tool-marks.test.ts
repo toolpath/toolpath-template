@@ -301,11 +301,17 @@ describe('a filleted floor', () => {
     })
   })
 
-  it('cautions a tool under the fillet, and says by how much', () => {
+  /**
+   * A nose that fits the fillet is allowed, so the column reads the two radii
+   * out and says nothing more: it wore an orange tick, and a warning nobody
+   * can read is worse than no warning (Paul, 2026-09-01).
+   */
+  it('reads out the two radii for a tool under the fillet, without cautioning', () => {
     const mark = markFor(tool('UNDER', { DC: 9, RE: 0.5, LCF: 20, LD: 2 }, 'bull nose end mill'))
 
     expect(mark?.ok).toBe(true)
-    expect(mark?.ok === true && mark.caution).toBe('0.50 mm under the 1.00 mm fillet')
+    expect(mark?.ok === true && mark.caution).toBeUndefined()
+    expect(mark?.ok === true && mark.note).toBe('in 1.00 mm fillet')
   })
 
   it('refuses a tool over it', () => {

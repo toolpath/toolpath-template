@@ -10,7 +10,8 @@ const hole = (featureTag: string, diameter: number, depth: number): PartFeature 
     featureTag,
     featureType: 'BlindHole',
     machiningDirection: { x: 0, y: 0, z: 1 },
-    regionIdxs: [1],
+    // A face of its own: two readings that share one are the same physical hole.
+    regionIdxs: [[...featureTag].reduce((sum, letter) => sum + letter.charCodeAt(0), 0)],
     datasheet: {
       zMin: -depth,
       zMax: 0,
@@ -60,15 +61,25 @@ describe('the plan for a part read as holes', () => {
   })
 
   /**
-   * "No tool" is worse information than "not a drill": where nothing drills a
-   * size, a mill that can interpolate it is offered and the row says so
-   * (Paul, 2026-08-31).
+   * "No tool" is worse information than "not a drill" — but a mill standing in
+   * the drill's place says the wrong thing, so the mills are their own list
+   * beside an empty drill cell (Paul, 2026-09-01).
    */
-  it('falls back to a mill, and says that is what it did', () => {
+  it('offers end mills where nothing drills the size, and keeps them apart', () => {
     const plan = holePlan(groups, {}, [mill], features)
 
-    expect(plan[0]?.drills.map((each) => each.tool.catalogNumber)).toEqual(['E4'])
+    expect(plan[0]?.drills).toEqual([])
+    expect(plan[0]?.endMills.map((each) => each.tool.catalogNumber)).toEqual(['E4'])
     expect(plan[0]?.interpolated).toBe(true)
+  })
+
+  /** A tool that is neither is not judged at all: this is the hole question. */
+  it('judges hole tools, not the whole catalog', () => {
+    const face = tool('F50', { DC: 50, LCF: 4, LD: 0.1 }, 'face mill')
+    const plan = holePlan(groups, {}, [drill, face], features)
+
+    expect(plan[0]?.drills.map((each) => each.tool.catalogNumber)).toEqual(['D5'])
+    expect(plan[0]?.endMills).toEqual([])
   })
 
   /** The filters are the source of truth: nothing offered, nothing planned. */
@@ -76,6 +87,7 @@ describe('the plan for a part read as holes', () => {
     const plan = holePlan(groups, {}, [], features)
 
     expect(plan[0]?.drills).toEqual([])
+    expect(plan[0]?.endMills).toEqual([])
     expect(plan[0]?.interpolated).toBe(false)
   })
 
@@ -150,11 +162,11 @@ describe('a threaded group is drilled, not milled', () => {
     expect(threaded[0]?.interpolated).toBe(false)
   })
 
-  /** And the same group, left plain, still takes the mill it can get. */
-  it('still falls back for a plain hole', () => {
+  /** And the same group, left plain, is still offered the mill it can get. */
+  it('still offers end mills for a plain hole', () => {
     const plain = holePlan(groups, {}, [mill], features)
 
-    expect(plain[0]?.drills.map((each) => each.tool.catalogNumber)).toEqual(['E4'])
+    expect(plain[0]?.endMills.map((each) => each.tool.catalogNumber)).toEqual(['E4'])
     expect(plain[0]?.interpolated).toBe(true)
   })
 })

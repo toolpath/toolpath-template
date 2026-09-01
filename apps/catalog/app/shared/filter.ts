@@ -318,3 +318,38 @@ export const prioritise = (
       rankIn(brands, a.brand) - rankIn(brands, b.brand),
   )
 }
+
+/**
+ * The same query with one axis taken out.
+ *
+ * What a facet count has to be measured against: "how many Harvey tools are
+ * there" is a question about every filter **except** the vendor, or choosing
+ * one vendor would report every other as zero and there would be no way to add
+ * a second.
+ */
+export const withoutTerm = (query: ToolQuery, key: string): ToolQuery => {
+  const terms = { ...query.terms }
+  delete terms[key]
+  return { ...query, terms }
+}
+
+/**
+ * What each axis would leave, counted against every filter but its own.
+ *
+ * **This is what makes the panel narrow itself** (Paul, 2026-09-01): with a
+ * vendor chosen, the family axis counts only that vendor's families and the
+ * ones at zero are not offered; with a type chosen, only the families that
+ * hold it. The vendor axis itself still counts every vendor, so a second one
+ * can still be added.
+ */
+export const countsByAxis = (
+  tools: ReadonlyArray<CatalogTool>,
+  query: ToolQuery,
+  keys: ReadonlyArray<string>,
+): Map<string, ReadonlyMap<string, number>> => {
+  const counts = new Map<string, ReadonlyMap<string, number>>()
+  for (const key of keys) {
+    counts.set(key, countBy(filterTools(tools, withoutTerm(query, key)), key))
+  }
+  return counts
+}

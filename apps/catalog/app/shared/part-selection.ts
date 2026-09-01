@@ -38,8 +38,21 @@ export const arrowsFor = (context: {
    * empty with nothing picked.
    */
   readonly candidateDirections?: ReadonlyArray<number>
+  /**
+   * The way up the part is being read **from**, where that is already decided.
+   *
+   * Scoped rather than drawn among the others, which is what the viewer's own
+   * prop means: one arrow, the one in use. Reading every hole at once uses it
+   * — a size open at both ends is made from one side, and turning it over
+   * turns the arrow over with it (Paul, 2026-09-01).
+   */
+  readonly active?: number | null
 }): ArrowPlan => {
   const ways = context.candidateDirections ?? []
+  const active = context.active ?? null
+  if (active !== null && active >= 0) {
+    return { visible: true, shown: [active], active }
+  }
   return ways.length === 0
     ? { visible: false, shown: -1, active: null }
     : { visible: true, shown: [...ways], active: null }
@@ -130,10 +143,25 @@ export const escapeStep = ({
 export const partHighlight = ({
   kept,
   focused,
+  group,
 }: {
   readonly kept: Iterable<string>
   readonly focused: string | null
+  /**
+   * A row picked in the all-holes table: every hole of that size, and nothing
+   * else.
+   *
+   * **It wins outright rather than joining the rest.** Reading the part by
+   * size is a different question from reading it face by face — "where are the
+   * eight ⌀5s" is answered by lighting those eight and leaving the part around
+   * them dark, and mixing in whatever was kept from the other mode answers a
+   * question nobody asked (Paul, 2026-09-01).
+   */
+  readonly group?: ReadonlyArray<string> | null
 }): Array<string> => {
+  if (group && group.length > 0) {
+    return [...new Set(group)]
+  }
   const tags = new Set(kept)
   if (focused) {
     tags.add(focused)

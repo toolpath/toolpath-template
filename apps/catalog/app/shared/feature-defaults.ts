@@ -177,6 +177,18 @@ export const FIELDS: Readonly<Record<string, Field>> = {
     icon: 'diameter',
     read: ({ facts }) => positive(number(facts, 'diameter')),
   },
+  /**
+   * The radius the finishing pass has to leave in the tightest corner.
+   *
+   * The kernel's `cd.terminalCornerRadius`. **Zero is a sharp corner**, and a
+   * milling cutter cannot leave one: every mill leaves its own radius, so a
+   * corner drawn sharp is a corner no mill finishes (Paul, 2026-09-01).
+   */
+  'terminal corner radius': {
+    unit: 'mm',
+    icon: 'minRadius',
+    read: ({ facts }) => number(facts, 'cd', 'terminalCornerRadius'),
+  },
   'corner radius': {
     unit: 'mm',
     icon: 'minRadius',
@@ -529,4 +541,30 @@ export const readingsFor = (
     }
     return [{ name, unit: field.unit, icon: field.icon, value }]
   })
+}
+
+/**
+ * Whether this feature has a corner no milling cutter can leave.
+ *
+ * The kernel states the radius the finishing pass has to produce; zero means
+ * the model draws the corner sharp, and every mill leaves its own radius. So
+ * the list says so once, plainly, rather than offering tools that all miss the
+ * same corner by their own diameter (Paul, 2026-09-01).
+ *
+ * Only where there is a corner to speak of: a hole has none, and a feature
+ * with no wall has nothing to turn.
+ */
+export const hasSharpCorner = (feature: PartFeature): boolean => {
+  const sheet = sheetOf(feature, [feature])
+  const facts = sheet.facts
+  if (facts?.kind === 'Hole' || facts?.kind === 'Chamfer') {
+    return false
+  }
+  // A wall is what has a corner: the datasheet says so, and a feature with
+  // none has nothing to turn around.
+  if ((feature.datasheet as Record<string, unknown> | undefined)?.hasWall !== true) {
+    return false
+  }
+  const radius = FIELDS['terminal corner radius']?.read(sheet) ?? null
+  return radius === 0
 }

@@ -106,6 +106,42 @@ export const compareHolders = (a: Holder, b: Holder): number => {
   return a.catalogNumber.localeCompare(b.catalogNumber, 'en', { numeric: true })
 }
 
+/**
+ * A collet list, grouped by the series a holder joins it on.
+ *
+ * **Because the scan is per tool.** `holdersFor` is asked of every tool in the
+ * filtered list on every change of a filter or a clearance, and it asked
+ * whether any collet in the whole list fits each collet holder — the catalog's
+ * 21 holders and 321 collets over 4,697 tools is 133 ms of scanning before a
+ * single clearance is swept, and the crib is about to be an order of magnitude
+ * larger. A series is a string equality that partitions the list, so grouping
+ * once turns the inner scan from every collet into that series' own.
+ *
+ * Cached against the array's identity rather than rebuilt: the catalog hands
+ * out one frozen array for the life of the page, so the index is built once and
+ * a caller that passes a different list gets its own. A `WeakMap` is what keeps
+ * that from pinning a list nothing else holds.
+ */
+const INDEXES = new WeakMap<ReadonlyArray<Collet>, Map<string, Array<Collet>>>()
+
+const seriesIndex = (collets: ReadonlyArray<Collet>): Map<string, Array<Collet>> => {
+  const cached = INDEXES.get(collets)
+  if (cached !== undefined) {
+    return cached
+  }
+  const index = new Map<string, Array<Collet>>()
+  for (const collet of collets) {
+    const series = index.get(collet.series)
+    if (series === undefined) {
+      index.set(collet.series, [collet])
+    } else {
+      series.push(collet)
+    }
+  }
+  INDEXES.set(collets, index)
+  return index
+}
+
 /** True when this holder takes a collet rather than the shank directly. */
 export const holderNeedsCollet = (holder: Holder): boolean => holder.clamping === 'collet'
 
@@ -117,6 +153,27 @@ export const holderNeedsCollet = (holder: Holder): boolean => holder.clamping ==
  * the shank — without that the picker would offer a PG 6 chuck for a 10 mm
  * shank and discover the problem at the collet step.
  */
+/**
+ * Whether this holder can take this tool at all — the cheap half of
+ * {@link holdersFor}, without the list or its order.
+ *
+ * Separated because the question is asked two ways: the picker wants every
+ * holder in the recommended order, and the tool list wants only whether one
+ * exists — for every tool it draws, on every change of a filter. Building and
+ * sorting a list to answer a boolean is what made that second question cost
+ * 2.2 seconds over 17,470 tools and 531 holders.
+ */
+export const holderCanTake = (
+  tool: CatalogTool,
+  holder: Holder,
+  collets: ReadonlyArray<Collet>,
+): boolean =>
+  holderNeedsCollet(holder)
+    ? (seriesIndex(collets).get(holder.colletSeries ?? '') ?? []).some((collet) =>
+        holderTakesTool(holder, collet, tool),
+      )
+    : holderTakesTool(holder, null, tool)
+
 export const holdersFor = (
   tool: CatalogTool,
   holders: ReadonlyArray<Holder>,
@@ -125,11 +182,7 @@ export const holdersFor = (
 ): Array<Holder> =>
   holders
     .filter((holder) => matchesFilters(holder, filters))
-    .filter((holder) =>
-      holderNeedsCollet(holder)
-        ? collets.some((collet) => holderTakesTool(holder, collet, tool))
-        : holderTakesTool(holder, null, tool),
-    )
+    .filter((holder) => holderCanTake(tool, holder, collets))
     .sort(compareHolders)
 
 /**
@@ -158,8 +211,8 @@ export const colletsFor = (
   if (!holderNeedsCollet(holder) || shank === undefined) {
     return []
   }
-  return collets
-    .filter((collet) => collet.series === holder.colletSeries && gripsShank(collet, shank))
+  return (seriesIndex(collets).get(holder.colletSeries ?? '') ?? [])
+    .filter((collet) => gripsShank(collet, shank))
     .sort(
       (a, b) =>
         collapse(a, shank) - collapse(b, shank) ||

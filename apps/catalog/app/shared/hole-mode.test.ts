@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import type { PartFeature } from '@toolpath/part-contracts'
 import type { CatalogTool } from '@toolpath/catalog-data'
 import {
+  fromOtherSide,
   holeAt,
   holeDiameterOf,
   holeGroups,
+  holeSummary,
   isHole,
   makersFor,
   reaches,
@@ -12,6 +14,14 @@ import {
   tapsFor,
 } from './hole-mode'
 import { threadNamed } from './threads'
+
+/**
+ * A hole gets a region of its own, keyed off its tag: two features are the
+ * same physical hole when they share one, which is the kernel's own answer to
+ * "which surfaces is this".
+ */
+const regionOf = (featureTag: string): number =>
+  [...featureTag].reduce((sum, letter) => sum + letter.charCodeAt(0), 0)
 
 const hole = (
   featureTag: string,
@@ -23,8 +33,10 @@ const hole = (
     featureTag,
     featureType,
     machiningDirection: { x: 0, y: 0, z: 1 },
-    regionIdxs: [1],
-    datasheet: { zMin: -depth, zMax: 0, facts: { kind: 'Hole', diameter } },
+    regionIdxs: [regionOf(featureTag)],
+    // `extendedZMax` is the top of the part this way up, which is what the
+    // reach is measured from.
+    datasheet: { zMin: -depth, zMax: 0, extendedZMax: 0, facts: { kind: 'Hole', diameter } },
   }) as unknown as PartFeature
 
 const pocket = {
@@ -53,6 +65,51 @@ describe('the part read as holes', () => {
     expect(groups[0]?.diameter).toBe(5)
     expect(groups[0]?.features).toHaveLength(3)
     expect(groups[1]?.diameter).toBe(8)
+  })
+
+  /**
+   * A hole open at both ends is two readings of one hole. Counting both made a
+   * plate of four read as eight, and offered two drills for one hole (Paul,
+   * 2026-09-01).
+   */
+  it('counts a hole found from two sides once', () => {
+    const near = hole('a', 5, 12, 'ThroughHole')
+    const far = {
+      ...near,
+      featureTag: 'a-far',
+      machiningDirection: { x: 0, y: 0, z: -1 },
+      // The same bore: the kernel names the same face from either end.
+      regionIdxs: near.regionIdxs,
+      datasheet: { ...near.datasheet, extendedZMax: 30 },
+    } as unknown as PartFeature
+
+    const [group] = holeGroups([near, far])
+
+    expect(group?.features).toHaveLength(1)
+    expect(group?.features[0]?.featureTag).toBe('a')
+    expect(group?.other?.features[0]?.featureTag).toBe('a-far')
+  })
+
+  /** The side that needs the shorter tool is the one it is made from. */
+  it('makes it from the side with the shorter reach, and offers the other', () => {
+    const shallow = hole('a', 5, 12, 'ThroughHole')
+    const deep = {
+      ...shallow,
+      featureTag: 'a-far',
+      machiningDirection: { x: 0, y: 0, z: -1 },
+      regionIdxs: shallow.regionIdxs,
+      datasheet: { ...shallow.datasheet, extendedZMax: 40 },
+    } as unknown as PartFeature
+
+    const [group] = holeGroups([deep, shallow])
+
+    expect(group?.reach).toBe(12)
+    expect(group?.other?.reach).toBe(52)
+
+    const flipped = fromOtherSide(group!)
+    expect(flipped.reach).toBe(52)
+    expect(flipped.features[0]?.featureTag).toBe('a-far')
+    expect(flipped.other?.reach).toBe(12)
   })
 
   it('sorts them by size, deepest of a size first', () => {
@@ -291,5 +348,41 @@ describe('why a threading tool is not on the list', () => {
 
     expect(reaches(stubby, { depth: 20, below: 40 })).toBe(false)
     expect(reaches(stubby, { depth: 20, below: 40, clears: () => true })).toBe(true)
+  })
+})
+
+describe('every hole at once', () => {
+  /**
+   * The question "All holes" answers is about the part, not about one hole:
+   * how many, how big, how deep, and the worst reach among them.
+   */
+  it('counts the holes and spans their sizes, depths and ratios', () => {
+    const summary = holeSummary(
+      holeGroups([
+        hole('a', 5, 10),
+        hole('b', 5, 10),
+        hole('c', 10, 40),
+        hole('d', 8, 8, 'ThroughHole'),
+      ]),
+    )!
+
+    expect(summary.holes).toBe(4)
+    expect(summary.sizes).toBe(3)
+    expect(summary.diameter).toEqual({ min: 5, max: 10 })
+    expect(summary.depth).toEqual({ min: 8, max: 40 })
+    // The ⌀10 × 40 is the deep one: four diameters, and it sets the reach.
+    expect(summary.ld).toEqual({ min: 1, max: 4 })
+  })
+
+  /** Each hole counts once, so three of one size are three holes and one size. */
+  it('counts every hole, not every size', () => {
+    const summary = holeSummary(holeGroups([hole('a', 6, 12), hole('b', 6, 12), hole('c', 6, 12)]))!
+
+    expect(summary.holes).toBe(3)
+    expect(summary.sizes).toBe(1)
+  })
+
+  it('says nothing about a part with no holes', () => {
+    expect(holeSummary([])).toBeNull()
   })
 })

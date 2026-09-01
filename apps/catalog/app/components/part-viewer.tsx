@@ -101,6 +101,13 @@ export interface PartViewerProps {
    */
   readonly hovered: string | null
   /**
+   * A feature to zoom to — framed **when it changes**, which is the viewer's
+   * own rule: a zoom is a request, not a state to hold. So asking twice for
+   * the same feature does nothing, and a group of holes is walked through by
+   * naming the next one (Paul, 2026-09-01).
+   */
+  readonly focus?: string | null
+  /**
    * Which arrows to draw, decided by the selection mode.
    *
    * Passed in rather than toggled here: the relationship between the mode and
@@ -155,6 +162,7 @@ export const PartViewer = ({
   report,
   jobId,
   selected,
+  focus = null,
   heldRegions,
   hovered,
   arrows,
@@ -338,6 +346,7 @@ export const PartViewer = ({
                 highlights={tooled.map((tag) => ({ tag, color: 0x3f4650, weight: 0.55 }))}
                 pickedRegions={heldRegions}
                 hoveredFeatureIds={hovered === null ? [] : [hovered]}
+                focusFeature={focus}
                 theme={readingTheme(directionColor)}
                 onPick={pick}
                 // No plane, no cut: a section that starts by lopping off an

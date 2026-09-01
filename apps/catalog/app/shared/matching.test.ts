@@ -116,15 +116,18 @@ describe('a filleted pocket', () => {
 
   /**
    * The exact fillet match leads, then the smaller radii; a ball is usable and
-   * ranked last; a tool at the tightest corner is warned rather than first.
+   * ranked last. A tool **on** the tightest corner is not warned any more: the
+   * 5 %-under rule went with the downsize rule it belonged to (Paul,
+   * 2026-09-01), so a cutter that matches the feature's own geometry is a tool
+   * that fits.
    */
   it('leads with the bull nose whose nose is the fillet, and ranks the balls last', () => {
     expect(listFor(pocket)).toEqual([
       'BULL-8-R1 fits',
+      'BULL-10-R0.5 fits',
       'NECK-6 fits',
       'BALL-6 fits',
       'BALL-8 fits',
-      'BULL-10-R0.5 warned',
     ])
   })
 
@@ -147,18 +150,19 @@ describe('a pocket with a sharp floor', () => {
   })
 
   /**
-   * A sharp floor wants a flat end, nearest to 5 % under the tightest corner:
-   * ⌀8 before ⌀6, and ⌀10 — on the corner — warned rather than first. Every
-   * bull nose is warned, because its nose leaves a radius the model draws
-   * sharp; a ball is not a type this feature considers.
+   * A sharp floor wants a flat end, and the widest the feature admits leads:
+   * ⌀10 is the tightest corner exactly, which is a match rather than a fault
+   * (Paul, 2026-09-01). Every bull nose is still warned, because its nose
+   * leaves a radius the model draws sharp; a ball is not a type this feature
+   * considers.
    */
-  it('leads with the flat ends and warns what leaves a radius', () => {
+  it('leads with the flat end that matches the corner, and warns what leaves a radius', () => {
     expect(listFor(pocket)).toEqual([
+      'FLAT-10 fits',
       'FLAT-8 fits',
       'FLAT-6 fits',
-      'FLAT-10 warned',
-      'BULL-9.5-R1.5 warned',
       'BULL-10-R0.5 warned',
+      'BULL-9.5-R1.5 warned',
       'BULL-8-R1 warned',
       'NECK-6 warned',
     ])
@@ -189,12 +193,12 @@ describe('a hole', () => {
   it('prefers the drill on a pointed blind hole', () => {
     expect(listFor(pointed)).toEqual([
       'DRILL-8 fits',
+      'FLAT-8 demoted',
       'FLAT-6 demoted',
+      'BALL-8 demoted',
       'BALL-6 demoted',
-      'FLAT-8 warned',
       'BULL-8-R1 warned',
       'NECK-6 warned',
-      'BALL-8 warned',
     ])
   })
 
@@ -209,11 +213,11 @@ describe('a hole', () => {
   it('prefers the drill through, and wants the flutes past the far side', () => {
     expect(listFor(through)).toEqual([
       'DRILL-8 fits',
+      'FLAT-8 demoted',
       'FLAT-6 demoted',
+      'BULL-8-R1 demoted',
+      'BALL-8 demoted',
       'BALL-6 demoted',
-      'FLAT-8 warned',
-      'BULL-8-R1 warned',
-      'BALL-8 warned',
     ])
     expect(outFor(through)['NECK-6']).toContain(
       'flute length past the corner 11.50 under 12.13 (feature depth + through overcut)',
@@ -225,7 +229,9 @@ describe('a hole', () => {
     const out = outFor(flatBottomed)
     expect(out['DRILL-10']).toContain('tip angle 140 is not 180')
     expect(out['DRILL-8']).toContain('diameter 8 under 9.90 (hole diameter − drill undersize)')
-    expect(listFor(flatBottomed)[0]).toBe('FLAT-8 fits')
+    // The widest end mill the bore admits leads: it is the exact match now
+    // that the 5 %-under rule has gone (Paul, 2026-09-01).
+    expect(listFor(flatBottomed)[0]).toBe('FLAT-10 fits')
   })
 })
 
@@ -246,8 +252,11 @@ describe('the faces and the surfaces', () => {
   })
 
   /** A face is cut by anything flat-ish; a ball is not preferred, and the tools on the corner are warned. */
-  it('demotes a ball on a face and warns the tools on the corner', () => {
+  /** The widest cutter the face admits leads it; a ball is demoted, as the engine has it. */
+  it('demotes a ball on a face, and leads with the widest cutter', () => {
     expect(listFor(face)).toEqual([
+      'FLAT-10 fits',
+      'BULL-10-R0.5 fits',
       'BULL-9.5-R1.5 fits',
       'FLAT-8 fits',
       'BULL-8-R1 fits',
@@ -255,31 +264,29 @@ describe('the faces and the surfaces', () => {
       'NECK-6 fits',
       'BALL-8 demoted',
       'BALL-6 demoted',
-      'FLAT-10 warned',
-      'BULL-10-R0.5 warned',
     ])
   })
 
   /** A wall is cut by the side of the tool: nothing about the floor applies. */
-  it('leads a wall with the flat ends, nearest under the corner', () => {
+  it('leads a wall with the flat end that matches the corner', () => {
     expect(listFor(wall)).toEqual([
+      'FLAT-10 fits',
       'FLAT-8 fits',
       'FLAT-6 fits',
+      'BULL-10-R0.5 fits',
       'BULL-9.5-R1.5 fits',
       'BULL-8-R1 fits',
       'NECK-6 fits',
-      'FLAT-10 warned',
-      'BULL-10-R0.5 warned',
     ])
   })
 
   /** A 3D surface is finished by a round tool: a flat end is removed, not warned. */
   it('removes every flat end from a contoured surface', () => {
     expect(listFor(contour)).toEqual([
+      'BULL-8-R1 fits',
       'NECK-6 fits',
+      'BALL-8 fits',
       'BALL-6 fits',
-      'BULL-8-R1 warned',
-      'BALL-8 warned',
     ])
     expect(outFor(contour)['FLAT-6']).toContain('form is flat end mill, wanted not flat end mill')
   })

@@ -60,9 +60,14 @@ describe('what the sheet says about a feature', () => {
     // The tightest corner, not the widest place: terminal finishing rules for everything.
     expect(ranges.DC).toEqual({ max: 6 })
     expect(ranges.LCF).toEqual({ min: 12 })
-    // A should is not a filter, and reach is the holder's.
+    /**
+     * Reach is a rule of its own now (Paul, 2026-09-01): what stands out of
+     * the holder has to reach the bottom from the top of the part, so the
+     * panel bounds it like any other must — visible, and somebody's to clear.
+     */
+    expect(ranges.LBH).toEqual({ min: 12 })
+    // A should is still not a filter.
     expect(ranges.LD).toBeUndefined()
-    expect(ranges.LBH).toBeUndefined()
   })
 
   /** A through feature's flutes run past the bottom by the overcut knob. */

@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import type { Unit } from '@toolpath/domain/units'
 import { formatGeometry } from 'shared/geometry'
 import {
+  ArrowSquareOutIcon,
   CaretDownIcon,
   CaretUpIcon,
   CheckIcon,
@@ -17,6 +18,7 @@ import {
 import { classNames } from '@toolpath/domain/class-names'
 import type { Mark } from 'shared/tool-marks'
 import { orderedCodes } from 'shared/column-order'
+import { FunnelIcon, FunnelSimpleIcon } from '@phosphor-icons/react'
 import { ColumnFilter, TermColumnFilter, type Bound, type Kind } from './column-filter'
 import { ToolTypeIcon, toolTypeLabel, formLabel } from './tool-icons'
 
@@ -33,7 +35,7 @@ export const TOOL_COLUMNS = [
   { code: 'holder', label: 'Holder', default: false, holding: true },
   { code: 'collet', label: 'Collet', default: false, holding: true },
   { code: 'LCF', label: 'Flute length', default: true },
-  { code: 'LBH', label: 'Stickout needed', default: false },
+  { code: 'LBH', label: 'Length below holder', default: true },
   { code: 'LD', label: 'L/D', default: true },
   { code: 'OAL', label: 'Overall length', default: true },
   { code: 'RE', label: 'Corner radius', default: true },
@@ -66,7 +68,15 @@ export const shownColumns = (
 /** The width every table in the panel gives each kind of column. */
 export const COLUMN_WIDTH = {
   name: 'w-56',
-  type: 'w-40',
+  /**
+   * Wide enough for the longest name a tool has.
+   *
+   * "Reduced shank bull nose end mill" is 31 characters and the column held
+   * 26 of them, which in a `table-fixed` row painted the rest across the
+   * diameter beside it (Paul, 2026-09-01). Anything longer still truncates,
+   * with the whole of it on the title.
+   */
+  type: 'w-56',
   value: 'w-32',
   bom: 'w-32',
 } as const
@@ -92,12 +102,49 @@ export const isHolding = (code: string): boolean => code === 'holder' || code ==
  */
 export const isStack = (code: string): boolean => code === 'LBH'
 
+/** How many rows a list draws before it asks to be narrowed. */
+const PAGE = 200
+
 /**
  * Up, down, off.
  *
  * Its own control rather than the header itself, because the header is
  * already the filter — one press cannot mean both.
  */
+/**
+ * A column header that hands its question to the rail.
+ *
+ * The same funnel, in the same place, opening the one control that answers it
+ * — so a filter set from a header and a filter set from the rail are visibly
+ * the same filter (Paul, 2026-09-01).
+ */
+const RailHandover = ({
+  label,
+  set,
+  onOpen,
+}: {
+  label: string
+  set: boolean
+  onOpen: () => void
+}) => (
+  <span className="inline-flex items-center justify-end gap-1">
+    <span>{label}</span>
+    <button
+      type="button"
+      aria-label={`Filter by ${label}`}
+      title={set ? `Filtered by ${label} — open it on the rail` : `Filter by ${label} on the rail`}
+      onClick={onOpen}
+      className={
+        set
+          ? 'text-info rounded p-0.5 hover:bg-zinc-800'
+          : 'rounded p-0.5 text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300'
+      }
+    >
+      {set ? <FunnelIcon weight="fill" /> : <FunnelSimpleIcon />}
+    </button>
+  </span>
+)
+
 const SortButton = ({
   label,
   code,
@@ -174,6 +221,28 @@ export interface ToolTableProps {
    * the rules read and passed, the field that failed in red.
    */
   readonly marks?: (tool: CatalogTool) => Record<string, Mark>
+  /**
+   * The list is the **nearest misses**: nothing in the crib fits this feature,
+   * so what is shown is what came closest and what stopped each.
+   *
+   * Marked on every row rather than only in the line above the table (Paul,
+   * 2026-09-01: "isn't that tool just incompatible and shouldn't be shown?").
+   * It is shown on purpose — an empty list answers nothing, and "this one is
+   * 0.1 mm too wide" is worth reading — but a row nobody can use has to say so
+   * where somebody looks.
+   */
+  readonly nearest?: boolean
+  /**
+   * The rail asks this question too, so the header hands it over.
+   *
+   * **One filter, one place to answer it** (Paul, 2026-09-01): a column that
+   * opened a picker of its own left two controls for one question and no sign
+   * that they were the same. Where this is given for a column's code, the
+   * header's funnel opens that bubble on the rail instead.
+   */
+  readonly onRailFilter?: (key: string) => void
+  /** Which column codes the rail asks about, by the key it asks them under. */
+  readonly railKeys?: Readonly<Record<string, string>>
   /** The column the view is sorted by, and which way. */
   readonly sort?: Sort | null
   readonly onSort?: (sort: Sort | null) => void
@@ -390,6 +459,9 @@ export const ToolTable = ({
   holding,
   search = '',
   onSearch,
+  nearest = false,
+  onRailFilter,
+  railKeys = {},
 }: ToolTableProps) => {
   /**
    * The forms the list holds, for the Type column to narrow by.
@@ -419,6 +491,17 @@ export const ToolTable = ({
     [hiddenColumns],
   )
   const shown = useMemo(() => shownColumns(hidden, columnOrder), [hidden, columnOrder])
+  /**
+   * **A page of rows, not the whole catalog.**
+   *
+   * With no feature selected the list is every tool the filters admit — 4,697
+   * on a real dataset — and a table that draws them all takes nearly three
+   * seconds to paint and re-lays out on every keystroke (Paul, 2026-08-31:
+   * "things are running really slowly"). The list is ranked, so the first page
+   * is the best of it, and the line under it says what is left rather than
+   * truncating in silence.
+   */
+  const drawn = useMemo(() => tools.slice(0, PAGE), [tools])
 
   if (tools.length === 0) {
     return (
@@ -452,7 +535,13 @@ export const ToolTable = ({
               )}
             </th>
             <th scope="col" className={classNames(COLUMN_WIDTH.type, 'px-3 py-2 font-semibold')}>
-              {onTerm ? (
+              {onRailFilter && railKeys.form !== undefined ? (
+                <RailHandover
+                  label="Type"
+                  set={(terms.form ?? []).length > 0}
+                  onOpen={() => onRailFilter(railKeys.form ?? 'form')}
+                />
+              ) : onTerm ? (
                 <TermColumnFilter
                   label="Type"
                   options={forms}
@@ -479,7 +568,13 @@ export const ToolTable = ({
                   column.label
                 ) : (
                   <span className="flex items-center justify-end gap-1">
-                    {onRange ? (
+                    {onRailFilter && railKeys[column.code] !== undefined ? (
+                      <RailHandover
+                        label={column.label}
+                        set={ranges[column.code] !== undefined}
+                        onOpen={() => onRailFilter(railKeys[column.code] ?? column.code)}
+                      />
+                    ) : onRange ? (
                       <ColumnFilter
                         label={column.label}
                         bound={ranges[column.code]}
@@ -510,9 +605,17 @@ export const ToolTable = ({
           </tr>
         </thead>
         <tbody>
-          {tools.map((tool) => {
+          {drawn.map((tool) => {
             const here = inBom?.(tool) ?? false
             const elsewhere = !here && (keptElsewhere?.(tool) ?? false)
+            /**
+             * **Once per row, not once per cell.** `marks` walks the rules for
+             * a tool, and calling it from inside the column loop ran it once
+             * per column — four thousand rows deep that is fifty thousand
+             * walks per render (Paul, 2026-08-31: "things are running really
+             * slowly").
+             */
+            const rowMarks = marks?.(tool) ?? {}
             return (
               <tr
                 key={tool.guid}
@@ -526,7 +629,21 @@ export const ToolTable = ({
                   .filter(Boolean)
                   .join(' ')}
               >
-                <th scope="row" className="px-3 py-2 text-left font-normal">
+                <th
+                  scope="row"
+                  className={classNames(
+                    'px-3 py-2 text-left font-normal',
+                    nearest ? 'opacity-80' : '',
+                  )}
+                >
+                  {nearest ? (
+                    <span
+                      className="text-2xs mr-1.5 rounded border border-amber-500/40 px-1 py-0.5 align-middle text-amber-300"
+                      title="Nothing in the crib fits this feature; this is one of the closest, and the columns say what stops it"
+                    >
+                      near miss
+                    </span>
+                  ) : null}
                   {/* Where the page has somewhere to put a tool, the number
                     chooses it rather than navigating: leaving the part to read
                     a tool loses the selection that produced the list. */}
@@ -552,38 +669,108 @@ export const ToolTable = ({
                     </Link>
                   )}
                   <span className="ml-2 text-xs text-zinc-500">{tool.brand}</span>
+                  {/* Where to buy it, on the name it is bought by. */}
+                  {tool.productLink === null ? null : (
+                    <a
+                      href={tool.productLink}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      aria-label={`Open ${tool.catalogNumber} at the vendor`}
+                      title="The vendor's page"
+                      onClick={(event) => event.stopPropagation()}
+                      className="text-info/80 hover:text-info focus-visible:ring-info/60 ml-1.5 inline-flex rounded align-middle focus-visible:ring-1 focus-visible:outline-none"
+                    >
+                      <ArrowSquareOutIcon aria-hidden="true" />
+                    </a>
+                  )}
                 </th>
-                <td className="px-3 py-2 text-zinc-300">
-                  <span className="flex items-center gap-1.5 whitespace-nowrap">
-                    <span className="text-zinc-500">
+                {/*
+                  **Clipped, like every other cell.** "Reduced shank bull nose
+                  end mill" is wider than the column, and the row is `nowrap`,
+                  so it painted straight across the diameter beside it (Paul,
+                  2026-09-01). The whole of it is on the title.
+                */}
+                <td className="overflow-hidden px-3 py-2 text-zinc-300">
+                  <span
+                    className="flex items-center gap-1.5 whitespace-nowrap"
+                    title={formLabel(tool)}
+                  >
+                    <span className="shrink-0 text-zinc-500">
                       <ToolTypeIcon toolType={tool.form} />
                     </span>
-                    {formLabel(tool)}
+                    <span className="min-w-0 truncate">{formLabel(tool)}</span>
                   </span>
                 </td>
                 {shown.map((column) => {
                   if (isStack(column.code)) {
+                    /**
+                     * **The tool's own length below the holder, until a holder
+                     * says otherwise** (Paul, 2026-09-01).
+                     *
+                     * On its own a tool stands out by what its shank allows —
+                     * the overall length less the clamping length. Choose a
+                     * holder and the part decides instead: the stack has to
+                     * come out far enough to clear it, and where that is a
+                     * different number the cell says so rather than quietly
+                     * showing a figure nobody entered.
+                     */
+                    const own = tool.geometry.LBH
                     const needed = holding?.requiredStickout(tool) ?? null
                     const picked = holding?.chosen(tool).holderGuid ?? null
                     const cannot = holding?.reachNote?.(tool) ?? null
+                    const changed =
+                      own !== undefined && needed !== null && Math.abs(needed - own) > 0.005
+                    const over = changed && needed !== null && own !== undefined && needed > own
                     return (
                       <td
                         key={column.code}
-                        className="px-3 py-2 text-right font-mono text-zinc-300"
+                        className="overflow-hidden px-3 py-2 text-right font-mono text-zinc-300"
                       >
-                        {/* Why it cannot be held comes first: it is the reason
-                          the tool is on the list at all. */}
+                        {/*
+                          **The number first, the trouble under it** (Paul,
+                          2026-09-01). Why nothing holds it is worth saying,
+                          and it was saying it *instead of* the length — which
+                          took the column's own number off exactly the rows
+                          somebody is trying to work out.
+                        */}
                         {cannot !== null ? (
-                          <span className="text-2xs font-sans text-amber-300">{cannot}</span>
-                        ) : needed !== null ? (
-                          formatGeometry('LBH', needed, unit)
-                        ) : (
-                          // A holder chosen and nothing to say is not the same
-                          // as no holder chosen: the first is a stack this
-                          // report cannot measure, the second is a question.
-                          <span className="text-2xs font-sans text-zinc-600">
-                            {holding === undefined || picked !== null ? '—' : 'pick a holder'}
+                          <span className="flex flex-col items-end leading-tight">
+                            <span>
+                              {own === undefined ? '—' : formatGeometry('LBH', own, unit)}
+                            </span>
+                            <span className="text-2xs font-sans text-amber-300">{cannot}</span>
                           </span>
+                        ) : needed !== null ? (
+                          <span className="flex items-baseline justify-end gap-1.5 whitespace-nowrap">
+                            {changed ? (
+                              <span
+                                className={classNames(
+                                  'text-2xs font-sans',
+                                  over ? 'text-amber-300' : 'text-info',
+                                )}
+                                title={
+                                  own === undefined
+                                    ? 'What this holder needs to clear the part'
+                                    : `The tool alone stands out ${formatGeometry('LBH', own, unit)}; this holder needs ${formatGeometry('LBH', needed, unit)} to clear the part`
+                                }
+                              >
+                                {over ? 'holder needs' : 'holder'}
+                              </span>
+                            ) : null}
+                            <span>{formatGeometry('LBH', needed, unit)}</span>
+                          </span>
+                        ) : own !== undefined ? (
+                          <span
+                            title={
+                              holding === undefined || picked !== null
+                                ? 'The overall length less the shank held'
+                                : 'The overall length less the shank held — pick a holder and the part decides instead'
+                            }
+                          >
+                            {formatGeometry('LBH', own, unit)}
+                          </span>
+                        ) : (
+                          <span className="text-2xs font-sans text-zinc-600">—</span>
                         )}
                       </td>
                     )
@@ -605,7 +792,12 @@ export const ToolTable = ({
                     <td
                       key={column.code}
                       className={classNames(
-                        'px-3 py-2 text-right font-mono',
+                        // **Clipped, not spilled.** A note longer than its
+                        // column used to paint straight across the next two
+                        // (Paul, 2026-09-01): the row is `nowrap`, so nothing
+                        // stopped it. It truncates inside its own cell now,
+                        // with the whole of it on the title.
+                        'overflow-hidden px-3 py-2 text-right font-mono',
                         // A caution is not a refusal: amber for a `should`,
                         // red only for the rule that took the tool off the list.
                         mark && !mark.ok
@@ -626,7 +818,12 @@ export const ToolTable = ({
                         {/* A fact about the column, in the colour of a fact:
                           how far a drill is off the hole it is for. */}
                         {mark?.ok && mark.note ? (
-                          <span className="text-2xs text-zinc-400">{mark.note}</span>
+                          <span
+                            className="text-2xs min-w-0 truncate text-zinc-400"
+                            title={mark.note}
+                          >
+                            {mark.note}
+                          </span>
                         ) : null}
                         {/* A dash where the vendor states nothing, rather than a
                           zero that reads as a measured value of zero — and
@@ -748,6 +945,17 @@ export const ToolTable = ({
               </tr>
             )
           })}
+          {tools.length > drawn.length ? (
+            <tr>
+              <td
+                colSpan={shown.length + (onBom ? 3 : 2)}
+                className="text-2xs px-3 py-2 text-zinc-500"
+              >
+                Showing the first {String(drawn.length)} of {String(tools.length)} — narrow the
+                filters to see the rest.
+              </td>
+            </tr>
+          ) : null}
         </tbody>
       </table>
     </div>

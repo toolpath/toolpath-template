@@ -16,6 +16,10 @@
       "types": "./dist/vendors/regofix.d.ts",
       "import": "./dist/vendors/regofix.js"
     },
+    "./vendors/maritool": {
+      "types": "./dist/vendors/maritool.d.ts",
+      "import": "./dist/vendors/maritool.js"
+    },
     "./package.json": "./package.json"
   },
   "sideEffects": false,

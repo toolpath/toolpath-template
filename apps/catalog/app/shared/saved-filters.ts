@@ -20,7 +20,15 @@ export interface SavedFilter {
 
 const KEY = 'tool-catalog.saved-filters'
 
-const read = (storage: Pick<Storage, 'getItem'> | null): Array<SavedFilter> => {
+/**
+ * What is in storage, as saved filters — exported for its own test.
+ *
+ * Every field is checked because the value is a string somebody's browser
+ * kept: a half-written entry, an older shape, or another tab's write. A row
+ * this cannot read is dropped rather than failing the read, so one bad entry
+ * does not lose the rest.
+ */
+export const read = (storage: Pick<Storage, 'getItem'> | null): Array<SavedFilter> => {
   const raw = storage?.getItem(KEY)
   if (!raw) {
     return []
@@ -35,7 +43,8 @@ const read = (storage: Pick<Storage, 'getItem'> | null): Array<SavedFilter> => {
         typeof each === 'object' &&
         each !== null &&
         typeof (each as SavedFilter).name === 'string' &&
-        typeof (each as SavedFilter).query === 'object',
+        typeof (each as SavedFilter).query === 'object' &&
+        (each as SavedFilter).query !== null,
     )
   } catch {
     // Somebody's saved filters being unreadable is not an application error.

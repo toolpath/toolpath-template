@@ -8,6 +8,7 @@ import {
   type ToolType,
 } from './types.js'
 import { buildCatalog, type CatalogInput, type FamilyInput } from './build.js'
+import { isToolForm, type ToolForm } from './forms.js'
 import type { Clamping, Collet, Holder } from './toolholding.js'
 import type { Catalog } from './types.js'
 
@@ -45,6 +46,18 @@ export interface ScrapedTool {
   readonly catalogNumber: string
   readonly materialNumber?: string | null
   readonly kind: string
+  /**
+   * What the tool is, where the vendor's own page says it outright.
+   *
+   * The scraper's `kind` is a coarse family type — `endmill` covers a slot
+   * drill and a keyseat cutter alike — and the finer `form` is otherwise
+   * derived from the geometry. A vendor that titles its page "Keyseat Cutters"
+   * has stated the answer, and a stated answer beats a derived one: without
+   * this, Harvey's 2,261 keyseat cutters read as flat end mills, corner radius
+   * and all (Paul, 2026-09-01). Ignored where it is not a form this catalog
+   * knows.
+   */
+  readonly form?: string
   readonly geometry: Readonly<Record<string, unknown>>
   readonly materialGroups?: ReadonlyArray<string>
   readonly productLink?: string | null
@@ -235,6 +248,19 @@ const toolFrom = (
   // tool's own list from another cannot notice when the two disagree.
   const materialGroups = MATERIAL_GROUPS.filter((group) => groups.includes(group))
 
+  // A form the handoff states is the vendor's own word and is kept as one;
+  // anything else is left for `withDerived` to work out from the geometry.
+  const stated =
+    scraped.form !== undefined && isToolForm(scraped.form) ? (scraped.form as ToolForm) : null
+  if (scraped.form !== undefined && stated === null) {
+    notes.push({
+      familyId: family.id,
+      guid: scraped.guid,
+      code: 'form',
+      reason: `"${scraped.form}" is not a form this catalog knows`,
+    })
+  }
+
   return {
     guid: scraped.guid.toLowerCase(),
     familyId: family.id,
@@ -243,11 +269,15 @@ const toolFrom = (
     catalogNumber: scraped.catalogNumber,
     materialNumber: scraped.materialNumber ?? null,
     toolType,
+    ...(stated === null ? {} : { form: stated }),
     unitSystem: UNIT_SYSTEM[family.unit],
     geometry,
     materialGroups,
     productLink: scraped.productLink ?? null,
-    provenance: scraped.provenance ?? {},
+    provenance:
+      stated === null
+        ? (scraped.provenance ?? {})
+        : { ...scraped.provenance, form: 'vendor-stated' as const },
   }
 }
 

@@ -123,6 +123,34 @@ describe('Escape, outward one press at a time', () => {
   })
 })
 
+describe('the arrows on the part', () => {
+  /**
+   * Reading every hole: a size open at both ends is made from one side, and
+   * the arrow says which — turning the size over turns the arrow over with it
+   * (Paul, 2026-09-01).
+   */
+  it('points one arrow at the way up a size is made from', () => {
+    expect(arrowsFor({ active: 2 })).toEqual({ visible: true, shown: [2], active: 2 })
+  })
+
+  it('draws every way up the click offered when none is decided', () => {
+    expect(arrowsFor({ candidateDirections: [0, 3] })).toEqual({
+      visible: true,
+      shown: [0, 3],
+      active: null,
+    })
+  })
+
+  it('draws none with nothing picked', () => {
+    expect(arrowsFor({})).toEqual({ visible: false, shown: -1, active: null })
+    expect(arrowsFor({ candidateDirections: [], active: -1 })).toEqual({
+      visible: false,
+      shown: -1,
+      active: null,
+    })
+  })
+})
+
 describe('partHighlight', () => {
   it('lights the kept group and whatever is being read', () => {
     expect(partHighlight({ kept: ['a', 'b'], focused: 'c' })).toEqual(['a', 'b', 'c'])
@@ -134,6 +162,27 @@ describe('partHighlight', () => {
 
   it('lights nothing when nothing is kept or read', () => {
     expect(partHighlight({ kept: [], focused: null })).toEqual([])
+  })
+
+  /**
+   * A row in the all-holes table asks "where are these", and the answer is
+   * those holes on a dark part — not those holes plus whatever the other mode
+   * had kept (Paul, 2026-09-01).
+   */
+  it('lights a picked hole group alone', () => {
+    expect(partHighlight({ kept: ['a'], focused: 'b', group: ['h1', 'h2'] })).toEqual(['h1', 'h2'])
+  })
+
+  it('falls back to the reading when no group is picked', () => {
+    expect(partHighlight({ kept: ['a'], focused: 'b', group: null })).toEqual(['a', 'b'])
+    expect(partHighlight({ kept: ['a'], focused: null, group: [] })).toEqual(['a'])
+  })
+
+  it('lights each hole of a group once', () => {
+    expect(partHighlight({ kept: [], focused: null, group: ['h1', 'h1', 'h2'] })).toEqual([
+      'h1',
+      'h2',
+    ])
   })
 })
 

@@ -145,6 +145,21 @@ export const GEOMETRY_FIELDS: Readonly<Record<string, GeometryField>> = {
     description: 'What the holder grips. Decides which collet a tool can be held in.',
     iso: 'DMM',
   },
+  /**
+   * ISO 13399's clamping length minimum: the shank a manufacturer wants held.
+   *
+   * No vendor in this catalog publishes it yet — the scraper carries no such
+   * column — and the day one does, this is where it lands: the application
+   * reads it in preference to any rule of thumb (Paul, 2026-09-01).
+   */
+  LSCN: {
+    code: 'LSCN',
+    label: 'Clamping length, least',
+    unit: 'mm',
+    description:
+      'The least of the shank the manufacturer wants clamped. What is left of the tool below the holder is the overall length less this.',
+    iso: 'LSCN',
+  },
   'shoulder-length': {
     code: 'shoulder-length',
     label: 'Shoulder length',

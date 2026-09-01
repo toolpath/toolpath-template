@@ -3,6 +3,7 @@ import type { PartFeature } from '@toolpath/part-contracts'
 import type { CatalogTool } from '@toolpath/catalog-data'
 import { SHEET } from './feature-defaults'
 import { SETTING_KNOBS } from './holder-choice'
+import { CLAMPING_KNOB } from './clamping-length'
 import {
   HOLDER_NUMBERS,
   KNOBS,
@@ -51,9 +52,17 @@ describe('the committed sheets', () => {
   })
 
   /** A knob nobody names is a number nobody can find the effect of. */
-  /** A knob is read by a rule row or, for the holder stage's settings, by name in `holder-choice.ts`; nothing else. */
-  it('name every knob in at least one rule, or in the holder stage’s settings', () => {
-    const named = new Set([...RULES.rules.flatMap(knobsNamed), ...Object.values(SETTING_KNOBS)])
+  /**
+   * A knob is read by a rule row, by the holder stage's settings in
+   * `holder-choice.ts`, or by a page that names it in one place and exports
+   * that name — `clamping-length.ts` is the one. Nothing else.
+   */
+  it('name every knob in at least one rule, or where the page reads it', () => {
+    const named = new Set([
+      ...RULES.rules.flatMap(knobsNamed),
+      ...Object.values(SETTING_KNOBS),
+      CLAMPING_KNOB,
+    ])
     const unused = KNOBS.knobs.map((knob) => knob.name).filter((name) => !named.has(name))
     expect(unused).toEqual([])
     const missing = Object.values(SETTING_KNOBS).filter((name) => knobValue(name) === null)

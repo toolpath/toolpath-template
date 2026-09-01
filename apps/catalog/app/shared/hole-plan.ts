@@ -14,11 +14,16 @@ import { drillFor, type HoleMode, type ThreadSpec } from './threads'
  * makes it. It is the same judging the list does, asked once per group instead
  * of once per click.
  *
- * **A drill first.** Where nothing in the crib drills a size, an end mill that
- * can interpolate it is offered instead and marked, because "no tool" is worse
- * information than "not a drill". What the filters say is final either way:
- * they are given the tools before this sees them, so a shop that filtered to
- * drills gets drills or nothing.
+ * **Hole tools only** (Paul, 2026-09-01). Reading a part as its holes is asking
+ * what drills and taps it needs, so that is what is judged: an end mill is not
+ * an answer to "what makes this hole" until no drill is. It is also most of
+ * the speed — 600 drills and taps against 17,000 tools, once per size.
+ *
+ * **And then the end mills, as their own list.** Where nothing drills a size,
+ * the mills that could interpolate the bore are offered *beside* the empty
+ * drill cell rather than inside it: "no compatible drills, see end mills" is
+ * the true sentence, and standing a mill in the drill's place said something
+ * else.
  */
 export interface HolePlanRow {
   readonly group: HoleGroup
@@ -26,16 +31,49 @@ export interface HolePlanRow {
   readonly mode: HoleMode
   /** The thread it is for, or null for a plain hole. */
   readonly thread: ThreadSpec | null
-  /**
-   * What drills it, best first — the rules' own order, drills before anything
-   * else. Empty means nothing offered fits.
-   */
+  /** What drills it, best first. Empty means no drill in the catalog fits. */
   readonly drills: ReadonlyArray<Verdict>
-  /** True when the drills above are not drills: no drill fit, so a mill stands in. */
+  /**
+   * The end mills that could interpolate the bore, best first.
+   *
+   * Only worked out when no drill fits — otherwise it is a list nobody asked
+   * for, judged over the whole catalog once per size.
+   */
+  readonly endMills: ReadonlyArray<Verdict>
+  /** True when the row is offering mills because no drill fits. */
   readonly interpolated: boolean
   /** What makes the thread — taps, or thread mills; empty for a plain hole. */
   readonly makers: ReadonlyArray<CatalogTool>
 }
+
+/**
+ * The forms that make a hole: what a drill list and a tap list are drawn from.
+ *
+ * Everything else is judged for nothing — most of a 17,000-tool catalog is end
+ * mills, and none of them is an answer to "what drills this".
+ */
+const HOLE_FORMS: ReadonlySet<string> = new Set([
+  'drill',
+  'center drill',
+  'spot drill',
+  'reamer',
+  'tap right hand',
+  'tap left hand',
+  'thread mill',
+])
+
+const holeMakers = (tools: ReadonlyArray<CatalogTool>): Array<CatalogTool> =>
+  tools.filter((each) => HOLE_FORMS.has(each.form))
+
+/** The mills that could interpolate a bore, for the row that has no drill. */
+const MILL_FORMS: ReadonlySet<string> = new Set([
+  'flat end mill',
+  'bull nose end mill',
+  'ball end mill',
+])
+
+const millsIn = (tools: ReadonlyArray<CatalogTool>): Array<CatalogTool> =>
+  tools.filter((each) => MILL_FORMS.has(each.form))
 
 /** How a group of holes is made, as somebody said. */
 export interface GroupChoice {
@@ -71,21 +109,25 @@ export const holePlan = (
     const { fitting } =
       stand === null
         ? { fitting: [] as ReadonlyArray<Verdict> }
-        : fittingTools([stand], features, tools, format, knobs)
+        : fittingTools([stand], features, holeMakers(tools), format, knobs)
     const drills = fitting.filter((each) => each.tool.form === 'drill')
     /**
-     * **A tapped hole is drilled.** The fallback to a mill that can
-     * interpolate the bore is for a plain hole, where "not a drill" beats "no
-     * tool"; a thread needs the hole at size before the tap goes near it, so
-     * a threaded group offers drills or nothing (Paul, 2026-08-31).
+     * **A tapped hole is drilled.** A mill that can interpolate the bore is an
+     * answer for a plain hole, where "not a drill" beats "no tool"; a thread
+     * needs the hole at size before the tap goes near it, so a threaded group
+     * offers drills or nothing (Paul, 2026-08-31).
      */
-    const milled = choice.mode === 'plain' && drills.length === 0 && fitting.length > 0
+    const mills =
+      stand === null || drills.length > 0 || choice.mode !== 'plain'
+        ? []
+        : fittingTools([stand], features, millsIn(tools), format, knobs).fitting
     return {
       group,
       mode: choice.mode,
       thread,
-      drills: drills.length > 0 ? drills : milled ? fitting : [],
-      interpolated: milled,
+      drills,
+      endMills: mills,
+      interpolated: drills.length === 0 && mills.length > 0,
       makers: thread === null ? [] : makersFor(thread, choice.mode, tools).made,
     }
   })

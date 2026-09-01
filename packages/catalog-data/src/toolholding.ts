@@ -281,6 +281,18 @@ export const HELD_SHARE = 1 / 3
 export interface StickoutPolicy {
   /** Share of the overall length that must stay in the holder. */
   readonly heldShare: number
+  /**
+   * The shank that must stay clamped, in diameters of **shank** — ISO 13399's
+   * **LSCN**, *clamping length minimum*, stated against `DMM`.
+   *
+   * The manufacturers publish it per tool and this catalog has none of it:
+   * Seco's 410050R050 wants 36 mm of a ⌀6 shank clamped, which is 6×D against
+   * the 3×D rule of thumb everybody quotes. A shop that knows its own answer
+   * states it here, and it caps the stickout ahead of {@link heldShare} —
+   * which is the same rule read as a share of the tool rather than as a length
+   * of shank. Zero for none.
+   */
+  readonly clampedPerDiameter?: number
   /** The shortest stickout worth setting up, mm; zero for none. */
   readonly least: number
   /** The increment the default lands on, mm, by the tool's unit system; zero for none. */
@@ -363,9 +375,20 @@ export const stickoutLimits = (
   if (min === null) {
     return null
   }
-  const { OAL } = tool.geometry
+  const { OAL, DC } = tool.geometry
   const grip = OAL === undefined ? null : Math.max(0, OAL - min)
-  const wantedGrip = OAL === undefined ? null : OAL * policy.heldShare
+  /**
+   * What must stay in the holder: the shop's own clamping length where it has
+   * one, and otherwise the share of the tool this package falls back to.
+   */
+  // Of the **shank**: `LSCN` is stated against `DMM`, and the holder grips the
+  // shank rather than the cut (Paul, 2026-09-01).
+  const shank = tool.geometry.SFDM ?? DC
+  const clamped =
+    policy.clampedPerDiameter !== undefined && policy.clampedPerDiameter > 0 && shank !== undefined
+      ? shank * policy.clampedPerDiameter
+      : null
+  const wantedGrip = clamped !== null ? clamped : OAL === undefined ? null : OAL * policy.heldShare
 
   const caps: Array<number> = []
   const byGrip = maxStickout(tool, collet)

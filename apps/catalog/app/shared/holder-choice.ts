@@ -3,7 +3,9 @@ import {
   clearance,
   colletsFor,
   holdBand,
+  holderCanTake,
   holdersFor,
+  matchesFilters,
   stickoutLimits,
   type CatalogTool,
   type Collet,
@@ -175,8 +177,11 @@ export const holdable = (
   margins: Margins,
   thresholds: HoldThresholds,
 ): boolean =>
-  holdersFor(tool, holders, collets, filters).some(
-    (holder) => optionFor(tool, holder, collets, curve, margins, thresholds).grade !== 'bad',
+  holders.some(
+    (holder) =>
+      matchesFilters(holder, filters) &&
+      holderCanTake(tool, holder, collets) &&
+      optionFor(tool, holder, collets, curve, margins, thresholds).grade !== 'bad',
   )
 
 /**

@@ -61,7 +61,11 @@ export type Operator = '<=' | '>=' | '=' | '<' | '>'
 
 /* ---------------------------------------------------------------- knobs -- */
 
-export type KnobUnit = 'mm' | 'deg' | '%' | 'ratio'
+/**
+ * `×D` is a multiple of the tool's own diameter — the way a shop states a
+ * length that scales with the cutter (Paul, 2026-09-01).
+ */
+export type KnobUnit = 'mm' | 'deg' | '%' | 'ratio' | '×D'
 
 export interface Knob {
   readonly name: string
@@ -75,7 +79,7 @@ export interface SheetProblem {
   readonly message: string
 }
 
-const KNOB_UNITS: ReadonlyArray<KnobUnit> = ['mm', 'deg', '%', 'ratio']
+const KNOB_UNITS: ReadonlyArray<KnobUnit> = ['mm', 'deg', '%', 'ratio', '×D']
 
 const cells = (line: string): Array<string> => {
   const out: Array<string> = []

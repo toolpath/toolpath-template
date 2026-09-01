@@ -89,6 +89,8 @@ export const RailBubble = ({
   value,
   onClear,
   children,
+  openedFrom,
+  onOpened,
 }: {
   icon: ReactNode
   label: string
@@ -97,10 +99,27 @@ export const RailBubble = ({
   onClear?: (() => void) | undefined
   /** The panel, given the width it opens at. */
   children: ReactNode
+  /**
+   * Opened from somewhere else — a column header asking this very question.
+   *
+   * **One filter, one place to answer it** (Paul, 2026-09-01). A column that
+   * opened a picker of its own left two controls for one question, and no way
+   * to see that they were the same one. The header presses this instead, and
+   * the answer appears where every other answer is.
+   */
+  openedFrom?: boolean
+  onOpened?: () => void
 }) => {
   const [open, setOpen] = useState(false)
   const [at, setAt] = useState<{ top: number; left: number } | null>(null)
   const mine = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (openedFrom === true) {
+      setOpen(true)
+      onOpened?.()
+    }
+    // Only on the ask itself: this opens the panel, it does not hold it open.
+  }, [openedFrom])
   const answers = value ?? []
   const set = answers.length > 0
 
@@ -220,10 +239,18 @@ export interface FilterRailProps extends Omit<FilterPanelProps, 'only' | 'compac
    * is on screen whether or not anybody is asking (Paul, 2026-08-31).
    */
   readonly cautions?: Readonly<Record<string, Caution>>
+  /**
+   * A filter somebody asked for from somewhere else — a column header.
+   *
+   * The bubble for that key opens; everything else is left alone. Cleared by
+   * `onOpened`, so asking twice asks twice.
+   */
+  readonly open?: string | null
+  readonly onOpened?: () => void
 }
 
 export const FilterRail = (props: FilterRailProps) => {
-  const { query, materialGroup, unit, only, cautions = {} } = props
+  const { query, materialGroup, unit, only, cautions = {}, open = null, onOpened } = props
 
   const clear = (filter: (typeof QUICK_FILTERS)[number]) => {
     if (filter.mode === 'single') {
@@ -255,6 +282,8 @@ export const FilterRail = (props: FilterRailProps) => {
             label={filter.label}
             value={answers}
             onClear={answers.length > 0 ? () => clear(filter) : undefined}
+            openedFrom={open === filter.key}
+            {...(onOpened ? { onOpened } : {})}
           >
             <FilterPanel {...props} only={[filter.key]} compact />
             {answers.length > 0 ? (
