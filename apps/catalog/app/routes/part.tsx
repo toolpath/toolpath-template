@@ -1573,14 +1573,15 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                     sections read apart at a glance (Paul, 2026-08-31).
 
                     **And a share of the panel it cannot be squeezed out of**
-                    (Paul, 2026-09-01: "no space is given to taps"). Both
-                    sections size to their own rows and shrink by content, so a
-                    long drill list took everything and left the taps two rows
-                    and a scrollbar. Two fifths is its floor and its ceiling:
-                    enough for a handful of taps, never more than the drills
-                    they are for.
+                    (Paul, 2026-09-01: "no space is given to taps", then "taps
+                    should get at most 3/5 of the panel"). Both sections size to
+                    their own rows and shrink by content, so a long drill list
+                    took everything and left the taps two rows and a scrollbar.
+                    Three fifths is the ceiling and seven rem the floor: the
+                    thread is the decision, so its own list gets the room, and
+                    the drills it implies keep the rest.
                   */
-                  <div className="flex max-h-[40%] min-h-[7rem] shrink grow-0 basis-auto flex-col overflow-hidden border-b border-zinc-800 bg-zinc-900/40">
+                  <div className="flex max-h-[60%] min-h-[7rem] shrink grow-0 basis-auto flex-col overflow-hidden border-b border-zinc-800 bg-zinc-900/40">
                     <TapTable
                       makers={makers.made}
                       short={makers.short}
