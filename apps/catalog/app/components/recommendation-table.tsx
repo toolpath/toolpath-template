@@ -1,8 +1,15 @@
 import { Button } from '@toolpath/ui'
-import { colletsFor, isOnSize, type CatalogTool, type Collet } from '@toolpath/catalog-data'
+import {
+  colletsFor,
+  isOnSize,
+  type CatalogTool,
+  type Collet,
+  type Gaps,
+} from '@toolpath/catalog-data'
 import { classNames } from '@toolpath/domain/class-names'
 import { formatLength, type Unit } from '@toolpath/domain/units'
 import type { Verdict } from 'shared/judge'
+import type { Highlight } from 'shared/highlights'
 import { describeGrade, type HolderOption } from 'shared/holder-choice'
 import { collets as allCollets } from 'shared/catalog'
 import { ToolTypeIcon, formLabel } from './tool-icons'
@@ -26,6 +33,22 @@ export type Standing = 'fits' | 'warned' | 'demoted' | 'close'
 export interface RecommendationRow {
   readonly verdict: Verdict
   readonly standing: Standing
+  /**
+   * What this one is best for, in a word — at most two.
+   *
+   * Not the working of the sort, which is what the rank rows' readings were.
+   * Paul's call (2026-08-31): to confirm an assembly works you want as little
+   * as possible, and what is worth saying about *why* is what the tool is
+   * good at. `shared/highlights` decides; the table only draws.
+   */
+  readonly highlights: ReadonlyArray<Highlight>
+  /**
+   * How far under the widest the feature admits, mm — the first thing anybody
+   * asks of a tool that was chosen for them. Null where either is unstated.
+   */
+  readonly underBy: number | null
+  /** The room the recommended stack has, for the clearance reading. */
+  readonly gaps?: Gaps | null
   /** Every way to hold it for this feature, recommended first. */
   readonly options: ReadonlyArray<HolderOption>
   readonly holderGuid: string | null
@@ -69,6 +92,36 @@ const SELECT =
   'h-7 min-w-0 max-w-full truncate rounded border border-zinc-700 bg-zinc-950 px-1.5 text-xs text-zinc-100 focus-visible:ring-info/60 focus-visible:ring-1 focus-visible:outline-none'
 
 const shortReason = (text: string): string => text.split(' — ')[0] ?? text
+
+/**
+ * The few numbers that confirm the assembly works.
+ *
+ * Enough to say yes and no more: what it cuts with, how much smaller than it
+ * could be, how far it stands out, and the room it has left. Everything else
+ * about the tool is a click away on the drawing.
+ */
+const geometry = (
+  row: RecommendationRow,
+  option: HolderOption | null,
+  unit: Unit,
+): Array<string> => {
+  const { geometry: tool } = row.verdict.tool
+  const out: Array<string> = []
+  if (row.underBy !== null && row.underBy > 1e-3) {
+    out.push(`−${formatLength(row.underBy, unit)}`)
+  }
+  if (tool.LD !== undefined) {
+    out.push(`${tool.LD.toFixed(1)} L/D`)
+  }
+  if (option?.stickout != null) {
+    out.push(`${formatLength(option.stickout, unit)} out`)
+  }
+  const room = row.gaps?.radial?.gap
+  if (room !== undefined && room !== null) {
+    out.push(`${formatLength(room, unit)} clear`)
+  }
+  return out
+}
 
 /** The stickouts that clear this feature, or why none do. */
 const describeRange = (option: HolderOption, unit: Unit): string => {
@@ -161,8 +214,22 @@ export const RecommendationTable = ({
               >
                 {standing.label}
               </span>
-              <span className="text-2xs mt-1 block text-zinc-400">
-                {row.verdict.readings.join(' · ')}
+              {row.highlights.length > 0 ? (
+                <span className="mt-1 flex flex-wrap gap-1">
+                  {row.highlights.map((each) => (
+                    <span
+                      key={each.key}
+                      title={each.title}
+                      data-highlight={each.key}
+                      className="text-2xs text-info bg-info/10 border-info/30 rounded border px-1 py-px"
+                    >
+                      {each.label}
+                    </span>
+                  ))}
+                </span>
+              ) : null}
+              <span className="text-2xs mt-1 block font-mono text-zinc-400">
+                {geometry(row, option, unit).join('  ')}
               </span>
               {notes.length > 0 ? (
                 <span className="text-2xs mt-0.5 block text-zinc-500">{notes.join(' · ')}</span>

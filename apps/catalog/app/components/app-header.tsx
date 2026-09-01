@@ -3,8 +3,9 @@ import { Badge } from '@toolpath/ui'
 import { Chip, ChipGroup } from 'components/chip'
 import { UNITS, type Unit } from '@toolpath/domain/units'
 import { classNames } from '@toolpath/domain/class-names'
-import { UploadSimpleIcon } from '@phosphor-icons/react'
-import { forgetPart, partHref, usePartSession } from 'shared/part-session'
+import { MoonIcon, SunIcon, UploadSimpleIcon } from '@phosphor-icons/react'
+import { forgetPart, orderListHref, partHref, usePartSession } from 'shared/part-session'
+import { useTheme } from 'shared/use-theme'
 
 const tabClass = ({ isActive }: { isActive: boolean }) =>
   classNames(
@@ -21,6 +22,7 @@ export interface AppHeaderProps {
 }
 
 export const AppHeader = ({ unit, onUnit, toolCount }: AppHeaderProps) => {
+  const [theme, onTheme] = useTheme()
   // A part stays loaded while somebody reads the catalog, so the tab that
   // brought them there takes them back to it rather than to an upload form
   // they would have to fill in again.
@@ -48,6 +50,16 @@ export const AppHeader = ({ unit, onUnit, toolCount }: AppHeaderProps) => {
           <UploadSimpleIcon className="size-3.5" />
           Upload part
         </Chip>
+        {/* Light or dark: the palette flips, the classes do not. */}
+        <button
+          type="button"
+          aria-label={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+          title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+          onClick={() => onTheme(theme === 'dark' ? 'light' : 'dark')}
+          className="focus-visible:ring-info/60 rounded border border-zinc-800 p-1.5 text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-100 focus-visible:ring-1 focus-visible:outline-none"
+        >
+          {theme === 'dark' ? <SunIcon aria-hidden="true" /> : <MoonIcon aria-hidden="true" />}
+        </button>
         <ChipGroup label="Units">
           {UNITS.map((each) => (
             <Chip key={each} pressed={each === unit} onClick={() => onUnit(each)}>
@@ -63,8 +75,24 @@ export const AppHeader = ({ unit, onUnit, toolCount }: AppHeaderProps) => {
         <NavLink to="/families" className={tabClass}>
           Families
         </NavLink>
-        <NavLink to={part ? partHref(part) : '/parts'} className={tabClass}>
+        {/* `end`, or the part's own tab stays lit on the order list
+            underneath it and two tabs read as current at once. */}
+        <NavLink to={part ? partHref(part) : '/parts'} end className={tabClass}>
           {part ? 'Part' : 'Parts'}
+        </NavLink>
+        {/*
+          Always here (Paul, 2026-08-31). It used to appear only once a part
+          was in session, so the one tab that says this application keeps a
+          order list was invisible until somebody had already found the
+          rest of it. With no part it points at the upload, which is what
+          starting a bill actually takes.
+        */}
+        <NavLink
+          to={part ? orderListHref(part) : '/parts'}
+          title={part ? undefined : 'Upload a part to start an order list'}
+          className={tabClass}
+        >
+          Order list
         </NavLink>
       </nav>
     </header>

@@ -71,7 +71,7 @@ export const ToolSheet = ({ tool, unit, compact = false }: ToolSheetProps) => {
 
       {/* The strip: the numbers a tool is chosen on. A dot on one says the
           pipeline worked it out rather than the vendor stating it. */}
-      <dl className="flex flex-wrap gap-x-4 gap-y-1">
+      <dl className="flex flex-wrap gap-x-5 gap-y-1.5">
         {KEY_CODES.flatMap((code) => {
           const value = tool.geometry[code]
           if (value === undefined) {
@@ -88,7 +88,7 @@ export const ToolSheet = ({ tool, unit, compact = false }: ToolSheetProps) => {
                   : 'vendor-stated'
               }
             >
-              <dd className="font-mono text-xs text-zinc-100">
+              <dd className="font-mono text-sm text-zinc-100">
                 {formatGeometry(code, value, unit)}
                 {provenance && provenance !== 'vendor-stated' ? (
                   <span className="ml-0.5 text-zinc-500" aria-label={provenance}>
@@ -96,7 +96,7 @@ export const ToolSheet = ({ tool, unit, compact = false }: ToolSheetProps) => {
                   </span>
                 ) : null}
               </dd>
-              <dt className="text-2xs text-zinc-500">{KEY_LABELS[code]}</dt>
+              <dt className="text-xs text-zinc-500">{KEY_LABELS[code]}</dt>
             </div>,
           ]
         })}

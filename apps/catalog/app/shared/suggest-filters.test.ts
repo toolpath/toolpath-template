@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PartFeature } from '@toolpath/part-contracts'
-import { EMPTY_QUERY } from './filter'
+import { EMPTY_QUERY, queryFromSearch, searchFromQuery } from './filter'
 import { applySuggestions, suggestedFlutes, suggestionsFor } from './suggest-filters'
 
 /**
@@ -72,12 +72,22 @@ describe('what the sheet says about a feature', () => {
     expect(suggestionsFor(through, null, [through]).ranges.LCF).toEqual({ min: 12.127 })
   })
 
-  /** A drill's own bound is a row for drills, not a range over every tool. */
-  it('does not turn a drill-only rule into a filter over end mills', () => {
+  /**
+   * A filter may only say what is true of **every** form the feature
+   * considers, so it takes the loosest of them.
+   *
+   * The **end mill's** limit is not the cap: this hole admits a ⌀4 end mill —
+   * it has to helix down inside the bore — and reading that as the largest
+   * tool filtered the ⌀6 drill out of the panel as well as out of the list
+   * (Paul, 2026-08-31). Nor is the bore itself the cap any more: a drill is
+   * allowed past it by the oversize knob, and a filter set at the bore would
+   * hide exactly the drills that row exists to admit.
+   */
+  it('takes the loosest bound over the forms the feature considers', () => {
     const through = hole({ fullConeDeg: 180 }, 'ThroughHole')
     const { ranges } = suggestionsFor(through, null, [through])
 
-    expect(ranges.DC).toEqual({ max: 4 })
+    expect(ranges.DC).toEqual({ max: 6.102 })
     expect(ranges.LCF).toEqual({ min: 20.127 })
   })
 
@@ -161,11 +171,38 @@ describe('a suggestion the last feature made is not somebody’s answer', () => 
     expect(second.ranges.NOF).toEqual({ max: 3 })
   })
 
-  /** Changed by hand, it is theirs — whatever the next feature would have said. */
+  /**
+   * **Through the URL, which is the only way the application ever runs it.**
+   *
+   * The query is held in the query string, so what `applySuggestions` is handed
+   * on the next feature is not what it returned — it is what came back out of
+   * the URL. Everything above tests the round trip's two ends and none of its
+   * middle, which is how the carry-over of 2026-08-30 shipped: the writer
+   * sorted a term's values, the suggestion came back in a different order, and
+   * every feature after the first read the one before it as somebody's answer
+   * and kept its filters.
+   */
+  it('replaces the last feature’s suggestion after it has been through the URL', () => {
+    const first = applySuggestions(EMPTY_QUERY, suggestionsFor(null, null), drilled, 'N', [drilled])
+    const held = queryFromSearch(searchFromQuery(first))
+    expect(held.terms.form).toEqual(first.terms.form)
+
+    const second = applySuggestions(held, suggestionsFor(drilled, 'N', [drilled]), filleted, 'N', [
+      filleted,
+    ])
+
+    expect(second.terms.form).toEqual(suggestionsFor(filleted, 'N', [filleted]).terms.form)
+    expect(second.ranges.LCF).toEqual({ min: 12 })
+  })
+
+  /**
+   * Changed by hand, it is theirs — whatever the next feature would have said.
+   * Every filter but one: see below.
+   */
   it('leaves an answer somebody set themselves', () => {
     const mine = {
       ...EMPTY_QUERY,
-      terms: { form: ['tap right hand'] },
+      terms: { brand: ['Kennametal'] },
       ranges: { DC: { max: 3 }, NOF: { min: 6 } },
     }
 
@@ -173,9 +210,42 @@ describe('a suggestion the last feature made is not somebody’s answer', () => 
       filleted,
     ])
 
-    expect(next.terms.form).toEqual(['tap right hand'])
+    expect(next.terms.brand).toEqual(['Kennametal'])
     expect(next.ranges.DC).toEqual({ max: 3 })
     expect(next.ranges.NOF).toEqual({ min: 6 })
+  })
+
+  /**
+   * **The tool type is the feature's to say.**
+   *
+   * Which forms can cut a thing is a fact about the thing, so a type chosen
+   * for the last feature — by hand as much as by the sheet — is not an answer
+   * about this one, and a tap left ticked from a hole made a filleted pocket
+   * list taps (Paul, 2026-08-31).
+   */
+  it('overrules a tool type somebody set, and only that', () => {
+    const mine = {
+      ...EMPTY_QUERY,
+      terms: { form: ['tap right hand'], brand: ['Kennametal'] },
+      ranges: { DC: { max: 3 } },
+    }
+
+    const next = applySuggestions(mine, suggestionsFor(drilled, 'N', [drilled]), filleted, 'N', [
+      filleted,
+    ])
+
+    expect(next.terms.form).toEqual(suggestionsFor(filleted, 'N', [filleted]).terms.form)
+    expect(next.terms.brand).toEqual(['Kennametal'])
+    expect(next.ranges.DC).toEqual({ max: 3 })
+  })
+
+  /** With no feature to say otherwise, a type somebody set is still theirs. */
+  it('keeps a tool type somebody set when nothing is selected', () => {
+    const mine = { ...EMPTY_QUERY, terms: { form: ['tap right hand'] } }
+
+    expect(
+      applySuggestions(mine, suggestionsFor(drilled, 'N', [drilled]), null, 'N', []).terms.form,
+    ).toEqual(['tap right hand'])
   })
 
   /** Nothing selected takes the suggestions away rather than leaving them standing. */

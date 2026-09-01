@@ -86,8 +86,6 @@ export type Format = (value: number, unit: NumberUnit) => string
 export interface JudgeOptions {
   readonly rules?: ReadonlyArray<Rule>
   readonly knobs?: ReadonlyArray<Knob>
-  /** The brand tiles' order, for the `brand priority` rank row. */
-  readonly brandOrder?: ReadonlyArray<string>
   /** Words the numbers in the person's unit; the page passes one, tests use the default. */
   readonly format?: Format
 }
@@ -226,7 +224,10 @@ const bound = (
       : `${plainFormat(test.adjust.term.value, 'mm')}${test.adjust.term.percent ? ' %' : ''}`
     : ''
   const against = !test.adjust
-    ? `${fmt(right)} ${termName(test.base)}`
+    ? // A bare number names itself: "tip angle 140 is not 180", never "180 180".
+      test.base.kind === 'number'
+      ? fmt(right)
+      : `${fmt(right)} ${termName(test.base)}`
     : test.operator === '='
       ? `${fmt(base)} ± ${fmt(tolerance ?? 0)} (${termName(test.base)}, ${adjustLabel})`
       : `${fmt(right)} (${termName(test.base)} ${test.adjust.sign > 0 ? '+' : '−'} ${adjustLabel})`
@@ -261,14 +262,9 @@ const rank = (
   test: Extract<Test, { kind: 'rank' }>,
   tool: CatalogTool,
   sheet: Sheet,
-  brandOrder: ReadonlyArray<string>,
   format: Format,
   knobs: ReadonlyArray<Knob>,
 ): { key: number; reading: string } => {
-  if ('named' in test) {
-    const at = brandOrder.findIndex((brand) => brand.toLowerCase() === tool.brand.toLowerCase())
-    return { key: at === -1 ? brandOrder.length : at, reading: tool.brand }
-  }
   if (test.direction === 'order') {
     const word = TOOL_WORDS[test.field]?.(tool) ?? ''
     const at = test.order.findIndex((value) => value.toLowerCase() === word.toLowerCase())
@@ -374,12 +370,7 @@ export const judgeTools = (
   tools: ReadonlyArray<CatalogTool>,
   feature: PartFeature,
   partFeatures: ReadonlyArray<PartFeature>,
-  {
-    rules = RULES.rules,
-    knobs = KNOBS.knobs,
-    brandOrder = [],
-    format = plainFormat,
-  }: JudgeOptions = {},
+  { rules = RULES.rules, knobs = KNOBS.knobs, format = plainFormat }: JudgeOptions = {},
 ): Array<Verdict> => {
   const sheet = sheetOf(feature, partFeatures)
   const applicable = rulesFor(feature, partFeatures, rules)
@@ -448,7 +439,7 @@ export const judgeTools = (
     const second = judgeAgainst(applicable, tool, sheet, knobs, best, readsBest, format)
     const ranked = ranks
       .filter((rule) => ruleCovers(rule, tool))
-      .map((rule) => rank(rule.test, tool, sheet, brandOrder, format, knobs))
+      .map((rule) => rank(rule.test, tool, sheet, format, knobs))
     return {
       tool,
       removed: [...pass.removed, ...second.removed],

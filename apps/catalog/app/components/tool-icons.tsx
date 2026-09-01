@@ -243,25 +243,69 @@ const TapLeftHand = tap('left')
  * goes in *this* machine at all — so it is the half of the drawing that gets
  * the room.
  */
-export const HolderIcon = ({ className }: IconProps) => (
+/**
+ * A shank stepped down to a neck above the flutes.
+ *
+ * Not a kind of tool — it is the thing a shank filter asks about, so it is
+ * drawn as the difference itself: full width at the top, narrower below the
+ * step, flutes at the bottom (Paul, 2026-08-31).
+ */
+export const ReducedShankIcon = ({ className }: IconProps) => (
   <Frame className={className}>
-    <path d="M8.5 2h7l-1 6h-5z" />
-    <path d="M5.5 8h13v2.5h-13z" />
-    <path d="M9 10.5h6l-1.2 11h-3.6z" />
+    <path d="M4.5 1.5v4.5h1.75V14h3.5V6H11.5V1.5" />
+    <Helix d="M6.25 11.5 9.75 10M6.25 8.5 9.75 7" />
   </Frame>
 )
 
 /**
- * A collet, drawn as the slit taper it is.
+ * A holder, drawn in the box the rest of them are drawn in.
+ *
+ * It was laid out for a 24-unit frame and then drawn in a 16-unit one, so the
+ * flange and the nose ran off the bottom edge (Paul, 2026-08-31, on the collet
+ * beside it). Same shape, inside the lines: taper, flange, nose.
+ */
+export const HolderIcon = ({ className }: IconProps) => (
+  <Frame className={className}>
+    <path d="M6 1.5h4l-.7 4H6.7z" />
+    <path d="M4 5.5h8v2H4z" />
+    <path d="M6.2 7.5h3.6l-.8 7H7z" />
+  </Frame>
+)
+
+/**
+ * A collet, drawn as the slit taper a milling collet is.
  *
  * The slits are the whole idea: they are what lets one collet close over a
  * range of shanks instead of one nominal size, which is the difference between
- * a collet and a bore.
+ * a collet and a bore. **Alternating** from each end, which is how an ER
+ * collet is cut and what makes the drawing read as one rather than as a plain
+ * taper (Paul, 2026-08-31: "should look more like a milling collet").
  */
 export const ColletIcon = ({ className }: IconProps) => (
   <Frame className={className}>
-    <path d="M7 3h10l-2 18H9z" />
-    <path d="M10.3 4.5 9.4 19M13.7 4.5l.9 14.5" strokeWidth={1} opacity={0.75} />
+    <path d="M5.4 2.2h5.2l-.9 4.3h1.1l-1.4 7.3H6.6L5.2 6.5h1.1z" />
+    <path d="M8 2.6v4.6M6.6 13.2V9.4M9.4 13.2V9.4" strokeWidth={0.85} opacity={0.8} />
+  </Frame>
+)
+
+/**
+ * A floor radius: the corner a filleted pocket has, and the sharp one it is
+ * not.
+ *
+ * The wall comes down, turns through the radius and runs out along the floor,
+ * with the square corner it replaces ghosted behind it — the whole question
+ * this filter asks is how much of that corner a shop will accept
+ * (Paul, 2026-08-31).
+ */
+export const FloorRadiusIcon = ({ className }: IconProps) => (
+  <Frame className={className}>
+    {/* The wall, the radius, the floor — the corner as a section. */}
+    <path d="M3 2v6a4 4 0 0 0 4 4h6" />
+    {/* The square corner the radius replaces, which is what the filter allows. */}
+    <path d="M3 12h4" strokeWidth={0.9} strokeDasharray="1.4 1.2" opacity={0.6} />
+    <path d="M7 12V8" strokeWidth={0.9} strokeDasharray="1.4 1.2" opacity={0.6} />
+    {/* The material below the floor, so it reads as a section rather than a bracket. */}
+    <path d="M3 14h11" strokeWidth={0.9} opacity={0.5} />
   </Frame>
 )
 

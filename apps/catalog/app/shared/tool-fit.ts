@@ -40,14 +40,12 @@ export interface Fitting {
 /**
  * @param selected what the person picked
  * @param all every feature on the part, so reach is measured from the part top
- * @param brandOrder the brand tiles' order, for the `brand priority` rank row
  * @param format words the numbers in the person's unit
  * @param knobs the sheet's knobs, with the clearances entered on the page
  */
 export const fittingTools = (
   selected: ReadonlyArray<PartFeature>,
   all: ReadonlyArray<PartFeature> = selected,
-  brandOrder: ReadonlyArray<string> = [],
   tools: ReadonlyArray<CatalogTool> = allTools,
   format?: Format,
   knobs?: ReadonlyArray<Knob>,
@@ -58,7 +56,6 @@ export const fittingTools = (
   const verdicts = foldVerdicts(
     selected.map((feature) =>
       judgeTools(tools, feature, all, {
-        brandOrder,
         ...(format ? { format } : {}),
         ...(knobs ? { knobs } : {}),
       }),

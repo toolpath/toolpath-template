@@ -147,7 +147,6 @@ describe('one filleted pocket, nine tools, the committed sheet', () => {
       'corner radius 1.50 = floor fillet radius',
       'diameter 9.50 = largest tool diameter − corner clearance',
       'L/D 2.50',
-      'Kennametal',
     ])
     expect(by(verdicts, 'B').readings[1]).toBe('corner radius 1, 0.50 under floor fillet radius')
   })
@@ -276,21 +275,46 @@ describe('ordering and folding', () => {
     expect(folded[0]!.removed[0]?.text).toContain('flute length 22 under 30')
     expect(standingOf(folded[1]!)).toBe('removed')
   })
+})
 
-  it('reads the brand tiles’ order as the brand priority rank', () => {
-    const knobs = parseKnobs('knob,value,unit,note\n').knobs
-    const { rules } = parseRules(
-      ['feature,when,tool types,for,rule,level,note', '*,,*,,brand priority,rank,'].join('\n'),
-      knobs,
+describe('the order a hole puts its drills in', () => {
+  const hole = {
+    featureTag: 'hole-1',
+    featureType: 'BlindHole',
+    machiningDirection: { x: 0, y: 0, z: 1 },
+    regionIdxs: [1],
+    datasheet: {
+      zMin: -20,
+      zMax: 0,
+      extendedZMax: 0,
+      facts: { kind: 'Hole', diameter: 6, fullConeDeg: 118, hasPointedBottom: true },
+    },
+  } as unknown as PartFeature
+
+  const drill = (catalogNumber: string, DC: number): CatalogTool =>
+    ({
+      guid: catalogNumber,
+      catalogNumber,
+      brand: 'Kennametal',
+      form: 'drill',
+      toolType: 'drill',
+      unitSystem: 'metric',
+      geometry: { DC, LCF: 40, OAL: 80, SFDM: 6, LD: 3, SIG: 118 },
+      materialGroups: [],
+      productLink: null,
+      provenance: {},
+    }) as unknown as CatalogTool
+
+  /**
+   * A hole is made at its own size, so nearest-to-the-bore leads — the 5 %
+   * under rule is what a pocket corner wants, not a drill (Paul, 2026-08-31:
+   * "exact match drills should be shown at the top of the list").
+   */
+  it('leads with the drill that is exactly the bore', () => {
+    const order = orderVerdicts(
+      judgeTools([drill('UNDER', 5.95), drill('EXACT', 6), drill('OVER', 6.05)], hole, [hole]),
     )
-    const widia = tool('W', 'bull nose end mill', { DC: 10, RE: 1.5, LCF: 22 }, 'WIDIA')
-    const ordered = orderVerdicts(
-      judgeTools([A, widia], pocket(), [pocket()], {
-        rules,
-        knobs,
-        brandOrder: ['WIDIA', 'Kennametal'],
-      }),
-    )
-    expect(ordered.map((verdict) => verdict.tool.catalogNumber)).toEqual(['W', 'A'])
+
+    expect(order[0]?.tool.catalogNumber).toBe('EXACT')
   })
 })

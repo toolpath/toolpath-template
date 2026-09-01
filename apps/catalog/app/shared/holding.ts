@@ -19,6 +19,18 @@ import { collets, holders } from './catalog'
 /** Filter keys this module owns, which {@link filterTools} must not see. */
 export const HOLDING_AXES = ['taper', 'colletSeries'] as const
 
+/**
+ * Filters that are the **catalog's own reading**, not a vendor's facet.
+ *
+ * The dataset's facets are what vendors publish — form, brand, the geometry
+ * codes. `shank` is this catalog's reading of a shoulder (`shankOf`), so it is
+ * on no facet list, and a URL is read against the axes a page declares: an
+ * axis nobody declared is dropped as somebody else's parameter. That is why
+ * picking Reduced neither stuck to the chip nor narrowed the list — the term
+ * never survived the round trip through the URL (Paul, 2026-08-31).
+ */
+export const DERIVED_AXES = ['shank'] as const
+
 export interface Holding {
   readonly taper: string | null
   readonly colletSeries: string | null

@@ -6,4 +6,5 @@ export default [
   route('tools/:guid', 'routes/tool.tsx'),
   route('parts', 'routes/parts.tsx'),
   route('parts/:partId', 'routes/part.tsx'),
+  route('parts/:partId/order-list', 'routes/order-list.tsx'),
 ] satisfies RouteConfig

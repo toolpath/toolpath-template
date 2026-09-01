@@ -58,3 +58,7 @@ export const usePartSession = (): PartSession | null =>
 
 export const partHref = (part: PartSession): string =>
   `/parts/${encodeURIComponent(part.partId)}?job=${encodeURIComponent(part.jobId)}`
+
+/** The same part's order list, which is its setup sheet read as a list. */
+export const orderListHref = (part: PartSession): string =>
+  `/parts/${encodeURIComponent(part.partId)}/order-list?job=${encodeURIComponent(part.jobId)}`

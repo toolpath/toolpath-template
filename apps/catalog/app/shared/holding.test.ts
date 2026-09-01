@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_QUERY } from './filter'
-import { HOLDING_AXES, splitHolding } from './holding'
+import { DERIVED_AXES, HOLDING_AXES, splitHolding } from './holding'
 
 describe('holding is a filter, but not a filter on a tool', () => {
   /**
@@ -34,5 +34,11 @@ describe('holding is a filter, but not a filter on a tool', () => {
 
   it('names the axes it owns', () => {
     expect([...HOLDING_AXES]).toEqual(['taper', 'colletSeries'])
+    /**
+     * The catalog's own readings are axes too — a URL is read against the
+     * axes a page declares, and an undeclared one is dropped as somebody
+     * else's parameter (Paul, 2026-08-31).
+     */
+    expect([...DERIVED_AXES]).toEqual(['shank'])
   })
 })

@@ -15,7 +15,7 @@ const tool = (guid: string): CatalogTool => ({
   toolType: 'endmill',
   form: 'bull nose end mill',
   unitSystem: 'metric',
-  geometry: { DC: 6, LCF: 13, OAL: 57, SFDM: 6, RE: 1 },
+  geometry: { DC: 6, LCF: 13, OAL: 57, SFDM: 6, RE: 1, LD: 2.17 },
   materialGroups: ['P'],
   productLink: null,
   provenance: {},
@@ -53,6 +53,9 @@ const verdict = (t: CatalogTool, over: Partial<Verdict> = {}): Verdict => ({
   demoted: [],
   key: [0],
   readings: ['corner radius 1 = floor fillet radius', 'L/D 2.17'],
+  // The readings are the working of the sort. The list stopped showing them
+  // on 2026-08-31: what a row carries now is what the tool is best for and
+  // the few numbers that confirm it works.
   ...over,
 })
 
@@ -77,6 +80,8 @@ const rows: Array<RecommendationRow> = [
     holderGuid: null,
     colletGuid: null,
     saved: false,
+    highlights: [{ key: 'stiffest', label: 'stiffest', title: 'least deflection here' }],
+    underBy: 0.5,
   },
   {
     verdict: verdict(tool('b'), {
@@ -93,6 +98,8 @@ const rows: Array<RecommendationRow> = [
     holderGuid: null,
     colletGuid: null,
     saved: true,
+    highlights: [],
+    underBy: null,
   },
 ]
 
@@ -112,7 +119,13 @@ describe('the list, led by assemblies', () => {
 
     expect(screen.getByText('fits')).toBeInTheDocument()
     expect(screen.getByText('incompatible, but close')).toBeInTheDocument()
-    expect(screen.getAllByText(/corner radius 1 = floor fillet radius/)).toHaveLength(2)
+    // What it is best for, and the numbers that confirm it — not the working
+    // of the sort, which is what the rank readings were (Paul, 2026-08-31).
+    expect(screen.getByText('stiffest')).toBeInTheDocument()
+    expect(screen.queryByText(/corner radius 1 = floor fillet radius/)).not.toBeInTheDocument()
+    // Under the widest the feature admits, the ratio, and the stickout.
+    expect(screen.getByText(/−0.50 mm\s+2.2 L\/D\s+20.00 mm out/)).toBeInTheDocument()
+    // A rule that removed it is still said: an exception is not noise.
     expect(screen.getByText(/diameter 12 over 10 widest tool diameter/)).toBeInTheDocument()
     const select = screen.getByRole('combobox', { name: 'Holder for A' })
     expect(select).toHaveValue('PG 6 × 50')

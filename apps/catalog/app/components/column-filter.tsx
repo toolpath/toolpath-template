@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { FunnelIcon, FunnelSimpleIcon, PencilSimpleIcon } from '@phosphor-icons/react'
+import {
+  DotsSixVerticalIcon,
+  FunnelIcon,
+  FunnelSimpleIcon,
+  PencilSimpleIcon,
+} from '@phosphor-icons/react'
 import { convertLength, decimalsFor, MODEL_UNIT, type Unit } from '@toolpath/domain/units'
+import { classNames } from '@toolpath/domain/class-names'
+import { movedBy, movedTo } from 'shared/column-order'
 
 /**
  * Asking about one number: an operator and a number, or two for a range.
@@ -368,24 +375,42 @@ export const TermColumnFilter = ({
 }
 
 /**
- * Which columns are drawn.
+ * Which columns are drawn, and in what order.
  *
  * A pencil in the corner of the table rather than a control in the header row:
  * a column of its own for the button that edits the columns took real width
  * from every row to hold one icon, and left an empty cell under it on every
  * line of the table.
+ *
+ * The list is the order — drag a row by the handle to its left and the table's
+ * columns move with it (Paul, 2026-08-31). The handle is left of the tick
+ * because the tick is the row's own control and dragging must not toggle it;
+ * arrow keys on a focused handle do the same thing without a pointer.
  */
 export const ColumnPicker = ({
   columns,
   shown,
   onToggle,
+  onReorder,
 }: {
+  /** Every column, in the order the table draws them. */
   readonly columns: ReadonlyArray<{ code: string; label: string }>
   readonly shown: ReadonlyArray<string>
   readonly onToggle: (code: string) => void
+  /** The whole order, after a move. Absent, the rows cannot be dragged. */
+  readonly onReorder?: (codes: ReadonlyArray<string>) => void
 }) => {
   const [open, setOpen] = useState(false)
+  const [held, setHeld] = useState<string | null>(null)
   const box = useRef<HTMLDivElement>(null)
+  const order = columns.map((column) => column.code)
+
+  const move = (code: string, index: number) => {
+    const next = movedTo(order, code, index)
+    if (next.join() !== order.join()) {
+      onReorder?.(next)
+    }
+  }
 
   useEffect(() => {
     if (!open) {
@@ -418,19 +443,58 @@ export const ColumnPicker = ({
           aria-label="Columns"
           className="absolute top-full right-0 z-30 mt-1 rounded-lg border border-zinc-800 bg-zinc-950 py-1 shadow-xl"
         >
-          {columns.map((column) => (
-            <label
+          {columns.map((column, at) => (
+            <div
               key={column.code}
-              className="text-2xs flex cursor-pointer items-center gap-2 px-2 py-1 whitespace-nowrap hover:bg-zinc-900"
+              // The row is the drop target; the handle is what starts the
+              // drag, so a press on the tick still only ticks.
+              onDragOver={(event) => {
+                if (held !== null) {
+                  event.preventDefault()
+                }
+              }}
+              onDrop={(event) => {
+                event.preventDefault()
+                if (held !== null) {
+                  move(held, at)
+                  setHeld(null)
+                }
+              }}
+              className={classNames(
+                'text-2xs flex items-center gap-1.5 px-2 py-1 whitespace-nowrap hover:bg-zinc-900',
+                held === column.code && 'opacity-50',
+              )}
             >
-              <input
-                type="checkbox"
-                checked={shown.includes(column.code)}
-                onChange={() => onToggle(column.code)}
-                className="accent-info size-3"
-              />
-              <span className="text-zinc-200">{column.label}</span>
-            </label>
+              {onReorder === undefined ? null : (
+                <button
+                  type="button"
+                  draggable
+                  aria-label={`Move ${column.label.toLowerCase()}`}
+                  title="Drag to reorder, or use the arrow keys"
+                  onDragStart={() => setHeld(column.code)}
+                  onDragEnd={() => setHeld(null)}
+                  onKeyDown={(event) => {
+                    const by = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0
+                    if (by !== 0) {
+                      event.preventDefault()
+                      onReorder(movedBy(order, column.code, by))
+                    }
+                  }}
+                  className="focus-visible:ring-info/60 shrink-0 cursor-grab rounded text-zinc-600 transition hover:text-zinc-300 focus-visible:ring-1 focus-visible:outline-none active:cursor-grabbing"
+                >
+                  <DotsSixVerticalIcon aria-hidden="true" />
+                </button>
+              )}
+              <label className="flex flex-1 cursor-pointer items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={shown.includes(column.code)}
+                  onChange={() => onToggle(column.code)}
+                  className="accent-info size-3"
+                />
+                <span className="text-zinc-200">{column.label}</span>
+              </label>
+            </div>
           ))}
         </div>
       ) : null}

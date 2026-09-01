@@ -62,16 +62,20 @@ describe('pressing an arrow before any face', () => {
 
     expect(state.activeDirection).toBe(1)
     expect(state.focused).toBeNull()
-    expect(arrowsFor({ activeDirection: state.activeDirection })).toEqual({
-      visible: true,
-      shown: 1,
-      active: 1,
-    })
+    // Nothing is picked, so the part carries no arrows to press in the first
+    // place — arming is reachable only with a face held (Paul, 2026-08-31).
+    expect(arrowsFor({})).toEqual({ visible: false, shown: -1, active: null })
   })
 
-  it('walks to the next way up when the armed arrow is pressed again', () => {
+  /**
+   * An arrow means its own way up, every time. It used to walk to the next
+   * direction on a second press — from when arrows aimed the next click
+   * rather than naming a reading — which landed on a way up with nothing to
+   * read (Paul, 2026-08-31).
+   */
+  it('stays on the same way up when the armed arrow is pressed again', () => {
     expect(run({ type: 'arm', direction: 1 }, { type: 'arm', direction: 1 }).activeDirection).toBe(
-      0,
+      1,
     )
   })
 
@@ -86,6 +90,57 @@ describe('pressing an arrow before any face', () => {
   it('is not undone by the miss the arrow reports on the mesh beneath it', () => {
     const state = run({ type: 'arm', direction: 1 }, { type: 'click', pick: null })
 
+    expect(state.activeDirection).toBe(1)
+  })
+})
+
+describe('pressing an arrow with a face held', () => {
+  /**
+   * The stickiness of 2026-08-30: with a reading on screen the other arrows
+   * were gone and arming did nothing until the next click, so the only way to
+   * ask about another way up was to put the reading down first.
+   */
+  it('re-reads the held face from that way up, there and then', () => {
+    const held = run({ type: 'click', pick: face() })
+    const state = reduce(held, { type: 'arm', direction: 1 })
+
+    expect(state.focused).toBe('wall')
+    expect(state.activeDirection).toBe(1)
+    // The guess follows the reading, exactly as a face click's does.
+    expect(state.kept).toEqual(['wall'])
+    expect(state.guessed).toEqual(['wall'])
+    // The face reads two ways up, so both arrows are on it to switch between.
+    expect(arrowsFor({ candidateDirections: [0, 1] }).shown).toEqual([0, 1])
+    // And every reading it had is still on the list: pressing an arrow chooses
+    // one of them, it does not throw the others away (Paul, 2026-08-31).
+    expect(state.selection.candidates).toEqual(held.selection.candidates)
+    // Naming it is an answer, so the panel stops asking which way up.
+    expect(state.chose).toBe(true)
+  })
+
+  /**
+   * The arrow of the reading already open is still an answer.
+   *
+   * It was the one press that did nothing: scoping found the reading that was
+   * already focused, the reducer took that for "no change", and the panel went
+   * on asking which way up while the person had just said (Paul, 2026-08-31:
+   * "clicking the arrow to select the direction isn't working").
+   */
+  it('answers the question when the arrow is the reading already open', () => {
+    const held = run({ type: 'click', pick: face() })
+    const first = reduce(held, { type: 'arm', direction: 1 })
+    const again = reduce({ ...first, chose: false }, { type: 'arm', direction: 1 })
+
+    expect(again.focused).toBe(first.focused)
+    expect(again.chose).toBe(true)
+  })
+
+  /** Nothing to read that way up is not an answer: the reading stands. */
+  it('leaves the reading alone when that way up reads nothing on the face', () => {
+    const held = run({ type: 'click', pick: pickForRegion(5, ['hole-a']) })
+    const state = reduce(held, { type: 'arm', direction: 1 })
+
+    expect(state.focused).toBe(held.focused)
     expect(state.activeDirection).toBe(1)
   })
 })
@@ -214,5 +269,44 @@ describe('naming a reading from a list', () => {
     )
 
     expect(state.focused).toBe('wall')
+  })
+})
+
+describe('naming a reading', () => {
+  /**
+   * The tool list is judged against what is **kept**, not against what is
+   * focused, and naming a reading used to move the focus alone — so reading a
+   * feature from its card on the part showed the panel one feature and judged
+   * the list against another, or against nothing at all (Paul, 2026-08-31:
+   * "you're not showing the drills when one is already defined for a hole").
+   */
+  it('keeps what it names, from nothing at all', () => {
+    const state = run({ type: 'read', featureTag: 'wall' })
+
+    expect(state.focused).toBe('wall')
+    expect(state.kept).toEqual(['wall'])
+    expect(state.chose).toBe(true)
+  })
+
+  /** And swaps the guess rather than piling readings up, as a click does. */
+  it('swaps the guess it replaces', () => {
+    const state = run({ type: 'click', pick: face() }, { type: 'read', featureTag: 'wall' })
+
+    expect(state.kept).toEqual(['wall'])
+    expect(state.guessed).toEqual(['wall'])
+  })
+
+  /** A reading ticked by hand is not a guess, so naming another leaves it. */
+  it('leaves a reading somebody ticked', () => {
+    const state = run(
+      { type: 'click', pick: face() },
+      { type: 'toggle', featureTag: 'hole-a' },
+      { type: 'read', featureTag: 'wall' },
+    )
+
+    expect(state.kept).toContain('hole-a')
+    expect(state.kept).toContain('wall')
+    // The click's own guess is swapped, not piled on.
+    expect(state.kept).not.toContain('pocket')
   })
 })

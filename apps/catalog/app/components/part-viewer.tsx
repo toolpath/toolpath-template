@@ -125,6 +125,23 @@ export interface PartViewerProps {
    * stays mounted underneath, so the mesh is not fetched again.
    */
   readonly details?: ReactNode
+  /**
+   * What sits over the part in its top-left corner: the filter rail and the
+   * feature being read (Paul's layout, 2026-08-31). The viewer owns the
+   * corner rather than a panel beside it, so the part gets the whole width.
+   */
+  readonly overlay?: ReactNode
+  /**
+   * What sits over the part on its right: the tools kept for it, one card per
+   * feature (Paul's layout, 2026-08-31). Below the view cube, which owns the
+   * corner.
+   */
+  readonly aside?: ReactNode
+  /**
+   * Features a tool has been kept for, painted a shade darker so the part
+   * says what is done without anything having to be selected.
+   */
+  readonly tooled?: ReadonlyArray<string>
   readonly onCloseDetails?: () => void
   /** The drawn assembly, placed at the feature — shown only while the wrench is pressed. */
   readonly assembly?: AssemblyPlacement | null
@@ -144,6 +161,9 @@ export const PartViewer = ({
   onPickDirection,
   directionColor,
   details,
+  overlay,
+  aside,
+  tooled = [],
   onCloseDetails,
   assembly = null,
   onPickFace,
@@ -204,6 +224,34 @@ export const PartViewer = ({
       // list, not the part. `tests/on-the-part.spec.ts` found it.
       className="relative size-full overflow-hidden rounded-xl bg-zinc-950"
     >
+      {overlay ? (
+        <div
+          /*
+           * Two columns, and they stay where they are: the questions, then
+           * what is being read. It wrapped by height for a while and the
+           * boxes moved about as the window changed — Paul (2026-08-31): "I
+           * like it up there and then it doesn't need to be jumping around."
+           * Only the boxes take a click, so the part is live between them.
+           */
+          className="pointer-events-none absolute top-3 bottom-3 left-3 z-40 flex gap-2 [&>*]:pointer-events-auto"
+        >
+          {overlay}
+        </div>
+      ) : null}
+
+      {aside ? (
+        <div /*
+         * Up the right edge **from the bottom**, so a growing list never
+         * reaches the view cube in the corner above it (Paul, 2026-08-31).
+         * `top-24` is the ceiling that guarantees it; past that they wrap
+         * into another column to the left.
+         */
+          className="pointer-events-none absolute top-24 right-3 bottom-3 z-40 flex flex-col-reverse flex-wrap-reverse content-start gap-2 [&>*]:pointer-events-auto"
+        >
+          {aside}
+        </div>
+      ) : null}
+
       {/* Along the bottom, centred: the corners belong to the view cube and to
           what the part is waiting for, and a shelf in the middle of the bottom
           edge is out of the way of the geometry above it. */}
@@ -284,6 +332,10 @@ export const PartViewer = ({
               <EnginePart
                 report={viewerReport}
                 selection={[...selected]}
+                // Under everything else, at the consumer's own weight: a
+                // feature with a tool kept for it reads as done rather than
+                // as chosen.
+                highlights={tooled.map((tag) => ({ tag, color: 0x3f4650, weight: 0.55 }))}
                 pickedRegions={heldRegions}
                 hoveredFeatureIds={hovered === null ? [] : [hovered]}
                 theme={readingTheme(directionColor)}

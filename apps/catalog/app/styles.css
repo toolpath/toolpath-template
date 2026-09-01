@@ -1,7 +1,34 @@
 @import 'tailwindcss';
 @import '@toolpath/ui/theme.css';
 
+/**
+ * The state colours, a shade quieter.
+ *
+ * Tailwind's own emerald, amber and red are pitched for a white page; against
+ * this ground they shouted next to `@toolpath/ui`'s palette, which is already
+ * soft (its danger is #ba5b4b, its info #6bb0b3). These are the same hues at
+ * lower chroma so a tick, a caution and a refusal still read apart from each
+ * other at a glance without pulling the eye off the part (Paul, 2026-08-31:
+ * "mute the colour palette just a touch").
+ *
+ * Muted, not faint: the first pass took them far enough down that a caution
+ * at 12 px was a smudge, so each is a step brighter than it was and the three
+ * are further apart from each other (Paul, 2026-08-31: "the orange warning
+ * check is hard to read").
+ */
+@theme {
+  --color-emerald-300: #96d0b3;
+  --color-emerald-400: #7ec4a3;
+  --color-emerald-500: #63a888;
+  --color-amber-300: #f0bf6b;
+  --color-amber-500: #cb9a45;
+  --color-red-300: #e29a90;
+  --color-red-400: #d98275;
+}
+
 :root {
+  /** A lift off the page, the same weight either way round. */
+  --row-stripe: rgba(255, 255, 255, 0.045);
   color-scheme: dark;
   font-family: var(--font-body);
   background: var(--color-zinc-950);
@@ -19,4 +46,108 @@ body {
 button,
 input {
   font: inherit;
+}
+
+/**
+ * Light mode: the same ramp, read the other way round.
+ *
+ * Every colour in this application is written as a `zinc` step, and the ramp
+ * is a set of custom properties in `@toolpath/ui`'s theme — so light mode is
+ * those properties redefined once, on the document, rather than a `dark:`
+ * variant on each of the five hundred places a colour is used (Paul,
+ * 2026-08-31). `bg-zinc-950` is the page either way; what changes is what
+ * zinc-950 *is*.
+ *
+ * The steps are mirrored — 950 with 50, 900 with 100, and so on — which keeps
+ * every contrast the dark design was drawn with. 500 is the middle and stays
+ * where it is.
+ */
+html:not(.dark) {
+  --row-stripe: rgba(0, 0, 0, 0.04);
+  --color-zinc-50: #282828;
+  --color-zinc-100: #2f2f2f;
+  --color-zinc-200: #3d3d3d;
+  --color-zinc-300: #4b4b4b;
+  --color-zinc-400: #626262;
+  --color-zinc-500: #7b7b7b;
+  --color-zinc-600: #939393;
+  --color-zinc-700: #aeaeae;
+  --color-zinc-800: #c6c6c6;
+  --color-zinc-900: #eeeeee;
+  --color-zinc-950: #ffffff;
+
+  /*
+   * The state colours are muted for a dark ground above; on a light one they
+   * have to go the other way — the same hues, **darker but no less coloured**.
+   * The first pass took the saturation out along with the lightness and every
+   * tick, caution and refusal came out grey (Paul, 2026-08-31: "all the colors
+   * in the table are grey in light mode").
+   */
+  --color-emerald-300: #1f9d55;
+  --color-emerald-400: #12874a;
+  --color-emerald-500: #0e7040;
+  --color-amber-300: #b45309;
+  --color-amber-500: #92400e;
+  --color-red-300: #c2352a;
+  --color-red-400: #a92c22;
+  /**
+   * **Blue in the light, teal in the dark** (Paul, 2026-08-31).
+   *
+   * The teal that carries the dark theme is a soft one, and softened further
+   * against white it stopped reading as an accent at all. Blue holds its own
+   * on a white ground at the small sizes this application uses it in — a
+   * chip, a tick, a one-line button.
+   *
+   * Leaning to cyan rather than to indigo: the first blue here was #2563eb,
+   * which read purple beside the orange the header wears (Paul, 2026-08-31:
+   * "more pale blue less purple"). This one is 4.9:1 on white, which 10 px
+   * text needs.
+   */
+  --color-info: #1b78b8;
+  --color-info-lighten: #e6f2fb;
+  --color-danger: #b3402f;
+
+  color-scheme: light;
+  background: var(--color-zinc-950);
+}
+
+html:not(.dark) body {
+  color: var(--color-zinc-300);
+  background: var(--color-zinc-950);
+}
+
+/**
+ * Every other row, tinted.
+ *
+ * A row of numbers across a wide table is easy to lose, and a rule under each
+ * one is heavier than the table needs (Paul, 2026-08-31). In the **components**
+ * layer on purpose: a utility class beats it, so a row that is hovered, chosen
+ * or flagged keeps its own colour and the stripe is only ever the ground.
+ *
+ * A lift rather than a step of the zinc ramp: zinc-900 over zinc-950 is seven
+ * units of grey and vanished on the dark ground, while the same mix on white
+ * read clearly — one number cannot serve both, so each theme states its own.
+ */
+@layer components {
+  tbody tr:nth-child(even) {
+    background-color: var(--row-stripe);
+  }
+}
+
+/**
+ * A filter that is set reads as a solid control, not a pane of glass.
+ *
+ * The rail sits over the 3D viewer, and a 15 % accent tint let the part show
+ * through the one control that is meant to say "this is answered" (Paul,
+ * 2026-08-31). The tint is mixed into the page's own ground instead, so it is
+ * the same colour with nothing behind it — and it follows the theme, because
+ * both halves of the mix are theme tokens.
+ */
+@layer components {
+  .filter-on {
+    background-color: color-mix(in oklab, var(--color-info) 18%, var(--color-zinc-950));
+  }
+  .filter-off {
+    background-color: var(--color-zinc-950);
+  }
 }

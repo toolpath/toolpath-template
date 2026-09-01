@@ -45,16 +45,32 @@ setTimeout(function () {
 }, 10000)
 `.trim()
 
+/**
+ * The stored theme, on the document **before the first paint**.
+ *
+ * The build ships a dark page, so a shop that chose light would otherwise see
+ * a dark flash on every load. Inline and blocking on purpose: it is three
+ * lines and it runs before anything is drawn (Paul, 2026-08-31).
+ */
+const THEME = `
+try {
+  var theme = localStorage.getItem('tool-catalog.theme') === 'light' ? 'light' : 'dark'
+  document.documentElement.classList.toggle('dark', theme === 'dark')
+  document.documentElement.style.colorScheme = theme
+} catch (error) {}
+`.trim()
+
 export const Layout = ({ children }: { children: ReactNode }) => (
   <html lang="en" className="dark">
     <head>
       <meta charSet="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <meta name="color-scheme" content="dark" />
+      <meta name="color-scheme" content="dark light" />
       <Meta />
       <Links />
+      <script dangerouslySetInnerHTML={{ __html: THEME }} />
     </head>
-    <body className="font-body text-gray dark:text-zinc-300">
+    <body className="font-body text-zinc-300">
       {children}
       <ScrollRestoration />
       <Scripts />

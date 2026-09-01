@@ -1,4 +1,4 @@
-import type { CatalogTool } from '@toolpath/catalog-data'
+import { shankOf, type CatalogTool } from '@toolpath/catalog-data'
 
 /**
  * A selection, and the only thing that decides which tools are on screen.
@@ -46,6 +46,15 @@ const termValue = (tool: CatalogTool, key: string): string | null => {
       return tool.unitSystem
     case 'familyId':
       return tool.familyId
+    /**
+     * **Not a geometry code.** The shank is the catalog's own reading of the
+     * shoulder — `shankOf` — and without this case it fell through to
+     * `tool.geometry.shank`, which no tool carries: every tool then failed the
+     * filter and picking Full or Reduced emptied the list (Paul, 2026-08-31:
+     * "our reduced shank filter is not working correctly").
+     */
+    case 'shank':
+      return shankOf(tool)
     default: {
       const geometry = tool.geometry[key]
       return geometry === undefined ? null : String(geometry)
@@ -173,7 +182,15 @@ export const searchFromQuery = (query: ToolQuery): URLSearchParams => {
     search.set('q', query.text.trim())
   }
   for (const [key, values] of Object.entries(query.terms)) {
-    for (const value of [...values].sort()) {
+    // **In the order they are held, never sorted.** The order of a term's
+    // values is its priority — `cycleTerm` is how somebody sets it and
+    // `prioritise` is what reads it — so sorting here quietly threw away a
+    // promotion on the next render. Worse, it made a suggestion come back
+    // from the URL unequal to the one that was written, so `applySuggestions`
+    // read the last feature's own filters as somebody's answer and kept them
+    // forever (Paul, 2026-08-30: "filters from previously selected features
+    // are maintained").
+    for (const value of values) {
       search.append(key, value)
     }
   }

@@ -1,9 +1,12 @@
+import { useEffect, useId, useRef, useState } from 'react'
 import {
   NO_MARGINS,
   assemblyOutline,
   clearance,
-  heightAt,
   materialProfile,
+  tightestGaps,
+  type AxialGap,
+  type Gap,
   type Assembly,
   type CatalogTool,
   type Margins,
@@ -28,7 +31,16 @@ import { assemblyLabel } from 'shared/assemblies'
  * why this is red"): the part wall at the cut, the worst-case staircase the
  * reach curve describes, the room wanted as a dashed line outside it, and a
  * dimension at the one point that decides the verdict, with the number the
- * check used. The stack's scale is untouched; the wall is clipped at the edge.
+ * check used.
+ *
+ * **The 2D part geometry is always secondary to the assembly** (Paul,
+ * 2026-08-30). The stack alone sets the frame and the scale; the part is
+ * drawn in the room the stack leaves beside it, out to the stack's own
+ * half-width at the most, and cut off there at a **break** — the saw-tooth
+ * edge of an interrupted view — rather than pushing the stack smaller to fit
+ * a wall in. A dimension whose far face falls past the break is broken too,
+ * and carries the true number. The part is **hatched**, because it is a
+ * section through material and nothing on the stack is.
  *
  * **Every line is solid**: flutes pale yellow, shank one light grey whatever
  * its provenance, the holder grey up to the spindle connection, which is
@@ -52,85 +64,8 @@ const FILL: Record<OutlinePart, string> = {
 const isConnection = (segment: OutlineSegment): boolean =>
   segment.part === 'flange' || (segment.part === 'body' && segment.provenance === 'assumed')
 
-/** The parts of the stack the sweep checks: everything above the flutes. */
-const SWEPT: ReadonlySet<OutlinePart> = new Set<OutlinePart>([
-  'neck',
-  'shank',
-  'collet',
-  'nose',
-  'body',
-  'flange',
-])
-
 /** A hair, as the sweep's own tolerance: a gap a femtometre under the room wanted is the room wanted. */
 const GAP_TOLERANCE = 1e-6
-
-interface Deciding {
-  readonly part: OutlinePart
-  readonly r: number
-  readonly z: number
-  /** How high the material stands at this part's offset, mm. */
-  readonly wall: number
-  /** The measured gap from the wall up to the part, mm — negative is into the material. */
-  readonly gap: number
-  /** Whether the gap meets the room wanted, as the sweep reads it. */
-  readonly clears: boolean
-}
-
-/**
- * The point of the stack with the least room over the material — the one the
- * verdict turns on. What is measured is the gap between the wall and the
- * part; what decides is whether that gap is at least the axial room wanted.
- * A gap exactly the room is a pass, not "0.000 short" (Paul, 2026-08-30).
- */
-const decidingPoint = (
-  segments: ReadonlyArray<OutlineSegment>,
-  curve: ReachCurve,
-  cuttingRadius: number,
-  margins: Margins,
-): Deciding | null => {
-  let best: Deciding | null = null
-  for (const segment of segments) {
-    if (!SWEPT.has(segment.part)) {
-      continue
-    }
-    for (const point of segment.points) {
-      const offset = point.r + margins.radial - cuttingRadius
-      if (offset <= 0) {
-        continue
-      }
-      const wall = heightAt(curve, offset)
-      const gap = point.z - wall
-      if (best === null || gap < best.gap) {
-        best = {
-          part: segment.part,
-          r: point.r,
-          z: point.z,
-          wall,
-          gap,
-          clears: gap + GAP_TOLERANCE >= margins.axial,
-        }
-      }
-    }
-  }
-  return best
-}
-
-/**
- * Where the wall face stands at a given height, as an offset from the cut:
- * the start of the first run of the staircase that rises above that height.
- * Null where nothing stands that tall — no wall to measure to.
- */
-const wallFaceAt = (curve: ReachCurve, z: number): number | null => {
-  let from = 0
-  for (let index = 0; index < curve.horizontalOffset.length; index += 1) {
-    if ((curve.verticalOffset[index] ?? 0) > z + GAP_TOLERANCE) {
-      return from
-    }
-    from = curve.horizontalOffset[index] ?? from
-  }
-  return null
-}
 
 /** An arrowhead as a polygon: at (x, y), pointing `dir` (up, down, left, right). */
 const arrow = (
@@ -152,56 +87,35 @@ const arrow = (
   }
 }
 
-interface Sideways {
-  readonly part: OutlinePart
-  readonly r: number
-  readonly z: number
-  /** From the part's edge to the face of the wall standing taller than it, mm. */
-  readonly gap: number
-  readonly clears: boolean
+/**
+ * A break, as the ragged edge of an interrupted view: the saw-tooth along a
+ * vertical edge that says the part carries on past where the drawing stops.
+ * It is what lets the part be cut short at all.
+ */
+const zigzag = (
+  atX: number,
+  fromY: number,
+  toY: number,
+  amplitude: number,
+): Array<{ readonly x: number; readonly y: number }> => {
+  const steps = Math.max(2, Math.round(Math.abs(toY - fromY) / (amplitude * 4)))
+  return Array.from({ length: steps + 1 }, (_, index) => {
+    const end = index === 0 || index === steps
+    return {
+      x: atX + (end ? 0 : index % 2 === 1 ? amplitude : -amplitude),
+      y: fromY + ((toY - fromY) * index) / steps,
+    }
+  })
 }
 
-/**
- * The point of the stack nearest, sideways, to a wall taller than it — found
- * on its own, because it need not be the point with the least room above
- * the wall (Paul, 2026-08-30: "the measurements don't need to originate from
- * the same face"). Null where nothing stands taller than any part.
- */
-const sidewaysPoint = (
-  segments: ReadonlyArray<OutlineSegment>,
-  curve: ReachCurve,
-  cuttingRadius: number,
-  margins: Margins,
-): Sideways | null => {
-  let best: Sideways | null = null
-  for (const segment of segments) {
-    if (!SWEPT.has(segment.part)) {
-      continue
-    }
-    for (const point of segment.points) {
-      const face = wallFaceAt(curve, point.z)
-      if (face === null) {
-        continue
-      }
-      const gap = cuttingRadius + face - point.r
-      if (best === null || gap < best.gap) {
-        best = {
-          part: segment.part,
-          r: point.r,
-          z: point.z,
-          gap,
-          clears: gap + GAP_TOLERANCE >= margins.radial,
-        }
-      }
-    }
-  }
-  return best
-}
+/** A zigzag as an SVG points list. */
+const points = (path: ReadonlyArray<{ readonly x: number; readonly y: number }>): string =>
+  path.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' ')
 
 /** The caption's sentence for the tightest points, in the page's unit. */
 const describeDeciding = (
-  deciding: Deciding,
-  sideways: Sideways | null,
+  deciding: AxialGap,
+  sideways: Gap | null,
   margins: Margins,
   unit: Unit,
 ): string => {
@@ -217,12 +131,19 @@ const describeDeciding = (
 }
 
 /**
- * The wall's corners: where the height changes, the point at the start of
- * the new height (the rise comes at the start of a run, so the corner is on
- * or outside the material). A rise smaller than `noise` is float noise and
- * makes no corner; nothing else is dropped — a
- * sampled fillet keeps every corner, which is what lets `wallPath` draw it
- * as the arc it is (Paul, 2026-08-30: thinning to chords had turned a
+ * The wall's corners: **both ends of every run**, so a step draws as a step.
+ *
+ * A rise smaller than `noise` is float noise and makes no corner. Everything
+ * else is kept, including the far end of the run the rise interrupts — and
+ * that far end is the correction of 2026-08-30. Keeping only the point where
+ * a new height begins left consecutive corners that spanned a whole run *and*
+ * the rise after it, so the line drew a diagonal ramp across both: a square
+ * step read as a chamfer, and the material over the run looked taller than
+ * the sweep says it is. Paul's section view is the reference — a wall is
+ * vertical, a ledge is horizontal, and only a fillet is round.
+ *
+ * A sampled fillet still keeps every corner, which is what lets `wallPath`
+ * draw it as the arc it is (Paul, 2026-08-30: thinning to chords had turned a
  * fillet into a chamfer).
  */
 export const wallCorners = (
@@ -230,24 +151,44 @@ export const wallCorners = (
   noise: number,
 ): Array<OutlinePoint> => {
   const corners: Array<OutlinePoint> = []
+  // How far the run at the current height has reached: a corner in waiting,
+  // needed only when the height changes or the profile ends.
+  let run: OutlinePoint | null = null
   for (const point of profile) {
     const last = corners[corners.length - 1]
     if (!last) {
-      corners.push(point)
+      corners.push({ r: point.r, z: point.z })
       continue
     }
     // A corner is a change of height; a change under the noise is no corner.
     if (Math.abs(point.z - last.z) < noise) {
+      run = point
       continue
     }
+    if (run && run.r !== last.r) {
+      corners.push({ r: run.r, z: last.z })
+    }
     corners.push({ r: point.r, z: point.z })
+    run = null
   }
-  const last = profile[profile.length - 1]
   const kept = corners[corners.length - 1]
-  if (last && kept && (last.r !== kept.r || last.z !== kept.z)) {
-    corners.push(last)
+  if (run && kept && run.r !== kept.r) {
+    corners.push({ r: run.r, z: kept.z })
   }
   return corners
+}
+
+/**
+ * Where the wall stops changing: the radius of the outermost rise. Beyond it
+ * the material is flat and drawing more of it says nothing.
+ */
+export const lastRise = (corners: ReadonlyArray<OutlinePoint>): number => {
+  for (let index = corners.length - 1; index > 0; index -= 1) {
+    if (corners[index]!.z !== corners[index - 1]!.z) {
+      return corners[index]!.r
+    }
+  }
+  return corners[0]?.r ?? 0
 }
 
 /**
@@ -346,6 +287,33 @@ export const AssemblyDrawing = ({
   curve = null,
   margins = NO_MARGINS,
 }: AssemblyDrawingProps) => {
+  const hatch = `hatch-${useId().replace(/:/g, '')}`
+  /**
+   * The shape of the panel, measured.
+   *
+   * The stack settles the height, so on a panel taller than the stack is wide
+   * the drawing is height-bound and the viewBox letterboxes — leaving real
+   * room to the right of the tool empty while the part was broken off short
+   * of it (Paul, 2026-08-30: "you can use the full area to the right of the
+   * tool"). Knowing the panel's shape is what lets that room be spent. Null
+   * until it is measured, and on a server, where the frame is the stack's own.
+   */
+  const frame = useRef<SVGSVGElement>(null)
+  const [panel, setPanel] = useState<{ width: number; height: number } | null>(null)
+  useEffect(() => {
+    const element = frame.current
+    if (!element || typeof ResizeObserver === 'undefined') {
+      return
+    }
+    const watch = new ResizeObserver((entries) => {
+      const box = entries[0]?.contentRect
+      if (box && box.width > 0 && box.height > 0) {
+        setPanel({ width: box.width, height: box.height })
+      }
+    })
+    watch.observe(element)
+    return () => watch.disconnect()
+  }, [])
   const outline = assemblyOutline(assembly ?? { tool, holder: null, stickout: null })
   if (outline.segments.length === 0) {
     return (
@@ -366,16 +334,12 @@ export const AssemblyDrawing = ({
   ]
 
   // The drawing's own space is millimetres; the viewBox does the scaling, and
-  // it is fitted to the stack alone, so the assembly fills whatever it is given.
-  // The wall gets a few millimetres past the widest part, not a change of scale.
-  const left = -outline.radius - 3
-  const right = outline.radius + (curve ? 38 : 3)
+  // it is fitted to the stack, so the assembly fills whatever it is given.
+  // Height is settled first: the wall's extent is worked out in the same
+  // millimetres, and only then does the right edge follow from it.
   const top = outline.height + 3
   const bottom = -3
-  const width = right - left
   const height = top - bottom
-  const x = (r: number) => r - left
-  const y = (z: number) => top - z
   const fontSize = Math.max(1.5, height * 0.018)
 
   // The wall the sweep read, to the right of the stack: the part's own wall
@@ -383,7 +347,55 @@ export const AssemblyDrawing = ({
   const cuttingRadius = (tool.geometry.DC ?? 0) / 2
   const profile =
     curve && tool.geometry.DC !== undefined ? materialProfile(curve, cuttingRadius) : null
-  const wall = profile ? clipped(wallCorners(profile, height * 0.0005), right, top) : null
+  const corners = profile ? wallCorners(profile, height * 0.0005) : null
+  // The two clearances, each at its own tightest point: up from the wall to
+  // the part above it, and sideways from a part to the wall face beside it.
+  // Measured by the package, so the number here is the number the list shows.
+  const gaps = curve && assembly ? tightestGaps(assembly, curve, margins) : null
+  const deciding = gaps?.axial ?? null
+  const sideways = gaps?.radial ?? null
+
+  /**
+   * How far out the part would like to be drawn, in mm from the axis.
+   *
+   * Out to the last rise — past it the staircase is a flat block that says
+   * nothing new — and far enough to show the face a dimension measures to.
+   * What it actually gets is whatever room is left beside the stack.
+   */
+  const partWanted =
+    corners === null || corners.length === 0
+      ? 0
+      : Math.max(lastRise(corners), sideways ? sideways.r + sideways.gap : 0, cuttingRadius) + 2
+
+  /**
+   * The frame: the stack's own width, and then whatever the panel has spare.
+   *
+   * **The part never takes room from the stack.** The stack settles the
+   * height and needs its half-width either side, and that much the part
+   * cannot touch. But a panel taller than that is wide leaves room over —
+   * room the viewBox used to letterbox away while the part was broken off
+   * short of it. That surplus goes to the part first, out to what it has to
+   * show; what the part has no use for is split between the sides, so a stack
+   * with nothing beside it still sits in the middle (Paul, 2026-08-30).
+   */
+  const stack = outline.radius + 3
+  // Unmeasured — a server, or the first paint — the frame is the stack's own
+  // and the part makes do with what is beside it. It never widens the frame.
+  const spare = panel ? Math.max(0, (height * panel.width) / panel.height - stack * 2) : 0
+  const forPart = Math.max(0, Math.min(spare, partWanted + 2 - stack))
+  // What the part has no use for is split, so a stack with nothing beside it
+  // stays in the middle of the panel.
+  const rest = (spare - forPart) / 2
+  const left = -stack - rest
+  const right = stack + forPart + rest
+  const width = right - left
+  const x = (r: number) => r - left
+  const y = (z: number) => top - z
+
+  // The part runs to the edge of the room it was given and breaks there, a
+  // hair inside it so the break reads as a break and not as a clipped edge.
+  const wallEdge = Math.max(Math.min(partWanted, right - 2), cuttingRadius + 1)
+  const wall = corners ? clipped(corners, wallEdge, top) : null
   // Closely spaced across, and no rise the size of a wall: a sampled curve.
   const smooth = { run: width * 0.03, rise: height * 0.06 }
   const room =
@@ -396,25 +408,16 @@ export const AssemblyDrawing = ({
             })),
             height * 0.0005,
           ),
-          right,
+          wallEdge,
           top,
         )
       : null
   const wallAtCut = curve?.verticalOffset[0] ?? 0
-  const deciding =
-    curve && assembly ? decidingPoint(outline.segments, curve, cuttingRadius, margins) : null
-  // The two clearances, each at its own tightest point: up from the wall to
-  // the part above it, and sideways from a part to the wall face beside it.
-  const sideways =
-    curve && assembly
-      ? (() => {
-          const found = sidewaysPoint(outline.segments, curve, cuttingRadius, margins)
-          return found && found.gap > GAP_TOLERANCE ? found : null
-        })()
-      : null
-  // The readouts sit in a column at the right edge, clear of the stack and of
-  // what they measure, each with a leader to its dimension.
-  const columnX = right - 27
+  // The outer edge of the part is always a break: past the last knot the
+  // material carries on at that height, and the drawing does not.
+  const outerBreak = wall
+    ? zigzag(x(wallEdge), y(wall[wall.length - 1]?.z ?? 0), y(0), fontSize * 0.3)
+    : []
   return (
     <figure className="flex size-full min-h-0 flex-col">
       <figcaption className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-3 py-2 text-xs text-zinc-400">
@@ -438,6 +441,7 @@ export const AssemblyDrawing = ({
         ) : null}
       </figcaption>
       <svg
+        ref={frame}
         role="img"
         aria-label={`${assembly ? assemblyLabel(assembly) : tool.catalogNumber}, drawn from its stated dimensions`}
         viewBox={`0 0 ${width} ${height}`}
@@ -447,12 +451,54 @@ export const AssemblyDrawing = ({
         {/* The wall the sweep read, on the right of the stack only. */}
         {wall ? (
           <g data-wall>
+            <defs>
+              {/* Section hatching: the part is material in section, and nothing on the stack is. */}
+              <pattern
+                id={hatch}
+                width={fontSize * 0.85}
+                height={fontSize * 0.85}
+                patternUnits="userSpaceOnUse"
+                patternTransform="rotate(45)"
+              >
+                <rect width={fontSize * 0.85} height={fontSize * 0.85} className="fill-zinc-900" />
+                <line
+                  x1={0}
+                  y1={0}
+                  x2={0}
+                  y2={fontSize * 0.85}
+                  className="stroke-zinc-600"
+                  strokeWidth={0.22}
+                />
+              </pattern>
+            </defs>
             <path
               data-part="material"
-              d={`${wallPath(wall, smooth, x, y)} L${x(right).toFixed(2)},${y(0).toFixed(2)} L${x(cuttingRadius).toFixed(2)},${y(0).toFixed(2)} Z`}
-              className="fill-zinc-800/70 stroke-zinc-500"
-              strokeWidth={0.3}
+              d={`${wallPath(wall, smooth, x, y)} ${outerBreak.map((point) => `L${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' ')} L${x(cuttingRadius).toFixed(2)},${y(0).toFixed(2)} Z`}
+              fill={`url(#${hatch})`}
+              className="stroke-none"
+            />
+            {/* The surface the sweep read, solid: it is geometry. */}
+            <path
+              data-surface="material"
+              d={wallPath(wall, smooth, x, y)}
+              className="fill-none stroke-zinc-300"
+              strokeWidth={0.35}
               strokeLinejoin="round"
+            />
+            <line
+              x1={x(cuttingRadius)}
+              y1={y(0)}
+              x2={x(wallEdge)}
+              y2={y(0)}
+              className="stroke-zinc-500"
+              strokeWidth={0.3}
+            />
+            {/* The break: the part carries on past here, the drawing does not. */}
+            <polyline
+              data-break="material"
+              points={points(outerBreak)}
+              className="fill-none stroke-zinc-500"
+              strokeWidth={0.3}
             />
             {/* The part's own wall at the cut, where the flutes are. */}
             <line
@@ -496,11 +542,17 @@ export const AssemblyDrawing = ({
           )
         })}
 
-        {/* The two clearances, each at its own tightest point, readouts in the column at the right (Paul, 2026-08-30). */}
+        {/*
+          The two clearances, each dimensioned at its own tightest point, and
+          each number in a column to the left of the stack at the height of
+          its own dimension. Paul (2026-08-30): stacked together in a place of
+          their own they were confusing, and beside their arrows they were in
+          among the part — so they read across, at their own height, from the
+          empty half of the panel.
+        */}
         {deciding && curve
           ? (() => {
               const head = fontSize * 0.9
-              const halo = (text: string) => (text.length + 1) * fontSize * 0.62
               // Up: a vertical dimension just right of the corner, from the wall under it to the part.
               const upTone = deciding.clears ? 'stroke-emerald-300' : 'stroke-danger'
               const upFill = deciding.clears ? 'fill-emerald-300' : 'fill-danger'
@@ -511,22 +563,68 @@ export const AssemblyDrawing = ({
               const inside = Math.abs(wallY - partY) >= head * 2.6
               const upperY = Math.min(partY, wallY)
               const lowerY = Math.max(partY, wallY)
-              const upText = `${deciding.gap < 0 ? '−' : ''}${formatLength(Math.abs(deciding.gap), unit)} up`
               // Sideways: a horizontal dimension at its own point's height, from the part's edge to the wall face.
               const sideTone = sideways?.clears ? 'stroke-emerald-300' : 'stroke-danger'
               const sideFill = sideways?.clears ? 'fill-emerald-300' : 'fill-danger'
               const sideY = sideways ? y(sideways.z) - fontSize * 0.9 : 0
               const edgeX = sideways ? x(sideways.r) : 0
-              const faceX = sideways ? x(sideways.r + sideways.gap) : 0
+              // A face past the break is not on the drawing: the dimension is
+              // broken at the break and keeps the number the check used.
+              const faceR = sideways ? sideways.r + sideways.gap : 0
+              const cutOff = sideways !== null && faceR > wallEdge + GAP_TOLERANCE
+              const faceX = sideways ? x(Math.min(faceR, wallEdge)) : 0
               const sideInside = sideways ? faceX - edgeX >= head * 2.6 : false
-              const sideText = sideways ? `${formatLength(sideways.gap, unit)} sideways` : ''
-              // The column: one readout per dimension, pushed apart when they would overlap.
+              // Both numbers to the left of the stack, each at the height of
+              // the dimension it belongs to (Paul, 2026-08-30): the part is on
+              // the right, so the left is the half with room, and reading
+              // across from a number lands on its own arrows.
+              const label = (text: string) => (text.length + 1) * fontSize * 0.6
+              const column = 1
+              const upText = `${deciding.gap < 0 ? '−' : ''}${formatLength(Math.abs(deciding.gap), unit)}`
               const upLabelY = (upperY + lowerY) / 2
-              let sideLabelY = sideways ? sideY : null
-              if (sideLabelY !== null && Math.abs(sideLabelY - upLabelY) < fontSize * 2.2) {
-                sideLabelY =
-                  sideLabelY <= upLabelY ? upLabelY - fontSize * 2.2 : upLabelY + fontSize * 2.2
-              }
+              const sideText = sideways ? formatLength(sideways.gap, unit) : ''
+              // One column, so only their heights can collide: the radial one
+              // moves, away from the axial one it would have sat on.
+              const sideLabelY =
+                Math.abs(sideY - upLabelY) >= fontSize * 1.7
+                  ? sideY
+                  : upLabelY + fontSize * 1.7 * (sideY <= upLabelY ? -1 : 1)
+              const Readout = ({
+                at,
+                baseline,
+                value,
+                word,
+                tone,
+                dim,
+              }: {
+                at: number
+                baseline: number
+                value: string
+                word: string
+                tone: string
+                dim: string
+              }) => (
+                <>
+                  <rect
+                    x={at}
+                    y={baseline - fontSize * 0.95}
+                    width={label(`${value} ${word}`)}
+                    height={fontSize * 1.45}
+                    rx={0.4}
+                    className="fill-zinc-950/85"
+                  />
+                  <text
+                    x={at + fontSize * 0.3}
+                    y={baseline + fontSize * 0.18}
+                    fontSize={fontSize}
+                    className="font-mono"
+                    data-dim={dim}
+                  >
+                    <tspan className={tone}>{value}</tspan>
+                    <tspan className="fill-zinc-500"> {word}</tspan>
+                  </text>
+                </>
+              )
               return (
                 <g
                   data-tight={deciding.part}
@@ -576,34 +674,15 @@ export const AssemblyDrawing = ({
                       <polygon points={arrow(dimX, lowerY, 'up', head)} className={upFill} />
                     </>
                   )}
-                  <line
-                    x1={dimX}
-                    y1={upLabelY}
-                    x2={x(columnX) - 1}
-                    y2={upLabelY}
-                    className="stroke-zinc-500"
-                    strokeWidth={0.25}
-                    strokeDasharray="0.8 0.6"
+                  <Readout
+                    at={column}
+                    baseline={upLabelY}
+                    value={upText}
+                    word="axial"
+                    tone={upFill}
+                    dim="axial"
                   />
-                  <rect
-                    x={x(columnX)}
-                    y={upLabelY - fontSize * 0.75}
-                    width={halo(upText)}
-                    height={fontSize * 1.45}
-                    rx={0.4}
-                    className="fill-zinc-950/85"
-                  />
-                  <text
-                    x={x(columnX) + fontSize * 0.3}
-                    y={upLabelY + fontSize * 0.38}
-                    fontSize={fontSize}
-                    className="font-mono"
-                    data-dim="axial"
-                  >
-                    <tspan className={upFill}>{upText.replace(/ up$/, '')}</tspan>
-                    <tspan className="fill-zinc-500"> up</tspan>
-                  </text>
-                  {sideways && sideLabelY !== null ? (
+                  {sideways ? (
                     <>
                       <line
                         x1={edgeX}
@@ -613,80 +692,54 @@ export const AssemblyDrawing = ({
                         className="stroke-zinc-400"
                         strokeWidth={0.25}
                       />
-                      <line
-                        x1={faceX}
-                        y1={y(sideways.z)}
-                        x2={faceX}
-                        y2={sideY - fontSize * 0.8}
-                        className="stroke-zinc-400"
-                        strokeWidth={0.25}
-                      />
-                      {sideInside ? (
-                        <>
-                          <line
-                            x1={edgeX}
-                            y1={sideY}
-                            x2={faceX}
-                            y2={sideY}
-                            className={sideTone}
-                            strokeWidth={0.4}
-                          />
-                          <polygon
-                            points={arrow(edgeX, sideY, 'left', head)}
-                            className={sideFill}
-                          />
-                          <polygon
-                            points={arrow(faceX, sideY, 'right', head)}
-                            className={sideFill}
-                          />
-                        </>
-                      ) : (
-                        <>
-                          <line
-                            x1={edgeX - head * 2.2}
-                            y1={sideY}
-                            x2={faceX + head * 2.2}
-                            y2={sideY}
-                            className={sideTone}
-                            strokeWidth={0.4}
-                          />
-                          <polygon
-                            points={arrow(edgeX, sideY, 'right', head)}
-                            className={sideFill}
-                          />
-                          <polygon
-                            points={arrow(faceX, sideY, 'left', head)}
-                            className={sideFill}
-                          />
-                        </>
+                      {cutOff ? null : (
+                        <line
+                          x1={faceX}
+                          y1={y(sideways.z)}
+                          x2={faceX}
+                          y2={sideY - fontSize * 0.8}
+                          className="stroke-zinc-400"
+                          strokeWidth={0.25}
+                        />
                       )}
                       <line
-                        x1={faceX + (sideInside ? 0 : head * 2.2)}
+                        x1={sideInside ? edgeX : edgeX - head * 2.2}
                         y1={sideY}
-                        x2={x(columnX) - 1}
-                        y2={sideLabelY}
-                        className="stroke-zinc-500"
-                        strokeWidth={0.25}
-                        strokeDasharray="0.8 0.6"
+                        x2={sideInside || cutOff ? faceX : faceX + head * 2.2}
+                        y2={sideY}
+                        className={sideTone}
+                        strokeWidth={0.4}
                       />
-                      <rect
-                        x={x(columnX)}
-                        y={sideLabelY - fontSize * 0.75}
-                        width={halo(sideText)}
-                        height={fontSize * 1.45}
-                        rx={0.4}
-                        className="fill-zinc-950/85"
+                      <polygon
+                        points={arrow(edgeX, sideY, sideInside ? 'left' : 'right', head)}
+                        className={sideFill}
                       />
-                      <text
-                        x={x(columnX) + fontSize * 0.3}
-                        y={sideLabelY + fontSize * 0.38}
-                        fontSize={fontSize}
-                        className="font-mono"
-                        data-dim="radial"
-                      >
-                        <tspan className={sideFill}>{formatLength(sideways.gap, unit)}</tspan>
-                        <tspan className="fill-zinc-500"> sideways</tspan>
-                      </text>
+                      <Readout
+                        at={column}
+                        baseline={sideLabelY}
+                        value={sideText}
+                        word="radial"
+                        tone={sideFill}
+                        dim="radial"
+                      />
+                      {cutOff ? (
+                        <polyline
+                          data-break="dimension"
+                          points={points(
+                            zigzag(sideY, faceX - head * 1.2, faceX, head * 0.5).map((each) => ({
+                              x: each.y,
+                              y: each.x,
+                            })),
+                          )}
+                          className="fill-none stroke-zinc-300"
+                          strokeWidth={0.3}
+                        />
+                      ) : (
+                        <polygon
+                          points={arrow(faceX, sideY, sideInside ? 'right' : 'left', head)}
+                          className={sideFill}
+                        />
+                      )}
                     </>
                   ) : null}
                 </g>

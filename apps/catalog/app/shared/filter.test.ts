@@ -117,6 +117,22 @@ describe('the URL round trip', () => {
     expect(queryFromSearch(searchFromQuery(selected))).toEqual(selected)
   })
 
+  /**
+   * The order of a term's values is its priority, so the round trip has to
+   * keep it: sorting on the way out lost a promotion somebody had just made,
+   * and made a feature's own suggestion come back unrecognisable to
+   * `applySuggestions` (2026-08-30).
+   */
+  it('keeps the order of a term’s values, which is their priority', () => {
+    const ranked = query({ terms: { form: ['drill', 'bull nose end mill', 'ball end mill'] } })
+
+    expect(queryFromSearch(searchFromQuery(ranked)).terms.form).toEqual([
+      'drill',
+      'bull nose end mill',
+      'ball end mill',
+    ])
+  })
+
   it('writes nothing for an unconstrained selection', () => {
     expect(searchFromQuery(EMPTY_QUERY).toString()).toBe('')
   })
@@ -294,5 +310,63 @@ describe('the list in the order the priorities ask for', () => {
     expect(
       prioritise(listed, { ...EMPTY_QUERY, terms: { form: ['drill'] } }).map((each) => each.guid),
     ).toEqual(['a', 'b', 'c'])
+  })
+})
+
+describe('the shank a tool has', () => {
+  const tool = (catalogNumber: string, geometry: Record<string, number>): CatalogTool =>
+    ({
+      guid: catalogNumber,
+      catalogNumber,
+      brand: 'Kennametal',
+      form: 'flat end mill',
+      toolType: 'endmill',
+      unitSystem: 'metric',
+      geometry,
+      materialGroups: [],
+      productLink: null,
+      provenance: {},
+    }) as unknown as CatalogTool
+
+  /**
+   * The shank is the catalog's own reading of the shoulder, not a geometry
+   * code — and reading it as one meant no tool carried it, so picking either
+   * value emptied the list (Paul, 2026-08-31).
+   */
+  it('filters by the reading rather than by a code no tool has', () => {
+    const necked = tool('NECK', { DC: 6, LCF: 12, 'shoulder-diameter': 5.5, 'shoulder-length': 20 })
+    const plain = tool('PLAIN', { DC: 6, LCF: 12, 'shoulder-diameter': 6, 'shoulder-length': 20 })
+    const tools = [necked, plain]
+
+    expect(
+      filterTools(tools, { ...EMPTY_QUERY, terms: { shank: ['reduced'] } }).map(
+        (each) => each.catalogNumber,
+      ),
+    ).toEqual(['NECK'])
+    expect(
+      filterTools(tools, { ...EMPTY_QUERY, terms: { shank: ['full'] } }).map(
+        (each) => each.catalogNumber,
+      ),
+    ).toEqual(['PLAIN'])
+  })
+
+  /** A tool with no shoulder stated is neither, and is not offered as either. */
+  it('leaves out a tool whose shank cannot be told', () => {
+    const bare = tool('BARE', { DC: 6, LCF: 12 })
+
+    expect(filterTools([bare], { ...EMPTY_QUERY, terms: { shank: ['full'] } })).toEqual([])
+    expect(filterTools([bare], { ...EMPTY_QUERY, terms: { shank: ['reduced'] } })).toEqual([])
+  })
+
+  it('counts both readings for the picker', () => {
+    const necked = tool('NECK', { DC: 6, LCF: 12, 'shoulder-diameter': 5.5, 'shoulder-length': 20 })
+    const plain = tool('PLAIN', { DC: 6, LCF: 12, 'shoulder-diameter': 6, 'shoulder-length': 20 })
+
+    expect(countBy([necked, plain], 'shank')).toEqual(
+      new Map([
+        ['reduced', 1],
+        ['full', 1],
+      ]),
+    )
   })
 })

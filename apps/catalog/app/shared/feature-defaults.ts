@@ -39,6 +39,15 @@ export interface Sheet {
   readonly top: number | null
   /** The material around the feature, by offset from the cut — Engine API 1.0.4's reach curve. */
   readonly curve: ReachCurve | null
+  /**
+   * Whether anything stands under the cut.
+   *
+   * False for a cut taken clean through — a through hole, and a wall or a
+   * profile with nothing below it. The tool then runs past the bottom, and
+   * the overshoot is the tool's own to clear. Unstated is read as a floor,
+   * so a datasheet that does not say adds no rule.
+   */
+  readonly hasFloor: boolean
 }
 
 export const sheetOf = (feature: PartFeature, partFeatures: ReadonlyArray<PartFeature>): Sheet => {
@@ -55,6 +64,7 @@ export const sheetOf = (feature: PartFeature, partFeatures: ReadonlyArray<PartFe
     zMax: asNumber(feature.datasheet?.zMax) ?? asNumber(raw.maxDepth),
     top: partTop(partFeatures, feature),
     curve: isReachCurve(curve) ? curve : null,
+    hasFloor: raw.hasFloor !== false,
   }
 }
 
@@ -84,7 +94,18 @@ const widestCutter = ({ facts }: Sheet): number | null => {
     return positive(number(facts, 'three', 'cd', 'ignore', 'min'))
   }
   if (kind === 'Hole') {
-    return positive(number(facts, 'maxEndmillDiameter') ?? number(facts, 'cd', 'ignore', 'min'))
+    // **The bore, not the helix limit.** The widest *end mill* a hole admits
+    // is smaller than the hole — it has to helix down inside it — and reading
+    // that as "the largest tool" ruled out the drill that matches the bore,
+    // by a rule written for every tool type. A hole ⌀8 with a 7.2 endmill
+    // limit led with a ⌀6 end mill and no drill at all (Paul, 2026-08-31:
+    // "it's undersizing tools"). The helix limit is its own field, and the
+    // rule that wants it says so.
+    return positive(
+      number(facts, 'maxDrillDiameter') ??
+        number(facts, 'diameter') ??
+        number(facts, 'cd', 'ignore', 'min'),
+    )
   }
   return positive(number(facts, 'cd', 'ignore', 'min'))
 }
@@ -126,6 +147,17 @@ export const FIELDS: Readonly<Record<string, Field>> = {
     // tool between the two can rough but cannot finish; one past this cannot
     // get in at all — the engine's practical-diameter check.
     read: (sheet) => positive(number(sheet.facts, 'cd', 'ignore', 'max')) ?? widestCutter(sheet),
+  },
+  /**
+   * The widest end mill the feature admits, which for a hole is **not** the
+   * bore: an end mill has to helix down inside it, so the Engine states its
+   * own number. Anything else falls back to the widest cutter that reaches
+   * every corner, where the two are the same question.
+   */
+  'largest end mill diameter': {
+    unit: 'mm',
+    icon: 'maxTool',
+    read: (sheet) => positive(number(sheet.facts, 'maxEndmillDiameter')) ?? widestCutter(sheet),
   },
   'largest drill diameter': {
     unit: 'mm',
@@ -258,6 +290,11 @@ const NAMED: Readonly<Record<string, (sheet: Sheet) => boolean>> = {
   counterbore: ({ facts }) => facts?.isCounterbore === true,
   // A surface the kernel says only a ball can finish without a cusp.
   'ball only': ({ facts }) => facts?.useOnlyBallToolsForFinish === true,
+  // Nothing under the cut: the tool is taken past the bottom, so the
+  // overshoot is its own to clear — a through hole, or a wall or profile with
+  // no floor. Unstated is read as a floor.
+  'no floor': ({ hasFloor }) => !hasFloor,
+  'has floor': ({ hasFloor }) => hasFloor,
 }
 
 const COMPARISON = /^(.+?)\s*(<=|>=|=|<|>)\s*(-?\d+(?:\.\d+)?)$/

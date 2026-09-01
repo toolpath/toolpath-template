@@ -174,9 +174,6 @@ const colletDiameter = (series: string | null): number | null => {
   return digits ? Number(digits[1]) : null
 }
 
-/** How many steps a cone is swept as. Each step takes the cone's radius at its top, which is the conservative side. */
-const CONE_STEPS = 6
-
 /**
  * The holder's profile above the tool, from the stickout up.
  *
@@ -185,10 +182,10 @@ const CONE_STEPS = 6
  * - The nose, for its stated length — or, with no length stated, for the
  *   gauge length as before, so an older dataset sweeps what it always did.
  * - The body behind the nose, where stated.
- * - A cone from the last stated diameter up to the flange, where a flange and
- *   a projection are stated: **assumed**, and sampled so that every step is at
- *   least as wide as the cone is anywhere in it.
- * - The flange, at the projection.
+ * - The flange, at the projection. Nothing is swept between it and the body:
+ *   a `Silhouette` is a radius **from a height upward**, so the last stated
+ *   diameter carries itself up to the flange, which is the layer model of
+ *   Justin Mimbs' reach-curve note.
  */
 export const holderSilhouette = (assembly: Assembly, stickout: number): Array<Silhouette> => {
   const { holder } = assembly
@@ -217,19 +214,26 @@ export const holderSilhouette = (assembly: Assembly, stickout: number): Array<Si
   }
 
   if (holder.projection !== null && holder.flangeDiameter !== null) {
-    const flangeAt = stickout + holder.projection
-    const flangeRadius = holder.flangeDiameter / 2
-    if (flangeAt > top && flangeRadius > radius) {
-      // The cone nobody states, swept as steps that each take the radius at
-      // the step's top — wider than the cone is anywhere below that.
-      const rise = (flangeAt - top) / CONE_STEPS
-      for (let index = 0; index < CONE_STEPS; index += 1) {
-        const from = top + rise * index
-        const atTop = radius + ((flangeRadius - radius) * (index + 1)) / CONE_STEPS
-        steps.push({ part: 'body', radius: atTop, fromHeight: from })
-      }
-    }
-    steps.push({ part: 'flange', radius: flangeRadius, fromHeight: flangeAt })
+    /**
+     * **Cylinders, not cones** (Paul, 2026-08-31).
+     *
+     * The shape between the last stated diameter and the flange used to be
+     * swept as a cone in six steps — a shape no vendor publishes, and on a
+     * PG 10 × 062 a 34 mm flare from ⌀18 to ⌀46 that turned tools down for
+     * metal that is not there. Justin Mimbs' reach-curve note models a holder
+     * as layers: each swept at its widest, no credit for a taper, and the
+     * last diameter carried upward — which is what a `Silhouette` already
+     * means, so the carry needs no step of its own. The flange is its own
+     * layer, at its own height.
+     *
+     * It is the less conservative reading of an unstated shape, and
+     * deliberately so: what the vendor states is what is swept.
+     */
+    steps.push({
+      part: 'flange',
+      radius: holder.flangeDiameter / 2,
+      fromHeight: stickout + holder.projection,
+    })
   }
 
   return steps

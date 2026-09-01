@@ -35,17 +35,42 @@ last it reaches:
 
 ## Columns of `rules.csv`
 
-| Column       | What goes in it                                                                                                                                                     |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `feature`    | A kernel feature type — `BlindHole`, `FilletedPocket` — or a pattern: `*Hole`, `Through*`, `*` for every feature.                                                   |
-| `when`       | A condition, the same ones `feature-defaults.csv` uses: `filleted`, `flat bottom`, `pointed bottom`, `L/D >= 4`… Blank is always.                                   |
-| `tool types` | The forms the rule applies to, separated by `;`. `*` is every form; `*end mill` is every end mill; `full shank` / `reduced shank` take a tool by its shank instead. |
-| `for`        | Blank for a rule about the tool. `holder` for a rule about the stack.                                                                                               |
-| `rule`       | One of the three shapes below.                                                                                                                                      |
-| `level`      | `must`, `should`, `prefer`, or `rank`.                                                                                                                              |
-| `note`       | Why. Read by nobody but the next editor — and by whoever asks where a number came from.                                                                             |
+| Column       | What goes in it                                                                                                                                                                                               |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `feature`    | A kernel feature type — `BlindHole`, `FilletedPocket` — or a pattern: `*Hole`, `Through*`, `*` for every feature.                                                                                             |
+| `when`       | A condition, the same ones `feature-defaults.csv` uses: `filleted`, `flat bottom`, `pointed bottom`, `L/D >= 4`… Blank is always.                                                                             |
+| `tool types` | The forms the rule applies to, separated by `;`. `*` is every form; `*end mill` is every end mill; `not drill` is every form except a drill; `full shank` / `reduced shank` take a tool by its shank instead. |
+| `for`        | Blank for a rule about the tool. `holder` for a rule about the stack.                                                                                                                                         |
+| `rule`       | One of the three shapes below.                                                                                                                                                                                |
+| `level`      | `must`, `should`, `prefer`, or `rank`.                                                                                                                                                                        |
+| `note`       | Why. Read by nobody but the next editor — and by whoever asks where a number came from.                                                                                                                       |
 
 Cells must not contain commas. Lists use `;`.
+
+### Writing a rule that holds for all but one kind of tool
+
+Put `not` in front of a pattern and it takes every tool the pattern does not:
+`not drill`, `not *end mill`. It exists for rules that hold for everything
+except one kind, which could otherwise only be written by naming every other
+kind.
+
+The diameter cap is the reason it exists. Row 1 caps every tool at the largest
+diameter the feature admits — for a hole, the bore itself — and that is right
+for a cutter that has to finish inside the walls. A drill _is_ the hole, and
+the shop's own tolerance for how far off it may be is the `drill oversize` and
+`drill undersize` knobs. While the cap was written `*` it ran first and refused
+an oversized drill before its own rows were reached, so raising the deviation
+knob could never widen the band. It is now two rows:
+
+```
+*,,not drill,,diameter <= largest tool diameter,must,…
+*,,drill,,diameter <= largest tool diameter + drill oversize,must,…
+```
+
+A pair like that also changes what the **filter panel** suggests. A suggested
+range may only say what is true of every form the feature considers, so it is
+worked out one form at a time and the loosest of them wins: on a hole that is
+the drill's bore-plus-oversize, not the end mill's tighter helix limit.
 
 ## The three shapes of rule
 
@@ -53,7 +78,7 @@ Cells must not contain commas. Lists use `;`.
 
 ```
 diameter <= largest tool diameter
-flute length >= feature depth + through overcut
+flute length past the corner >= feature depth + through overcut
 diameter <= largest tool diameter - corner clearance
 tip angle = 180
 L/D <= best L/D + L/D band
@@ -121,13 +146,31 @@ is what `brand priority` reads.
 
 ## Fields
 
-**Tool fields** (numbers off the catalog): `diameter`, `flute length`,
-`length below holder`, `overall length`, `L/D`, `corner radius`, `flutes`,
-`tip angle`, `shank diameter`, `shoulder length`, `shoulder diameter`. Words:
-`form`, `shank`, `brand`.
+**Feature fields** worth knowing apart: `largest tool diameter` is the widest
+tool of **any** kind the feature admits — for a hole, the bore. `largest end
+mill diameter` is the widest _end mill_, which for a hole is smaller, because
+an end mill has to helix down inside it; the Engine states the two
+separately. A rule that caps every tool type wants the first, and only the
+end mill's own row wants the second. Reading the second as the first threw
+the right-sized drill out of every hole (2026-08-31).
 
-**Conditions** for `when` are the defaults sheet's — `filleted`, `not
-filleted`, `flat bottom`, `pointed bottom`, `threaded`, `counterbore`, `ball
+**Tool fields** (numbers off the catalog): `diameter`, `flute length`,
+`flute length past the corner`, `length below holder`, `overall length`,
+`L/D`, `corner radius`, `flutes`, `tip angle`, `shank diameter`, `shoulder
+length`, `shoulder diameter`. Words: `form`, `shank`, `brand`.
+
+`flute length past the corner` is the flute length less the corner radius,
+and it is what a cut with nothing under it wants: a through cut is taken past
+the bottom, and what has to clear the far side is the tool's **corner**, not
+its tip. A flat end has no corner and reads its whole flute length, so the
+rule means the same for one as it always did; a bull nose is short by its
+radius. It is a field rather than a second term on the rule because a bound
+takes one adjustment — and because "how much flute is below the corner" is
+the length somebody is actually measuring.
+
+**Conditions** for `when` are the defaults sheet's — `no floor`, `has floor`,
+`filleted`, `not filleted`, `flat bottom`, `pointed bottom`, `threaded`,
+`counterbore`, `ball
 only` (a surface the kernel says only a ball can finish), or a comparison on
 a feature field — joined with `and`.
 

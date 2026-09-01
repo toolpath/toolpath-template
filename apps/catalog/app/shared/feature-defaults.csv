@@ -1,8 +1,8 @@
 feature,when,show,tool types,flutes,brand,holder,collet,notes
-ThroughHole,,depth below top; feature depth; largest drill diameter; L/D,drill; flat end mill; bull nose end mill; ball end mill,,,,,
+ThroughHole,,depth below top; feature depth; hole diameter; L/D,drill; flat end mill; bull nose end mill; ball end mill,,,,,
 BlindHole,flat bottom,depth below top; feature depth; largest tool diameter; L/D; tip angle,flat end mill; bull nose end mill; drill,by material,,,,A 180° cone is a flat bottom: milled rather than drilled
 BlindHole,filleted,depth below top; feature depth; largest tool diameter; L/D; tip angle; floor fillet radius,drill; bull nose end mill; flat end mill,by material,,,,
-BlindHole,,depth below top; feature depth; largest drill diameter; L/D; tip angle,drill; flat end mill; bull nose end mill; ball end mill,,,,,Any other tip angle is a drill point
+BlindHole,,depth below top; feature depth; hole diameter; L/D; tip angle,drill; flat end mill; bull nose end mill; ball end mill,,,,,Any other tip angle is a drill point
 ThroughPocket,,depth below top; feature depth; largest tool diameter; L/D,flat end mill; bull nose end mill; ball end mill,by material,,,,
 Pocket,filleted,depth below top; feature depth; largest tool diameter; L/D; floor fillet radius,bull nose end mill; flat end mill; ball end mill,by material,,,,
 Pocket,,depth below top; feature depth; largest tool diameter; L/D,flat end mill; bull nose end mill,by material,,,,
@@ -24,7 +24,7 @@ Wall,,depth below top; feature depth; largest tool diameter; L/D,flat end mill; 
 SlantedFace,,depth below top; feature depth; largest tool diameter; L/D,ball end mill; bull nose end mill; flat end mill; tapered mill,by material,,,,
 InnerFillet,,depth below top; feature depth; largest tool diameter; L/D; floor fillet radius,ball end mill; bull nose end mill; flat end mill,by material,,,,
 OuterFillet,,depth below top; feature depth; largest tool diameter; L/D,radius mill; ball end mill; bull nose end mill; flat end mill,by material,,,,A radius on an outside edge is a corner-rounding cutter's form
-SyntheticHole,,depth below top; feature depth; largest drill diameter; L/D,flat end mill; bull nose end mill; ball end mill,,,,,
+SyntheticHole,,depth below top; feature depth; hole diameter; L/D,flat end mill; bull nose end mill; ball end mill,,,,,
 FilletedBoss,,depth below top; feature depth; largest tool diameter; L/D; floor fillet radius,bull nose end mill; flat end mill; ball end mill,by material,,,,
 UndercutTslot,,entry width; undercut depth; depth below top; feature depth; largest tool diameter,slot mill,by material,,,,Entered sideways: the opening bounds the cutter
 UndercutDovetail,,taper angle; depth below top; feature depth; largest tool diameter,dovetail mill,by material,,,,
@@ -34,6 +34,6 @@ BackChamfer,,chamfer angle; depth below top; feature depth; largest tool diamete
 UndercutWall,,depth below top; feature depth; largest tool diameter; L/D,lollipop mill; slot mill,by material,,,,
 USlot,,depth below top; feature depth; largest tool diameter; L/D,ball end mill; bull nose end mill,by material,,,,
 UndercutFilletedDovetail,,taper angle; depth below top; feature depth; largest tool diameter; floor fillet radius,dovetail mill,by material,,,,
-TaperedThroughHole,,depth below top; feature depth; largest drill diameter; L/D,tapered mill; drill,,,,,
+TaperedThroughHole,,depth below top; feature depth; hole diameter; L/D,tapered mill; drill,,,,,
 ThreadedBlindHole,,hole diameter; feature depth; depth below top; thread; tip angle,tap right hand; thread mill; drill,,,,,The drill is the pre-drill to the minor diameter
 ThreadedThroughHole,,hole diameter; feature depth; depth below top; thread,tap right hand; thread mill; drill,,,,,

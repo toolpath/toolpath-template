@@ -158,12 +158,31 @@ describe('reading the sheet', () => {
 })
 
 describe('conditions', () => {
-  const sheetOf = (facts: Record<string, unknown>) => ({
+  const sheetOf = (facts: Record<string, unknown>, hasFloor = true) => ({
     facts,
     curve: null,
     zMin: -10,
     zMax: 0,
     top: 0,
+    hasFloor,
+  })
+
+  /**
+   * Nothing under the cut is what makes the tool's own corner the thing that
+   * has to clear the far side, so it is a condition a rule can ask about
+   * (Paul, 2026-08-31). Unstated is a floor: a datasheet that does not say
+   * adds no rule.
+   */
+  it('knows whether anything stands under the cut', () => {
+    const none = parseCondition('no floor')
+    const some = parseCondition('has floor')
+    if ('error' in none || 'error' in some) {
+      throw new Error('both are conditions')
+    }
+
+    expect(none.condition(sheetOf({}, false))).toBe(true)
+    expect(none.condition(sheetOf({}))).toBe(false)
+    expect(some.condition(sheetOf({}))).toBe(true)
   })
 
   it('knows the named ones', () => {

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import type { CatalogTool } from '@toolpath/catalog-data'
 import { ToolTable } from './tool-table'
@@ -125,5 +125,117 @@ describe('the L/D column', () => {
     )
 
     expect(screen.queryByRole('columnheader', { name: 'L/D' })).not.toBeInTheDocument()
+  })
+})
+
+describe('the order of the columns', () => {
+  /**
+   * The order is the page's, dragged in the column picker, so the table takes
+   * it as given rather than owning it (Paul, 2026-08-31).
+   */
+  it('draws them in the order it is given', () => {
+    render(
+      <MemoryRouter>
+        <ToolTable tools={[tool]} unit="mm" columnOrder={['RE', 'DC', 'LCF']} />
+      </MemoryRouter>,
+    )
+    const headers = screen.getAllByRole('columnheader').map((each) => each.textContent)
+
+    expect(headers.indexOf('Corner radius')).toBeLessThan(headers.indexOf('Diameter'))
+  })
+
+  /** A column the order has never heard of is still drawn, on the end. */
+  it('keeps a column the order does not mention', () => {
+    render(
+      <MemoryRouter>
+        <ToolTable tools={[tool]} unit="mm" columnOrder={['RE']} />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('columnheader', { name: 'Diameter' })).toBeInTheDocument()
+  })
+})
+
+describe('the holder and collet columns', () => {
+  const holding = {
+    holdersFor: () => [{ guid: 'h1', label: 'BT30ER16060M', trouble: null, holder: {} as never }],
+    colletsFor: (_tool: CatalogTool, holderGuid: string | null) =>
+      holderGuid === null ? [] : [{ guid: 'c1', label: 'ER16-8' }],
+    chosen: () => ({ holderGuid: null, colletGuid: null }),
+    requiredStickout: () => null,
+    stickoutFor: () => null,
+    onChoose: vi.fn(),
+  }
+
+  /** Off unless asked for: they are a choice, and the list opens on geometry. */
+  it('are hidden until they are ticked', () => {
+    show([tool])
+
+    expect(screen.queryByRole('columnheader', { name: 'Holder' })).not.toBeInTheDocument()
+  })
+
+  /**
+   * Shown, each row asks the question rather than reporting an answer — and
+   * what is picked here is what *Add to list* opens on.
+   */
+  it('are a dropdown per row when they are shown', () => {
+    render(
+      <MemoryRouter>
+        <ToolTable tools={[tool]} unit="mm" hiddenColumns={[]} holding={holding} />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('combobox', { name: 'Holder for TDMX0500' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'BT30ER16060M' })).toBeInTheDocument()
+    // Nothing is chosen, so there is no holder to take a collet.
+    expect(screen.getByRole('combobox', { name: 'Collet for TDMX0500' })).toBeDisabled()
+  })
+})
+
+describe('the order list button', () => {
+  const kept = () => ({ onBom: vi.fn(), onRemoveBom: vi.fn(), onAlsoBom: vi.fn() })
+
+  it('adds a tool that is not on the bill at all', () => {
+    const on = kept()
+    render(
+      <MemoryRouter>
+        <ToolTable tools={[tool]} unit="mm" {...on} />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /^Add TDMX0500/ }))
+
+    expect(on.onBom).toHaveBeenCalled()
+    expect(on.onAlsoBom).not.toHaveBeenCalled()
+  })
+
+  /** Kept for the feature in view, the same button takes it back off. */
+  it('removes a tool kept for this feature', () => {
+    const on = kept()
+    render(
+      <MemoryRouter>
+        <ToolTable tools={[tool]} unit="mm" inBom={() => true} {...on} />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /^Remove TDMX0500/ }))
+
+    expect(on.onRemoveBom).toHaveBeenCalledWith(tool)
+  })
+
+  /**
+   * Kept for **another** feature, it offers a plus instead: one cutter often
+   * does more than one feature, and the holder it already has comes with it
+   * rather than being chosen again (Paul, 2026-08-31).
+   */
+  it('offers a plus for a tool already kept elsewhere', () => {
+    const on = kept()
+    render(
+      <MemoryRouter>
+        <ToolTable tools={[tool]} unit="mm" keptElsewhere={() => true} {...on} />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /^Also cut this feature/ }))
+
+    expect(on.onAlsoBom).toHaveBeenCalledWith(tool)
+    expect(on.onBom).not.toHaveBeenCalled()
   })
 })

@@ -5,44 +5,44 @@ import { sameDirection } from '@toolpath/viewer'
 /**
  * What the part shows, and when.
  *
- * - **Nothing said** — every way up the part has. They are half the question,
- *   and hiding them until the other half is answered leaves nothing to press.
- * - **An arrow pressed** — that one, whether or not it found a reading.
- *   Pressing an arrow is a statement about which way up, and leaving the other
- *   five on screen makes it look like nothing happened.
- * - **A reading on screen** — the way up *it* is cut from. One arrow among six
- *   is a pointer; six with one of them meaning something else is a legend
- *   nobody reads.
+ * **Nothing until something is clicked** (Paul, 2026-08-31). Six arrows over
+ * an untouched part are six questions nobody asked; the part itself is the
+ * thing to click, and the arrows are what a click produces.
+ *
+ * - **Nothing picked** — no arrows.
+ * - **A face picked** — one arrow for each way up its readings are cut from.
+ *   A face that reads one way gets one arrow, which points at what is on
+ *   screen; a face that reads several gets several, and pressing one is how
+ *   you say which of them you meant.
+ *
+ * None of them ever scopes. Hiding the others would take away the only
+ * control that switches between the readings a face has.
  */
 export interface ArrowPlan {
   readonly visible: boolean
-  /** `null` for every arrow, an index for the one being read. */
-  readonly shown: number | null
+  /** The ways up drawn: a list, or `-1` for none. */
+  readonly shown: number | ReadonlyArray<number>
   /**
    * The way up the part is *scoped* to, which is what hides the other arrows.
    *
-   * Only ever an arrow somebody pressed. Drawing an arrow for the reading on
-   * screen is a pointer; hiding the other five because of it would take the
-   * choice away from somebody who has not made one.
+   * Always null now. Kept because the viewer's prop is a scope and the
+   * difference between "drawn" and "scoped" is the distinction this whole
+   * plan exists to make.
    */
   readonly active: number | null
 }
 
 export const arrowsFor = (context: {
-  /** A way up somebody pressed, which stands whether or not it read anything. */
-  readonly activeDirection?: number | null
-  /** The way up the reading on screen is cut from. */
-  readonly focusedDirection?: number | null
+  /**
+   * The ways up the readings on the clicked face are cut from, by index —
+   * empty with nothing picked.
+   */
+  readonly candidateDirections?: ReadonlyArray<number>
 }): ArrowPlan => {
-  const pressed = context.activeDirection ?? -1
-  if (pressed >= 0) {
-    return { visible: true, shown: pressed, active: pressed }
-  }
-
-  const reading = context.focusedDirection ?? -1
-  return reading >= 0
-    ? { visible: true, shown: reading, active: null }
-    : { visible: true, shown: null, active: null }
+  const ways = context.candidateDirections ?? []
+  return ways.length === 0
+    ? { visible: false, shown: -1, active: null }
+    : { visible: true, shown: [...ways], active: null }
 }
 
 /**

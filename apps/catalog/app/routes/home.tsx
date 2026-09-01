@@ -14,7 +14,14 @@ import {
   searchWithQuery,
   type ToolQuery,
 } from 'shared/filter'
-import { HOLDING_AXES, colletSeries, holdableTools, splitHolding, tapers } from 'shared/holding'
+import {
+  DERIVED_AXES,
+  HOLDING_AXES,
+  colletSeries,
+  holdableTools,
+  splitHolding,
+  tapers,
+} from 'shared/holding'
 import { useSavedFilters } from 'shared/saved-filters'
 import { useUnit } from 'shared/use-unit'
 
@@ -36,6 +43,8 @@ const Home = () => {
       ...facets.terms.map((axis) => axis.key),
       ...facets.ranges.map((axis) => axis.key),
       ...HOLDING_AXES,
+      // What this catalog reads off a tool rather than what a vendor states.
+      ...DERIVED_AXES,
     ],
     [],
   )

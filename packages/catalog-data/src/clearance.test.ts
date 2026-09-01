@@ -168,18 +168,24 @@ describe('a holder as the body the vendor states', () => {
     },
   })
 
-  it('sweeps the collet, the nose, the body, an assumed cone and the flange', () => {
+  /**
+   * **Cylinders, not cones** (Paul, 2026-08-31).
+   *
+   * There used to be a six-step cone between the body and the flange — a
+   * shape no vendor publishes, swept as though it were solid. A silhouette
+   * step is a radius *from a height upward*, so the body carries itself to
+   * the flange with no step of its own, which is the layer model of Justin
+   * Mimbs' reach-curve note.
+   */
+  it('sweeps the collet, the nose, the body and the flange, and nothing between', () => {
     const steps = holderSilhouette(stated(), 30)
 
-    expect(steps[0]).toEqual({ part: 'collet', radius: 3, fromHeight: 27.5 })
-    expect(steps[1]).toEqual({ part: 'nose', radius: 5, fromHeight: 30 })
-    expect(steps[2]).toEqual({ part: 'body', radius: 6.01, fromHeight: 40.55 })
-    expect(steps.at(-1)).toEqual({ part: 'flange', radius: 23, fromHeight: 80 })
-    // The cone, in steps, each at least as wide as the cone below it.
-    const cone = steps.slice(3, -1)
-    expect(cone).toHaveLength(6)
-    expect(cone[0]?.fromHeight).toBeCloseTo(50.15)
-    expect(cone.at(-1)?.radius).toBe(23)
+    expect(steps).toEqual([
+      { part: 'collet', radius: 3, fromHeight: 27.5 },
+      { part: 'nose', radius: 5, fromHeight: 30 },
+      { part: 'body', radius: 6.01, fromHeight: 40.55 },
+      { part: 'flange', radius: 23, fromHeight: 80 },
+    ])
   })
 
   /** The flange is 23 mm across from the axis; 8 mm out the boss stands 30 mm. At 30 mm stickout the flange sits at 80 — clear. */
@@ -194,12 +200,17 @@ describe('a holder as the body the vendor states', () => {
    * the cone's *sampled* step, which is wider than the cone is at that height
    * — the assumption refusing more than the true body would, never less.
    */
-  it('catches the flange and the assumed cone, and says how far out the stack would have to go', () => {
+  /**
+   * The flange is what meets a wall 15 mm out and 100 tall; the body, ⌀12.02,
+   * is inside it. Nothing between them is swept any more, so the stickout the
+   * stack needs is the flange's alone — 20 mm less than the cone asked for.
+   */
+  it('catches the flange, and says how far out the stack would have to go', () => {
     const wall = { horizontalOffset: [0, 15, 25], verticalOffset: [12, 12, 100] }
     const result = clearance(stated(), wall)
 
-    expect(result.collisions.map((each) => each.part)).toEqual(['body', 'body', 'flange'])
-    expect(result.requiredStickout).toBeCloseTo(59.95, 1)
+    expect(result.collisions.map((each) => each.part)).toEqual(['flange'])
+    expect(result.requiredStickout).toBeCloseTo(50, 1)
   })
 
   it('falls back to the nose over the gauge length where no body is stated', () => {

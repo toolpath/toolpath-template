@@ -204,7 +204,15 @@ describe('a holder drawn as the body the vendor states', () => {
     },
   })
 
-  it('draws collet, nose, body, an assumed cone and an assumed flange above the shank', () => {
+  /**
+   * **Cylinders, not cones** (Paul, 2026-08-31). The stretch between the body
+   * and the flange was drawn as a cone flaring out to the flange's own
+   * diameter — a shape the vendor never published, and most of the drawn
+   * holder. It is the body's own diameter carried up now: still assumed,
+   * because nothing states it, but assumed to be no wider than what *is*
+   * stated rather than assumed to flare.
+   */
+  it('draws collet, nose, body, the body carried to the flange, and the flange', () => {
     const outline = assemblyOutline(stated)
     const holderParts = outline.segments.filter(
       (each) => !['tip', 'flutes', 'shank'].includes(each.part),
@@ -215,7 +223,12 @@ describe('a holder drawn as the body the vendor states', () => {
       ['nose', 'vendor-stated'],
       ['body', 'vendor-stated'],
       ['body', 'assumed'],
-      ['flange', 'assumed'],
+      ['flange', 'derived'],
+    ])
+    // The carry is the body's own radius, top and bottom.
+    expect(holderParts[3]?.points).toEqual([
+      { r: 6.01, z: 50.15 },
+      { r: 6.01, z: 80 },
     ])
     expect(holderParts[0]?.points).toEqual([
       { r: 3, z: 27.5 },

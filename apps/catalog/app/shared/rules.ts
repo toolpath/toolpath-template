@@ -44,7 +44,7 @@ import rulesCsv from './rules.csv?raw'
  * - **a rank**: `L/D smallest`, `gauge length longest`, `corner radius
  *   closest to floor fillet radius`, `diameter largest up to 90 % of largest
  *   tool diameter`, `form in order chamfer mill; ball end mill` (listed first
- *   is best, unlisted last), or the named `brand priority`. Rank rows are
+ *   is best, unlisted last). Rank rows are
  *   read top to bottom; a row for the feature beats a `*` row.
  *
  * This module parses and selects. Judging a tool against the selected rules is
@@ -180,6 +180,25 @@ export const TOOL_NUMBERS: Readonly<Record<string, ToolNumber>> = {
   'overall length': { unit: 'mm', read: geometry('OAL') },
   'L/D': { unit: 'ratio', read: geometry('LD') },
   'corner radius': { unit: 'mm', read: geometry('RE') },
+  /**
+   * How far the flutes reach past the tool's own corner: `LCF − RE`.
+   *
+   * A cut with nothing under it is taken past the bottom, and what has to
+   * clear that overshoot is the **corner**, not the tip — Justin Mimbs' note
+   * on reach curves: the analysis adds the tool's corner radius on top of the
+   * overcut. Written as a field rather than as a second term on the rule
+   * because a bound takes one adjustment, and because "how much flute is
+   * below the corner" is the length somebody is actually measuring. A flat
+   * end has no corner, so it reads its whole flute length and the rule means
+   * for it exactly what it meant before.
+   */
+  'flute length past the corner': {
+    unit: 'mm',
+    read: (tool) => {
+      const flutes = tool.geometry.LCF
+      return flutes === undefined ? null : flutes - (tool.geometry.RE ?? 0)
+    },
+  },
   flutes: { unit: 'count', read: geometry('NOF') },
   'tip angle': { unit: 'deg', read: geometry('SIG') },
   'shank diameter': { unit: 'mm', read: geometry('SFDM') },
@@ -209,9 +228,6 @@ export const HOLDER_NUMBERS: Readonly<Record<string, { readonly unit: 'mm' | '%'
   'collet series': { unit: 'count' },
   'nose diameter': { unit: 'mm' },
 }
-
-export const NAMED_RANKS = ['brand priority'] as const
-export type NamedRank = (typeof NAMED_RANKS)[number]
 
 /* ---------------------------------------------------------------- rules -- */
 
@@ -265,7 +281,6 @@ export type Test =
       readonly direction: 'order'
       readonly order: ReadonlyArray<string>
     }
-  | { readonly kind: 'rank'; readonly named: NamedRank }
 
 export interface Rule {
   readonly line: number
@@ -308,14 +323,44 @@ export const toolTypeMatches = (pattern: string, form: string): boolean =>
  * Whether one `tool types` pattern takes this tool: its form, or — for
  * `full shank` / `reduced shank` — its shank. A tool whose shank cannot be
  * told (no shoulder stated) is taken by neither shank word.
+ *
+ * A pattern may be written **`not <pattern>`**, which takes every tool the
+ * pattern does not. It exists because a rule that holds for everything except
+ * one kind of tool could otherwise only be written by naming every other kind
+ * — and the first one that needed it was the diameter cap, which every tool
+ * obeys except a drill, whose own band is the bore plus the oversize knob
+ * (Paul, 2026-08-31: "drill oversize can and should widen the band").
  */
 export const patternCovers = (pattern: string, tool: CatalogTool): boolean => {
   const word = pattern.trim().toLowerCase()
+  const negated = word.startsWith('not ')
+  if (negated) {
+    return !patternCovers(word.slice(4), tool)
+  }
   if (word === 'full shank' || word === 'reduced shank') {
     const shank = shankOf(tool)
     return shank !== null && word === `${shank} shank`
   }
   return toolTypeMatches(pattern, tool.form)
+}
+
+/**
+ * Whether a pattern takes a tool **form**, without a tool to ask.
+ *
+ * What a feature's defaults row lists is forms, so this is how a rule is
+ * checked against the set of tools a feature considers. The shank words are
+ * about one tool rather than a form, so no form is covered by them: a rule
+ * written on the shank is never universal, which is the conservative answer.
+ */
+export const patternCoversForm = (pattern: string, form: string): boolean => {
+  const word = pattern.trim().toLowerCase()
+  if (word.startsWith('not ')) {
+    return !patternCoversForm(word.slice(4), form)
+  }
+  if ((SHANK_PATTERNS as ReadonlyArray<string>).includes(word)) {
+    return false
+  }
+  return toolTypeMatches(word, form)
 }
 
 const knownTerm = (raw: string, knobs: ReadonlyArray<Knob>): Term | null => {
@@ -378,10 +423,6 @@ export const parseTest = (
   const text = raw.trim().replace(/\s+/g, ' ')
   const numbers = numbersFor(stage)
   const fieldList = Object.keys(numbers).join(', ')
-
-  if ((NAMED_RANKS as ReadonlyArray<string>).includes(text.toLowerCase())) {
-    return { test: { kind: 'rank', named: text.toLowerCase() as NamedRank } }
-  }
 
   const order = ORDER.exec(text)
   if (order) {
@@ -538,12 +579,17 @@ export const parseRules = (
       problems.push({ line: at, message: 'No tool types named; use * for all of them.' })
       continue
     }
-    const unknownType = toolTypes.find(
-      (pattern) =>
-        !pattern.includes('*') &&
-        !isToolForm(pattern) &&
-        !(SHANK_PATTERNS as ReadonlyArray<string>).includes(pattern.toLowerCase()),
-    )
+    const unknownType = toolTypes
+      // `not drill` is the `drill` pattern, read the other way round.
+      .map((pattern) =>
+        pattern.toLowerCase().startsWith('not ') ? pattern.slice(4).trim() : pattern,
+      )
+      .find(
+        (pattern) =>
+          !pattern.includes('*') &&
+          !isToolForm(pattern) &&
+          !(SHANK_PATTERNS as ReadonlyArray<string>).includes(pattern.toLowerCase()),
+      )
     if (unknownType) {
       problems.push({
         line: at,
@@ -579,7 +625,7 @@ export const parseRules = (
         line: at,
         message:
           level === 'rank'
-            ? 'A rank row needs a rank rule: "… smallest", "… largest", "… closest to …", "form in order …" or "brand priority".'
+            ? 'A rank row needs a rank rule: "… smallest", "… largest", "… closest to …" or "form in order …".'
             : `A rank rule needs the level "rank", not "${level}".`,
       })
       continue

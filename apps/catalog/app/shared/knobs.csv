@@ -1,7 +1,7 @@
 knob,value,unit,note
 corner clearance,5,%,Under the tightest corner a tool should stay by this much: Paul's 5 % against load spikes; the engine's min_radius_reduction is 0.05
-drill oversize,0.1,mm,A drill may be this much wider than the hole: Toolpath UI default 0.004 in; the engine itself uses 0.001 in (the API's largest drill diameter)
-drill undersize,0.1,mm,A drill may be this much narrower than the hole: Toolpath UI default 0.004 in
+drill oversize,0.1016,mm,A drill may be this much wider than the hole: Paul's 0.004 in exactly (0.1 mm rounded it down and rejected a tool a thousandth of a millimetre inside the band); the engine itself uses 0.001 in (the API's largest drill diameter)
+drill undersize,0.1016,mm,A drill may be this much narrower than the hole: Paul's 0.004 in exactly — a 0.075 in drill in a 0.079 in hole is in the band, and 0.1 mm put it out of it
 drill angle tolerance shallower,35,deg,A drill tip may be this much shallower (wider) than a blind hole's bottom: engine drillAngleTolerancePlus
 drill angle tolerance sharper,0,deg,A drill tip may be this much sharper than the bottom; 0 because a sharper tip leaves a step: engine drillAngleToleranceMinus
 finishing radius limit,0.025,mm,The largest bull-nose radius that may stand in for a flat end on a floor the model draws sharp: engine maxBullnoseEndmillFinishingRadius 0.001 in

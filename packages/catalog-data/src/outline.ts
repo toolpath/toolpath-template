@@ -257,28 +257,46 @@ export const assemblyOutline = (assembly: Outlined): Outline => {
       const flangeAt = stickout + holder.projection
       const rf = holder.flangeDiameter / 2
       if (flangeAt > top) {
-        // Nobody states the shape between the last stated diameter and the
-        // flange: a cone, drawn dashed.
+        /**
+         * **The last stated diameter, carried up to the flange.**
+         *
+         * This was a cone from the body out to the flange, and it was an
+         * invention: on a PG 10 × 062 it flared ⌀18 to ⌀46 over 34 mm — more
+         * than half the drawn holder, in a shape the vendor never published,
+         * and the sweep treated it as solid. Tools were turned down for metal
+         * that is not there (Paul, 2026-08-31).
+         *
+         * Justin Mimbs' reach-curve note models a holder as cylinders: each
+         * layer at its widest, no credit for a taper, and the last diameter
+         * carried upward. This is that carry — assumed, because the vendor
+         * states nothing here, but assumed to be *no wider than what it
+         * states* rather than assumed to flare.
+         */
         segments.push({
           part: 'body',
           points: [
             { r: radius, z: top },
-            { r: rf, z: flangeAt },
+            { r: radius, z: flangeAt },
           ],
           provenance: 'assumed',
         })
       }
-      // The flange itself: its diameter is the taper's, its thickness is not
-      // stated here. Drawn as the 20 mm of a BT 30 V-flange, and dashed.
+      // The flange: its diameter is the taper's, and it runs from the
+      // projection up to the gauge line — both stated. Where the gauge length
+      // is not, the 20 mm of a BT 30 V-flange stands in.
+      const flangeTop =
+        holder.gaugeLength !== null && holder.gaugeLength > holder.projection
+          ? stickout + holder.gaugeLength
+          : flangeAt + 20
       segments.push({
         part: 'flange',
         points: [
           { r: rf, z: flangeAt },
-          { r: rf, z: flangeAt + 20 },
+          { r: rf, z: flangeTop },
         ],
-        provenance: 'assumed',
+        provenance: holder.gaugeLength === null ? 'assumed' : stated('flangeDiameter'),
       })
-      top = flangeAt + 20
+      top = flangeTop
     }
   }
 

@@ -3,7 +3,7 @@ import { MILLING_FORMS, type ToolForm } from '@toolpath/catalog-data'
 import { defaultsFor, sheetOf } from './feature-defaults'
 import type { ToolQuery } from './filter'
 import { rightSideOf } from './judge'
-import { KNOBS, RULES, rulesFor, type Knob, type Rule } from './rules'
+import { KNOBS, RULES, patternCoversForm, rulesFor, type Knob, type Rule } from './rules'
 
 /**
  * What the filters should already say, once a feature and a material are chosen.
@@ -72,6 +72,11 @@ const rounded = (value: number): number => Math.round(value * 1000) / 1000
 const CODES: Readonly<Record<string, string>> = {
   diameter: 'DC',
   'flute length': 'LCF',
+  // The rule is about the flutes *below the corner*; the filter is over the
+  // flute length column, so a tool with a corner radius passes a filter the
+  // judge will still turn down. Loose is the safe direction for a suggestion:
+  // it never hides a tool that fits, and the verdict is the judge's.
+  'flute length past the corner': 'LCF',
   'length below holder': 'LBH',
   'overall length': 'OAL',
   'L/D': 'LD',
@@ -84,9 +89,16 @@ const CODES: Readonly<Record<string, string>> = {
 /**
  * The ranges the sheet's musts put on every tool for this feature.
  *
- * Only rows that name `*` as their tool types, only `must`, only bounds that
- * can be read off this feature — and never one relative to the other tools.
- * Later rows tighten earlier ones on the same side, never loosen them.
+ * Only `must`, only bounds that can be read off this feature, and never one
+ * relative to the other tools.
+ *
+ * **A bound is only a filter if it holds for every tool the feature
+ * considers.** A row that names `*` does. So does a pair that between them
+ * leave nothing out — `not drill` and `drill`, which is how the diameter cap
+ * is written since a drill's band is the bore plus the oversize knob (Paul,
+ * 2026-08-31). For such a pair the filter takes the **loosest** of the two,
+ * because a filter that took the tighter one would hide the very tools the
+ * looser row exists to admit.
  */
 export const rangesFromRules = (
   feature: PartFeature,
@@ -95,32 +107,75 @@ export const rangesFromRules = (
   knobs: ReadonlyArray<Knob> = KNOBS.knobs,
 ): Record<string, Bound> => {
   const sheet = sheetOf(feature, partFeatures)
-  const ranges: Record<string, Bound> = {}
-  for (const rule of rulesFor(feature, partFeatures, rules)) {
+  // What the feature considers at all: a bound on a form nothing offers is
+  // not a filter, and a form nothing bounds means no filter on that code.
+  const forms = defaultsFor(feature, partFeatures)?.toolTypes ?? []
+  const bounds = rulesFor(feature, partFeatures, rules).flatMap((rule) => {
     const { test } = rule
     if (
       rule.stage !== 'tool' ||
       rule.level !== 'must' ||
       test.kind !== 'bound' ||
-      test.base.kind === 'best' ||
-      !rule.toolTypes.includes('*')
+      test.base.kind === 'best'
     ) {
-      continue
+      return []
     }
     const code = CODES[test.field]
     const value = rightSideOf(test, sheet, knobs)
-    if (code === undefined || value === null) {
-      continue
+    return code === undefined || value === null
+      ? []
+      : [{ rule, code, operator: test.operator, value: rounded(value) }]
+  })
+
+  /**
+   * **A form at a time, then the loosest of them.**
+   *
+   * A filter hides tools, so it may only say what is true of *every* form the
+   * feature considers. Each form gets the tightest of the rows that take it;
+   * the filter is then the loosest of those, because a bound that holds for
+   * end mills is not a bound on a drill — and since 2026-08-31 the diameter
+   * cap is written as exactly that pair (`not drill`, `drill`), a drill being
+   * allowed past the bore by the oversize knob. Taking the tighter one would
+   * hide the tools the drill row exists to admit.
+   */
+  const ranges: Record<string, Bound> = {}
+  for (const code of new Set(bounds.map((each) => each.code))) {
+    let widest: Bound | null = null
+    for (const form of forms) {
+      const mine = bounds.filter(
+        (each) =>
+          each.code === code &&
+          each.rule.toolTypes.some((pattern) => patternCoversForm(pattern, form)),
+      )
+      if (mine.length === 0) {
+        // Nothing bounds this form, so nothing may be filtered on this code.
+        widest = null
+        break
+      }
+      const held: Bound = {}
+      for (const each of mine) {
+        if (each.operator === '<=' || each.operator === '<' || each.operator === '=') {
+          held.max = held.max === undefined ? each.value : Math.min(held.max, each.value)
+        }
+        if (each.operator === '>=' || each.operator === '>' || each.operator === '=') {
+          held.min = held.min === undefined ? each.value : Math.max(held.min, each.value)
+        }
+      }
+      widest =
+        widest === null
+          ? held
+          : {
+              ...(held.max === undefined || widest.max === undefined
+                ? {}
+                : { max: Math.max(held.max, widest.max) }),
+              ...(held.min === undefined || widest.min === undefined
+                ? {}
+                : { min: Math.min(held.min, widest.min) }),
+            }
     }
-    const held = ranges[code] ?? {}
-    const bound = rounded(value)
-    if (test.operator === '<=' || test.operator === '<' || test.operator === '=') {
-      held.max = held.max === undefined ? bound : Math.min(held.max, bound)
+    if (widest && (widest.max !== undefined || widest.min !== undefined)) {
+      ranges[code] = widest
     }
-    if (test.operator === '>=' || test.operator === '>' || test.operator === '=') {
-      held.min = held.min === undefined ? bound : Math.max(held.min, bound)
-    }
-    ranges[code] = held
   }
   return ranges
 }
@@ -183,6 +238,18 @@ export const suggestionsFor = (
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)
 
 /**
+ * Which filters a new feature overrules outright.
+ *
+ * **The tool type is the feature's to say.** Which forms can cut a thing is a
+ * fact about the thing — a hole is drilled, a filleted floor is not touched by
+ * a flat end — so a type chosen for the last feature, by hand or by the sheet,
+ * is not an answer about this one. Every other filter is somebody's until they
+ * clear it (Paul, 2026-08-31: "when I click a feature, it needs to override
+ * the tool type fields and apply the filters for the feature type").
+ */
+const OVERRULED: ReadonlySet<string> = new Set(['form'])
+
+/**
  * The filters a feature suggests, folded onto what is already set.
  *
  * **A suggestion the last feature made is not somebody's answer.** Only filling
@@ -190,7 +257,7 @@ const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.str
  * hole suggested was no longer blank, so the pocket suggested nothing and the
  * list stayed full of drills. So a value that is still exactly what the last
  * feature suggested is replaced, and a value that is anything else — typed,
- * ticked, or cleared — is left alone.
+ * ticked, or cleared — is left alone, unless it is one of {@link OVERRULED}.
  *
  * `previous` is what was suggested last time, which is the only way to tell
  * those two apart.
@@ -205,15 +272,21 @@ export const applySuggestions = (
   const next = suggestionsFor(feature, materialGroup, partFeatures)
   const terms: Record<string, ReadonlyArray<string>> = { ...query.terms }
   const ranges: Record<string, Bound> = { ...query.ranges }
-  for (const key of new Set([...Object.keys(previous.terms), ...Object.keys(terms)])) {
+  for (const key of new Set([
+    ...Object.keys(previous.terms),
+    ...Object.keys(terms),
+    ...Object.keys(next.terms),
+  ])) {
     const held = terms[key]
     const untouched = held === undefined || held.length === 0 || same(held, previous.terms[key])
-    if (!untouched) {
+    const suggested = next.terms[key]
+    // A feature overrules the tool type even where somebody set it: see above.
+    if (!untouched && !(OVERRULED.has(key) && suggested !== undefined)) {
       continue
     }
-    if (next.terms[key]) {
-      terms[key] = next.terms[key]
-    } else {
+    if (suggested) {
+      terms[key] = suggested
+    } else if (untouched) {
       delete terms[key]
     }
   }

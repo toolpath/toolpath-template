@@ -179,4 +179,12 @@ closely spaced corners as a Catmull-Rom spline, big rises as sharp joins
 (`wallPath`) — so a fillet reads as an arc and a wall as a wall; thinning to
 chords had turned a fillet into a chamfer, and Paul said so.
 
+**The matching's behaviour is pinned.** Paul, 2026-08-30: "tool matching is
+working pretty well right now so let's make sure we keep the behavior."
+`app/shared/matching.test.ts` is the lock — one fixed crib of fourteen tools
+against eight kinds of feature, asserting the whole list: every tool, in
+order, with its standing. `judge.test.ts` still covers the rules one at a
+time; this says what they add up to, so a changed row or knob shows up as a
+named tool moving rather than as a silent reshuffle.
+
 Parked: the holder rank rows; the saved-assemblies view; step 5 sensors.

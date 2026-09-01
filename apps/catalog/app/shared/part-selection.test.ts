@@ -70,45 +70,39 @@ describe('the group being asked about', () => {
 })
 
 describe('what the part shows, and when', () => {
-  /** They are half the question; hiding them leaves nothing to press. */
-  it('draws every way up while nothing is being read', () => {
-    expect(arrowsFor({})).toEqual({ visible: true, shown: null, active: null })
-    expect(arrowsFor({ focusedDirection: null })).toEqual({
+  /**
+   * Six arrows over an untouched part are six questions nobody asked (Paul,
+   * 2026-08-31). The part is the thing to click; the arrows are what a click
+   * produces.
+   */
+  it('draws no arrows until something is clicked', () => {
+    expect(arrowsFor({})).toEqual({ visible: false, shown: -1, active: null })
+    expect(arrowsFor({ candidateDirections: [] })).toEqual({
+      visible: false,
+      shown: -1,
+      active: null,
+    })
+  })
+
+  /** A face that reads one way up gets one arrow, and it points at what is on screen. */
+  it('draws the one way up a face reads from', () => {
+    expect(arrowsFor({ candidateDirections: [2] })).toEqual({
       visible: true,
-      shown: null,
+      shown: [2],
       active: null,
     })
   })
 
   /**
-   * A reading points at its own way up without taking the others away.
-   *
-   * Its arrow is drawn — one among six is a pointer — but nothing is scoped:
-   * hiding the rest because a reading happens to be on screen would make a
-   * choice on somebody's behalf, and the next face click would silently be
-   * read from a setup they never picked.
+   * A face that reads several gets several, and pressing one is how somebody
+   * says which of them they meant. None of them scopes: hiding the others
+   * would take away the only control that switches between the readings.
    */
-  it('points at the reading’s way up without scoping to it', () => {
-    expect(arrowsFor({ focusedDirection: 2 })).toEqual({
+  it('draws every way up a face reads from, and scopes to none of them', () => {
+    expect(arrowsFor({ candidateDirections: [0, 3] })).toEqual({
       visible: true,
-      shown: 2,
+      shown: [0, 3],
       active: null,
-    })
-  })
-
-  /**
-   * Pressing an arrow is a statement about which way up. Leaving the other five
-   * on screen makes it look like nothing happened, so this one *scopes*.
-   */
-  it('draws only the arrow that was pressed, even before it reads anything', () => {
-    expect(arrowsFor({ activeDirection: 1 })).toEqual({ visible: true, shown: 1, active: 1 })
-  })
-
-  it('lets the pressed arrow stand over the reading’s own', () => {
-    expect(arrowsFor({ activeDirection: 1, focusedDirection: 2 })).toEqual({
-      visible: true,
-      shown: 1,
-      active: 1,
     })
   })
 })

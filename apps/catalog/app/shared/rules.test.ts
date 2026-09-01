@@ -17,6 +17,7 @@ import {
   parseTest,
   ruleCovers,
   rulesFor,
+  patternCovers,
   toolTypeMatches,
 } from './rules'
 import { shankOf } from '@toolpath/catalog-data'
@@ -177,7 +178,7 @@ describe('the three shapes of rule', () => {
     })
   })
 
-  it('reads a rank, with a cap, a closest-to, and the named ones', () => {
+  it('reads a rank, with a cap and a closest-to', () => {
     expect(parseTest('L/D smallest', 'tool', knobs)).toEqual({
       test: { kind: 'rank', field: 'L/D', direction: 'smallest', capPercent: null, capOf: null },
     })
@@ -212,9 +213,6 @@ describe('the three shapes of rule', () => {
         to: 'largest tool diameter',
         adjust: { sign: -1, term: { kind: 'knob', name: 'corner clearance' } },
       },
-    })
-    expect(parseTest('brand priority', 'tool', knobs)).toEqual({
-      test: { kind: 'rank', named: 'brand priority' },
     })
     expect(parseTest('form in order chamfer mill; ball end mill', 'tool', knobs)).toEqual({
       test: {
@@ -337,7 +335,24 @@ describe('matching', () => {
     expect(toolTypeMatches('*end mill', 'bull nose end mill')).toBe(true)
     expect(toolTypeMatches('*end mill', 'drill')).toBe(false)
     expect(toolTypeMatches('drill', 'spot drill')).toBe(false)
-    expect(ruleCovers(RULES.rules[0]!, tool('drill', {}))).toBe(true)
+    // The first row is the diameter cap, which every tool obeys **except** a
+    // drill — its band is the bore plus the oversize knob, on the row below.
+    expect(ruleCovers(RULES.rules[0]!, tool('flat end mill', {}))).toBe(true)
+    expect(ruleCovers(RULES.rules[0]!, tool('drill', {}))).toBe(false)
+  })
+
+  /**
+   * `not <pattern>` takes every tool the pattern does not.
+   *
+   * Written for the diameter cap, which holds for everything but a drill and
+   * could otherwise only be written by naming every other kind of tool (Paul,
+   * 2026-08-31: "drill oversize can and should widen the band").
+   */
+  it('reads a negated tool type', () => {
+    expect(patternCovers('not drill', tool('drill', {}))).toBe(false)
+    expect(patternCovers('not drill', tool('flat end mill', {}))).toBe(true)
+    expect(patternCovers('not *end mill', tool('bull nose end mill', {}))).toBe(false)
+    expect(patternCovers('not *end mill', tool('drill', {}))).toBe(true)
   })
 
   /** A shoulder narrower than the cut is a neck; the GOPR4RA0300N004 in the data reads 2.82 behind a 3 mm cut. */

@@ -134,6 +134,7 @@ export {
   type OutlinePoint,
   type OutlineSegment,
 } from './outline.js'
+export { tightestGaps, wallFaceAt, type AxialGap, type Gap, type Gaps } from './gaps.js'
 export {
   HOLDER_AXES,
   applicableFilters,
