@@ -5,6 +5,7 @@ import {
   SHEET,
   defaultsFor,
   featureKey,
+  hasSharpCorner,
   parseCondition,
   parseSheet,
   readingsFor,
@@ -268,5 +269,43 @@ describe('what a feature gets', () => {
     for (const name of Object.keys(FIELDS)) {
       expect(typeof FIELDS[name]?.read).toBe('function')
     }
+  })
+})
+
+/**
+ * **The warning is a claim about tools, not about a field** (Paul, 2026-09-01:
+ * "you're triggering the sharp corner warning on features that don't have
+ * sharp corners"). `cd.terminalCornerRadius` read zero on an open pocket whose
+ * corners a ⌀4.5 end mill finishes, so it is only half the test: the other
+ * half is that nothing reaches the corner.
+ */
+describe('a corner no mill can leave', () => {
+  const pocket = (facts: Record<string, unknown>) =>
+    feature('OpenPocket', { kind: 'Pocket', ...facts }, { hasWall: true })
+
+  it('warns only when nothing reaches the corner', () => {
+    expect(hasSharpCorner(pocket({ cd: { terminalCornerRadius: 0, ignore: { min: 0 } } }))).toBe(
+      true,
+    )
+  })
+
+  it('says nothing about a pocket a real cutter finishes', () => {
+    expect(hasSharpCorner(pocket({ cd: { terminalCornerRadius: 0, ignore: { min: 4.57 } } }))).toBe(
+      false,
+    )
+    expect(
+      hasSharpCorner(pocket({ cd: { terminalCornerRadius: 2.3, ignore: { min: 4.57 } } })),
+    ).toBe(false)
+  })
+
+  /** A hole has no corner to turn, and neither has a feature with no wall. */
+  it('says nothing about a hole, or about a feature with no wall', () => {
+    const hole = feature('ThroughHole', { kind: 'Hole', cd: { terminalCornerRadius: 0 } })
+    expect(hasSharpCorner(hole)).toBe(false)
+    expect(
+      hasSharpCorner(
+        feature('Face', { kind: 'Face', cd: { terminalCornerRadius: 0, ignore: { min: 0 } } }),
+      ),
+    ).toBe(false)
   })
 })

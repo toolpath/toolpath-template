@@ -4,15 +4,12 @@ import {
   arrowsFor,
   byLargest,
   dropAll,
-  dropFeature,
   escapeStep,
   keepAll,
-  keepFeature,
   keptFeatures,
   partHighlight,
   preferLargest,
   surfaceArea,
-  toggleKept,
 } from './part-selection'
 
 const DOWN = { x: 0, y: 0, z: 1 }
@@ -35,25 +32,14 @@ const PART = [
 ]
 
 describe('the group being asked about', () => {
-  it('keeps in the order things were kept', () => {
-    expect(keepFeature(keepFeature([], 'b'), 'a')).toEqual(['b', 'a'])
-  })
-
-  it('keeps a feature once however often it is offered', () => {
-    expect(keepFeature(['a'], 'a')).toEqual(['a'])
-  })
-
-  it('toggles one off and leaves the rest in place', () => {
-    expect(toggleKept(['a', 'b', 'c'], 'b')).toEqual(['a', 'c'])
-  })
-
-  it('keeps everything offered without disturbing what is there', () => {
+  /** In the order they were kept: a list that reorders as it grows loses your place. */
+  it('keeps everything offered once, without disturbing what is there', () => {
     expect(keepAll(['b'], ['a', 'b', 'c'])).toEqual(['b', 'a', 'c'])
+    expect(keepAll(['a'], ['a'])).toEqual(['a'])
   })
 
   it('drops exactly what was offered', () => {
     expect(dropAll(['a', 'b', 'c'], ['a', 'c'])).toEqual(['b'])
-    expect(dropFeature(['a', 'b'], 'a')).toEqual(['b'])
   })
 
   /** Read in the part's order: a list that reorders as it grows loses your place. */

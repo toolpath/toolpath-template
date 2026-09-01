@@ -69,12 +69,11 @@ export const AppHeader = ({ unit, onUnit, toolCount }: AppHeaderProps) => {
         </ChipGroup>
       </div>
       <nav className="flex gap-2 border-t border-zinc-900 px-6">
-        <NavLink to="/" end className={tabClass}>
-          Catalog
-        </NavLink>
-        <NavLink to="/families" className={tabClass}>
-          Families
-        </NavLink>
+        {/*
+          No Catalog or Families tab (Paul, 2026-09-01): the way in is a part,
+          and the pages that browse the whole catalog on its own are hidden.
+          They still answer on `/catalog` and `/families`.
+        */}
         {/* `end`, or the part's own tab stays lit on the order list
             underneath it and two tabs read as current at once. */}
         <NavLink to={part ? partHref(part) : '/parts'} end className={tabClass}>

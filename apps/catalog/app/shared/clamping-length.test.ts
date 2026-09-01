@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CatalogTool } from '@toolpath/catalog-data'
-import {
-  clampedFrom,
-  clampedLength,
-  lengthBelowHolder,
-  withClampingLength,
-} from './clamping-length'
+import { clampedLength, lengthBelowHolder, withClampingLength } from './clamping-length'
 
 const tool = (geometry: Record<string, number>): CatalogTool =>
   ({
@@ -29,13 +24,11 @@ describe('how much shank a shop holds', () => {
   /** The manufacturer's own number wins wherever there is one. */
   it('reads the vendor’s clamping length where the tool publishes one', () => {
     expect(clampedLength(stated, RULE)).toBe(36)
-    expect(clampedFrom(stated, RULE)).toBe('vendor')
   })
 
   /** And the rule of thumb everywhere else, which is every tool in the catalog today. */
   it('falls back to the multiple of diameter where it does not', () => {
     expect(clampedLength(sixMil, RULE)).toBe(18)
-    expect(clampedFrom(sixMil, RULE)).toBe('rule')
   })
 
   it('ignores the vendor’s number when the shop has turned it off', () => {

@@ -18,7 +18,13 @@ import type { ReachCurve } from '@toolpath/part-contracts'
 import { formatLength, type Unit } from '@toolpath/domain/units'
 import { classNames } from '@toolpath/domain/class-names'
 import { assemblyLabel } from 'shared/assemblies'
-import { dimensionsFor } from 'shared/tool-dimensions'
+import {
+  bandOffset,
+  bandRoom,
+  dimensionLayout,
+  dimensionsFor,
+  laneOffset,
+} from 'shared/tool-dimensions'
 import { DimensionLines } from './dimension-lines'
 
 /**
@@ -50,12 +56,42 @@ import { DimensionLines } from './dimension-lines'
  * `data-provenance`, and named in the caption.
  */
 
+/**
+ * **Outlined, not blocked in** (Paul, 2026-09-01, against the drawings in the
+ * geometry write-up): a drawing of a tool is a silhouette with its sections
+ * shaded lightly, so the dimension lines that cross it stay readable. The
+ * flutes are hatched — the one section that is not a plain body — and the
+ * holder's own parts stay solid, because they are behind the tool rather than
+ * part of it.
+ */
+/**
+ * The sheet the tool is drawn on, and the ink it is drawn in.
+ *
+ * **Hard colours rather than the application's ramp** (Paul, 2026-09-01): a
+ * drawing is a drawing in either theme, and the ramp flips under light mode —
+ * a "light grey" written as a utility comes out dark on half the machines
+ * that open it. These are the sheet, the linework and the two shades a tool
+ * has: gold flutes and a steel body.
+ */
+const SHEET = {
+  // White: the sheet is a sheet, and the wash belongs to the panel around it
+  // (Paul, 2026-09-01).
+  ground: '#ffffff',
+  ink: '#3f4650',
+  centre: '#15181c',
+  dimension: '#606a76',
+  body: '#c4c8ce',
+  flutes: '#e6bf59',
+  holder: '#9aa2ad',
+  connection: '#78818d',
+} as const
+
 const FILL: Record<OutlinePart, string> = {
-  tip: 'fill-yellow-100',
-  flutes: 'fill-yellow-100',
+  tip: 'fill-yellow-100/70',
+  flutes: 'fill-yellow-100/70',
   // The reduced section, a shade apart from the shank so the relief reads.
-  neck: 'fill-zinc-400',
-  shank: 'fill-zinc-300',
+  neck: 'fill-zinc-400/50',
+  shank: 'fill-zinc-300/40',
   collet: 'fill-zinc-500',
   nose: 'fill-zinc-500',
   body: 'fill-zinc-500',
@@ -288,6 +324,14 @@ export interface AssemblyDrawingProps {
    * on (Paul, 2026-09-01).
    */
   readonly dimensions?: boolean
+  /**
+   * Which sides the dimension lanes may use.
+   *
+   * `both` where the drawing has the panel to itself, which evens them out
+   * and keeps the tool in the middle (Paul, 2026-09-01). Left only where the
+   * part is drawn beside it.
+   */
+  readonly dimensionSides?: 'left' | 'both'
 }
 
 export const AssemblyDrawing = ({
@@ -297,6 +341,7 @@ export const AssemblyDrawing = ({
   curve = null,
   margins = NO_MARGINS,
   dimensions = false,
+  dimensionSides = 'left',
 }: AssemblyDrawingProps) => {
   const hatch = `hatch-${useId().replace(/:/g, '')}`
   /**
@@ -399,26 +444,42 @@ export const AssemblyDrawing = ({
    * which, so the drawing only has to place them.
    */
   const drawn = dimensions ? dimensionsFor(tool, { assembly }) : null
-  const lanes = drawn === null ? 0 : drawn.lengths.length
-  const laneStep = fontSize * 2.9
   /**
-   * The outermost lane, room for the word standing on it, and — where the
-   * sweep has clearances to report — the column those numbers already read in
-   * on the left, which the lanes must sit inboard of rather than under.
+   * Which figure stands in which band, and how wide each band has to be.
+   *
+   * **A band per lane rather than one column in the margin** (Paul,
+   * 2026-09-01): the widths stand just past their own arrows, and each
+   * length's figure stands outboard of its own lane. A band is only as wide as
+   * the widest figure in it, because the room it takes comes out of the tool.
    */
-  const laneRoom =
-    lanes === 0 ? 0 : lanes * laneStep + fontSize * 1.4 + (curve === null ? 0 : fontSize * 10)
+  const layout = drawn === null ? null : dimensionLayout(drawn, unit, fontSize, dimensionSides)
+  const bands = { arrow: fontSize * 0.9 * 2.4, gap: fontSize * 0.5 }
+  const bandsOn = (side: 'left' | 'right') => layout?.bands[side] ?? []
+  /**
+   * What each side needs — and, on the left, the column the sweep's clearances
+   * already read in, which the lanes must sit inboard of rather than under.
+   */
+  const marginOn = (side: 'left' | 'right') =>
+    bandsOn(side).length === 0
+      ? 0
+      : // A gap of slack past the last band: fitted exactly, the outermost
+        // figure sat on the edge of the sheet and lost its first character.
+        bandRoom(bandsOn(side), bands) +
+        bands.gap +
+        (side === 'left' && curve !== null ? fontSize * 10 : 0)
+  const roomLeft = marginOn('left')
+  const roomRight = dimensionSides === 'both' ? marginOn('right') : 0
   // Unmeasured — a server, or the first paint — the frame is the stack's own
   // and the part makes do with what is beside it. It never widens the frame.
   const spare = panel
-    ? Math.max(0, (height * panel.width) / panel.height - stack * 2 - laneRoom)
+    ? Math.max(0, (height * panel.width) / panel.height - stack * 2 - roomLeft - roomRight)
     : 0
   const forPart = Math.max(0, Math.min(spare, partWanted + 2 - stack))
   // What the part has no use for is split, so a stack with nothing beside it
   // stays in the middle of the panel.
   const rest = (spare - forPart) / 2
-  const left = -stack - laneRoom - rest
-  const right = stack + forPart + rest
+  const left = -stack - roomLeft - rest
+  const right = stack + forPart + rest + roomRight
   const width = right - left
   const x = (r: number) => r - left
   const y = (z: number) => top - z
@@ -476,7 +537,15 @@ export const AssemblyDrawing = ({
         role="img"
         aria-label={`${assembly ? assemblyLabel(assembly) : tool.catalogNumber}, drawn from its stated dimensions`}
         viewBox={`0 0 ${width} ${height}`}
-        className="min-h-0 flex-1"
+        className="min-h-0 flex-1 rounded"
+        /*
+          **The sheet.** The drawing is its own thing on the page — a light
+          ground, dark linework — rather than a silhouette floating on whatever
+          panel holds it (Paul, 2026-09-01). On the element rather than as a
+          rectangle inside it, so the ground fills what the drawing is given
+          and not only the part the viewBox letterboxes into.
+        */
+        style={{ background: SHEET.ground }}
         preserveAspectRatio="xMidYMid meet"
       >
         {/* The wall the sweep read, on the right of the stack only. */}
@@ -564,11 +633,21 @@ export const AssemblyDrawing = ({
               data-part={segment.part}
               data-provenance={segment.provenance}
               points={[...rightSide, ...leftSide].join(' ')}
-              className={classNames(
-                hit.has(segment.part) ? 'fill-danger/70 stroke-danger' : shade,
-                'stroke-zinc-950',
-              )}
-              strokeWidth={0.4}
+              {...(hit.has(segment.part)
+                ? {}
+                : {
+                    fill:
+                      segment.part === 'flutes' || segment.part === 'tip'
+                        ? SHEET.flutes
+                        : segment.part === 'shank' || segment.part === 'neck'
+                          ? SHEET.body
+                          : isConnection(segment)
+                            ? SHEET.connection
+                            : SHEET.holder,
+                    stroke: SHEET.ink,
+                  })}
+              className={classNames(hit.has(segment.part) ? 'fill-danger/70 stroke-danger' : '')}
+              strokeWidth={fontSize * 0.09}
             />
           )
         })}
@@ -779,6 +858,13 @@ export const AssemblyDrawing = ({
           : null}
 
         {/*
+          **No section names** (Paul, 2026-09-01). "shank" and "flutes" beside
+          a drawing that is plainly a shank and flutes is a legend for
+          something nobody was going to misread, and the words sat where the
+          dimensions want to be.
+        */}
+
+        {/*
           The dimensions, in the strip on the left of the stack — the part is
           on the right, and a dimension line over a hatched section cannot be
           read. `DimensionLines` draws them; this passes the frame.
@@ -791,20 +877,33 @@ export const AssemblyDrawing = ({
               x,
               y,
               fontSize,
-              laneAt: (lane) => x(-stack - (lane + 1) * laneStep),
-              edge: x(-outline.radius),
+              laneAt: (lane, side) =>
+                x((side === 'left' ? -1 : 1) * (stack + laneOffset(bandsOn(side), lane, bands))),
+              edge: (side) => x((side === 'left' ? -1 : 1) * outline.radius),
+              // The figures stand past every lane, in the margin the frame
+              // reserved for them.
+              labelAt: (band, side) =>
+                x((side === 'left' ? -1 : 1) * (stack + bandOffset(bandsOn(side), band, bands))),
+              sides: dimensionSides,
+              ink: SHEET.dimension,
+              ground: SHEET.ground,
             }}
           />
         )}
 
-        {/* The axis. */}
+        {/*
+          The centreline, as a drawing draws one: long, short, long — thin, and
+          in the ink rather than in the tool's own grey (Paul, 2026-09-01).
+        */}
         <line
+          data-centreline
           x1={x(0)}
           y1={y(-4)}
           x2={x(0)}
           y2={y(outline.height + 4)}
-          className="stroke-zinc-700"
-          strokeWidth={0.3}
+          stroke={SHEET.centre}
+          strokeWidth={fontSize * 0.05}
+          strokeDasharray={`${(fontSize * 1.6).toFixed(2)} ${(fontSize * 0.5).toFixed(2)} ${(fontSize * 0.3).toFixed(2)} ${(fontSize * 0.5).toFixed(2)}`}
         />
       </svg>
       <p className="text-2xs px-3 pb-2 text-zinc-600">

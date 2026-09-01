@@ -54,7 +54,7 @@ const SWEPT: ReadonlySet<OutlinePart> = new Set<OutlinePart>([
 ])
 
 /** The stack's steps above the flutes, as the sweep sees them: every outline point's radius and height. */
-export const sweptSteps = (assembly: Assembly): Array<Step> =>
+const sweptSteps = (assembly: Assembly): Array<Step> =>
   assemblyOutline(assembly).segments.flatMap((segment) =>
     SWEPT.has(segment.part) ? segment.points.map((point) => ({ r: point.r, z: point.z })) : [],
   )

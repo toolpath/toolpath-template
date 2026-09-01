@@ -15,10 +15,6 @@ import { makerOf, minorOf, type HoleMode, type ThreadSpec } from './threads'
  * (Paul, 2026-08-31).
  */
 
-/** The bore, in millimetres, where the datasheet states one. */
-export const holeDiameterOf = (feature: PartFeature): number | null =>
-  asNumber(asRecord(feature.datasheet?.facts)?.diameter)
-
 /** How deep it goes, in millimetres. */
 export const holeDepthOf = (feature: PartFeature): number | null => {
   const sheet = feature.datasheet
@@ -26,202 +22,6 @@ export const holeDepthOf = (feature: PartFeature): number | null => {
   const zMax = asNumber(sheet?.zMax)
   return zMin === null || zMax === null ? null : Math.round((zMax - zMin) * 1000) / 1000
 }
-
-/** Every feature the kernel reports as a hole of some kind. */
-export const isHole = (feature: PartFeature): boolean =>
-  feature.featureType.toLowerCase().includes('hole') && holeDiameterOf(feature) !== null
-
-/**
- * One way up a size of hole can be made from, and what it costs to make it
- * that way.
- *
- * A hole open at both ends is two readings of one hole, and the kernel reports
- * both. Which way up it is drilled is a real choice with a real number on it:
- * the reach, from the top of the part *that way up* to the bottom of the hole.
- */
-export interface HoleSide {
-  /** One feature per physical hole, cut this way up. */
-  readonly features: ReadonlyArray<PartFeature>
-  /** The deepest reach among them, from the top of the part this way up. */
-  readonly reach: number | null
-}
-
-/** One size of hole, however many of them the part carries. */
-export interface HoleGroup {
-  /** Stable across renders: the diameter and depth it is grouped on. */
-  readonly key: string
-  readonly diameter: number
-  readonly depth: number
-  /**
-   * Every hole in it — **one feature per hole**, cut the way up this group is
-   * being made from.
-   *
-   * One per hole rather than one per reading: a through hole the kernel found
-   * from both ends is one hole and one drill, and counting it twice made a
-   * plate of four read as eight (Paul, 2026-09-01).
-   */
-  readonly features: ReadonlyArray<PartFeature>
-  /** Whether they all go through, which decides the drill's overcut. */
-  readonly through: boolean
-  /** What the deepest of them needs, this way up. */
-  readonly reach: number | null
-  /**
-   * The same holes from the other way up, where the kernel found one.
-   *
-   * The group is made from whichever side needs the **shorter** tool; this is
-   * the other, offered as "machine from the other side" rather than chosen
-   * (Paul, 2026-09-01).
-   */
-  readonly other: HoleSide | null
-}
-
-/** How close two holes have to be to be the same hole, in millimetres. */
-const SAME = 0.01
-
-const roundTo = (value: number) => Math.round(value / SAME) * SAME
-
-/**
- * The part's holes, grouped by diameter and depth.
- *
- * Not by way up: a shop buys one drill for eight ⌀5 holes whichever face they
- * are cut from, and the ways up are a setup question rather than a tooling
- * one. Deepest first within a diameter, because the deepest is the one that
- * decides the drill.
- */
-/**
- * How far a tool has to reach to make this hole, this way up: the top of the
- * part along its own machining direction, down to the bottom of the hole.
- *
- * The number that decides which side a two-sided hole is drilled from, and the
- * one the tool's own length is judged against.
- */
-export const holeReach = (
-  feature: PartFeature,
-  features: ReadonlyArray<PartFeature>,
-): number | null => {
-  const top = partTop(features, feature)
-  const zMin = asNumber(feature.datasheet?.zMin)
-  return top === null || zMin === null ? null : Math.round((top - zMin) * 1000) / 1000
-}
-
-/** Which way up a feature is cut, as a string two features can be compared on. */
-const wayUp = (feature: PartFeature): string => {
-  const { x, y, z } = feature.machiningDirection
-  return `${String(x)},${String(y)},${String(z)}`
-}
-
-/**
- * The readings of **one physical hole**, gathered from however many ways up
- * the kernel found it.
- *
- * Two readings are the same hole when they share a face: `regionIdxs` is the
- * kernel's own answer to "which surfaces is this", and a bore seen from either
- * end is the same bore.
- */
-const sameHole = (features: ReadonlyArray<PartFeature>): Array<Array<PartFeature>> => {
-  const holes: Array<{ regions: Set<number>; features: Array<PartFeature> }> = []
-  for (const feature of features) {
-    const regions = new Set(feature.regionIdxs)
-    const had = holes.find((each) => [...regions].some((region) => each.regions.has(region)))
-    if (had) {
-      for (const region of regions) {
-        had.regions.add(region)
-      }
-      had.features.push(feature)
-      continue
-    }
-    holes.push({ regions, features: [feature] })
-  }
-  return holes.map((each) => each.features)
-}
-
-const deepest = (reaches: ReadonlyArray<number | null>): number | null => {
-  const known = reaches.filter((each): each is number => each !== null)
-  return known.length === 0 ? null : Math.max(...known)
-}
-
-export const holeGroups = (features: ReadonlyArray<PartFeature>): Array<HoleGroup> => {
-  const buckets = new Map<string, Array<PartFeature>>()
-  for (const feature of features) {
-    if (!isHole(feature)) {
-      continue
-    }
-    const diameter = holeDiameterOf(feature)
-    const depth = holeDepthOf(feature)
-    if (diameter === null || depth === null) {
-      continue
-    }
-    const key = `${String(roundTo(diameter))}×${String(roundTo(depth))}`
-    const had = buckets.get(key)
-    if (had) {
-      had.push(feature)
-      continue
-    }
-    buckets.set(key, [feature])
-  }
-
-  const groups: Array<HoleGroup> = []
-  for (const [key, kept] of buckets) {
-    /**
-     * Each physical hole contributes **one** feature to the group, from the
-     * side that needs the shorter tool; the other side is offered rather than
-     * chosen. A hole the kernel found only one way up has no other side.
-     */
-    const near: Array<PartFeature> = []
-    const far: Array<PartFeature> = []
-    for (const hole of sameHole(kept)) {
-      const sides = [...hole]
-        .map((feature) => ({ feature, reach: holeReach(feature, features) }))
-        // Unknown reach sorts last: a side nobody can measure is not the one to pick.
-        .sort(
-          (a, b) => (a.reach ?? Number.POSITIVE_INFINITY) - (b.reach ?? Number.POSITIVE_INFINITY),
-        )
-      const first = sides[0]
-      if (first === undefined) {
-        continue
-      }
-      near.push(first.feature)
-      const other = sides.find((each) => wayUp(each.feature) !== wayUp(first.feature))
-      if (other) {
-        far.push(other.feature)
-      }
-    }
-    const first = near[0]
-    if (first === undefined) {
-      continue
-    }
-    groups.push({
-      key,
-      diameter: holeDiameterOf(first) ?? 0,
-      depth: holeDepthOf(first) ?? 0,
-      features: near,
-      through: near.every((each) => each.featureType.startsWith('Through')),
-      reach: deepest(near.map((each) => holeReach(each, features))),
-      other:
-        far.length === 0
-          ? null
-          : { features: far, reach: deepest(far.map((each) => holeReach(each, features))) },
-    })
-  }
-  return groups.sort((a, b) => a.diameter - b.diameter || b.depth - a.depth)
-}
-
-/**
- * The same group, made from the other side.
- *
- * A swap rather than a rebuild, so the near side is still there to swap back
- * to — and the key stays the same, because it is the same size of hole however
- * it is reached.
- */
-export const fromOtherSide = (group: HoleGroup): HoleGroup =>
-  group.other === null
-    ? group
-    : {
-        ...group,
-        features: group.other.features,
-        reach: group.other.reach,
-        other: { features: group.features, reach: group.reach },
-      }
 
 /**
  * The same hole, stood in at another diameter.
@@ -276,7 +76,7 @@ export const tapsFor = (spec: ThreadSpec, tools: ReadonlyArray<CatalogTool>): Ar
  * mode. Smallest first because the smaller mill reaches deeper before it fouls
  * the wall.
  */
-export const threadMillsFor = (
+const threadMillsFor = (
   spec: ThreadSpec,
   tools: ReadonlyArray<CatalogTool>,
   /** How far under the minor a mill has to stay, as a share: the sheet's knob. */
@@ -348,7 +148,7 @@ export const reaches = (tool: CatalogTool, reach: ThreadReach | null): boolean =
 }
 
 /** How far short of the bottom a threading tool falls, in millimetres. */
-export const fallsShortBy = (tool: CatalogTool, reach: ThreadReach): number =>
+const fallsShortBy = (tool: CatalogTool, reach: ThreadReach): number =>
   Math.max(
     0,
     tool.geometry.LCF === undefined ? 0 : reach.depth - tool.geometry.LCF,
@@ -414,52 +214,5 @@ export const makersFor = (
   return {
     made: [...sized].sort((a, b) => fallsShortBy(a, reach) - fallsShortBy(b, reach)).slice(0, 8),
     short: true,
-  }
-}
-
-/** A range, where both ends are the same when there is only one of a thing. */
-export interface Span {
-  readonly min: number
-  readonly max: number
-}
-
-/**
- * Every hole on the part, as the four numbers that decide what drills it.
- *
- * **What "All holes" is for.** Reading them one at a time answers "what makes
- * this hole"; reading them together answers "what does this part need" — how
- * many, how big, how deep, and how far a tool has to reach to get to the
- * bottom of the worst of them (Paul, 2026-09-01).
- *
- * The L/D is the hole's own depth over its diameter, which is the ratio the
- * drill has to be capable of before any holder is chosen — the number that
- * says whether this is a job for a stock drill or a special.
- */
-export interface HoleSummary {
-  readonly holes: number
-  readonly sizes: number
-  readonly diameter: Span
-  readonly depth: Span
-  readonly ld: Span
-}
-
-const spanOf = (values: ReadonlyArray<number>): Span => ({
-  min: Math.min(...values),
-  max: Math.max(...values),
-})
-
-export const holeSummary = (groups: ReadonlyArray<HoleGroup>): HoleSummary | null => {
-  const holes = groups.flatMap((group) =>
-    group.features.map(() => ({ diameter: group.diameter, depth: group.depth })),
-  )
-  if (holes.length === 0) {
-    return null
-  }
-  return {
-    holes: holes.length,
-    sizes: groups.length,
-    diameter: spanOf(holes.map((each) => each.diameter)),
-    depth: spanOf(holes.map((each) => each.depth)),
-    ld: spanOf(holes.map((each) => Math.round((each.depth / each.diameter) * 100) / 100)),
   }
 }

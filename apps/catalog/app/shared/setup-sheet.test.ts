@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   addChoice,
-  anywhereKept,
   choicesFor,
   chosenFor,
   clearChoice,
@@ -111,27 +110,6 @@ describe('more than one tool for a feature', () => {
   /** The last one out takes the feature with it, rather than leaving an empty list. */
   it('removes the feature when nothing is left kept for it', () => {
     expect(removeChoice(sheet, 'pocket-1', 'rough').choices).toEqual({})
-  })
-
-  /**
-   * One cutter often does more than one feature, and the line it already has
-   * is what the next feature copies — holder, collet and all (Paul,
-   * 2026-08-31).
-   */
-  it('finds where a tool is already kept, and says so once', () => {
-    const wider = addChoice(
-      addChoice(sheet, 'hole-1', { toolGuid: 'rough', holderGuid: 'h' }),
-      'x',
-      {
-        toolGuid: 'other',
-      },
-    )
-
-    expect(anywhereKept(wider, 'rough')).toEqual({
-      featureTag: 'pocket-1',
-      choice: { toolGuid: 'rough' },
-    })
-    expect(anywhereKept(wider, 'nobody')).toBeNull()
   })
 
   /** A sheet saved before a feature could hold two is read as the one it held. */

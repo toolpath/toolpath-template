@@ -15,7 +15,7 @@
  * The hover stays a step lighter: it is a question rather than an answer, and
  * it has to be told apart from what is already chosen.
  */
-export const READING_COLORS = {
+const READING_COLORS = {
   highlight: 0x3e6bcc,
   hover: 0x6d97dd,
   // The same blue as the rest of the feature: a face still paints when it
@@ -31,7 +31,7 @@ export const READING_COLORS = {
  * hover is derived from whatever that is instead of being another constant that
  * would clash with five of the six.
  */
-export const lighten = (color: number, amount = 0.4): number => {
+const lighten = (color: number, amount = 0.4): number => {
   const mix = (channel: number) => Math.round(channel + (255 - channel) * amount)
   return (mix((color >> 16) & 0xff) << 16) | (mix((color >> 8) & 0xff) << 8) | mix(color & 0xff)
 }

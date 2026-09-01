@@ -1,15 +1,4 @@
-import { assembliesFor, type Assembly, type CatalogTool } from '@toolpath/catalog-data'
-import { collets, holders } from './catalog.js'
-
-/**
- * Every way this catalog can hold one tool.
- *
- * The binding to the bundled toolholding, the same thin layer `tool-fit.ts` is
- * over the tools. The stacking rules themselves are
- * `@toolpath/catalog-data`'s and are tested there against literals.
- */
-export const holdingFor = (tool: CatalogTool, taper?: string): Array<Assembly> =>
-  assembliesFor(tool, holders, collets, taper)
+import type { Assembly } from '@toolpath/catalog-data'
 
 /** How an assembly reads in one line: what to order, and how far it stands out. */
 export const assemblyLabel = (assembly: Assembly): string =>
@@ -25,13 +14,6 @@ export interface SavedAssembly {
   /** As set when it was saved — a decision, not a measurement. Null only for a tool that states nothing to start from. */
   readonly stickout: number | null
 }
-
-export const savedFrom = (assembly: Assembly): SavedAssembly => ({
-  holderGuid: assembly.holder.guid,
-  colletGuid: assembly.collet?.guid ?? null,
-  toolGuid: assembly.tool.guid,
-  stickout: assembly.stickout,
-})
 
 const STORAGE_KEY = 'tool-catalog.assemblies'
 

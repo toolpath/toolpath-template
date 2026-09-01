@@ -1,21 +1,39 @@
-import { formatLength, type Unit } from '@toolpath/domain/units'
-import { dimensionLabel, type ToolDimensions } from 'shared/tool-dimensions'
+import type { Unit } from '@toolpath/domain/units'
+import {
+  dimensionLayout,
+  figureType,
+  stackLabels,
+  type DimensionFigure,
+  type ToolDimensions,
+} from 'shared/tool-dimensions'
 
 /**
  * Dimensions, drawn the way a drawing draws them.
  *
- * An extension line off the face being measured, a dimension line between the
- * two with an arrowhead at each end, and the figure standing on it. Lengths
- * run in lanes, nested shortest-innermost so no two lines cross — which lane
- * each takes is `shared/tool-dimensions.ts`'s to decide; this only places
- * them.
+ * **Every figure lives in a margin, never inside the drawing** (Paul,
+ * 2026-09-01, after three goes at placing them among the lines). Anywhere
+ * inside there is something to land on — the tool, a leader, a lane line,
+ * another figure — and a rule of the form "beside its own line, unless"
+ * produced exactly the smudge it was written to avoid.
  *
- * **Shared because there are two drawings of the same tool** — the cutter on
- * the panel beside the part, and the assembly on the tool's own page. They
- * have different silhouettes and different coordinate systems, and that is
- * all the difference between them: the dimensions are the same dimensions,
- * and a second copy of this would be a second set of arrowheads to keep in
- * step. The frame is what each one passes in.
+ * **But beside its own line.** The margin is a series of bands rather than one
+ * column: the widths stand in the first, just past their arrows, and each
+ * length's figure stands in the band outboard of its own lane, so the number
+ * for the flute length is at the flute length rather than out beside the
+ * overall length (Paul, 2026-09-01). `shared/tool-dimensions` works out the
+ * bands; this draws them, and keeps a figure off the extension lines that
+ * cross its band by stacking it clear of them.
+ *
+ * **A width is dimensioned from outside.** A line drawn across a ⌀6 shank at
+ * this scale is a line drawn *over the tool*, so the two arrows stand outside
+ * the silhouette and point inward at the faces they measure, which is what a
+ * drawing does with a dimension too narrow to hold them.
+ *
+ * **Shared because there are two drawings of the same tool** — the one in the
+ * panel and the assembly on the tool's own page. They have different
+ * silhouettes and different coordinate systems, and that is all the difference
+ * between them: the dimensions are the same dimensions. The frame is what each
+ * one passes in.
  */
 
 /** How a drawing maps millimetres onto its own SVG space. */
@@ -26,10 +44,24 @@ export interface DimensionFrame {
   readonly y: (z: number) => number
   /** The type size the drawing is using, in its own units. */
   readonly fontSize: number
-  /** Where the lane numbered `lane` runs, as an x. */
-  readonly laneAt: (lane: number) => number
-  /** The x an extension line runs back to: the left edge of what is drawn. */
-  readonly edge: number
+  /** Where the lane numbered `lane` on that side runs, as an x. */
+  readonly laneAt: (lane: number, side: 'left' | 'right') => number
+  /** The x a figure in that band reads outward from. */
+  readonly labelAt: (band: number, side: 'left' | 'right') => number
+  /** The x an extension line runs back to on each side: the edge of what is drawn. */
+  readonly edge: (side: 'left' | 'right') => number
+  /**
+   * Which sides the dimensions may use.
+   *
+   * **Both, wherever both are free** (Paul, 2026-09-01): four lengths stacked
+   * down one side push the tool into the other half of the panel and read as a
+   * ladder. Where the drawing has the part beside it — the assembly on the
+   * part page — the right belongs to the part and the lanes stay left.
+   */
+  readonly sides?: 'left' | 'both'
+  /** The ink a dimension is drawn in, and the ground its figure sits on. */
+  readonly ink?: string
+  readonly ground?: string
 }
 
 /** An arrowhead as a polygon: at (x, y), pointing `dir`. */
@@ -39,7 +71,8 @@ export const arrowhead = (
   dir: 'up' | 'down' | 'left' | 'right',
   size: number,
 ): string => {
-  const w = size * 0.45
+  // Slim: a drawing's arrowhead is a barb, not a triangle.
+  const w = size * 0.3
   switch (dir) {
     case 'up':
       return `${x},${y} ${x - w},${y + size} ${x + w},${y + size}`
@@ -59,13 +92,105 @@ export interface DimensionLinesProps {
 }
 
 export const DimensionLines = ({ model, frame, unit }: DimensionLinesProps) => {
-  const { x, y, fontSize, laneAt, edge } = frame
+  const { x, y, fontSize, laneAt, edge, labelAt } = frame
+  const ink = frame.ink ?? '#606a76'
+  const ground = frame.ground ?? '#ffffff'
   const head = fontSize * 0.9
+  const type = figureType(fontSize)
+  const lineHeight = type * 1.15
+  const padding = type * 0.45
+
+  const layout = dimensionLayout(model, unit, fontSize, frame.sides ?? 'left')
+  const placeOf = new Map(layout.figures.map((each) => [each.code, each]))
+
+  /** Where a figure would like to stand, before anything is moved out of the way. */
+  const wants = (figure: DimensionFigure): { x: number; y: number } => {
+    if (figure.lane === null) {
+      const angle = model.angles.find((each) => each.code === figure.code)
+      if (angle) {
+        // A leader onto the flank itself: the angle is between two faces, and
+        // there is no room to draw it between them on a ⌀1 drill.
+        return {
+          x: x(angle.at.r * (figure.side === 'left' ? -1 : 1)),
+          y: y(angle.at.z),
+        }
+      }
+      const width = model.widths.find((each) => each.code === figure.code)
+      const radius = width?.radius ?? 0
+      return { x: x(radius * (figure.side === 'left' ? -1 : 1)), y: y(width?.at ?? 0) }
+    }
+    const length = model.lengths.find((each) => each.code === figure.code)
+    return {
+      x: laneAt(figure.lane, figure.side),
+      /**
+       * **At the top of its dimension, not the middle of it** (Paul,
+       * 2026-09-01). A figure halfway down a 50 mm dimension is level with
+       * nothing on the tool; at the top it is level with the arrow it belongs
+       * to.
+       */
+      y: Math.min(y(length?.from ?? 0), y(length?.to ?? 0)),
+    }
+  }
+
+  const boxOf = (figure: DimensionFigure) => {
+    const at = labelAt(figure.band, figure.side)
+    return {
+      x: figure.side === 'left' ? at - figure.width : at,
+      width: figure.width,
+      height: padding * 2 + lineHeight * figure.lines.length,
+    }
+  }
+
+  /**
+   * The lines a figure must not sit on: every extension line, which runs from
+   * the tool out to its own lane and so crosses the bands inboard of it.
+   *
+   * They are given to the stacker as boxes that cannot move, so a figure with
+   * nowhere to sit rises until it is clear rather than landing on one.
+   */
+  const obstacles = model.lengths.flatMap((each) => {
+    const place = placeOf.get(each.code)
+    if (place === undefined || place.lane === null) {
+      return []
+    }
+    const at = laneAt(place.lane, place.side)
+    const from = edge(place.side)
+    const thickness = type * 0.7
+    return [y(each.from), y(each.to)].map((height, index) => ({
+      key: `line-${each.code}-${String(index)}`,
+      x: Math.min(at, from),
+      width: Math.abs(at - from),
+      y: height + thickness / 2,
+      height: thickness,
+    }))
+  })
+
+  /** Where each figure ends up, once none covers another or a line. */
+  const placed = stackLabels(
+    layout.figures.map((figure) => {
+      const box = boxOf(figure)
+      // `stackLabels` measures a box from its bottom edge upward.
+      return {
+        key: figure.code,
+        x: box.x,
+        width: box.width,
+        y: wants(figure).y + box.height,
+        height: box.height,
+      }
+    }),
+    type * 0.5,
+    obstacles,
+  )
 
   return (
     <g data-dimensions>
       {model.lengths.map((each) => {
-        const at = laneAt(each.lane)
+        const place = placeOf.get(each.code)
+        if (place === undefined || place.lane === null) {
+          return null
+        }
+        const side = place.side
+        const at = laneAt(place.lane, side)
         const fromY = y(each.from)
         const toY = y(each.to)
         /**
@@ -74,128 +199,120 @@ export const DimensionLines = ({ model, frame, unit }: DimensionLinesProps) => {
          * drawing does with a dimension too short to hold them.
          */
         const inside = Math.abs(fromY - toY) >= head * 2.6
-        const midY = (fromY + toY) / 2
-        const textX = at - fontSize * 0.55
         return (
           <g key={each.code} data-dimension={each.code}>
             <line
-              x1={at - fontSize * 0.5}
+              x1={at}
               y1={fromY}
-              x2={edge}
+              x2={edge(side)}
               y2={fromY}
-              className="stroke-zinc-600"
-              strokeWidth={fontSize * 0.06}
+              stroke={ink}
+              strokeOpacity={0.4}
+              strokeWidth={fontSize * 0.05}
             />
             <line
-              x1={at - fontSize * 0.5}
+              x1={at}
               y1={toY}
-              x2={edge}
+              x2={edge(side)}
               y2={toY}
-              className="stroke-zinc-600"
-              strokeWidth={fontSize * 0.06}
+              stroke={ink}
+              strokeOpacity={0.4}
+              strokeWidth={fontSize * 0.05}
             />
             <line
               x1={at}
               y1={inside ? fromY : fromY + head * 2.2}
               x2={at}
               y2={inside ? toY : toY - head * 2.2}
-              className="stroke-zinc-400"
-              strokeWidth={fontSize * 0.09}
+              stroke={ink}
+              strokeWidth={fontSize * 0.07}
             />
-            <polygon
-              points={arrowhead(at, fromY, inside ? 'down' : 'up', head)}
-              className="fill-zinc-400"
-            />
-            <polygon
-              points={arrowhead(at, toY, inside ? 'up' : 'down', head)}
-              className="fill-zinc-400"
-            />
-            <text
-              x={textX}
-              y={midY}
-              fontSize={fontSize}
-              textAnchor="middle"
-              transform={`rotate(-90 ${textX.toFixed(2)} ${midY.toFixed(2)})`}
-              className="fill-zinc-300 font-mono"
-            >
-              {`${dimensionLabel(each.code)} ${formatLength(each.to - each.from, unit)}`}
-            </text>
+            <polygon points={arrowhead(at, fromY, inside ? 'down' : 'up', head)} fill={ink} />
+            <polygon points={arrowhead(at, toY, inside ? 'up' : 'down', head)} fill={ink} />
           </g>
         )
       })}
 
+      {/*
+        A width, dimensioned from outside: two barbs standing off the faces
+        they measure, pointing in. Nothing is drawn across the tool.
+      */}
       {model.widths.map((each) => {
         const atY = y(each.at)
         const leftX = x(-each.radius)
         const rightX = x(each.radius)
-        const inside = rightX - leftX >= head * 2.6
-        const text = `${dimensionLabel(each.code)} ⌀${formatLength(each.radius * 2, unit)}`
-        // The cut is dimensioned below the tip, where there is nothing to read
-        // it through. Every other width stands on its own line, over a chip of
-        // ground so it is never read through the tool.
-        const labelY = each.at === 0 ? y(0) + fontSize * 1.6 : atY + fontSize * 0.35
-        const box = (text.length + 1) * fontSize * 0.56
         return (
           <g key={each.code} data-dimension={each.code}>
             <line
-              x1={inside ? leftX : leftX - head * 2.2}
+              x1={leftX - head * 2.4}
               y1={atY}
-              x2={inside ? rightX : rightX + head * 2.2}
+              x2={leftX}
               y2={atY}
-              className="stroke-zinc-400"
-              strokeWidth={fontSize * 0.09}
+              stroke={ink}
+              strokeWidth={fontSize * 0.07}
             />
-            <polygon
-              points={arrowhead(leftX, atY, inside ? 'left' : 'right', head)}
-              className="fill-zinc-400"
+            <polygon points={arrowhead(leftX, atY, 'right', head)} fill={ink} />
+            <line
+              x1={rightX}
+              y1={atY}
+              x2={rightX + head * 2.4}
+              y2={atY}
+              stroke={ink}
+              strokeWidth={fontSize * 0.07}
             />
-            <polygon
-              points={arrowhead(rightX, atY, inside ? 'right' : 'left', head)}
-              className="fill-zinc-400"
-            />
-            <rect
-              x={x(0) - box / 2}
-              y={labelY - fontSize * 0.95}
-              width={box}
-              height={fontSize * 1.35}
-              rx={fontSize * 0.12}
-              className="fill-zinc-950/85"
-            />
-            <text
-              x={x(0)}
-              y={labelY}
-              fontSize={fontSize}
-              textAnchor="middle"
-              className="fill-zinc-300 font-mono"
-            >
-              {text}
-            </text>
+            <polygon points={arrowhead(rightX, atY, 'left', head)} fill={ink} />
           </g>
         )
       })}
 
-      {/* The corner radius, on a leader off the corner it is about. */}
-      {model.cornerRadius === null || model.widths.length === 0 ? null : (
-        <g data-dimension="RE">
-          <line
-            x1={laneAt(0) - fontSize * 0.4}
-            y1={y(0) - fontSize * 2}
-            x2={x(-(model.widths[0]?.radius ?? 0))}
-            y2={y(0)}
-            className="stroke-zinc-600"
-            strokeWidth={fontSize * 0.06}
-          />
-          <text
-            x={laneAt(0) - fontSize * 0.6}
-            y={y(0) - fontSize * 2.1}
-            fontSize={fontSize}
-            textAnchor="end"
-            className="fill-zinc-300 font-mono"
-          >
-            {`RE ${formatLength(model.cornerRadius, unit)}`}
-          </text>
-        </g>
-      )}
+      {/*
+        The figures, each in its own band with a leader back to the line it
+        belongs to. Drawn last, so nothing is drawn over them.
+      */}
+      {layout.figures.map((figure) => {
+        const box = boxOf(figure)
+        const from = wants(figure)
+        const bottom = placed.get(figure.code) ?? from.y + box.height
+        const top = bottom - box.height
+        const anchor = labelAt(figure.band, figure.side)
+        // The leader turns inboard of the band, where no figure stands.
+        const turn = anchor + (figure.side === 'left' ? type * 0.5 : -type * 0.5)
+        const middle = top + box.height / 2
+        return (
+          <g key={`figure-${figure.code}`} data-figure={figure.code}>
+            <polyline
+              points={`${from.x.toFixed(2)},${from.y.toFixed(2)} ${turn.toFixed(2)},${from.y.toFixed(
+                2,
+              )} ${turn.toFixed(2)},${middle.toFixed(2)}`}
+              fill="none"
+              stroke={ink}
+              strokeOpacity={0.35}
+              strokeWidth={fontSize * 0.05}
+            />
+            <rect
+              x={box.x}
+              y={top}
+              width={box.width}
+              height={box.height}
+              fill={ground}
+              rx={type * 0.2}
+            />
+            {figure.lines.map((line, index) => (
+              <text
+                key={line}
+                x={anchor}
+                y={top + padding + type * 0.85 + lineHeight * index}
+                fontSize={type}
+                textAnchor={figure.side === 'left' ? 'end' : 'start'}
+                fill={ink}
+                className="font-mono"
+              >
+                {line}
+              </text>
+            ))}
+          </g>
+        )
+      })}
     </g>
   )
 }

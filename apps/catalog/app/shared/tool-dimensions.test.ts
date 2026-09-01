@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Assembly, CatalogTool, Holder } from '@toolpath/catalog-data'
-import { dimensionLabel, dimensionsFor } from './tool-dimensions'
+import { dimensionLabel, dimensionsFor, stackLabels } from './tool-dimensions'
 
-const tool = (geometry: Record<string, number>): CatalogTool =>
+const tool = (geometry: Record<string, number>, form = 'flat end mill'): CatalogTool =>
   ({
     guid: 'tool-1',
     familyId: 'family',
@@ -11,7 +11,7 @@ const tool = (geometry: Record<string, number>): CatalogTool =>
     catalogNumber: 'TDMX0500',
     materialNumber: null,
     toolType: 'endmill',
-    form: 'flat end mill',
+    form,
     unitSystem: 'metric',
     geometry,
     materialGroups: [],
@@ -103,6 +103,7 @@ describe('what a drawing of the tool alone dimensions', () => {
     expect(dimensionsFor(tool({ OAL: 80 }))).toEqual({
       lengths: [],
       widths: [],
+      angles: [],
       cornerRadius: null,
     })
   })
@@ -151,5 +152,51 @@ describe('what a dimension is called', () => {
   it('keeps a code that is already a name, and names the ones that are not', () => {
     expect(dimensionLabel('LCF')).toBe('LCF')
     expect(dimensionLabel('shoulder-length')).toBe('shoulder')
+  })
+})
+
+describe('labels that would cover each other', () => {
+  const box = (key: string, x: number, y: number) => ({ key, x, width: 10, y, height: 4 })
+
+  /** The lowest keeps its place; what would cover it moves up. */
+  it('stacks overlapping boxes upward', () => {
+    const placed = stackLabels([box('a', 0, 100), box('b', 2, 98)])
+
+    expect(placed.get('a')).toBe(100)
+    expect(placed.get('b')).toBe(96)
+  })
+
+  it('leaves boxes that do not overlap where they are', () => {
+    const placed = stackLabels([box('a', 0, 100), box('b', 40, 98), box('c', 0, 80)])
+
+    expect(placed.get('b')).toBe(98)
+    expect(placed.get('c')).toBe(80)
+  })
+
+  /** Three in a heap end up in a column, in the order they were nearest. */
+  it('stacks a heap of three', () => {
+    const placed = stackLabels([box('a', 0, 100), box('b', 1, 99), box('c', 2, 98)])
+
+    expect([placed.get('a'), placed.get('b'), placed.get('c')]).toEqual([100, 96, 92])
+  })
+})
+
+/**
+ * **A drill is its point** (Paul, 2026-09-01: "shouldn't a 2d rep of a drill be
+ * showing me a tip angle?"). On a ⌀1 drill the cone is three tenths of a
+ * millimetre tall, so the number is the only way the drawing says 140°.
+ */
+describe('the point angle', () => {
+  it('calls out a drill’s stated point angle, on the flank it is between', () => {
+    const drill = dimensionsFor(tool({ DC: 10, LCF: 40, OAL: 100, SIG: 140 }, 'drill'))
+
+    expect(drill.angles).toEqual([
+      { code: 'SIG', degrees: 140, at: { r: 2.5, z: expect.closeTo(0.911, 2) } },
+    ])
+  })
+
+  it('says nothing about a tool with no point, or a drill that states no angle', () => {
+    expect(dimensionsFor(tool({ DC: 10, LCF: 40, SIG: 140 })).angles).toEqual([])
+    expect(dimensionsFor(tool({ DC: 10, LCF: 40 }, 'drill')).angles).toEqual([])
   })
 })

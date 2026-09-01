@@ -60,7 +60,6 @@ export interface AssemblyPickerProps {
   readonly selection: BuildSelection
   readonly onChange: (next: BuildSelection) => void
   readonly title?: string
-  readonly footer?: ReactNode
 }
 
 const AXIS_LABELS: Readonly<Record<HolderAxis, string>> = {
@@ -266,7 +265,6 @@ export const AssemblyPicker = ({
   selection,
   onChange,
   title = 'Assembly',
-  footer,
 }: AssemblyPickerProps) => {
   const [saved, setSaved] = useState<ReadonlyArray<SavedAssembly>>([])
   useEffect(() => {
@@ -431,7 +429,6 @@ export const AssemblyPicker = ({
           )}
 
           <div className="mt-3 flex items-center gap-2">
-            {footer}
             <Button
               size="sm"
               variant={kept ? 'primary' : 'secondary'}

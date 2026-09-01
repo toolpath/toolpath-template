@@ -9,6 +9,7 @@ import { classNames } from '@toolpath/domain/class-names'
 import {
   HOLE_MODES,
   THREADS,
+  diameterAt,
   drillFor,
   threadNamed,
   threadOptions,
@@ -70,21 +71,31 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
   /** A drill size for a chip: no unit on it, because the row above says which. */
   const bare = (millimetres: number): string =>
     convertLength(millimetres, MODEL_UNIT, unit).toFixed(decimalsFor(unit))
+  /**
+   * How far the model is from the size that reading expects, signed: `+` is a
+   * hole drawn over it. Exactly on it says so rather than showing a zero.
+   */
+  const deviation = (millimetres: number): string => {
+    const off = convertLength(millimetres, MODEL_UNIT, unit)
+    const shown = off.toFixed(decimalsFor(unit))
+    return Number(shown) === 0 ? 'exactly' : `${off > 0 ? '+' : '−'}${shown.replace('-', '')}`
+  }
   const offered = threadOptions(holeDiameter, 2)
   const guesses = threadsFor(holeDiameter)
-  const likely = offered[0] ?? null
 
   return (
     <div className="mt-1.5 flex flex-col gap-1 border-t border-zinc-900 pt-1.5">
+      {/*
+        **Every number on this panel says what it is** (Paul, 2026-09-01: "it's
+        not really clear what the boxes are showing — tap drill diameter,
+        diameter of the modeled hole, what"). Three separate things were being
+        shown as bare diameters: the hole the model draws, the thread that hole
+        reads as, and the bore each way of making it starts from. So the first
+        is labelled, the second is labelled, and each row carries how far the
+        model is from the size that reading expects.
+      */}
       <div className="flex flex-wrap items-baseline gap-x-2">
         <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">Thread</span>
-        {likely !== null && spec === null ? (
-          <span className="text-2xs text-info">
-            ⌀{formatLength(holeDiameter, unit)} is {likely.spec.name}&rsquo;s {likely.read}
-          </span>
-        ) : (
-          <span className="text-2xs text-zinc-600">⌀{formatLength(holeDiameter, unit)}</span>
-        )}
         {spec === null ? null : (
           <button
             type="button"
@@ -96,34 +107,82 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
         )}
       </div>
 
-      {/* One row per thread: its name, then the three ways to make it, each
-          marked with the hole that way starts from. */}
-      {offered.map((each) => (
-        <div key={each.spec.name} className="flex items-center gap-1">
-          {/*
-            **The reading, on the row it belongs to** (Paul, 2026-09-01). The
-            line above says it for the likeliest thread; a row that does not
-            say which of its three diameters the hole matched leaves somebody
-            comparing a drill against a number whose meaning they have to
-            remember.
-          */}
-          <span
-            className="flex w-24 shrink-0 flex-col leading-tight"
-            title={`⌀${formatLength(holeDiameter, unit)} is this thread's ${each.read}`}
-          >
-            <span className="truncate font-mono text-[11px] text-zinc-200">{each.spec.name}</span>
-            <span className="truncate text-[9px] text-zinc-500">{each.read}</span>
-          </span>
+      <div className="text-2xs flex items-baseline justify-between gap-2 text-zinc-500">
+        Modeled hole diameter:
+        <span className="font-mono text-zinc-200">⌀{formatLength(holeDiameter, unit)}</span>
+      </div>
+
+      {/*
+        **One control, and the suggestions are in it** (Paul, 2026-09-01: "only
+        suggest threads in the drop down list — don't show the suggested thread
+        spec at all, just the drop down"). Rows of chips over a select was two
+        ways to answer one question, and the boxes took the top of a panel
+        nobody should have to scroll. The threads the hole reads as are the
+        first group in the list, each saying what it read as and by how much
+        the model is off it.
+      */}
+      <label className="text-2xs mt-0.5 flex flex-col gap-0.5 text-zinc-500">
+        Thread:
+        <select
+          value={spec !== null && threadNamed(spec.name) ? spec.name : ''}
+          onChange={(event) => {
+            const chosen = threadNamed(event.target.value)
+            onChange(
+              chosen === null
+                ? { mode: 'plain', spec: null }
+                : { mode: mode === 'plain' ? 'cut tap' : mode, spec: chosen },
+            )
+          }}
+          className="text-2xs focus-visible:ring-info/60 w-full rounded border border-zinc-800 bg-zinc-950 px-1.5 py-1 text-zinc-200 focus-visible:ring-1 focus-visible:outline-none"
+        >
+          <option value="">No thread — a plain hole</option>
+          {offered.length === 0 ? null : (
+            <optgroup label="Suggested — what this hole reads as">
+              {offered.map((each) => (
+                <option key={each.spec.name} value={each.spec.name}>
+                  {each.spec.name} — its {each.read},{' '}
+                  {deviation(holeDiameter - diameterAt(each.spec, each.read))}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          <optgroup label="Every thread">
+            {THREADS.map((each) => {
+              const guess = guesses.find((one) => one.spec.name === each.name)
+              return (
+                <option key={each.name} value={each.name}>
+                  {each.name}
+                  {guess ? ` — its ${guess.read}` : ''}
+                </option>
+              )
+            })}
+          </optgroup>
+        </select>
+      </label>
+
+      {/*
+        **How it is made, and the bore that way starts from.** A form tap wants
+        half a millimetre more hole than a cut tap on an M6, so the drill a
+        choice implies is the thing worth printing beside it.
+      */}
+      {spec === null ? null : (
+        <div className="flex items-center gap-1">
+          <span className="text-2xs w-24 shrink-0 text-zinc-500">Made by:</span>
           {MAKING.map((way) => {
-            const drill = drillFor(each.spec, way.mode)
-            const on = spec?.name === each.spec.name && mode === way.mode
+            const drill = drillFor(spec, way.mode)
+            const on = mode === way.mode
             return (
               <button
                 key={way.mode}
                 type="button"
                 aria-pressed={on}
-                aria-label={`${each.spec.name} ${way.mode}`}
-                onClick={() => onChange({ mode: way.mode, spec: each.spec })}
+                aria-label={`${spec.name} ${way.mode}`}
+                title={
+                  drill === null
+                    ? `${spec.name}, ${way.mode}`
+                    : `${spec.name}, ${way.mode} — starts from a ⌀${formatLength(drill, unit)} hole`
+                }
+                onClick={() => onChange({ mode: way.mode, spec })}
                 className={classNames(
                   CHIP,
                   'min-w-0 flex-1 truncate whitespace-nowrap',
@@ -138,40 +197,7 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
             )
           })}
         </div>
-      ))}
-
-      {/*
-        **The override is on show, not behind a link.** It read as a sentence
-        somebody might click, which is not what a control looks like; labelled
-        and standing over its own dropdown, it is obviously the way to say
-        something the buttons cannot (Paul, 2026-09-01).
-      */}
-      <label className="text-2xs mt-0.5 flex flex-col gap-0.5 text-zinc-500">
-        Manually spec thread:
-        <select
-          value={spec !== null && threadNamed(spec.name) ? spec.name : ''}
-          onChange={(event) => {
-            const chosen = threadNamed(event.target.value)
-            onChange(
-              chosen === null
-                ? { mode: 'plain', spec: null }
-                : { mode: mode === 'plain' ? 'cut tap' : mode, spec: chosen },
-            )
-          }}
-          className="text-2xs focus-visible:ring-info/60 w-full rounded border border-zinc-800 bg-zinc-950 px-1.5 py-1 text-zinc-200 focus-visible:ring-1 focus-visible:outline-none"
-        >
-          <option value="">No thread — a plain hole</option>
-          {THREADS.map((each) => {
-            const guess = guesses.find((one) => one.spec.name === each.name)
-            return (
-              <option key={each.name} value={each.name}>
-                {each.name}
-                {guess ? ` — its ${guess.read}` : ''}
-              </option>
-            )
-          })}
-        </select>
-      </label>
+      )}
     </div>
   )
 }

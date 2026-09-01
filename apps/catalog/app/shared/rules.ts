@@ -51,10 +51,10 @@ import rulesCsv from './rules.csv?raw'
  * `judge.ts`, so the grammar can be tested without a catalog.
  */
 
-export const LEVELS = ['must', 'should', 'prefer', 'rank'] as const
+const LEVELS = ['must', 'should', 'prefer', 'rank'] as const
 export type Level = (typeof LEVELS)[number]
 
-export const STAGES = ['tool', 'holder'] as const
+const STAGES = ['tool', 'holder'] as const
 export type Stage = (typeof STAGES)[number]
 
 export type Operator = '<=' | '>=' | '=' | '<' | '>'
@@ -317,7 +317,7 @@ export const featureMatches = (pattern: string, featureType: string): boolean =>
   globOf(pattern, featureKey).test(featureKey(featureType))
 
 /** The two words a `tool types` cell may use for the shank rather than the form. */
-export const SHANK_PATTERNS = ['full shank', 'reduced shank'] as const
+const SHANK_PATTERNS = ['full shank', 'reduced shank'] as const
 
 /** Whether a tool form is one the row names: `*end mill` takes every end mill. */
 export const toolTypeMatches = (pattern: string, form: string): boolean =>

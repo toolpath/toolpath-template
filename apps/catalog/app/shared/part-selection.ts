@@ -64,15 +64,6 @@ export const arrowsFor = (context: {
  * Order matters only for reading — the fit treats the group as a set — but a
  * list that reorders itself as it grows is one nobody can keep their place in.
  */
-export const keepFeature = (kept: ReadonlyArray<string>, featureTag: string): Array<string> =>
-  kept.includes(featureTag) ? [...kept] : [...kept, featureTag]
-
-export const dropFeature = (kept: ReadonlyArray<string>, featureTag: string): Array<string> =>
-  kept.filter((each) => each !== featureTag)
-
-export const toggleKept = (kept: ReadonlyArray<string>, featureTag: string): Array<string> =>
-  kept.includes(featureTag) ? dropFeature(kept, featureTag) : keepFeature(kept, featureTag)
-
 /** Keep everything offered, without disturbing what is already kept. */
 export const keepAll = (
   kept: ReadonlyArray<string>,
@@ -221,7 +212,7 @@ const depthOf = (feature: PartFeature): number | null => {
  * Comparable only against readings of the same face, which is all it is used
  * for. The number is never shown.
  */
-export const toolingScore = (feature: PartFeature): number => {
+const toolingScore = (feature: PartFeature): number => {
   const area = surfaceArea(feature)
   const cutter = cutterFor(feature)
   const depth = depthOf(feature)

@@ -90,7 +90,7 @@ const sameEnd = (a: number | undefined, b: number | undefined): boolean =>
   a === undefined || b === undefined ? a === b : Math.abs(a - b) < 1e-9
 
 /** Whether two bounds ask the same thing, allowing for a float's last digit. */
-export const sameBound = (a: Bound | undefined, b: Bound | undefined): boolean => {
+const sameBound = (a: Bound | undefined, b: Bound | undefined): boolean => {
   if (a === undefined || b === undefined) {
     return a === b
   }

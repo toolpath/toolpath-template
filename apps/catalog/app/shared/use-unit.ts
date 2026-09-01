@@ -8,7 +8,7 @@ import { loadUnit, saveUnit, type Unit } from '@toolpath/domain/units'
  * share a unit is a decision each of them makes rather than inherits from the
  * package they both read the preference through.
  */
-export const UNIT_STORAGE_KEY = 'tool-catalog.unit'
+const UNIT_STORAGE_KEY = 'tool-catalog.unit'
 
 /**
  * The unit everything is read in.

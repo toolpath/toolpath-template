@@ -167,19 +167,6 @@ export const clearChoice = (sheet: SetupSheet, featureTag: string): SetupSheet =
  * the one to copy: they are all the same tool, and the earliest is the one
  * whose holder was thought about first.
  */
-export const anywhereKept = (
-  sheet: SetupSheet,
-  toolGuid: string,
-): { readonly featureTag: string; readonly choice: Choice } | null => {
-  for (const [featureTag, kept] of Object.entries(sheet.choices)) {
-    const choice = kept.find((each) => each.toolGuid === toolGuid)
-    if (choice) {
-      return { featureTag, choice }
-    }
-  }
-  return null
-}
-
 /** Un-choose one tool, leaving the others kept for that feature. */
 export const removeChoice = (
   sheet: SetupSheet,

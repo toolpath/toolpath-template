@@ -57,12 +57,3 @@ export const geometryRows = (tool: CatalogTool, unit: Unit): Array<GeometryRow> 
     }
   })
 }
-
-/** What a tool is called in a list: the number a shop orders by, and its size. */
-export const toolHeadline = (tool: CatalogTool, unit: Unit): string => {
-  const diameter = tool.geometry.DC
-  if (diameter === undefined) {
-    return tool.catalogNumber
-  }
-  return `${tool.catalogNumber} · ⌀${formatGeometry('DC', diameter, unit)}`
-}

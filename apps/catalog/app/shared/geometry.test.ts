@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CatalogTool } from '@toolpath/catalog-data'
-import { formatGeometry, geometryRows, toolHeadline } from './geometry'
+import { formatGeometry, geometryRows } from './geometry'
 
 const tool: CatalogTool = {
   guid: 'a',
@@ -63,16 +63,6 @@ describe('geometryRows', () => {
 
   it('puts the codes it can explain first', () => {
     expect(geometryRows(tool, 'mm').at(-1)?.code).toBe('ZEFP')
-  })
-})
-
-describe('toolHeadline', () => {
-  it('names a tool by what a shop orders and the size it is', () => {
-    expect(toolHeadline(tool, 'mm')).toBe('TDMX0500 · ⌀12.70 mm')
-  })
-
-  it('falls back to the catalog number when no diameter is stated', () => {
-    expect(toolHeadline({ ...tool, geometry: {} }, 'mm')).toBe('TDMX0500')
   })
 })
 

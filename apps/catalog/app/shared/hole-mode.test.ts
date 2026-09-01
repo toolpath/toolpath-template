@@ -1,18 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { PartFeature } from '@toolpath/part-contracts'
 import type { CatalogTool } from '@toolpath/catalog-data'
-import {
-  fromOtherSide,
-  holeAt,
-  holeDiameterOf,
-  holeGroups,
-  holeSummary,
-  isHole,
-  makersFor,
-  reaches,
-  shortfallOf,
-  tapsFor,
-} from './hole-mode'
+import { asRecord } from '@toolpath/part-contracts/datasheet'
+import { holeAt, makersFor, reaches, shortfallOf, tapsFor } from './hole-mode'
 import { threadNamed } from './threads'
 
 /**
@@ -45,102 +35,6 @@ const pocket = {
   datasheet: { zMin: -5, zMax: 0, facts: { kind: 'Pocket' } },
 } as unknown as PartFeature
 
-describe('the part read as holes', () => {
-  it('takes a hole for a hole, and nothing else', () => {
-    expect(isHole(hole('a', 5, 12))).toBe(true)
-    expect(isHole(hole('b', 5, 12, 'ThroughHole'))).toBe(true)
-    expect(isHole(pocket)).toBe(false)
-  })
-
-  /**
-   * Eight ⌀5 × 12 is one drill and one line on a bill, whatever the kernel
-   * called each of them — and whichever face they are cut from (Paul,
-   * 2026-08-31).
-   */
-  it('groups them by diameter and depth, not by way up', () => {
-    const sideways = { ...hole('c', 5, 12), machiningDirection: { x: 1, y: 0, z: 0 } }
-    const groups = holeGroups([hole('a', 5, 12), hole('b', 5, 12), sideways, hole('d', 8, 20)])
-
-    expect(groups).toHaveLength(2)
-    expect(groups[0]?.diameter).toBe(5)
-    expect(groups[0]?.features).toHaveLength(3)
-    expect(groups[1]?.diameter).toBe(8)
-  })
-
-  /**
-   * A hole open at both ends is two readings of one hole. Counting both made a
-   * plate of four read as eight, and offered two drills for one hole (Paul,
-   * 2026-09-01).
-   */
-  it('counts a hole found from two sides once', () => {
-    const near = hole('a', 5, 12, 'ThroughHole')
-    const far = {
-      ...near,
-      featureTag: 'a-far',
-      machiningDirection: { x: 0, y: 0, z: -1 },
-      // The same bore: the kernel names the same face from either end.
-      regionIdxs: near.regionIdxs,
-      datasheet: { ...near.datasheet, extendedZMax: 30 },
-    } as unknown as PartFeature
-
-    const [group] = holeGroups([near, far])
-
-    expect(group?.features).toHaveLength(1)
-    expect(group?.features[0]?.featureTag).toBe('a')
-    expect(group?.other?.features[0]?.featureTag).toBe('a-far')
-  })
-
-  /** The side that needs the shorter tool is the one it is made from. */
-  it('makes it from the side with the shorter reach, and offers the other', () => {
-    const shallow = hole('a', 5, 12, 'ThroughHole')
-    const deep = {
-      ...shallow,
-      featureTag: 'a-far',
-      machiningDirection: { x: 0, y: 0, z: -1 },
-      regionIdxs: shallow.regionIdxs,
-      datasheet: { ...shallow.datasheet, extendedZMax: 40 },
-    } as unknown as PartFeature
-
-    const [group] = holeGroups([deep, shallow])
-
-    expect(group?.reach).toBe(12)
-    expect(group?.other?.reach).toBe(52)
-
-    const flipped = fromOtherSide(group!)
-    expect(flipped.reach).toBe(52)
-    expect(flipped.features[0]?.featureTag).toBe('a-far')
-    expect(flipped.other?.reach).toBe(12)
-  })
-
-  it('sorts them by size, deepest of a size first', () => {
-    const groups = holeGroups([hole('a', 8, 10), hole('b', 5, 12), hole('c', 8, 30)])
-
-    expect(groups.map((each) => [each.diameter, each.depth])).toEqual([
-      [5, 12],
-      [8, 30],
-      [8, 10],
-    ])
-  })
-
-  /** A group is through only when every hole in it is. */
-  it('calls a group through only when all of it is', () => {
-    const mixed = holeGroups([hole('a', 5, 12, 'ThroughHole'), hole('b', 5, 12)])
-    const all = holeGroups([hole('a', 5, 12, 'ThroughHole'), hole('b', 5, 12, 'ThroughHole')])
-
-    expect(mixed[0]?.through).toBe(false)
-    expect(all[0]?.through).toBe(true)
-  })
-
-  it('leaves out a hole whose diameter the report does not state', () => {
-    const bare = {
-      ...hole('a', 5, 12),
-      datasheet: { zMin: -12, zMax: 0, facts: {} },
-    } as PartFeature
-
-    expect(holeGroups([bare])).toEqual([])
-  })
-})
-
 describe('a hole stood in at another diameter', () => {
   /**
    * A threaded hole is drilled at the tap drill, and the model may be drawn at
@@ -150,7 +44,7 @@ describe('a hole stood in at another diameter', () => {
   it('changes the bore and nothing else', () => {
     const drilled = holeAt(hole('a', 4.918, 12), 5)
 
-    expect(holeDiameterOf(drilled)).toBe(5)
+    expect(asRecord(drilled.datasheet?.facts)?.diameter).toBe(5)
     expect(drilled.featureTag).toBe('a')
     expect(drilled.datasheet?.zMin).toBe(-12)
   })
@@ -348,41 +242,5 @@ describe('why a threading tool is not on the list', () => {
 
     expect(reaches(stubby, { depth: 20, below: 40 })).toBe(false)
     expect(reaches(stubby, { depth: 20, below: 40, clears: () => true })).toBe(true)
-  })
-})
-
-describe('every hole at once', () => {
-  /**
-   * The question "All holes" answers is about the part, not about one hole:
-   * how many, how big, how deep, and the worst reach among them.
-   */
-  it('counts the holes and spans their sizes, depths and ratios', () => {
-    const summary = holeSummary(
-      holeGroups([
-        hole('a', 5, 10),
-        hole('b', 5, 10),
-        hole('c', 10, 40),
-        hole('d', 8, 8, 'ThroughHole'),
-      ]),
-    )!
-
-    expect(summary.holes).toBe(4)
-    expect(summary.sizes).toBe(3)
-    expect(summary.diameter).toEqual({ min: 5, max: 10 })
-    expect(summary.depth).toEqual({ min: 8, max: 40 })
-    // The ⌀10 × 40 is the deep one: four diameters, and it sets the reach.
-    expect(summary.ld).toEqual({ min: 1, max: 4 })
-  })
-
-  /** Each hole counts once, so three of one size are three holes and one size. */
-  it('counts every hole, not every size', () => {
-    const summary = holeSummary(holeGroups([hole('a', 6, 12), hole('b', 6, 12), hole('c', 6, 12)]))!
-
-    expect(summary.holes).toBe(3)
-    expect(summary.sizes).toBe(1)
-  })
-
-  it('says nothing about a part with no holes', () => {
-    expect(holeSummary([])).toBeNull()
   })
 })

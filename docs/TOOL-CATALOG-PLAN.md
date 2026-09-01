@@ -158,9 +158,11 @@ apps/catalog              @toolpath/catalog         browse tools, and match them
   disagree. Nine plausible tools, two unit systems, three tool types, a missing
   dimension, an undefined vendor code, and an assumed value. **They are not a
   vendor's numbers.**
-- **`apps/catalog`** browses and filters with the selection held in the URL, and
-  at `/parts` connects, uploads a part, follows its analysis, and narrows the
-  catalog to the tools that cut the selected features.
+- **`apps/catalog`** opens on the part: connect, upload, follow the analysis,
+  click a feature, and the catalog narrows to the tools that cut it, with the
+  selection held in the URL. The catalog browser and the family list are still
+  there and still tested at `/catalog` and `/families`, and nothing links to
+  them — see _Taken out on 2026-09-01_.
 
 ## Phases
 
@@ -382,6 +384,33 @@ really about the stack rather than the cutter.
 - **Fusion export**: emit a library from a selection. The prior repository's
   pipeline produced Fusion libraries as its primary artifact, so the shape of
   that document is known.
+
+### Taken out on 2026-09-01
+
+Paul's call, all of it, while the part half is being worked on. **Nothing here
+was deleted because it was wrong** — it was deleted because a branch nobody can
+read is worse than one that has to be restored from git, and git has all of it
+on `paul/tool_catalog`.
+
+- **All-holes mode.** Reading every hole on the part at once — the table, the
+  plan, the per-size drill and tap, the zoom walk, "machine from the other
+  side", and applying a thread to every size in one press. It was
+  `components/hole-table.tsx`, `shared/hole-plan.ts`, `shared/hole-rows.ts`,
+  the grouping half of `shared/hole-mode.ts`, and the mode switch in
+  `components/selection-panel.tsx`. `git show e34b952:apps/catalog/…` brings any of
+  it back; what has to be rebuilt is the wiring in `routes/part.tsx`.
+- **The catalog browser and the family list.** Still there, still tested, and
+  reachable at `/catalog` and `/families` — nothing links to them, and `/` is
+  the part flow. Two `NavLink`s in `components/app-header.tsx` put them back.
+- **Thread milling** stays out of `HOLE_MODES` (2026-09-01), and the type still
+  carries it.
+- **The thread suggestions as chips.** One select, with the readings in it.
+
+Everything that lost its last caller went with it — `shared/way-up.ts`,
+`toolingScore`, `toggleKept`, `anywhereKept`, `likelyThread`,
+`threadAtReading`, `clampedFrom`, `isEmptyQuery`, `toolHeadline`, `savedFrom`,
+`FluteIcon` — because a function whose only caller is its own test reads as
+load-bearing to the next person to open the file.
 
 ### Explicitly not now
 

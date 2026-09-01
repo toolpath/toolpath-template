@@ -53,7 +53,7 @@ const COLLET_STYLES: Readonly<Record<string, string | null>> = {
   pgst_short_tail: 'short tail, PGST holders only',
 }
 
-export const colletStyleLabel = (collet: Pick<Collet, 'familyId'>): string | null => {
+const colletStyleLabel = (collet: Pick<Collet, 'familyId'>): string | null => {
   const suffix = collet.familyId.replace(/^regofix_pg_collets_/, '').replace(/^regofix_/, '')
   const label = COLLET_STYLES[suffix]
   return label === undefined ? suffix : label

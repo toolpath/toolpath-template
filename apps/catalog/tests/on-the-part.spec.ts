@@ -143,11 +143,23 @@ test('Escape puts the reading down', async ({ page }) => {
   await expect(field(page)).toHaveText(PROMPT)
 })
 
-test('a click on nothing puts the reading down too', async ({ page }) => {
+/**
+ * **One click cancels, the next puts it down** (Paul, 2026-09-01).
+ *
+ * A click on nothing is how somebody dismisses what they have just opened —
+ * an armed arrow, a face still asking which reading it is — and it was
+ * throwing the selection away in the same press. The first miss answers the
+ * open question; the second is the one that clears.
+ */
+test('a click on nothing answers the open question, then puts the reading down', async ({
+  page,
+}) => {
   await ready(page)
 
   await at(page, NOTHING)
+  await expect(field(page)).not.toHaveText(PROMPT)
 
+  await at(page, NOTHING)
   await expect(field(page)).toHaveText(PROMPT)
 })
 
@@ -206,4 +218,34 @@ test('a reading named by hand is the one the list is for', async ({ page }) => {
    */
   await expect(page.getByText(/removed by the rules/)).toBeVisible()
   expect(named).not.toBe('')
+})
+
+/**
+ * **A tool is kept from the panel, and nowhere else** (Paul, 2026-09-01: "add
+ * to list should always happen in the right hand panel… clicking a row should
+ * open the right hand panel. Button in the top right to save tool").
+ *
+ * The row used to carry its own keep button; taking it away made the panel the
+ * only way through, which is the path everything else — the holder, the collet,
+ * the drawing — is already on. Nothing covered it end to end, so this is the
+ * one test that walks it: read a face, click a tool, keep it from the panel.
+ */
+test('a tool is read in the panel and kept from it', async ({ page }) => {
+  await ready(page)
+
+  const row = page.getByRole('table').getByRole('row').nth(1)
+  const number = ((await row.getByRole('rowheader').textContent()) ?? '').trim()
+  expect(number).not.toBe('')
+  await row.click()
+
+  const panel = page.getByRole('img', { name: /drawn from its stated dimensions/ })
+  await expect(panel).toBeVisible()
+
+  const keep = page.getByRole('button', { name: 'Add to list' })
+  await expect(keep).toBeVisible()
+  await keep.click()
+
+  // The panel says it is kept, and so does the row it was chosen from.
+  await expect(page.getByRole('button', { name: /On list/ })).toBeVisible()
+  await expect(page.getByRole('table').getByText('on list').first()).toBeVisible()
 })

@@ -118,7 +118,13 @@ describe('the assembly, drawn', () => {
     expect(screen.getByText(/point angle assumed/)).toBeInTheDocument()
   })
 
-  it('colours the flutes pale yellow, the shank light grey, the holder grey, the connection darker', () => {
+  /**
+   * **A drawing sheet, in its own colours.** Gold flutes, a steel body, the
+   * holder behind it in a grey of its own — hard values rather than the
+   * application's ramp, because the ramp flips under light mode and a drawing
+   * is a drawing in either theme (Paul, 2026-09-01).
+   */
+  it('paints the flutes gold, the body steel and the holder its own grey', () => {
     const connected = {
       ...assembly,
       holder: {
@@ -133,13 +139,12 @@ describe('the assembly, drawn', () => {
     const { container } = render(
       <AssemblyDrawing tool={connected.tool} assembly={connected} unit="mm" />,
     )
-    const shade = (selector: string) => container.querySelector(selector)?.getAttribute('class')
+    const painted = (selector: string) => container.querySelector(selector)?.getAttribute('fill')
 
-    expect(shade('[data-part="flutes"]')).toContain('fill-yellow-100')
-    expect(shade('[data-part="shank"]')).toContain('fill-zinc-300')
-    expect(shade('[data-part="nose"]')).toContain('fill-zinc-500')
-    expect(shade('[data-part="body"][data-provenance="assumed"]')).toContain('fill-zinc-700')
-    expect(shade('[data-part="flange"]')).toContain('fill-zinc-700')
+    expect(painted('[data-part="flutes"]')).toBe('#e6bf59')
+    expect(painted('[data-part="shank"]')).toBe('#c4c8ce')
+    expect(painted('[data-part="nose"]')).toBe('#9aa2ad')
+    expect(painted('[data-part="flange"]')).toBe('#78818d')
   })
 
   it('says so rather than drawing a tool with no dimensions', () => {
@@ -488,5 +493,118 @@ describe('how far right the wall is drawn', () => {
     const fill = container.querySelector('[data-part="material"]')!.getAttribute('fill')!
     expect(fill).toMatch(/^url\(#hatch-/)
     expect(container.querySelector(`#${fill.slice(5, -1)}`)?.tagName.toLowerCase()).toBe('pattern')
+  })
+})
+
+/**
+ * **"They need to be layed out in a way that NEVER OVERLAP THE MODEL, A
+ * LEADER, OTHER TEXT, OR ANOTHER DIMENSION"** (Paul, 2026-09-01, with three
+ * screenshots of figures written over each other). Three goes at placing
+ * figures among the lines each produced a smudge somewhere, so this is a check
+ * rather than a rule somebody remembers: every figure is in a margin, and no
+ * figure covers another.
+ */
+describe('figures that can be read', () => {
+  const boxes = (container: HTMLElement) =>
+    [...container.querySelectorAll('[data-figure] rect')].map((each) => ({
+      x: Number(each.getAttribute('x')),
+      y: Number(each.getAttribute('y')),
+      width: Number(each.getAttribute('width')),
+      height: Number(each.getAttribute('height')),
+    }))
+
+  it('never lets one figure cover another', () => {
+    const { container } = render(
+      <AssemblyDrawing tool={assembly.tool} unit="mm" dimensions dimensionSides="both" />,
+    )
+    const drawn = boxes(container)
+    expect(drawn.length).toBeGreaterThan(3)
+
+    for (const [index, one] of drawn.entries()) {
+      for (const two of drawn.slice(index + 1)) {
+        const apart =
+          one.x + one.width <= two.x ||
+          two.x + two.width <= one.x ||
+          one.y + one.height <= two.y ||
+          two.y + two.height <= one.y
+        expect(apart).toBe(true)
+      }
+    }
+  })
+
+  /** And in the margin: past the tool, never over it. */
+  it('keeps every figure outside the tool', () => {
+    const { container } = render(
+      <AssemblyDrawing tool={assembly.tool} unit="mm" dimensions dimensionSides="both" />,
+    )
+    const svg = container.querySelector('svg')!
+    const [, , width] = svg.getAttribute('viewBox')!.split(' ').map(Number)
+    const tool = [...container.querySelectorAll('[data-part] polygon')].flatMap((each) =>
+      each
+        .getAttribute('points')!
+        .split(' ')
+        .map((pair) => Number(pair.split(',')[0])),
+    )
+    const left = Math.min(...tool)
+    const right = Math.max(...tool)
+
+    for (const box of boxes(container)) {
+      expect(box.x + box.width <= left || box.x >= right).toBe(true)
+      // And on the sheet, rather than off its edge.
+      expect(box.x).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.width).toBeLessThanOrEqual(width!)
+    }
+  })
+
+  /**
+   * **Beside its own line, and off every other one** (Paul, 2026-09-01: "put
+   * SFDM, LCF and shoulder dia closer to the part — inside the below holder
+   * and OAL lines"). Moving the figures in among the lanes is only worth doing
+   * if they stay clear of the extension lines that cross those bands.
+   */
+  it('keeps every figure off the dimension lines', () => {
+    const { container } = render(
+      <AssemblyDrawing tool={assembly.tool} unit="mm" dimensions dimensionSides="both" />,
+    )
+    const lines = [...container.querySelectorAll('[data-dimension] line')].map((each) => ({
+      x1: Number(each.getAttribute('x1')),
+      y1: Number(each.getAttribute('y1')),
+      x2: Number(each.getAttribute('x2')),
+      y2: Number(each.getAttribute('y2')),
+    }))
+    expect(lines.length).toBeGreaterThan(4)
+
+    for (const box of boxes(container)) {
+      for (const line of lines) {
+        const across =
+          Math.min(line.x1, line.x2) < box.x + box.width && Math.max(line.x1, line.x2) > box.x
+        const down =
+          Math.min(line.y1, line.y2) < box.y + box.height && Math.max(line.y1, line.y2) > box.y
+        expect(across && down).toBe(false)
+      }
+    }
+  })
+
+  /**
+   * **"SFDM and shoulder diameter should use outward leaders, not lines over
+   * the tool"** (Paul, 2026-09-01): a ⌀6 shank at this scale has no room for a
+   * dimension line inside it, so the arrows stand outside and point in.
+   */
+  it('draws no width dimension across the tool', () => {
+    const { container } = render(<AssemblyDrawing tool={assembly.tool} unit="mm" dimensions />)
+    const axis = Number(
+      container.querySelector('[data-centreline]')?.getAttribute('x1') ??
+        // The centreline is the axis; without one, nothing to check against.
+        NaN,
+    )
+    expect(Number.isNaN(axis)).toBe(false)
+
+    for (const code of ['DC', 'SFDM']) {
+      for (const line of container.querySelectorAll(`[data-dimension="${code}"] line`)) {
+        const from = Number(line.getAttribute('x1'))
+        const to = Number(line.getAttribute('x2'))
+        expect(Math.min(from, to) > axis || Math.max(from, to) < axis).toBe(true)
+      }
+    }
   })
 })

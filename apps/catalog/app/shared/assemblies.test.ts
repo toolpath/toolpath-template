@@ -5,7 +5,6 @@ import {
   loadAssemblies,
   sameAssembly,
   saveAssemblies,
-  savedFrom,
   withAssembly,
   withoutAssembly,
   type SavedAssembly,
@@ -16,6 +15,14 @@ const holder = { guid: 'holder-1', catalogNumber: 'BT30ER16060M' } as Holder
 const collet = { guid: 'collet-1', catalogNumber: 'ER16-6' } as Collet
 
 const assembly: Assembly = { holder, collet, tool, stickout: 40, maxStickout: 40 }
+
+/** The same stack as identities: guids and the stickout, and no geometry. */
+const saved: SavedAssembly = {
+  holderGuid: 'holder-1',
+  colletGuid: 'collet-1',
+  toolGuid: 'tool-1',
+  stickout: 40,
+}
 
 const store = () => {
   const held = new Map<string, string>()
@@ -36,29 +43,16 @@ describe('assemblyLabel', () => {
 })
 
 describe('what a saved assembly holds', () => {
-  /**
-   * Identity only. A saved assembly that copied a diameter would become a
-   * second source of truth for it the moment the catalog was rebuilt.
-   */
-  it('stores guids and the stickout, and no geometry', () => {
-    expect(savedFrom(assembly)).toEqual({
-      holderGuid: 'holder-1',
-      colletGuid: 'collet-1',
-      toolGuid: 'tool-1',
-      stickout: 40,
-    })
-  })
-
   it('round-trips through storage', () => {
     const storage = store()
-    saveAssemblies(storage, [savedFrom(assembly)])
+    saveAssemblies(storage, [saved])
 
-    expect(loadAssemblies(storage)).toEqual([savedFrom(assembly)])
+    expect(loadAssemblies(storage)).toEqual([saved])
   })
 
   it('survives having no storage at all', () => {
     expect(loadAssemblies(null)).toEqual([])
-    expect(() => saveAssemblies(null, [savedFrom(assembly)])).not.toThrow()
+    expect(() => saveAssemblies(null, [saved])).not.toThrow()
   })
 
   /** Somebody's saved list being unreadable is not an application error. */
@@ -71,18 +65,13 @@ describe('what a saved assembly holds', () => {
 
   it('ignores entries that are not assemblies', () => {
     const storage = store()
-    storage.setItem(
-      'tool-catalog.assemblies',
-      JSON.stringify([{ nonsense: true }, savedFrom(assembly)]),
-    )
+    storage.setItem('tool-catalog.assemblies', JSON.stringify([{ nonsense: true }, saved]))
 
-    expect(loadAssemblies(storage)).toEqual([savedFrom(assembly)])
+    expect(loadAssemblies(storage)).toEqual([saved])
   })
 })
 
 describe('keeping and dropping', () => {
-  const saved: SavedAssembly = savedFrom(assembly)
-
   it('does not save the same stack twice', () => {
     expect(withAssembly([saved], saved)).toEqual([saved])
   })

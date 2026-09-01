@@ -99,7 +99,7 @@ export interface PartViewerProps {
    * list of feature names is unreadable as geometry until the part says which
    * one each is.
    */
-  readonly hovered: string | null
+  readonly hovered?: string | null
   /**
    * A feature to zoom to — framed **when it changes**, which is the viewer's
    * own rule: a zoom is a request, not a state to hold. So asking twice for
@@ -164,7 +164,7 @@ export const PartViewer = ({
   selected,
   focus = null,
   heldRegions,
-  hovered,
+  hovered = null,
   arrows,
   onPickDirection,
   directionColor,

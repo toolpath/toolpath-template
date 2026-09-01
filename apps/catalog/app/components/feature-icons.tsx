@@ -391,7 +391,7 @@ const FacesIcon = () => (
   </MeasurementFrame>
 )
 
-export const MEASUREMENT_ICONS: Record<string, () => ReactElement> = {
+const MEASUREMENT_ICONS: Record<string, () => ReactElement> = {
   depthBelowTop: ReachIcon,
   featureDepth: DepthIcon,
   minRadius: RadiusIcon,

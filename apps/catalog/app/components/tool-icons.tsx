@@ -392,35 +392,6 @@ export const ToolTypeIcon = ({ toolType, className }: { toolType: string; classN
 /** Whether this application has a drawing for a name, rather than a fallback. */
 export const hasToolTypeIcon = (toolType: string): boolean => normalise(toolType) in BY_TYPE
 
-/**
- * The flute count, drawn end-on.
- *
- * A number says four; the end view says what four *is* — how much room is left
- * between the teeth, which is the reason anybody picks two over six. The flutes
- * sweep back from the centre, as they are ground, because at this size a
- * straight radius reads as a pie chart.
- */
-export const FluteIcon = ({ count }: { count: number }) => {
-  const flutes = Number.isFinite(count) && count > 0 ? Math.min(Math.round(count), 12) : 0
-
-  return (
-    <Frame>
-      <circle cx="8" cy="8" r="6" strokeWidth={1.1} />
-      {Array.from({ length: flutes }, (_, index) => {
-        const angle = (index / flutes) * Math.PI * 2 - Math.PI / 2
-        const lead = angle - 0.45
-        return (
-          <path
-            key={index}
-            d={`M${(8 + Math.cos(angle) * 1.6).toFixed(2)} ${(8 + Math.sin(angle) * 1.6).toFixed(2)} Q${(8 + Math.cos(lead) * 4.2).toFixed(2)} ${(8 + Math.sin(lead) * 4.2).toFixed(2)} ${(8 + Math.cos(lead) * 6).toFixed(2)} ${(8 + Math.sin(lead) * 6).toFixed(2)}`}
-            strokeWidth={0.85}
-          />
-        )
-      })}
-    </Frame>
-  )
-}
-
 /** What a name is called in the library's vocabulary, where it has a proper one. */
 export const toolTypeLabel = (toolType: string): string =>
   TOOL_FORMS.find((each) => each.value === normalise(toolType))?.label ?? toolType

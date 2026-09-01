@@ -41,7 +41,7 @@ const Tool = () => {
             No tool in this catalog has that identifier. It may have been ingested from a dataset
             this build does not contain.
           </p>
-          <Link to="/" className="text-sm text-zinc-200 underline-offset-2 hover:underline">
+          <Link to="/catalog" className="text-sm text-zinc-200 underline-offset-2 hover:underline">
             Back to the catalog
           </Link>
         </div>
@@ -54,7 +54,7 @@ const Tool = () => {
       <AppHeader unit={unit} onUnit={setUnit} toolCount={allTools.length} />
 
       <div className="flex flex-col gap-4 p-6">
-        <Link to="/" className="text-sm text-zinc-400 underline-offset-2 hover:underline">
+        <Link to="/catalog" className="text-sm text-zinc-400 underline-offset-2 hover:underline">
           ← Catalog
         </Link>
         <ToolSheet tool={tool} unit={unit} />

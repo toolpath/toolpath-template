@@ -100,7 +100,7 @@ const CODES: Readonly<Record<string, string>> = {
  * because a filter that took the tighter one would hide the very tools the
  * looser row exists to admit.
  */
-export const rangesFromRules = (
+const rangesFromRules = (
   feature: PartFeature,
   partFeatures: ReadonlyArray<PartFeature>,
   rules: ReadonlyArray<Rule> = RULES.rules,

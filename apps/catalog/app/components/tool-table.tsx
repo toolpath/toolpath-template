@@ -67,7 +67,16 @@ export const shownColumns = (
 
 /** The width every table in the panel gives each kind of column. */
 export const COLUMN_WIDTH = {
-  name: 'w-56',
+  name: 'w-52',
+  /**
+   * The vendor stands in its own column.
+   *
+   * Under the number it wrapped the cell onto a second line — and on a
+   * catalog number seventeen characters long it wrapped the *link* onto a
+   * third, which made a row of the list twice as tall as the rest for no
+   * information at all (Paul, 2026-09-01).
+   */
+  vendor: 'w-32',
   /**
    * Wide enough for the longest name a tool has.
    *
@@ -402,7 +411,7 @@ export interface Sort {
  * Off is a state on purpose — the order a list arrives in is the sheet's
  * ranking, and somebody who sorted by diameter needs a way back to it.
  */
-export const nextSort = (sort: Sort | null, code: string): Sort | null => {
+const nextSort = (sort: Sort | null, code: string): Sort | null => {
   if (sort?.code !== code) {
     return { code, ascending: true }
   }
@@ -534,6 +543,17 @@ export const ToolTable = ({
                 'Catalog number'
               )}
             </th>
+            <th scope="col" className={classNames(COLUMN_WIDTH.vendor, 'px-3 py-2 font-semibold')}>
+              {onRailFilter && railKeys.brand !== undefined ? (
+                <RailHandover
+                  label="Vendor"
+                  set={(terms.brand ?? []).length > 0}
+                  onOpen={() => onRailFilter(railKeys.brand ?? 'brand')}
+                />
+              ) : (
+                'Vendor'
+              )}
+            </th>
             <th scope="col" className={classNames(COLUMN_WIDTH.type, 'px-3 py-2 font-semibold')}>
               {onRailFilter && railKeys.form !== undefined ? (
                 <RailHandover
@@ -632,6 +652,7 @@ export const ToolTable = ({
                 <th
                   scope="row"
                   className={classNames(
+                    'overflow-hidden whitespace-nowrap',
                     'px-3 py-2 text-left font-normal',
                     nearest ? 'opacity-80' : '',
                   )}
@@ -668,22 +689,51 @@ export const ToolTable = ({
                       {tool.catalogNumber}
                     </Link>
                   )}
-                  <span className="ml-2 text-xs text-zinc-500">{tool.brand}</span>
-                  {/* Where to buy it, on the name it is bought by. */}
-                  {tool.productLink === null ? null : (
-                    <a
-                      href={tool.productLink}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      aria-label={`Open ${tool.catalogNumber} at the vendor`}
-                      title="The vendor's page"
-                      onClick={(event) => event.stopPropagation()}
-                      className="text-info/80 hover:text-info focus-visible:ring-info/60 ml-1.5 inline-flex rounded align-middle focus-visible:ring-1 focus-visible:outline-none"
+                  {/*
+                    **The list still says what is kept** (Paul, 2026-09-01).
+                    The button that said it moved to the panel; the fact
+                    belongs on the row, or a list of forty gives no sign which
+                    ones a shop has already decided on.
+                  */}
+                  {here || elsewhere ? (
+                    <span
+                      className={classNames(
+                        'text-2xs ml-2 rounded border px-1 align-middle',
+                        here
+                          ? 'border-emerald-500/40 text-emerald-300'
+                          : 'border-zinc-700 text-zinc-400',
+                      )}
+                      title={
+                        here
+                          ? 'On the order list for this feature'
+                          : 'On the order list for another feature'
+                      }
                     >
-                      <ArrowSquareOutIcon aria-hidden="true" />
-                    </a>
-                  )}
+                      on list
+                    </span>
+                  ) : null}
                 </th>
+                {/* Who makes it, and where to buy it: its own column, one line. */}
+                <td className="overflow-hidden px-3 py-2 text-xs whitespace-nowrap text-zinc-400">
+                  <span className="flex items-center gap-1">
+                    <span className="min-w-0 truncate" title={tool.brand}>
+                      {tool.brand}
+                    </span>
+                    {tool.productLink === null ? null : (
+                      <a
+                        href={tool.productLink}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        aria-label={`Open ${tool.catalogNumber} at the vendor`}
+                        title="The vendor's page"
+                        onClick={(event) => event.stopPropagation()}
+                        className="text-info/80 hover:text-info focus-visible:ring-info/60 inline-flex shrink-0 rounded align-middle focus-visible:ring-1 focus-visible:outline-none"
+                      >
+                        <ArrowSquareOutIcon aria-hidden="true" />
+                      </a>
+                    )}
+                  </span>
+                </td>
                 {/*
                   **Clipped, like every other cell.** "Reduced shank bull nose
                   end mill" is wider than the column, and the row is `nowrap`,

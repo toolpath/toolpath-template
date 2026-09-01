@@ -220,11 +220,6 @@ export const toggleTerm = (query: ToolQuery, key: string, value: string): ToolQu
   return { ...query, terms }
 }
 
-export const isEmptyQuery = (query: ToolQuery): boolean =>
-  query.text.trim() === '' &&
-  Object.values(query.terms).every((values) => values.length === 0) &&
-  Object.values(query.ranges).every((bound) => bound.min === undefined && bound.max === undefined)
-
 /**
  * The filters written back into a URL that carries other things.
  *
@@ -327,7 +322,7 @@ export const prioritise = (
  * one vendor would report every other as zero and there would be no way to add
  * a second.
  */
-export const withoutTerm = (query: ToolQuery, key: string): ToolQuery => {
+const withoutTerm = (query: ToolQuery, key: string): ToolQuery => {
   const terms = { ...query.terms }
   delete terms[key]
   return { ...query, terms }

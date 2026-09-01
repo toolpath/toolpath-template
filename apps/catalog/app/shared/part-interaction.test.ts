@@ -226,16 +226,33 @@ describe('what is kept by hand', () => {
 })
 
 describe('putting things down', () => {
-  it('a miss puts the reading down and drops the guess, not the ticks', () => {
-    const state = run(
-      { type: 'click', pick: face() },
-      { type: 'toggle', featureTag: 'hole-a' },
-      { type: 'miss' },
-    )
+  /**
+   * **The first miss cancels, the second puts it down** (Paul, 2026-09-01). A
+   * click on nothing is how somebody dismisses what they have just opened, and
+   * it was costing them the feature they had picked at the same time.
+   */
+  it('a miss answers the question a click left open before it clears anything', () => {
+    const asked = run({ type: 'click', pick: face() }, { type: 'toggle', featureTag: 'hole-a' })
+    expect(asked.chose).toBe(false)
 
-    expect(state.focused).toBeNull()
-    expect(state.kept).toEqual(['hole-a', 'hole-b'])
-    expect(state.activeDirection).toBeNull()
+    const once = reduce(asked, { type: 'miss' })
+    expect(once.focused).toBe(asked.focused)
+    expect(once.chose).toBe(true)
+
+    const twice = reduce(once, { type: 'miss' })
+    expect(twice.focused).toBeNull()
+    expect(twice.kept).toEqual(['hole-a', 'hole-b'])
+    expect(twice.activeDirection).toBeNull()
+  })
+
+  /** An armed way up is the first thing a miss spends. */
+  it('a miss puts an armed direction down before the reading', () => {
+    const armed = run({ type: 'click', pick: face() }, { type: 'arm', direction: 0 })
+    expect(armed.activeDirection).toBe(0)
+
+    const once = reduce(armed, { type: 'miss' })
+    expect(once.activeDirection).toBeNull()
+    expect(once.focused).toBe(armed.focused)
   })
 
   it('Escape takes the reading first, then the list', () => {

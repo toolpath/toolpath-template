@@ -62,15 +62,6 @@ export const clampedLength = (tool: CatalogTool, rule: ClampingRule): number | n
   return Math.round(shank * rule.perDiameter * 100) / 100
 }
 
-/** Whether the number came from the manufacturer or from the rule of thumb. */
-export const clampedFrom = (tool: CatalogTool, rule: ClampingRule): 'vendor' | 'rule' | null => {
-  const stated = tool.geometry.LSCN
-  if (rule.vendorSpec && stated !== undefined && stated > 0) {
-    return 'vendor'
-  }
-  return clampedLength(tool, rule) === null ? null : 'rule'
-}
-
 /**
  * What is left below the holder: the overall length less the shank held.
  *

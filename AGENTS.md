@@ -144,7 +144,11 @@ application unless that application says otherwise.
   time** and filtered in the browser — `app/shared/catalog.ts` is the only
   module that touches it — while its `server/` serves the shared part API,
   because uploading and analysing a part needs the user's API key.
-  See `docs/TOOL-CATALOG-PLAN.md`.
+  **It opens on the part** (Paul, 2026-09-01): `/` is the upload, drawn in the
+  space the viewer fills, and the catalog browser and family list are still
+  served at `/catalog` and `/families` with nothing linking to them.
+  See `docs/TOOL-CATALOG-PLAN.md`, including _Taken out on 2026-09-01_ for what
+  is parked and where to restore it from.
 - `packages/domain/` (`@toolpath/domain`) is pure helpers more than one
   application needs — unit conversion and formatting, class composition,
   keyboard movement through a list.

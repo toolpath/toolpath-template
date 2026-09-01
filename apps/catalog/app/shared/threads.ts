@@ -184,6 +184,16 @@ export interface ThreadGuess {
   readonly off: number
 }
 
+/**
+ * The diameter a thread is drawn at under one reading of the model.
+ *
+ * The three sizes a tapped hole is drawn at, in one place, so the panel can
+ * say what a hole *should* be and how far off it is rather than only which
+ * name the guess landed on (Paul, 2026-09-01).
+ */
+export const diameterAt = (spec: ThreadSpec, read: ThreadRead): number =>
+  read === 'tap drill' ? spec.tapDrill : read === 'minor' ? minorOf(spec) : spec.major
+
 /** How close a hole has to be to count as modelled at that diameter, in mm. */
 const WITHIN = 0.2
 
@@ -208,11 +218,8 @@ export const threadsFor = (
 ): Array<ThreadGuess> => {
   const guesses: Array<ThreadGuess> = []
   for (const spec of specs) {
-    for (const [read, at] of [
-      ['tap drill', spec.tapDrill],
-      ['minor', minorOf(spec)],
-      ['nominal', spec.major],
-    ] as const) {
+    for (const read of THREAD_READS) {
+      const at = diameterAt(spec, read)
       const off = Math.round(Math.abs(holeDiameter - at) * 1000) / 1000
       if (off <= WITHIN) {
         guesses.push({ spec, read, off })
@@ -256,31 +263,8 @@ export const threadOptions = (
   return kept
 }
 
-/**
- * The thread this hole is, **read at one stated diameter**.
- *
- * `threadOptions` guesses which reading a hole was modelled at; this is for
- * when somebody already knows — a shop whose CAD draws every tapped hole at
- * the tap drill can say so once and have every hole on the part read that way
- * (Paul, 2026-09-01). Nothing where no thread of that reading is near.
- */
-export const threadAtReading = (
-  holeDiameter: number,
-  read: ThreadRead,
-  specs: ReadonlyArray<ThreadSpec> = THREADS,
-): ThreadGuess | null =>
-  threadsFor(holeDiameter, specs)
-    .filter((each) => each.read === read)
-    .sort((a, b) => a.off - b.off)[0] ?? null
-
 /** The readings a hole can be modelled at, in the order they are offered. */
-export const THREAD_READS: ReadonlyArray<ThreadRead> = ['tap drill', 'minor', 'nominal']
-
-/** The one to offer, or nothing where no thread is near the hole. */
-export const likelyThread = (
-  holeDiameter: number,
-  specs: ReadonlyArray<ThreadSpec> = THREADS,
-): ThreadGuess | null => threadsFor(holeDiameter, specs)[0] ?? null
+const THREAD_READS: ReadonlyArray<ThreadRead> = ['tap drill', 'minor', 'nominal']
 
 /** A spec by the name it is written by, for a choice somebody made. */
 export const threadNamed = (

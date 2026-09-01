@@ -12,7 +12,6 @@ import { Badge, Card, Panels } from '@toolpath/ui'
 import {
   colletsFor,
   emptyBuildSelection,
-  tightestGaps,
   toolCollisions,
   type BuildSelection,
   type CatalogTool,
@@ -25,23 +24,20 @@ import { asNumber, asRecord } from '@toolpath/part-contracts/datasheet'
 import { partTop } from '@toolpath/part-contracts/measurements'
 import { directionColor, directionIndexOf } from '@toolpath/viewer'
 import { classNames } from '@toolpath/domain/class-names'
-import { formatLength, type Unit } from '@toolpath/domain/units'
+import { formatLength } from '@toolpath/domain/units'
 import { AppHeader } from 'components/app-header'
 import { FeatureDetails } from 'components/feature-details'
 import { FilterRail } from 'components/filter-rail'
 import { ToolDetails } from 'components/tool-details'
 import { TapTable } from 'components/tap-table'
-import { HoleTable } from 'components/hole-table'
 import {
   addChoice,
-  anywhereKept,
   choicesFor,
   clearChoice,
   chosenFor,
   removeChoice,
   useSetupSheet,
 } from 'shared/setup-sheet'
-import { Chip, ChipGroup } from 'components/chip'
 import { PartViewer } from 'components/part-viewer'
 import { SelectionPanel } from 'components/selection-panel'
 import { featureRow } from 'shared/feature-rows'
@@ -86,7 +82,7 @@ import { sectionOf } from 'shared/section-of'
 import { holdable, holderOptions, thresholdsFrom, type HolderOption } from 'shared/holder-choice'
 import { drawnAssembly } from 'shared/drawn-assembly'
 import type { AssemblyPlacement } from 'components/assembly-model'
-import { closestMisses, standingOf, type Format } from 'shared/judge'
+import { closestMisses, type Format } from 'shared/judge'
 import { cautionedTypes, marksFor, testedCodes } from 'shared/tool-marks'
 import { knobValue, knobsWith } from 'shared/rules'
 import { FloorAllowance } from 'components/floor-allowance'
@@ -101,26 +97,15 @@ import { usePartMaterial, usePreferences } from 'shared/use-preferences'
 import { recallPart, rememberPart } from 'shared/part-session'
 import { IDLE, groupOf as holeGroupOf, interactionFor } from 'shared/part-interaction'
 import { arrowsFor, byLargest, keptFeatures, partHighlight } from 'shared/part-selection'
-import {
-  fromOtherSide,
-  holeAt,
-  holeDepthOf,
-  holeGroups,
-  holeSummary,
-  makersFor,
-  shortfallOf,
-} from 'shared/hole-mode'
-import { autoThreads, groupOfFeature, stepZoom } from 'shared/hole-rows'
-import { wayUpLabel } from 'shared/way-up'
-import { holePlan, type GroupChoice } from 'shared/hole-plan'
+import { holeAt, holeDepthOf, makersFor, shortfallOf } from 'shared/hole-mode'
 import { hasSharpCorner } from 'shared/feature-defaults'
+import { drillFor, type HoleMode, type ThreadSpec } from 'shared/threads'
 
 /** How one hole is made, and for what thread: hole mode's answer per feature. */
 interface HoleChoice {
   readonly mode: HoleMode
   readonly spec: ThreadSpec | null
 }
-import { drillFor, type HoleMode, type ThreadRead, type ThreadSpec } from 'shared/threads'
 
 /**
  * A gap rather than a line.
@@ -188,8 +173,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const [interaction, dispatch] = useReducer(reduce, IDLE)
   const { selection, activeDirection, focused, kept, guessed } = interaction
 
-  /** A feature under the pointer, asked of the part as a hover. */
-  const [hovered] = useState<string | null>(null)
   /** The feature whose full record is open, if any. */
   const [info, setInfo] = useState<string | null>(null)
   const [chosenTool, setChosenTool] = useState<string | null>(null)
@@ -598,48 +581,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const threadSpec = holeChoice.spec
 
   /**
-   * **Select all holes**: the other half of hole mode.
-   *
-   * Reachable only with nothing selected, because it is the other thing to do
-   * with a part that has just been opened — read one feature, or read every
-   * hole at once (Paul, 2026-08-31). Picking a feature puts it away.
-   */
-  const [allHoles, setAllHoles] = useState(false)
-  /**
-   * How the drills and the taps share the list panel.
-   *
-   * Neither scrolls: each shows the rows that fit and says how many more,
-   * and pressing that row gives the space to whichever was pressed (Paul,
-   * 2026-08-31). The panel measures itself, because how many rows fit is a
-   * fact about the window rather than a number to guess.
-   */
-  /** Sizes somebody has turned over: made from their other side. */
-  const [otherSide, setOtherSide] = useState<Readonly<Record<string, boolean>>>({})
-
-  const groups = useMemo(
-    () =>
-      holeGroups(report.features).map((each) =>
-        otherSide[each.key] === true ? fromOtherSide(each) : each,
-      ),
-    [report.features, otherSide],
-  )
-  /** What every hole on the part comes to, for the mode that reads them together. */
-  const holesOnThePart = useMemo(() => holeSummary(groups), [groups])
-  /**
-   * The row being read in the all-holes table, by group key.
-   *
-   * Clicking it again puts it down: the part goes back to showing nothing
-   * rather than leaving a size lit with no row to say why.
-   */
-  const [pickedGroup, setPickedGroup] = useState<string | null>(null)
-  /**
-   * Which half of a picked row the panel is reading: the drill or the tap.
-   *
-   * The drill on picking a row, because that is the tool that makes the hole
-   * and the tap only finishes it (Paul, 2026-09-01).
-   */
-  const [rowTab, setRowTab] = useState<'drill' | 'tap'>('drill')
-  /**
    * A filter a column header asked for, until the rail has opened it.
    *
    * The rail's bubbles own their own open state; this is the ask, not the
@@ -655,66 +596,17 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * group of eight is walked rather than framed at once: press again, see the
    * next one (Paul, 2026-09-01).
    */
-  const [focus, setFocus] = useState<string | null>(null)
-  const [zoomAt, setZoomAt] = useState<Readonly<Record<string, number>>>({})
-  /** What the shop says its own model draws, for threading every size at once. */
-  const [threadRead, setThreadRead] = useState<ThreadRead>('tap drill')
-  const [threadMode, setThreadMode] = useState<HoleMode>('cut tap')
-  const [threadsApplied, setThreadsApplied] = useState<number | null>(null)
 
   /**
    * What the part lights up: **whole features**, not the face that was clicked.
    *
    * The clicked face is painted separately, as the thing a second click walks
    * from. What somebody selected is a feature, so the feature is what wears the
-   * colour — every one on the list, and the one being read among them. In
-   * all-holes mode a picked row takes it over: see `partHighlight`.
+   * colour — every one on the list, and the one being read among them.
    */
-  const highlighted = useMemo(
-    () =>
-      partHighlight({
-        kept,
-        focused,
-        // Only in the mode the table belongs to: a row picked before the
-        // switch back is not what the part is being asked about now.
-        group:
-          allHoles && pickedGroup !== null
-            ? (groups
-                .find((each) => each.key === pickedGroup)
-                ?.features.map((each) => each.featureTag) ?? null)
-            : null,
-      }),
-    [kept, focused, allHoles, pickedGroup, groups],
-  )
-  /**
-   * The way up the size being read is made from, for the arrow that says so.
-   *
-   * Null unless a row is picked: with nothing read there is no side to point
-   * at, and an arrow that stands for the whole part is not what this mode is
-   * about.
-   */
-  const pickedSides = useMemo(() => {
-    if (!allHoles || pickedGroup === null) {
-      return null
-    }
-    const group = groups.find((each) => each.key === pickedGroup)
-    const first = group?.features[0]
-    const at = first === undefined ? null : directionOf(first)
-    return at === null || at < 0 ? null : at
-  }, [allHoles, pickedGroup, groups, directionOf])
+  const highlighted = useMemo(() => partHighlight({ kept, focused, group: null }), [kept, focused])
 
   const arrows = useMemo(() => {
-    /**
-     * **Reading every hole: the arrows are the sides of the size being read.**
-     *
-     * A hole open at both ends is made from one of them, and which one is a
-     * decision with a tool length on it — so the part shows both arrows with
-     * the one in use lit, and pressing the other turns the size over
-     * (Paul, 2026-09-01).
-     */
-    if (allHoles && pickedSides !== null) {
-      return arrowsFor({ active: pickedSides })
-    }
     // Named, so the answer is given: one arrow, the one it is cut from. Still
     // a guess, so the question stands: every way up the face can be read from
     // (Paul, 2026-08-31).
@@ -727,35 +619,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     return arrowsFor({
       candidateDirections: [...new Set(shown.flatMap((at) => (at === null || at < 0 ? [] : [at])))],
     })
-  }, [candidates, directionOf, interaction.chose, focused, allHoles, pickedSides])
-
-  const [groupThreads, setGroupThreads] = useState<Readonly<Record<string, GroupChoice>>>({})
-  const [groupTools, setGroupTools] = useState<Readonly<Record<string, string>>>({})
-  const [groupTaps, setGroupTaps] = useState<Readonly<Record<string, string>>>({})
-  /**
-   * A click on the part, while every hole is being read.
-   *
-   * **It stays in the mode and finds the row** (Paul, 2026-09-01): clicking a
-   * hole on the part is asking "what makes this one", and the answer is
-   * already on screen — it is a row in the table. Dropping out of the mode
-   * threw the question away and answered a different one.
-   *
-   * A click on anything that is not a hole is what it always was: a feature to
-   * read, which is the other mode.
-   */
-  useEffect(() => {
-    if (focused === null) {
-      return
-    }
-    const key = groupOfFeature(groups, focused)
-    if (allHoles && key !== null) {
-      setPickedGroup(key)
-      setRowTab('drill')
-      return
-    }
-    setAllHoles(false)
-  }, [focused])
-
+  }, [candidates, directionOf, interaction.chose, focused])
   /**
    * How far under the top of the part the reading's bottom sits.
    *
@@ -1001,40 +865,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     const shownTools = reading === null ? catalogList : tools.length > 0 ? tools : closest
     return drillsOnly ? shownTools.filter((each) => each.form === 'drill') : shownTools
   }, [reading, catalogList, tools, closest, drillsOnly])
-
-  /**
-   * Every hole on the part, planned.
-   *
-   * The tools it chooses among are the **filtered** ones, because the filters
-   * are the last word: a shop that asked for drills only gets drills or an
-   * empty row (Paul, 2026-08-31).
-   */
-  const holeRows = useMemo(
-    () =>
-      allHoles ? holePlan(groups, groupThreads, catalogList, report.features, format, knobs) : [],
-    [allHoles, groups, groupThreads, catalogList, report.features, format, knobs],
-  )
-
-  /**
-   * The drill and the tap of the row being read, for the panel on the right.
-   *
-   * Whatever the row's own dropdowns say, falling back to the best of each —
-   * the same rule the row's cells follow, so the panel and the row can never
-   * be reading two different tools.
-   */
-  const rowTools = useMemo(() => {
-    const row = holeRows.find((each) => each.group.key === pickedGroup)
-    if (row === undefined) {
-      return null
-    }
-    const drill =
-      row.drills.find((each) => each.tool.guid === groupTools[row.group.key])?.tool ??
-      row.drills[0]?.tool ??
-      null
-    const tap =
-      row.makers.find((each) => each.guid === groupTaps[row.group.key]) ?? row.makers[0] ?? null
-    return { drill, tap, threaded: row.thread !== null }
-  }, [holeRows, pickedGroup, groupTools, groupTaps])
 
   /**
    * A drill on the list brings its own column with it, and takes it away
@@ -1562,8 +1392,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                 jobId={jobId}
                 selected={new Set(highlighted)}
                 heldRegions={heldRegions(selection)}
-                hovered={hovered}
-                focus={focus}
                 arrows={arrows}
                 onPickDirection={(direction) => dispatch({ type: 'arm', direction })}
                 directionColor={
@@ -1676,37 +1504,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                             : `#${directionColor(at).toString(16).padStart(6, '0')}`
                         }}
                         chose={interaction.chose}
-                        allHoles={{
-                          on: allHoles,
-                          holes: groups.reduce((many, each) => many + each.features.length, 0),
-                          onToggle: () => setAllHoles((was) => !was),
-                          summary: holesOnThePart,
-                          threads: {
-                            read: threadRead,
-                            onRead: (read) => {
-                              setThreadRead(read)
-                              setThreadsApplied(null)
-                            },
-                            mode: threadMode,
-                            onMode: (mode) => {
-                              setThreadMode(mode)
-                              setThreadsApplied(null)
-                            },
-                            would: autoThreads(holeRows, threadRead, threadMode).length,
-                            sizes: holeRows.length,
-                            onApply: () => {
-                              const applied = autoThreads(holeRows, threadRead, threadMode)
-                              setGroupThreads((current) => ({
-                                ...current,
-                                ...Object.fromEntries(
-                                  applied.map((each) => [each.key, each.choice]),
-                                ),
-                              }))
-                              setThreadsApplied(applied.length)
-                            },
-                            applied: threadsApplied,
-                          },
-                        }}
                         {...(holeDiameter === null
                           ? {}
                           : {
@@ -1784,18 +1581,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                     className="flex items-center gap-2 border-b border-zinc-900 px-3 py-2 text-sm"
                   >
                     <span className="text-zinc-200">
-                      {allHoles
-                        ? 'Every hole on the part'
-                        : threadSpec === null
-                          ? listTitle
-                          : `Drills for the ${threadSpec.name} hole`}
+                      {threadSpec === null ? listTitle : `Drills for the ${threadSpec.name} hole`}
                     </span>
-                    <Badge
-                      variant={
-                        (allHoles ? holeRows.length : listed.length) === 0 ? 'danger' : 'secondary'
-                      }
-                    >
-                      {allHoles ? holeRows.length : listed.length}
+                    <Badge variant={listed.length === 0 ? 'danger' : 'secondary'}>
+                      {listed.length}
                     </Badge>
                     {reading === null ? (
                       <span className="text-2xs text-zinc-500">
@@ -1868,135 +1657,52 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                     // way the list does when it has the panel to itself.
                     className="min-h-0 flex-1 overflow-auto"
                   >
-                    {allHoles ? (
-                      <HoleTable
-                        rows={holeRows}
-                        unit={unit}
-                        selected={pickedGroup}
-                        onSelect={(key) => {
-                          setPickedGroup((was) => (was === key ? null : key))
-                          setRowTab('drill')
-                        }}
-                        directionOf={(group) => {
-                          const at = directionOf(group.features[0] ?? report.features[0]!)
-                          return {
-                            label: wayUpLabel(group.features[0]?.machiningDirection ?? null),
-                            colour:
-                              at === null || at < 0
-                                ? null
-                                : `#${directionColor(at).toString(16).padStart(6, '0')}`,
-                          }
-                        }}
-                        onOtherSide={(key) =>
-                          setOtherSide((current) => ({ ...current, [key]: !current[key] }))
-                        }
-                        zoomAt={zoomAt}
-                        onZoom={(key) => {
-                          const holes = groups.find((each) => each.key === key)?.features ?? []
-                          const { index, next } = stepZoom(holes.length, zoomAt[key])
-                          const hole = holes[index]
-                          if (hole === undefined) {
-                            return
-                          }
-                          setFocus(hole.featureTag)
-                          setZoomAt((was) => ({ ...was, [key]: next }))
-                          // Zooming to a size is also asking about it.
-                          setPickedGroup(key)
-                          setRowTab('drill')
-                        }}
-                        onChoice={(key, choice) =>
-                          setGroupThreads((current) => ({ ...current, [key]: choice }))
-                        }
-                        chosen={groupTools}
-                        onChoose={(key, guid) =>
-                          setGroupTools((current) => ({ ...current, [key]: guid }))
-                        }
-                        chosenMaker={groupTaps}
-                        onChooseMaker={(key, guid) =>
-                          setGroupTaps((current) => ({ ...current, [key]: guid }))
-                        }
-                        inBom={(each) => bom.has(each.guid)}
-                        // A size of hole is one decision, so keeping it keeps
-                        // its tools for every hole of that size.
-                        onBom={(kept, tags) =>
-                          commit(
-                            tags.reduce(
-                              (sheetSoFar, tag) =>
-                                kept.reduce(
-                                  (next, each) => addChoice(next, tag, { toolGuid: each.guid }),
-                                  sheetSoFar,
-                                ),
-                              sheet,
-                            ),
-                          )
-                        }
-                        onRemoveBom={(kept, tags) =>
-                          commit(
-                            tags.reduce(
-                              (sheetSoFar, tag) =>
-                                kept.reduce(
-                                  (next, each) => removeChoice(next, tag, each.guid),
-                                  sheetSoFar,
-                                ),
-                              sheet,
-                            ),
-                          )
-                        }
-                      />
-                    ) : (
-                      <ToolTable
-                        // Kept for this feature, then the sheet's order or
-                        // whatever column the list is sorted by.
-                        tools={shownRows}
-                        // Nothing fits, so every row is a near miss: the list
-                        // says so on each of them, not only in its heading.
-                        nearest={reading !== null && tools.length === 0 && closest.length > 0}
-                        /*
+                    <ToolTable
+                      // Kept for this feature, then the sheet's order or
+                      // whatever column the list is sorted by.
+                      tools={shownRows}
+                      // Nothing fits, so every row is a near miss: the list
+                      // says so on each of them, not only in its heading.
+                      nearest={reading !== null && tools.length === 0 && closest.length > 0}
+                      /*
                           The rail asks these questions too, so the column
                           headers hand them over rather than opening a second
                           control for the same filter.
                         */
-                        onRailFilter={setAskedFilter}
-                        railKeys={{ DC: 'DC', LCF: 'LCF', NOF: 'NOF', form: 'form' }}
-                        unit={unit}
-                        chosen={tool?.guid ?? null}
-                        onChoose={(each) => setChosenTool(each.guid)}
-                        ranges={query.ranges}
-                        onRange={applyRange}
-                        terms={query.terms}
-                        onTerm={applyTerm}
-                        hiddenColumns={hiddenColumns}
-                        columnOrder={columnOrder}
-                        marks={marksOf}
-                        sort={sort}
-                        onSort={setSort}
-                        holding={holding}
-                        search={numberSearch}
-                        onSearch={setNumberSearch}
-                        /*
-                         * Only in hole mode, where a tap section is under it.
-                         *
-                         * **Expanded, the section shows everything and scrolls.**
-                         * A panel three rows tall cannot answer "show me the rest"
-                         * by drawing four; the press has to hand the section the
-                         * whole panel, and the one scrollbar that comes with it is
-                         * not the two competing ones that made this rule
-                         * (Paul, 2026-08-31).
-                         */
-                        onBom={(each, at) => setAdding({ tool: each, at })}
-                        onRemoveBom={(each) => commit(removeChoice(sheet, choiceKey, each.guid))}
-                        inBom={(each) => keptHere.has(each.guid)}
-                        keptElsewhere={(each) => bom.has(each.guid) && !keptHere.has(each.guid)}
-                        // The tool is already decided on; what is new is the
-                        // feature it also cuts, so its holder comes with it.
-                        onAlsoBom={(each) => {
-                          const had = anywhereKept(sheet, each.guid)
-                          commit(
-                            addChoice(sheet, choiceKey, had?.choice ?? { toolGuid: each.guid }),
-                          )
-                        }}
-                      />
-                    )}
+                      onRailFilter={setAskedFilter}
+                      railKeys={{ DC: 'DC', LCF: 'LCF', NOF: 'NOF', form: 'form' }}
+                      unit={unit}
+                      chosen={tool?.guid ?? null}
+                      onChoose={(each) => setChosenTool(each.guid)}
+                      ranges={query.ranges}
+                      onRange={applyRange}
+                      terms={query.terms}
+                      onTerm={applyTerm}
+                      hiddenColumns={hiddenColumns}
+                      columnOrder={columnOrder}
+                      marks={marksOf}
+                      sort={sort}
+                      onSort={setSort}
+                      holding={holding}
+                      search={numberSearch}
+                      onSearch={setNumberSearch}
+                      /*
+                       * Only in hole mode, where a tap section is under it.
+                       *
+                       * **Expanded, the section shows everything and scrolls.**
+                       * A panel three rows tall cannot answer "show me the rest"
+                       * by drawing four; the press has to hand the section the
+                       * whole panel, and the one scrollbar that comes with it is
+                       * not the two competing ones that made this rule
+                       * (Paul, 2026-08-31).
+                       */
+                      // **Nothing is kept from the list any more** (Paul,
+                      // 2026-09-01): a row is a tool to read, and what gets
+                      // ordered is a tool with its holding — which is
+                      // decided in the panel, so the button lives there.
+                      inBom={(each) => keptHere.has(each.guid)}
+                      keptElsewhere={(each) => bom.has(each.guid) && !keptHere.has(each.guid)}
+                    />
                   </div>
                 </div>
                 {/*
@@ -2040,65 +1746,34 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           being sorted out, and the panel is the tool alone in the meantime.
         */}
         <Panels.Panel className="min-h-0 overflow-hidden" minSize={280}>
-          {rowTools ? (
-            /*
-             * **A picked row is two tools, so the panel is two tabs** (Paul,
-             * 2026-09-01). One row of the hole table decides a drill and a
-             * tap, and reading either of them is a click rather than a
-             * different selection.
-             */
-            <Card className="flex size-full min-h-0 flex-col overflow-hidden">
-              <div className="flex gap-1 border-b border-zinc-900 px-2 py-1.5">
-                {(
-                  [
-                    ['drill', 'Drill', rowTools.drill],
-                    ['tap', 'Tap', rowTools.tap],
-                  ] as const
-                ).map(([key, label, each]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    aria-pressed={rowTab === key}
-                    disabled={each === null}
-                    onClick={() => setRowTab(key)}
-                    className={classNames(
-                      'text-2xs focus-visible:ring-info/60 rounded border px-2 py-0.5 transition focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-zinc-900 disabled:text-zinc-700',
-                      rowTab === key && each !== null
-                        ? 'border-info/60 bg-info/15 text-info'
-                        : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
-                    )}
-                  >
-                    {label}
-                    {each === null ? (
-                      <span className="ml-1 text-zinc-600">
-                        {key === 'tap' && !rowTools.threaded ? 'no thread' : 'none'}
-                      </span>
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-              <div className="min-h-0 flex-1 overflow-auto">
-                {(() => {
-                  const reading = rowTab === 'tap' ? rowTools.tap : rowTools.drill
-                  return reading ? (
-                    <ToolDetails tool={reading} unit={unit} holding={holding} />
-                  ) : (
-                    <p className="p-6 text-center text-sm text-zinc-400">
-                      {rowTab === 'tap' && !rowTools.threaded
-                        ? 'These holes are not threaded.'
-                        : 'Nothing in the catalog fits this row.'}
-                    </p>
-                  )
-                })()}
-              </div>
-            </Card>
-          ) : tool ? (
+          {tool ? (
             <Card className="size-full overflow-auto">
-              <ToolDetails tool={tool} unit={unit} holding={holding} />
+              <ToolDetails
+                tool={tool}
+                unit={unit}
+                holding={holding}
+                saved={keptHere.has(tool.guid)}
+                /*
+                  **No dialog** (Paul, 2026-09-01): the holder and the collet
+                  are chosen in this panel, above the button, so asking again
+                  in a box is asking a question already answered.
+                */
+                onSave={() => {
+                  const held = holding.chosen(tool)
+                  commit(
+                    addChoice(sheet, choiceKey, {
+                      toolGuid: tool.guid,
+                      ...(held.holderGuid === null ? {} : { holderGuid: held.holderGuid }),
+                      ...(held.colletGuid === null ? {} : { colletGuid: held.colletGuid }),
+                    }),
+                  )
+                }}
+                onRemove={() => commit(removeChoice(sheet, choiceKey, tool.guid))}
+              />
             </Card>
           ) : (
             <Card className="grid size-full place-items-center p-6 text-center text-sm text-zinc-400">
-              Pick a tool from the list to read its numbers.
+              Click a tool in the list to assemble it here.
             </Card>
           )}
         </Panels.Panel>

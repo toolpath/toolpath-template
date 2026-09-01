@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   drillFor,
-  likelyThread,
   threadOptions,
   makerOf,
   minorOf,
@@ -38,7 +37,7 @@ describe('reading a thread off a hole', () => {
    * 2026-08-31).
    */
   it('reads a tap drill first', () => {
-    const guess = likelyThread(5)!
+    const guess = threadsFor(5)[0]!
 
     expect(guess.spec.name).toBe('M6×1')
     expect(guess.read).toBe('tap drill')
@@ -79,7 +78,7 @@ describe('reading a thread off a hole', () => {
 
   /** Nothing's tap drill is near ⌀16, so it reads as the nominal size it is. */
   it('reads a hole modelled at the nominal size', () => {
-    const guess = likelyThread(16)!
+    const guess = threadsFor(16)[0]!
 
     expect(guess.spec.name).toBe('M16×2')
     expect(guess.read).toBe('nominal')
@@ -87,7 +86,7 @@ describe('reading a thread off a hole', () => {
 
   /** And a hole at an exact tap drill reads as that, whatever else is near. */
   it('reads an exact tap drill first', () => {
-    const guess = likelyThread(12)!
+    const guess = threadsFor(12)[0]!
 
     expect(guess.spec.name).toBe('M14×2')
     expect(guess.read).toBe('tap drill')
@@ -98,7 +97,7 @@ describe('reading a thread off a hole', () => {
 
   /** An imperial hole reads as an imperial thread. */
   it('reads a unified tap drill', () => {
-    const guess = likelyThread(5.105)!
+    const guess = threadsFor(5.105)[0]!
 
     expect(guess.spec.name).toBe('1/4-20 UNC')
     expect(guess.read).toBe('tap drill')
@@ -113,7 +112,7 @@ describe('reading a thread off a hole', () => {
 
   /** A hole that is no thread's anything gets no guess, rather than the nearest. */
   it('says nothing about a hole no thread is near', () => {
-    expect(likelyThread(30)).toBeNull()
+    expect(threadsFor(30)[0]).toBeUndefined()
     expect(threadsFor(0.4)).toEqual([])
   })
 })

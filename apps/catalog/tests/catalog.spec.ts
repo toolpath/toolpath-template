@@ -1,7 +1,13 @@
 import { expect, test } from '@playwright/test'
 
+/**
+ * The catalog browser is hidden — nothing in the header links to it — but it
+ * still answers on `/catalog`, and these are the checks that it does (Paul,
+ * 2026-09-01).
+ */
+
 test('browses, filters, and keeps the selection in the URL', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/catalog')
 
   const status = page.getByRole('status')
   await expect(status).toContainText('tools')
@@ -14,7 +20,7 @@ test('browses, filters, and keeps the selection in the URL', async ({ page }) =>
 })
 
 test('opens a tool and explains the vendor’s codes', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/catalog')
 
   await page.getByRole('table').getByRole('link').first().click()
 
@@ -28,7 +34,7 @@ test('opens a tool and explains the vendor’s codes', async ({ page }) => {
  * fails here rather than in front of a user.
  */
 test('survives a reload on a deep link', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/catalog')
   await page.getByRole('table').getByRole('link').first().click()
   await expect(page).toHaveURL(/\/tools\//)
   const url = page.url()
@@ -39,7 +45,7 @@ test('survives a reload on a deep link', async ({ page }) => {
 })
 
 test('switches every dimension between millimetres and inches', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/catalog')
 
   await page.getByRole('group', { name: 'Units' }).getByRole('button', { name: 'in' }).click()
 
@@ -60,7 +66,7 @@ test('asks for a connection before a part can be uploaded', async ({ page }) => 
 })
 
 test('builds an assembly — holder, then collet — and keeps it', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/catalog')
   await page.getByRole('table').getByRole('link').first().click()
 
   const holders = page.getByRole('region', { name: 'Holders' })
@@ -87,4 +93,17 @@ test('builds an assembly — holder, then collet — and keeps it', async ({ pag
   // A kept assembly is the person's, and it survives the page it was kept on.
   await page.reload()
   await expect(page.getByRole('button', { name: 'Saved' })).toBeVisible()
+})
+
+/**
+ * **The way in is a part** (Paul, 2026-09-01): the application opens on the
+ * upload, in the space the viewer will fill, and the pages that browse the
+ * whole catalog on their own are not linked from anywhere.
+ */
+test('opens on the part upload, with no catalog tabs', async ({ page }) => {
+  await page.goto('/')
+
+  await expect(page.getByLabel('Toolpath API key')).toBeVisible()
+  await expect(page.getByRole('navigation').getByRole('link', { name: 'Catalog' })).toHaveCount(0)
+  await expect(page.getByRole('navigation').getByRole('link', { name: 'Families' })).toHaveCount(0)
 })

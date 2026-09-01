@@ -6,7 +6,6 @@ import {
   countsByAxis,
   cycleTerm,
   filterTools,
-  isEmptyQuery,
   prioritise,
   queryFromSearch,
   searchFromQuery,
@@ -156,7 +155,6 @@ describe('toggleTerm', () => {
 
     const removed = toggleTerm(added, 'toolType', 'drill')
     expect(removed.terms.toolType).toBeUndefined()
-    expect(isEmptyQuery(removed)).toBe(true)
   })
 
   it('leaves the rest of the selection alone', () => {

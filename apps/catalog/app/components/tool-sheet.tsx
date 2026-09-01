@@ -33,10 +33,9 @@ export interface ToolSheetProps {
   readonly tool: CatalogTool
   readonly unit: Unit
   /** The strip and the header only — for a panel beside the part. */
-  readonly compact?: boolean
 }
 
-export const ToolSheet = ({ tool, unit, compact = false }: ToolSheetProps) => {
+export const ToolSheet = ({ tool, unit }: ToolSheetProps) => {
   const family = getFamily(tool.familyId)
   const rows = geometryRows(tool, unit)
 
@@ -102,49 +101,47 @@ export const ToolSheet = ({ tool, unit, compact = false }: ToolSheetProps) => {
         })}
       </dl>
 
-      {compact ? null : (
-        <Card className="p-4">
-          <table className="w-full border-collapse text-sm">
-            <caption className="sr-only">Geometry stated for {tool.catalogNumber}</caption>
-            <thead>
-              <tr className="text-2xs border-b border-zinc-800 text-left tracking-wide text-zinc-400 uppercase">
-                <th scope="col" className="py-2 font-semibold">
-                  Field
+      <Card className="p-4">
+        <table className="w-full border-collapse text-sm">
+          <caption className="sr-only">Geometry stated for {tool.catalogNumber}</caption>
+          <thead>
+            <tr className="text-2xs border-b border-zinc-800 text-left tracking-wide text-zinc-400 uppercase">
+              <th scope="col" className="py-2 font-semibold">
+                Field
+              </th>
+              <th scope="col" className="py-2 text-right font-semibold">
+                Value
+              </th>
+              <th scope="col" className="py-2 pl-6 font-semibold">
+                What it means
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.code} className="border-b border-zinc-900 align-top">
+                <th scope="row" className="py-2 text-left font-normal text-zinc-200">
+                  {row.label}
+                  <span className="ml-2 font-mono text-xs text-zinc-500">{row.code}</span>
                 </th>
-                <th scope="col" className="py-2 text-right font-semibold">
-                  Value
-                </th>
-                <th scope="col" className="py-2 pl-6 font-semibold">
-                  What it means
-                </th>
+                <td className="py-2 text-right font-mono text-zinc-100">{row.value}</td>
+                <td className="py-2 pl-6 text-zinc-400">
+                  {row.description ?? (
+                    <span className="text-zinc-500">
+                      The vendor publishes this code; this catalog does not define it.
+                    </span>
+                  )}
+                  {row.provenance && row.provenance !== 'vendor-stated' ? (
+                    <Badge variant="info" className="ml-2">
+                      {row.provenance}
+                    </Badge>
+                  ) : null}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.code} className="border-b border-zinc-900 align-top">
-                  <th scope="row" className="py-2 text-left font-normal text-zinc-200">
-                    {row.label}
-                    <span className="ml-2 font-mono text-xs text-zinc-500">{row.code}</span>
-                  </th>
-                  <td className="py-2 text-right font-mono text-zinc-100">{row.value}</td>
-                  <td className="py-2 pl-6 text-zinc-400">
-                    {row.description ?? (
-                      <span className="text-zinc-500">
-                        The vendor publishes this code; this catalog does not define it.
-                      </span>
-                    )}
-                    {row.provenance && row.provenance !== 'vendor-stated' ? (
-                      <Badge variant="info" className="ml-2">
-                        {row.provenance}
-                      </Badge>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </Card>
 
       {tool.productLink ? (
         <a

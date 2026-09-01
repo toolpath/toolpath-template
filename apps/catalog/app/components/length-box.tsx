@@ -22,7 +22,7 @@ import { convertLength, decimalsFor, MODEL_UNIT, type Unit } from '@toolpath/dom
  */
 
 /** A number somebody has finished typing: digits, optionally a point, no sign — lengths are positive. */
-export const COMPLETE = /^(\d+\.?\d*|\.\d+)$/
+const COMPLETE = /^(\d+\.?\d*|\.\d+)$/
 
 export interface LengthBoxProps {
   readonly id: string

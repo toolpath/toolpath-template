@@ -269,8 +269,25 @@ export const interactionFor = (part: InteractionPart) => {
         }
       }
 
-      case 'miss':
+      /**
+       * **One click cancels, the next puts it down** (Paul, 2026-09-01).
+       *
+       * A click on nothing is how somebody dismisses whatever they have just
+       * opened or armed — and it was also what threw the selection away, so a
+       * press meant to cancel an arrow cost them the feature they had picked.
+       * The first miss spends the pending thing: an armed way up, or the
+       * question a face with several readings is asking. Only a miss with
+       * nothing pending puts the reading down.
+       */
+      case 'miss': {
+        if (state.activeDirection !== null) {
+          return { ...state, activeDirection: null }
+        }
+        if (state.focused !== null && !state.chose) {
+          return { ...state, chose: true }
+        }
         return putDown(state)
+      }
 
       case 'read':
         return read(state, action.featureTag)

@@ -553,6 +553,14 @@ export const readingsFor = (
  *
  * Only where there is a corner to speak of: a hole has none, and a feature
  * with no wall has nothing to turn.
+ *
+ * **And only where nothing fits it.** A zero terminal corner radius on its own
+ * is not the claim: it read zero on an open pocket with a 2.3 mm corner and
+ * warned about a feature a ⌀4.5 end mill finishes (Paul, 2026-09-01, with the
+ * warning over a list of tools that cut it). The number that answers "can any
+ * mill leave this corner" is the widest cutter that reaches every corner —
+ * `cd.ignore.min`, the same one the panel shows as the largest tool diameter —
+ * and the warning is only true when that is zero as well.
  */
 export const hasSharpCorner = (feature: PartFeature): boolean => {
   const sheet = sheetOf(feature, [feature])
@@ -566,5 +574,5 @@ export const hasSharpCorner = (feature: PartFeature): boolean => {
     return false
   }
   const radius = FIELDS['terminal corner radius']?.read(sheet) ?? null
-  return radius === 0
+  return radius === 0 && number(facts, 'cd', 'ignore', 'min') === 0
 }
