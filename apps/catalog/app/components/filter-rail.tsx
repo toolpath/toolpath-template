@@ -3,7 +3,7 @@ import { CaretRightIcon, XIcon } from '@phosphor-icons/react'
 import { classNames } from '@toolpath/domain/class-names'
 import { formatLength, type Unit } from '@toolpath/domain/units'
 import type { ToolQuery } from 'shared/filter'
-import { FilterPanel, QUICK_FILTERS, type Caution, type FilterPanelProps } from './filter-panel'
+import { FilterPanel, QUICK_FILTERS, type FilterPanelProps } from './filter-panel'
 
 /**
  * The filters as a rail of buttons over the part.
@@ -216,6 +216,23 @@ export const RailBubble = ({
           className="fixed z-40 w-max max-w-[calc(100vw-2rem)] rounded-lg border border-zinc-800 bg-zinc-950/95 p-2.5 shadow-xl backdrop-blur"
         >
           {/*
+            **Clearing is an × in the corner** (Paul, 2026-09-01: "clear
+            filters buttons take up too much space — they should be an X in the
+            top right"). A full-width button under a two-line picker was a
+            third of the popover spent on undo.
+          */}
+          {set && onClear ? (
+            <button
+              type="button"
+              aria-label={`Clear ${label.toLowerCase()}`}
+              title={`Clear ${label.toLowerCase()}`}
+              onClick={onClear}
+              className="focus-visible:ring-info/60 absolute top-1.5 right-1.5 rounded p-1 text-zinc-500 transition hover:text-zinc-100 focus-visible:ring-1 focus-visible:outline-none"
+            >
+              <XIcon aria-hidden="true" />
+            </button>
+          ) : null}
+          {/*
             **As wide as its answers, no wider.** A fixed 18 rem left the shank
             picker two thirds empty and wrapped its third chip; a picker with
             forty forms still wants a ceiling (Paul, 2026-08-31).
@@ -238,7 +255,6 @@ export interface FilterRailProps extends Omit<FilterPanelProps, 'only' | 'compac
    * open panel and on the answers themselves — and never on the bubble, which
    * is on screen whether or not anybody is asking (Paul, 2026-08-31).
    */
-  readonly cautions?: Readonly<Record<string, Caution>>
   /**
    * A filter somebody asked for from somewhere else — a column header.
    *
@@ -250,7 +266,7 @@ export interface FilterRailProps extends Omit<FilterPanelProps, 'only' | 'compac
 }
 
 export const FilterRail = (props: FilterRailProps) => {
-  const { query, materialGroup, unit, only, cautions = {}, open = null, onOpened } = props
+  const { query, materialGroup, unit, only, open = null, onOpened } = props
 
   const clear = (filter: (typeof QUICK_FILTERS)[number]) => {
     if (filter.mode === 'single') {
@@ -286,16 +302,6 @@ export const FilterRail = (props: FilterRailProps) => {
             {...(onOpened ? { onOpened } : {})}
           >
             <FilterPanel {...props} only={[filter.key]} compact />
-            {answers.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => clear(filter)}
-                className="text-2xs focus-visible:ring-info/60 mt-2 flex w-full items-center justify-center gap-1 rounded border border-zinc-800 py-1 text-zinc-400 hover:border-zinc-700 hover:text-zinc-100 focus-visible:ring-1 focus-visible:outline-none"
-              >
-                <XIcon aria-hidden="true" />
-                Clear {filter.label.toLowerCase()}
-              </button>
-            ) : null}
           </RailBubble>
         )
       })}

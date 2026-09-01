@@ -406,6 +406,13 @@ on `paul/tool_catalog`.
   carries it.
 - **The thread suggestions as chips.** One select, with the readings in it.
 
+**Then the QA pass of the same day** took the rest: the STEP exports from the
+order list and the by-feature grouping (Paul: "we won't do that (for now)"),
+the 3D tool in the viewer with the wrench that toggled it — and with it
+`components/assembly-model.tsx`, `shared/worst-spot.ts`, `shared/step-file.ts`
+and `shared/tool-profile.ts` — the vendor placeholders in the filter panel, and
+the sheet's caution colouring in the type picker.
+
 Everything that lost its last caller went with it — `shared/way-up.ts`,
 `toolingScore`, `toggleKept`, `anywhereKept`, `likelyThread`,
 `threadAtReading`, `clampedFrom`, `isEmptyQuery`, `toolHeadline`, `savedFrom`,

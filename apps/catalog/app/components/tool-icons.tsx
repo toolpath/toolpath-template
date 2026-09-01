@@ -289,6 +289,35 @@ export const ColletIcon = ({ className }: IconProps) => (
 )
 
 /**
+ * Flute length: the cutting part of the tool, with the length that is cutting
+ * bracketed beside it.
+ *
+ * **Its own drawing, not a ruler** (Paul, 2026-09-01: "flute length and
+ * minimum clamping length both have the same icon, and it's generic for
+ * both"). Two filters asking about two different lengths of the same tool
+ * cannot both be a ruler; each one draws the part of the tool it measures.
+ */
+export const FluteLengthIcon = ({ className }: IconProps) => (
+  <Frame className={className}>
+    <path d="M6.5 1.5v13h4.5v-13" />
+    <Helix d="M7 12.5 10.5 11M7 9.5 10.5 8" />
+    <path d="M3.5 7.5v7M2.4 7.5h2.2M2.4 14.5h2.2" strokeWidth={0.85} />
+  </Frame>
+)
+
+/**
+ * Minimum clamping length: the shank inside the holder, bracketed over the
+ * part that is held.
+ */
+export const ClampingLengthIcon = ({ className }: IconProps) => (
+  <Frame className={className}>
+    <path d="M4.5 1.5h7v6h-7z" />
+    <path d="M7 1.5v13M9 1.5v13" strokeWidth={0.9} />
+    <path d="M2.6 1.8v5.4M1.6 1.8h2M1.6 7.2h2" strokeWidth={0.85} />
+  </Frame>
+)
+
+/**
  * A floor radius: the corner a filleted pocket has, and the sharp one it is
  * not.
  *

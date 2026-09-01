@@ -9,14 +9,7 @@ import {
 } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Badge, Card, Panels } from '@toolpath/ui'
-import {
-  colletsFor,
-  emptyBuildSelection,
-  toolCollisions,
-  type BuildSelection,
-  type CatalogTool,
-  type Margins,
-} from '@toolpath/catalog-data'
+import { colletsFor, toolCollisions, type CatalogTool, type Margins } from '@toolpath/catalog-data'
 import { useAnalysisEvents } from '@toolpath/part-client'
 import type { PartFeature, PublicInspectionReport } from '@toolpath/part-contracts'
 import { heldRegions } from '@toolpath/part-contracts/selection'
@@ -80,8 +73,6 @@ import {
 } from 'shared/holding'
 import { sectionOf } from 'shared/section-of'
 import { holdable, holderOptions, thresholdsFrom, type HolderOption } from 'shared/holder-choice'
-import { drawnAssembly } from 'shared/drawn-assembly'
-import type { AssemblyPlacement } from 'components/assembly-model'
 import { closestMisses, type Format } from 'shared/judge'
 import { cautionedTypes, marksFor, testedCodes } from 'shared/tool-marks'
 import { knobValue, knobsWith } from 'shared/rules'
@@ -90,7 +81,6 @@ import { DrillDeviation } from 'components/drill-deviation'
 import { ClampingLength } from 'components/clamping-length'
 import { OrderDialog } from 'components/order-dialog'
 import { KeptCard } from 'components/kept-card'
-import type { Caution } from 'components/filter-panel'
 import { closeCandidates, fittingTools, tightestRule } from 'shared/tool-fit'
 import { useUnit } from 'shared/use-unit'
 import { usePartMaterial, usePreferences } from 'shared/use-preferences'
@@ -652,17 +642,30 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     return asNumber(asRecord(reading.datasheet?.facts)?.fullConeDeg)
   }, [reading])
 
-  const cautions = useMemo<Record<string, Caution>>(() => {
-    if (reading === null) {
-      return {}
-    }
-    const found = cautionedTypes(reading, report.features)
-    const cautioned: Record<string, Caution> = {}
-    if (found !== null) {
-      cautioned.form = found
-    }
-    return cautioned
-  }, [reading, report.features])
+  /**
+   * The tool forms the sheet cautions about for this feature.
+   *
+   * **Read in the list, not in the picker** (Paul, 2026-09-01: "we don't need
+   * the colouring for bull nose here… they'll see the deviation in the tool
+   * list"). It marks the corner-radius tick on a row; the type picker shows
+   * every form the same.
+   */
+  const cautionedForms = useMemo(
+    () => (reading === null ? [] : (cautionedTypes(reading, report.features)?.values ?? [])),
+    [reading, report.features],
+  )
+  /**
+   * The bore the drills are for: the thread's own tap drill where the hole is
+   * threaded, and the hole as drawn where it is not.
+   *
+   * The same number the list is judged against, so the deviation a row shows
+   * is measured from what refused it (Paul, 2026-09-01).
+   */
+  const drilledAt = useMemo(() => {
+    const bore = threadSpec === null ? null : drillFor(threadSpec, holeChoice.mode)
+    return bore ?? holeDiameter
+  }, [threadSpec, holeChoice.mode, holeDiameter])
+
   /**
    * What the list is judged against.
    *
@@ -919,14 +922,15 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       return verdict
         ? marksFor(verdict, tested, {
             format,
-            cautionedForms: cautions.form?.values ?? [],
-            holeDiameter,
+            cautionedForms,
+            holeDiameter: drilledAt,
+            measuredFrom: threadSpec === null ? 'the hole' : 'the specified tap drill',
             tipAngle,
             floorFillet,
           })
         : {}
     },
-    [byGuid, tested, format, cautions, holeDiameter, tipAngle, floorFillet],
+    [byGuid, tested, format, cautionedForms, drilledAt, threadSpec, tipAngle, floorFillet],
   )
 
   /**
@@ -1123,8 +1127,16 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
        */
       reachNote: (each) => {
         const options = optionsFor(each)
+        /**
+         * **Never "no holder grips this shank"** (Paul, 2026-09-01: "means
+         * nothing, never show it"). It said the crib holds nothing that takes
+         * this shank, which is a fact about the crib rather than about the
+         * length the cell is for — and it stood in that cell against every
+         * tool of a size nobody has a collet for, which is most of a
+         * seventeen-thousand-tool catalog.
+         */
         if (options.length === 0) {
-          return 'no holder grips this shank'
+          return null
         }
         if (options.some((option) => option.grade !== 'bad')) {
           return null
@@ -1182,83 +1194,12 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       (chosenTool === null ? (held[0]?.tool ?? null) : null),
     [chosenTool, held, allTools],
   )
-  const drawnOptions = useMemo(
-    () =>
-      tool
-        ? holderOptions(tool, allHolders, allCollets, holderFilters, curve, margins, thresholds)
-        : [],
-    [tool, holderFilters, curve, margins, thresholds],
-  )
-
-  /**
-   * The selection the drawing reads: the row's holder and collet — picked,
-   * saved, or recommended — and the stickout, picked or the card's default.
-   */
-  const assemblySelection = useMemo<BuildSelection>(() => {
-    const mine = tool ? picked[tool.guid] : undefined
-    const choice = tool === null ? null : chosenFor(sheet, choiceKey, tool.guid)
-    const holderGuid =
-      mine?.holderGuid ??
-      choice?.holderGuid ??
-      drawnOptions.find((each) => each.recommended)?.holder.guid ??
-      drawnOptions[0]?.holder.guid ??
-      null
-    const option = drawnOptions.find((each) => each.holder.guid === holderGuid) ?? null
-    return {
-      ...emptyBuildSelection(),
-      ...holderFilters,
-      holder: holderGuid,
-      collet: mine?.colletGuid ?? choice?.colletGuid ?? option?.collet?.guid ?? null,
-      stickout: mine?.stickout ?? choice?.stickout ?? null,
-    }
-  }, [tool, picked, sheet, choiceKey, drawnOptions, holderFilters])
-
   const pick = useCallback(
     (
       guid: string,
       change: { holderGuid?: string | null; colletGuid?: string | null; stickout?: number | null },
     ) => setPicked((current) => ({ ...current, [guid]: { ...current[guid], ...change } })),
     [],
-  )
-
-  /**
-   * The drawn stack in the scene: the feature's regions as triangle ranges,
-   * the way up it is cut from, and its bottom. Where exactly it stands is the
-   * model's to work out from the mesh — the centre of the feature's floor —
-   * so it is the same place whatever was clicked, and cannot be moved.
-   */
-  const placement = useMemo<AssemblyPlacement | null>(() => {
-    if (!tool || !reading) {
-      return null
-    }
-    const drawn = drawnAssembly(tool, assemblySelection, curve, margins, thresholds)
-    const bottom = reading.datasheet?.zMin
-    if (!drawn.assembly || typeof bottom !== 'number') {
-      return null
-    }
-    const owned = new Set(reading.regionIdxs)
-    const triangles = report.regions
-      .filter((region) => owned.has(region.idx))
-      .map((region) => ({ start: region.triangleStart, end: region.triangleEnd }))
-    return {
-      assembly: drawn.assembly,
-      direction: reading.machiningDirection,
-      bottom,
-      triangles,
-      hit: new Set(drawn.collisions.map((each) => each.part)),
-      margins,
-    }
-  }, [tool, reading, report.regions, assemblySelection, curve, margins, thresholds])
-
-  /** The drawing card changes the stickout; the filters it carries are the page's chips. */
-  const onSelection = useCallback(
-    (next: BuildSelection) => {
-      if (tool === null) {
-        return
-      }
-      pick(tool.guid, { holderGuid: next.holder, colletGuid: next.collet, stickout: next.stickout })
-    },
-    [tool, pick],
   )
 
   /** Save writes the drawn assembly to the sheet for this feature, and opens the strip. */
@@ -1442,7 +1383,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         onApply={apply}
                         onForget={forget}
                         onClear={() => apply(EMPTY_QUERY)}
-                        cautions={cautions}
                       />
                       <FloorAllowance
                         value={floorRadius}
@@ -1546,7 +1486,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                   )
                 }
                 onCloseDetails={() => setInfo(null)}
-                assembly={placement}
                 onClear={() => dispatch({ type: 'miss' })}
                 onPickFace={(pick) => dispatch({ type: 'click', pick })}
               />
@@ -1560,6 +1499,40 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                   table is a flip away, and the filters overlay it. */}
               <Card className="relative flex size-full min-h-0 flex-col overflow-hidden">
                 {/* The panel measures itself here: `Card` takes no ref. */}
+                {/*
+                  **Hole mode, taps first** (Paul, 2026-09-01: "when I define a
+                  hole as threaded, I should select the tap before the drill —
+                  taps should be shown at the top of the list"). The thread is
+                  the decision; the drill follows from it, and reading them the
+                  other way round asks for the bore before anybody has said what
+                  it is for.
+
+                  Two sections rather than one list: they are chosen on
+                  different numbers, and a single ranking would compare a
+                  diameter that means the thread against one that means the
+                  bore (Paul, 2026-08-31).
+                */}
+                {threadSpec === null ? null : (
+                  // A shade lighter than the drills under it, so the two
+                  // sections read apart at a glance (Paul, 2026-08-31).
+                  <div className="flex min-h-0 shrink grow-0 basis-auto flex-col overflow-hidden border-b border-zinc-800 bg-zinc-900/40">
+                    <TapTable
+                      makers={makers.made}
+                      short={makers.short}
+                      unheld={makers.unheld}
+                      mode={holeChoice.mode}
+                      spec={threadSpec}
+                      unit={unit}
+                      chosen={tool?.guid ?? null}
+                      onChoose={(each) => setChosenTool(each.guid)}
+                      inBom={(each) => keptHere.has(each.guid)}
+                      onBom={(each, at) => setAdding({ tool: each, at })}
+                      onRemoveBom={(each) => commit(removeChoice(sheet, choiceKey, each.guid))}
+                      shortfall={(each) => shortfallOf(each, threadReach)}
+                      columns={shownColumns(hiddenColumns, columnOrder)}
+                    />
+                  </div>
+                )}
                 <div
                   className={classNames(
                     'flex min-h-0 min-w-0 flex-col overflow-hidden',
@@ -1705,34 +1678,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                     />
                   </div>
                 </div>
-                {/*
-                  **Hole mode.** A threaded hole takes a drill and a tap, so
-                  the taps stand beside the list rather than in it: the two are
-                  chosen on different numbers and a single ranking would
-                  compare a diameter that means the thread against one that
-                  means the bore (Paul, 2026-08-31).
-                */}
-                {threadSpec === null ? null : (
-                  // A shade lighter than the list above it, so the two
-                  // sections read apart at a glance (Paul, 2026-08-31).
-                  <div className="flex min-h-0 shrink grow-0 basis-auto flex-col overflow-hidden border-t border-zinc-800 bg-zinc-900/40">
-                    <TapTable
-                      makers={makers.made}
-                      short={makers.short}
-                      unheld={makers.unheld}
-                      mode={holeChoice.mode}
-                      spec={threadSpec}
-                      unit={unit}
-                      chosen={tool?.guid ?? null}
-                      onChoose={(each) => setChosenTool(each.guid)}
-                      inBom={(each) => keptHere.has(each.guid)}
-                      onBom={(each, at) => setAdding({ tool: each, at })}
-                      onRemoveBom={(each) => commit(removeChoice(sheet, choiceKey, each.guid))}
-                      shortfall={(each) => shortfallOf(each, threadReach)}
-                      columns={shownColumns(hiddenColumns, columnOrder)}
-                    />
-                  </div>
-                )}
               </Card>
             </Panels.Panel>
           </Panels.Group>

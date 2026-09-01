@@ -1,6 +1,6 @@
 import { ArrowSquareOutIcon, DownloadSimpleIcon, TrashIcon } from '@phosphor-icons/react'
 import { useMemo, useState, type ReactNode } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router'
+import { useParams, useSearchParams } from 'react-router'
 import { Badge, Card } from '@toolpath/ui'
 import { classNames } from '@toolpath/domain/class-names'
 import { formatLength, type Unit } from '@toolpath/domain/units'
@@ -21,8 +21,7 @@ import {
   type SetupSheet,
 } from 'shared/setup-sheet'
 import { fusionLibrary } from 'shared/fusion-library'
-import { stepFile, type ProfileStep } from 'shared/step-file'
-import { stackProfile, toolProfile } from 'shared/tool-profile'
+import { saveInBrowser } from 'shared/save-file'
 import { recallPart } from 'shared/part-session'
 import { useUnit } from 'shared/use-unit'
 
@@ -45,28 +44,6 @@ import { useUnit } from 'shared/use-unit'
  * and a heavier one between assemblies say which rows belong together.
  */
 
-/**
- * A component's own page at the vendor, where they publish one.
- *
- * On the detail line under the number, beside the brand and the form — that
- * line is where somebody reads what a thing *is*, and where it comes from is
- * the same kind of fact (Paul, 2026-08-31).
- */
-const Vendor = ({ href, of }: { href: string | null; of: string }) =>
-  href === null ? null : (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={`Buy ${of} at the vendor`}
-      onClick={(event) => event.stopPropagation()}
-      className="text-info/90 hover:text-info focus-visible:ring-info/60 inline-flex items-center gap-0.5 rounded underline-offset-2 hover:underline focus-visible:ring-1 focus-visible:outline-none"
-    >
-      vendor
-      <ArrowSquareOutIcon aria-hidden="true" />
-    </a>
-  )
-
 /** One bought thing, whatever kind it is. */
 interface Line {
   readonly component: Component
@@ -82,7 +59,6 @@ interface Line {
    */
   readonly geometry: ReadonlyArray<{ readonly label: string; readonly value: string }>
   /** Only a tool has a page of its own to link to. */
-  readonly toolGuid?: string
   /**
    * What it looks like, at a glance.
    *
@@ -94,7 +70,6 @@ interface Line {
    * Its own shape, bottom-up, for the STEP button — null where the vendor
    * publishes none, which is a button that stays off rather than a guess.
    */
-  readonly profile: { readonly steps: Array<ProfileStep>; readonly top: number } | null
 }
 
 /** A stated number, or nothing at all — never a zero standing in for silence. */
@@ -119,9 +94,7 @@ const toolLine = (tool: CatalogTool, unit: Unit): Line => {
     brand: tool.brand,
     detail: formLabel(tool),
     productLink: tool.productLink,
-    toolGuid: tool.guid,
     icon: <ToolTypeIcon toolType={tool.form} />,
-    profile: toolProfile(tool),
     geometry: [
       ...stated('⌀', tool.geometry.DC, say),
       ...stated('flute', tool.geometry.LCF, say),
@@ -143,26 +116,6 @@ const holderLine = (holder: Holder, unit: Unit): Line => {
     detail: `${holder.taper} · ${holder.clamping}${holder.colletSeries === null ? '' : ` ${holder.colletSeries}`}`,
     productLink: holder.productLink,
     icon: <HolderIcon />,
-    // The nose, the body and the flange, each at the height the vendor states
-    // it — the same three the drawing sweeps.
-    profile:
-      holder.noseDiameter === null
-        ? null
-        : {
-            steps: [
-              { fromHeight: 0, radius: holder.noseDiameter / 2 },
-              ...(holder.bodyDiameter === null || holder.noseLength === null
-                ? []
-                : [{ fromHeight: holder.noseLength, radius: holder.bodyDiameter / 2 }]),
-              ...(holder.flangeDiameter === null || holder.projection === null
-                ? []
-                : [{ fromHeight: holder.projection, radius: holder.flangeDiameter / 2 }]),
-            ],
-            top:
-              holder.projection === null
-                ? (holder.noseLength ?? 0) + (holder.bodyLength ?? 0)
-                : holder.projection + 10,
-          },
     geometry: [
       ...stated('gauge', holder.gaugeLength, say),
       ...stated('nose ⌀', holder.noseDiameter, say),
@@ -179,7 +132,6 @@ const colletLine = (collet: Collet, unit: Unit): Line => ({
   productLink: collet.productLink,
   icon: <ColletIcon />,
   // A collet is published as what it grips, never as a shape.
-  profile: null,
   geometry: [
     {
       label: 'grips',
@@ -219,56 +171,6 @@ const Count = ({
 )
 
 /**
- * Saving one component as a STEP file.
- *
- * A shop that has decided what cuts a part wants the solid to drop into CAM or
- * a fixture model, and every diameter on a cutter or a holder is published —
- * so the body is revolved from the profile rather than asked for from a vendor
- * who may not publish one (Paul, 2026-08-31). `step-file.ts` writes it, and is
- * tested there; a component with no published shape gets a button that is off.
- */
-const StepButton = ({
-  name,
-  profile,
-  title,
-  label = 'STEP',
-}: {
-  name: string
-  profile: { readonly steps: Array<ProfileStep>; readonly top: number } | null
-  title: string
-  label?: string
-}) => {
-  const save = () => {
-    if (profile === null) {
-      return
-    }
-    const text = stepFile(name, profile.steps, profile.top)
-    if (text === null) {
-      return
-    }
-    const href = URL.createObjectURL(new Blob([text], { type: 'application/step' }))
-    const link = document.createElement('a')
-    link.href = href
-    link.download = `${name}.step`
-    link.click()
-    URL.revokeObjectURL(href)
-  }
-  return (
-    <button
-      type="button"
-      disabled={profile === null}
-      onClick={save}
-      title={profile === null ? 'This vendor publishes no shape for it' : title}
-      aria-label={`Export ${name} as a STEP file`}
-      className="text-2xs focus-visible:ring-info/60 inline-flex items-center gap-1 rounded border border-zinc-800 px-2 py-1 whitespace-nowrap text-zinc-300 transition hover:border-zinc-600 hover:text-zinc-100 focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-zinc-900 disabled:text-zinc-700"
-    >
-      <DownloadSimpleIcon aria-hidden="true" />
-      {label}
-    </button>
-  )
-}
-
-/**
  * The head of an assembly's rows: what it is, what it machines, how many, and
  * the two things that are decided about the whole stack rather than about one
  * component — the holder it sits in, and the model of the lot.
@@ -282,11 +184,9 @@ interface AssemblyHead {
   readonly total: number
   readonly onTotal: (many: number) => void
   readonly onRemove: () => void
-  /** The whole stack as one revolved solid, where there is a shape for it. */
-  readonly stack: { readonly steps: Array<ProfileStep>; readonly top: number } | null
 }
 
-const AssemblyHead = ({ tool, features, verb, total, onTotal, onRemove, stack }: AssemblyHead) => (
+const AssemblyHead = ({ tool, features, verb, total, onTotal, onRemove }: AssemblyHead) => (
   <>
     <span className="flex items-center gap-1.5">
       <span className="text-sm break-words text-zinc-200">{tool}</span>
@@ -308,12 +208,6 @@ const AssemblyHead = ({ tool, features, verb, total, onTotal, onRemove, stack }:
         <span>× total</span>
         <Count value={total} onValue={onTotal} label={`How many of the ${tool} assembly`} />
       </label>
-      <StepButton
-        name={`${tool}-assembly`}
-        profile={stack}
-        title="Save the whole stack — tool, holder and all — as one STEP solid"
-        label="Assembly"
-      />
     </span>
   </>
 )
@@ -385,35 +279,31 @@ const Row = ({
       </span>
     </td>
     <td className="px-3 py-1.5 text-sm whitespace-nowrap text-zinc-300">{line.brand}</td>
+    {/*
+      **The vendor's page is on the number** (Paul, 2026-09-01: "vendor link
+      should be in part ID cell, and we need to make sure it's working"). The
+      part number is what somebody orders by and what they look up; a separate
+      "Product" column put the link a cell away from the thing it is for.
+    */}
     <td className="px-3 py-1.5">
-      {line.toolGuid === undefined ? (
+      {line.productLink === null ? (
         <span className="block font-mono whitespace-nowrap text-zinc-100">
           {line.catalogNumber}
         </span>
       ) : (
-        <Link
-          to={`/tools/${line.toolGuid}`}
-          className="block font-mono whitespace-nowrap text-zinc-100 underline-offset-2 hover:underline"
+        <a
+          href={line.productLink}
+          target="_blank"
+          rel="noreferrer noopener"
+          title={`${line.catalogNumber} on the vendor's site`}
+          className="text-info/90 hover:text-info focus-visible:ring-info/60 inline-flex items-center gap-1 rounded font-mono whitespace-nowrap underline-offset-2 hover:underline focus-visible:ring-1 focus-visible:outline-none"
         >
           {line.catalogNumber}
-        </Link>
+          <ArrowSquareOutIcon aria-hidden="true" />
+        </a>
       )}
     </td>
     <td className="w-full px-3 py-1.5 text-sm text-zinc-400">{line.detail}</td>
-    <td className="px-3 py-1.5">
-      {line.productLink === null ? (
-        <span className="text-2xs text-zinc-600">no link</span>
-      ) : (
-        <Vendor href={line.productLink} of={line.catalogNumber} />
-      )}
-    </td>
-    <td className="px-3 py-1.5 text-right">
-      <StepButton
-        name={line.catalogNumber}
-        profile={line.profile}
-        title={`Save ${line.catalogNumber} as a STEP file`}
-      />
-    </td>
   </tr>
 )
 
@@ -444,7 +334,6 @@ const Bom = () => {
    * the row is a tool with its holding, and the thing somebody looks for in
    * the list is the cutter.
    */
-  const [grouping, setGrouping] = useState<'tool' | 'feature'>('tool')
 
   const assemblies = useMemo(() => {
     const groups = new Map<
@@ -473,24 +362,22 @@ const Bom = () => {
          * what the head leads with and what gets folded together (Paul,
          * 2026-08-31).
          */
-        const key =
-          grouping === 'tool'
-            ? `${choice.toolGuid}|${choice.holderGuid ?? ''}|${choice.colletGuid ?? ''}`
-            : `${featureTag}|${choice.toolGuid}`
+        const key = true
+          ? `${choice.toolGuid}|${choice.holderGuid ?? ''}|${choice.colletGuid ?? ''}`
+          : `${featureTag}|${choice.toolGuid}`
         const had = groups.get(key) ?? {
           choice,
           features: [],
           tags: [],
-          title: grouping === 'tool' ? (tool?.catalogNumber ?? 'this tool') : named,
+          title: tool?.catalogNumber ?? 'this tool',
         }
-        had.features.push(grouping === 'tool' ? named : (tool?.catalogNumber ?? 'a tool'))
+        had.features.push(named)
         had.tags.push(featureTag)
         groups.set(key, had)
       }
     }
-    const sections = [...groups.entries()].map(([key, group]) => ({ key, ...group }))
-    return grouping === 'tool' ? sections : sections.sort((a, b) => a.title.localeCompare(b.title))
-  }, [sheet, features, grouping])
+    return [...groups.entries()].map(([key, group]) => ({ key, ...group }))
+  }, [sheet, features])
 
   /**
    * The whole bill as a Fusion library, saved from the browser.
@@ -515,14 +402,11 @@ const Bom = () => {
             ]
       }),
     )
-    const href = URL.createObjectURL(
-      new Blob([JSON.stringify(library, null, 2)], { type: 'application/json' }),
+    saveInBrowser(
+      `${partId ?? 'part'}-tools.json`,
+      JSON.stringify(library, null, 2),
+      'application/json',
     )
-    const link = document.createElement('a')
-    link.href = href
-    link.download = `${partId ?? 'part'}-tools.json`
-    link.click()
-    URL.revokeObjectURL(href)
   }
 
   return (
@@ -536,24 +420,6 @@ const Bom = () => {
               {String(assemblies.length)}
             </Badge>
             <span className="text-2xs text-zinc-500">what has been decided for this part</span>
-            <span className="flex gap-1">
-              {(['tool', 'feature'] as const).map((each) => (
-                <button
-                  key={each}
-                  type="button"
-                  aria-pressed={grouping === each}
-                  onClick={() => setGrouping(each)}
-                  className={classNames(
-                    'text-2xs focus-visible:ring-info/60 rounded border px-2 py-0.5 transition focus-visible:ring-1 focus-visible:outline-none',
-                    grouping === each
-                      ? 'border-info/60 bg-info/15 text-info'
-                      : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
-                  )}
-                >
-                  By {each}
-                </button>
-              ))}
-            </span>
             {assemblies.length === 0 ? null : (
               <button
                 type="button"
@@ -578,7 +444,7 @@ const Bom = () => {
                 <thead>
                   <tr className="text-2xs border-b border-zinc-800 text-left tracking-wide text-zinc-400 uppercase">
                     <th scope="col" className="px-3 py-1.5 font-semibold">
-                      {grouping === 'tool' ? 'Tool' : 'Feature'}
+                      Tool
                     </th>
                     <th scope="col" className="px-3 py-1.5 font-semibold">
                       Qty
@@ -594,12 +460,6 @@ const Bom = () => {
                     </th>
                     <th scope="col" className="px-3 py-1.5 font-semibold">
                       Type
-                    </th>
-                    <th scope="col" className="px-3 py-1.5 font-semibold">
-                      Product
-                    </th>
-                    <th scope="col" className="px-3 py-1.5 text-right font-semibold">
-                      Model
                     </th>
                   </tr>
                 </thead>
@@ -630,8 +490,7 @@ const Bom = () => {
                     ]
                     const named: AssemblyHead = {
                       tool: title,
-                      /** "machines a pocket" one way round, "cut by a ⌀6" the other. */
-                      verb: grouping === 'tool' ? 'machines' : 'cut by',
+                      verb: 'machines',
                       features: machines,
                       total: totalOf(choice),
                       onTotal: (many: number) =>
@@ -640,7 +499,6 @@ const Bom = () => {
                         ),
                       onRemove: () =>
                         across((sheetSoFar, tag) => removeChoice(sheetSoFar, tag, choice.toolGuid)),
-                      stack: stackProfile(tool, holder, choice.stickout ?? null),
                     }
                     if (lines.length === 0) {
                       return (

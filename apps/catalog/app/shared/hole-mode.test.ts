@@ -48,6 +48,35 @@ describe('a hole stood in at another diameter', () => {
     expect(drilled.featureTag).toBe('a')
     expect(drilled.datasheet?.zMin).toBe(-12)
   })
+
+  /**
+   * **Including the number the rules actually read** (Paul, 2026-09-01): the
+   * kernel states `maxDrillDiameter` for the hole as drawn, and the sheet's
+   * largest-tool rule reads it before the diameter. Left at the modelled size
+   * it called every drill between the model and the tap drill "too large" — a
+   * ⌀0.116 drill refused for a hole whose form tap wants ⌀0.122.
+   */
+  it('stands the drill limit in at the same bore', () => {
+    const drawn = {
+      ...hole('a', 2.79, 12),
+      datasheet: {
+        zMin: -12,
+        zMax: 0,
+        facts: { kind: 'Hole', diameter: 2.79, maxDrillDiameter: 2.79 },
+      },
+    } as unknown as PartFeature
+
+    const bored = holeAt(drawn, 3.1)
+
+    expect(asRecord(bored.datasheet?.facts)?.maxDrillDiameter).toBe(3.1)
+  })
+
+  /** Where the kernel states no limit, none is invented. */
+  it('adds no drill limit to a hole that states none', () => {
+    const drilled = holeAt(hole('a', 4.918, 12), 5)
+
+    expect(asRecord(drilled.datasheet?.facts)?.maxDrillDiameter).toBeUndefined()
+  })
 })
 
 describe('the taps for a thread', () => {

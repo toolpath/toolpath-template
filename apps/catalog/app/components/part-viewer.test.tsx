@@ -19,8 +19,10 @@ const seen = vi.hoisted(() => ({
 }))
 
 vi.mock('@toolpath/viewer', () => ({
-  Viewer: ({ children }: { children: unknown }) => (
-    <div data-testid="viewer">{children as never}</div>
+  Viewer: ({ children, projection }: { children: unknown; projection?: string }) => (
+    <div data-testid="viewer" data-projection={projection}>
+      {children as never}
+    </div>
   ),
   DirectionArrows: (props: unknown) => {
     seen.arrows(props)
@@ -122,5 +124,37 @@ describe('what reaches the viewer package', () => {
 
     expect(screen.getByText(/no viewable mesh/)).toBeInTheDocument()
     expect(seen.arrows).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * **Orthographic, always** (Paul, 2026-09-01: "just as the default, no need for
+ * an option"). Parallel edges stay parallel, so two features the same size
+ * measure the same size wherever they sit — which is how a part is read off a
+ * drawing, and the whole reason to prefer it over perspective here.
+ */
+/**
+ * **No wrench** (Paul, 2026-09-01: "remove the wrench icon in the viewer for
+ * now"). It put the drawn stack at the clicked feature; the stack is read in
+ * the panel's drawing instead.
+ */
+describe('the viewer controls', () => {
+  it('offers zoom, aids and the section view, and no assembly toggle', () => {
+    show()
+
+    const controls = screen
+      .getByRole('group', { name: 'Viewer controls' })
+      .querySelectorAll('button')
+
+    expect(controls.length).toBe(3)
+    expect(screen.queryByRole('button', { name: /assembly/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('how the part is projected', () => {
+  it('draws the part orthographically', () => {
+    show()
+
+    expect(screen.getByTestId('viewer')).toHaveAttribute('data-projection', 'orthographic')
   })
 })

@@ -248,4 +248,48 @@ test('a tool is read in the panel and kept from it', async ({ page }) => {
   // The panel says it is kept, and so does the row it was chosen from.
   await expect(page.getByRole('button', { name: /On list/ })).toBeVisible()
   await expect(page.getByRole('table').getByText('on list').first()).toBeVisible()
+
+  /**
+   * **And it reaches the bill, under the number a shop orders by** (Paul,
+   * 2026-09-01). The vendor's own page now hangs off that number rather than a
+   * "Product" column of its own — the sample catalog publishes no links, so
+   * what is checked here is the column that carried them being gone and the
+   * number being the thing on the row.
+   */
+  await page.getByRole('link', { name: 'Order list' }).click()
+
+  const bill = page.getByRole('table')
+  await expect(bill.getByText(number.replace('near miss', '').trim())).toBeVisible()
+  await expect(page.getByRole('columnheader', { name: 'Product' })).toHaveCount(0)
+  await expect(page.getByRole('columnheader', { name: 'Model' })).toHaveCount(0)
+  // One grouping: the assembly (Paul, 2026-09-01: "we can remove by feature").
+  await expect(page.getByRole('button', { name: 'By feature' })).toHaveCount(0)
+})
+
+/**
+ * **"Means nothing, never show it"** (Paul, 2026-09-01). The length-below-holder
+ * cell carried "no holder grips this shank" for every tool whose shank size
+ * nothing in the crib takes — which is most of a seventeen-thousand-tool
+ * catalog, and is a fact about the crib rather than about the length the cell
+ * is for.
+ */
+test('never says a holder does not grip the shank', async ({ page }) => {
+  await ready(page)
+
+  await expect(page.getByText('no holder grips this shank')).toHaveCount(0)
+})
+
+/**
+ * **The vendors this catalog actually holds** (Paul, 2026-09-01: "get rid of
+ * the 'not in this catalog yet' section and be sure to show the tool vendors we
+ * actually have"). Ten greyed brands nobody can pick took the picker's space,
+ * and the ones in the catalog were behind a "more".
+ */
+test('the vendor picker lists what is in the catalog, and nothing else', async ({ page }) => {
+  await page.getByRole('button', { name: /^Vendor/ }).click()
+
+  const picker = page.getByRole('group', { name: 'Vendor' })
+  await expect(picker).toBeVisible()
+  await expect(picker.getByRole('button', { name: 'Kennametal' })).toBeVisible()
+  await expect(page.getByText('Not in this catalog yet')).toHaveCount(0)
 })

@@ -56,7 +56,7 @@ export interface ThreadPickerProps {
  */
 const MAKING: ReadonlyArray<{ mode: HoleMode; label: string }> = HOLE_MODES.filter(
   (mode) => mode !== 'plain',
-).map((mode) => ({ mode, label: mode === 'form tap' ? 'form' : 'cut' }))
+).map((mode) => ({ mode, label: mode === 'form tap' ? 'Form tap' : 'Cut tap' }))
 
 /**
  * The offers are the smallest type in the box on purpose: two drill sizes and
@@ -68,9 +68,6 @@ const CHIP =
   'focus-visible:ring-info/60 rounded border px-1 py-0.5 text-[9px] leading-4 tracking-tight transition focus-visible:ring-1 focus-visible:outline-none'
 
 export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: ThreadPickerProps) => {
-  /** A drill size for a chip: no unit on it, because the row above says which. */
-  const bare = (millimetres: number): string =>
-    convertLength(millimetres, MODEL_UNIT, unit).toFixed(decimalsFor(unit))
   /**
    * How far the model is from the size that reading expects, signed: `+` is a
    * hole drawn over it. Exactly on it says so rather than showing a zero.
@@ -191,8 +188,16 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
                     : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
                 )}
               >
+                {/*
+                  **The name, not the bore** (Paul, 2026-09-01: "we should just
+                  select cut tap or form tap, the numbers confuse the issue").
+                  Three diameters were on screen at once — the modelled hole,
+                  the cut-tap bore and the form-tap bore — and the two on the
+                  buttons read as the sizes being chosen between. The bore each
+                  one starts from is still in the title, and it is what the
+                  drill list is judged against.
+                */}
                 {way.label}
-                {drill === null ? '' : ` ⌀${bare(drill)}`}
               </button>
             )
           })}

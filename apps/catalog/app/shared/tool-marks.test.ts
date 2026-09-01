@@ -206,9 +206,30 @@ describe('a drill against the hole it is for', () => {
    * How far off the hole a drill is decides it, and that distance is neither
    * on the tool nor on the feature — it is between them (Paul, 2026-08-31).
    */
-  it('says how far off the hole it is, as a fact rather than a fault', () => {
-    expect(noteFor(tool('U', { DC: 11.95, LCF: 40, LD: 3, SIG: 140 }, 'drill'))).toBe('−0.05 mm')
-    expect(noteFor(tool('E', { DC: 12, LCF: 40, LD: 3, SIG: 140 }, 'drill'))).toBe('±0.00 mm')
+  /**
+   * **And says what it is off** (Paul, 2026-09-01: they should say "Drill
+   * Diameter (+0.004 from specified tap drill)"). On a threaded hole the
+   * number it is measured against is the thread's tap drill, not the bore the
+   * model draws, and a bare deviation left that ambiguous.
+   */
+  it('says how far off the hole it is, and off what, as a fact rather than a fault', () => {
+    expect(noteFor(tool('U', { DC: 11.95, LCF: 40, LD: 3, SIG: 140 }, 'drill'))).toBe(
+      '−0.05 mm from the hole',
+    )
+    expect(noteFor(tool('E', { DC: 12, LCF: 40, LD: 3, SIG: 140 }, 'drill'))).toBe(
+      '±0.00 mm from the hole',
+    )
+  })
+
+  it('names whatever the list was judged against', () => {
+    const each = tool('U', { DC: 11.95, LCF: 40, LD: 3, SIG: 140 }, 'drill')
+    const mark = marksFor(judgeTools([each], hole, [hole])[0]!, testedCodes(hole, [hole]), {
+      format: (value) => `${value.toFixed(2)} mm`,
+      holeDiameter: 12,
+      measuredFrom: 'the specified tap drill',
+    }).DC
+
+    expect(mark?.ok === true ? mark.note : 'not ok').toBe('−0.05 mm from the specified tap drill')
   })
 
   /**
@@ -220,7 +241,9 @@ describe('a drill against the hole it is for', () => {
    * "drill oversize can and should widen the band").
    */
   it('notes an oversized drill inside the deviation, rather than refusing it', () => {
-    expect(noteFor(tool('O', { DC: 12.05, LCF: 40, LD: 3, SIG: 140 }, 'drill'))).toBe('+0.05 mm')
+    expect(noteFor(tool('O', { DC: 12.05, LCF: 40, LD: 3, SIG: 140 }, 'drill'))).toBe(
+      '+0.05 mm from the hole',
+    )
   })
 
   /** Past the knob it is still refused: the band is a band. */

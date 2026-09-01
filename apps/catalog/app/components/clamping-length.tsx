@@ -1,5 +1,5 @@
-import { RulerIcon } from '@phosphor-icons/react'
 import { RailBubble } from './filter-rail'
+import { ClampingLengthIcon } from './tool-icons'
 import type { ClampingRule } from 'shared/clamping-length'
 
 /**
@@ -34,15 +34,13 @@ export const ClampingLength = ({ rule, onChange, sheet }: ClampingLengthProps) =
   const changed = !rule.vendorSpec || rule.perDiameter !== sheet
   return (
     <RailBubble
-      icon={<RulerIcon />}
+      icon={<ClampingLengthIcon />}
       label="Minimum clamping length"
       value={
         changed
           ? [
               ...(rule.vendorSpec ? ['vendor spec'] : ['no vendor spec']),
-              ...(rule.perDiameter > 0
-                ? [`${String(rule.perDiameter)}×D`]
-                : ['a third of the tool']),
+              ...(rule.perDiameter > 0 ? [`${String(rule.perDiameter)}×D`] : []),
             ]
           : []
       }
@@ -69,7 +67,7 @@ export const ClampingLength = ({ rule, onChange, sheet }: ClampingLengthProps) =
         </span>
       </label>
       <div className="flex flex-wrap items-center gap-1">
-        {[0, 3, 4, 5, 6].map((each) => (
+        {[3, 4, 5, 6].map((each) => (
           <button
             key={each}
             type="button"
@@ -81,17 +79,21 @@ export const ClampingLength = ({ rule, onChange, sheet }: ClampingLengthProps) =
                 : 'text-2xs rounded border border-zinc-800 px-2 py-0.5 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
             }
           >
-            {each === 0 ? 'A third of the tool' : `${String(each)}×D`}
+            {String(each)}×D
           </button>
         ))}
       </div>
       <label className="text-2xs mt-2 flex items-center gap-2 text-zinc-400">
         Or a multiple of your own
+        {/*
+          **No spinner** (Paul, 2026-09-01: "I don't need the arrows in this
+          box, just to enter the text value"). A number input draws stepper
+          arrows in every browser, and half a diameter at a time is not how
+          anybody sets this.
+        */}
         <input
-          type="number"
-          min={0}
-          max={20}
-          step={0.5}
+          type="text"
+          inputMode="decimal"
           value={rule.perDiameter}
           aria-label="Minimum clamping length, in diameters"
           onChange={(event) => {

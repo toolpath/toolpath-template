@@ -90,9 +90,16 @@ export const ToolSheet = ({ tool, unit }: ToolSheetProps) => {
               <dd className="font-mono text-sm text-zinc-100">
                 {formatGeometry(code, value, unit)}
                 {provenance && provenance !== 'vendor-stated' ? (
-                  <span className="ml-0.5 text-zinc-500" aria-label={provenance}>
-                    °
-                  </span>
+                  /*
+                    **A footnote mark, not a unit** (Paul, 2026-09-01: "L/D
+                    ratio in tool details shows a degree sign instead of a X").
+                    The degree sign after a number reads as degrees, and the two
+                    figures this catalog derives — the L/D and the length below
+                    the holder — are exactly the two it sat on.
+                  */
+                  <sup className="ml-0.5 text-zinc-500" aria-label={provenance}>
+                    *
+                  </sup>
                 ) : null}
               </dd>
               <dt className="text-xs text-zinc-500">{KEY_LABELS[code]}</dt>

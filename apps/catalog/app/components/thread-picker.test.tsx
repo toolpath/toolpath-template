@@ -57,16 +57,22 @@ describe('what the panel says about a hole before anything is chosen', () => {
   })
 
   /**
-   * Once there is a thread, the chips are the ways to make it, each marked
-   * with the hole it starts from: a form tap wants a bigger hole than a cut
-   * tap, and that difference is the reason to print it (Paul, 2026-09-01).
+   * **The way it is made, named — not the bore it starts from** (Paul,
+   * 2026-09-01: "we should just select cut tap or form tap, the numbers
+   * confuse the issue"). The bore is still on the control, in the title,
+   * because it is what the drill list is judged against.
    */
-  it('offers cut and form for the chosen thread, each with its own drill', () => {
+  it('offers cut and form tap by name, with the bore each starts from in the title', () => {
     show({ spec: threadNamed('M6×1'), mode: 'cut tap' })
 
+    const cut = screen.getByRole('button', { name: 'M6×1 cut tap' })
+    const form = screen.getByRole('button', { name: 'M6×1 form tap' })
+
+    expect(cut).toHaveTextContent('Cut tap')
+    expect(cut).not.toHaveTextContent('⌀')
     // A form tap wants `d − p/2`, half a millimetre more hole than the cut tap's.
-    expect(screen.getByRole('button', { name: 'M6×1 cut tap' })).toHaveTextContent('cut ⌀5.00')
-    expect(screen.getByRole('button', { name: 'M6×1 form tap' })).toHaveTextContent('form ⌀5.50')
+    expect(cut).toHaveAttribute('title', expect.stringContaining('⌀5.00 mm'))
+    expect(form).toHaveAttribute('title', expect.stringContaining('⌀5.50 mm'))
   })
 
   /** Nothing to make until there is a thread to make. */

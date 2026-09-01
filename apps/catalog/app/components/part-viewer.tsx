@@ -10,14 +10,7 @@ import {
   type PartPick,
 } from '@toolpath/viewer'
 import { EnginePart } from '@toolpath/viewer/engine'
-import {
-  GridFourIcon,
-  MagnifyingGlassPlusIcon,
-  SquareHalfIcon,
-  WrenchIcon,
-  XIcon,
-} from '@phosphor-icons/react'
-import { AssemblyModel, type AssemblyPlacement } from './assembly-model'
+import { GridFourIcon, MagnifyingGlassPlusIcon, SquareHalfIcon, XIcon } from '@phosphor-icons/react'
 import type { PartReport, PublicInspectionReport } from '@toolpath/part-contracts'
 import { classNames } from '@toolpath/domain/class-names'
 import { readingTheme } from 'shared/reading-colors'
@@ -150,8 +143,6 @@ export interface PartViewerProps {
    */
   readonly tooled?: ReadonlyArray<string>
   readonly onCloseDetails?: () => void
-  /** The drawn assembly, placed at the feature — shown only while the wrench is pressed. */
-  readonly assembly?: AssemblyPlacement | null
   /** A click on the part, unless a cut is being placed. */
   readonly onPickFace: (pick: PartPick | null) => void
   /** A click that hit nothing: the usual meaning is "put the selection down". */
@@ -173,13 +164,11 @@ export const PartViewer = ({
   aside,
   tooled = [],
   onCloseDetails,
-  assembly = null,
   onPickFace,
   onClear,
 }: PartViewerProps) => {
   const [showAids, setShowAids] = useState(false)
   // Off by default (Paul, 2026-08-30): the stack in the scene is a check, not the view.
-  const [showAssembly, setShowAssembly] = useState(false)
   const [sectioning, setSectioning] = useState(false)
   /**
    * What the wheel zooms toward.
@@ -283,17 +272,12 @@ export const PartViewer = ({
           >
             <GridFourIcon />
           </ToolButton>
-          <ToolButton
-            label={
-              showAssembly
-                ? 'Tool assembly at the feature (on)'
-                : 'Tool assembly at the feature — the drawn stack, tip at the clicked feature'
-            }
-            pressed={showAssembly}
-            onClick={() => setShowAssembly(!showAssembly)}
-          >
-            <WrenchIcon />
-          </ToolButton>
+          {/*
+            **No wrench for now** (Paul, 2026-09-01: "remove the wrench icon in
+            the viewer for now"). It put the drawn stack at the clicked feature;
+            the drawing in the panel is where a stack is read today. The button
+            is what has gone — `assembly` still draws one when a page asks.
+          */}
           <ToolButton
             label={sectioning ? 'Section view (on)' : 'Section view'}
             pressed={sectioning}
@@ -308,7 +292,16 @@ export const PartViewer = ({
       </div>
 
       {details ? (
-        <div className="absolute inset-0 z-20 flex flex-col bg-zinc-950/95 backdrop-blur">
+        /*
+          **Beside the questions, over the part** (Paul, 2026-09-01: "feature
+          details visualization is hidden behind everything. It should show over
+          the 3d viewer to the right of filters and features").
+          `inset-0` at `z-20` put it under the filter rail and the feature box —
+          both `z-40` — so the panel opened *behind* the two things covering
+          that corner, and the part showed through what was left. It now starts
+          past that column, sits above the part, and is opaque.
+        */
+        <div className="absolute inset-y-3 right-3 left-[21rem] z-30 flex flex-col overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950 shadow-xl">
           <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2">
             <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
               Feature details
@@ -336,7 +329,14 @@ export const PartViewer = ({
               </div>
             }
           >
-            <Viewer zoomTo={zoomTo} onPointerMissed={onClear}>
+            {/*
+              **Orthographic, always** (Paul, 2026-09-01: "shouldn't the viewer
+              component have orthographic view now? Give me that please, just as
+              the default, no need for an option"). It is how a machinist reads
+              a part: parallel edges stay parallel, so two features the same
+              size measure the same size wherever they sit on the model.
+            */}
+            <Viewer projection="orthographic" zoomTo={zoomTo} onPointerMissed={onClear}>
               <EnginePart
                 report={viewerReport}
                 selection={[...selected]}
@@ -370,8 +370,7 @@ export const PartViewer = ({
                 directions={report.candidateDirections}
                 activeDirection={arrows.active}
                 shownDirection={arrows.shown}
-                // The stack stands where the arrow would: the wrench overrides it (Paul, 2026-08-30).
-                visible={arrows.visible && !showAssembly}
+                visible={arrows.visible}
                 onPickDirection={onPickDirection}
               />
               {showAids ? (
@@ -380,7 +379,6 @@ export const PartViewer = ({
                   <Axes size={35} />
                 </>
               ) : null}
-              {showAssembly && assembly ? <AssemblyModel {...assembly} /> : null}
               <ViewCube />
             </Viewer>
           </Suspense>

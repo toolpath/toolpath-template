@@ -37,7 +37,26 @@ export const holeAt = (feature: PartFeature, diameter: number): PartFeature => {
   const facts = asRecord(sheet.facts) ?? {}
   return {
     ...feature,
-    datasheet: { ...sheet, facts: { ...facts, diameter } },
+    datasheet: {
+      ...sheet,
+      facts: {
+        ...facts,
+        diameter,
+        /**
+         * **The drill limit is the bore too** (Paul, 2026-09-01: "near miss
+         * drills are too large even though they are smaller than the form tap
+         * it shows? Hole diameter = 0.110", form tap predrill = 0.122", drill
+         * diameter is 0.116" and it's too large?").
+         *
+         * The kernel states `maxDrillDiameter` for the hole it was given, and
+         * the rules read that before the diameter — so standing the hole in at
+         * the tap drill moved one number and left the one the rule actually
+         * uses at the modelled size. Every drill between the model and the
+         * bore came back "too large".
+         */
+        ...(facts.maxDrillDiameter === undefined ? {} : { maxDrillDiameter: diameter }),
+      },
+    },
   } as PartFeature
 }
 

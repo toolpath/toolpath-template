@@ -9,7 +9,6 @@ import {
   HashIcon,
   DotsThreeIcon,
   MagnifyingGlassIcon,
-  RulerIcon,
   TagIcon,
   WrenchIcon,
   XIcon,
@@ -22,7 +21,13 @@ import { toggleTerm, type ToolQuery } from 'shared/filter'
 import type { SavedFilter } from 'shared/saved-filters'
 import { Chip, ChipGroup } from './chip'
 import { RangeFilter, type Bound, type Kind } from './column-filter'
-import { ColletIcon, HolderIcon, ReducedShankIcon, ToolTypeIcon } from './tool-icons'
+import {
+  ColletIcon,
+  FluteLengthIcon,
+  HolderIcon,
+  ReducedShankIcon,
+  ToolTypeIcon,
+} from './tool-icons'
 
 /**
  * What each ISO 513 letter means at the machine.
@@ -42,32 +47,6 @@ const MATERIALS: Record<string, string> = {
 }
 
 /**
- * Vendors this catalog does not hold yet.
- *
- * Listed at the end of the brand picker, greyed and not pressable. A shop
- * looking at three names cannot tell whether this application knows about
- * three tooling vendors or three hundred, and the answer decides whether they
- * bother ingesting their own library. These say: the shelf is this wide, and
- * yours goes here.
- *
- * They are **not filters**. Offering one would return nothing, which is the
- * kind of empty list that reads as a broken feature rather than an absent
- * vendor.
- */
-const BRAND_PLACEHOLDERS = [
-  'Sandvik Coromant',
-  'Iscar',
-  'Seco',
-  'Walter',
-  'Guhring',
-  'OSG',
-  'Harvey Tool',
-  'Helical',
-  'Emuge',
-  'Mitsubishi',
-] as const
-
-/**
  * How many answers a picker shows before the rest go behind a `…`.
  *
  * Four, because four fit across without wrapping and a question with three
@@ -75,7 +54,16 @@ const BRAND_PLACEHOLDERS = [
  * four, the rest are one press away and the block grows to hold them rather
  * than scrolling inside itself.
  */
-const FRONT_TILES = 4
+/**
+ * How many values stand in front before the rest go behind "more".
+ *
+ * **Twelve, not four** (Paul, 2026-09-01: "I should almost never need to hit
+ * show more — just show it all"). Four was sized for a shelf that was mostly
+ * placeholders; every axis this catalog actually holds — six part materials,
+ * the vendors, the tool types — fits in front of it now, and the ones that
+ * genuinely do not (families, in the hundreds) still say how many more.
+ */
+const FRONT_TILES = 12
 
 /** One thing a tile picker can offer. */
 interface TileOption {
@@ -129,8 +117,6 @@ interface QuickFilter {
   readonly front?: 'held' | 'counted'
   /** For tiles: a search box in the popover, for a list that will grow. */
   readonly search?: boolean
-  /** For tiles: names shown greyed at the end, as the shelf this catalog will fill. */
-  readonly placeholders?: ReadonlyArray<string>
 }
 
 /** A brand's mark, until there is a real one: its own initials, set as a tile. */
@@ -145,13 +131,8 @@ const monogram = (brand: string): string => {
   return brand.slice(0, 2).toUpperCase()
 }
 
-const Monogram = ({ brand, muted = false }: { brand: string; muted?: boolean }) => (
-  <span
-    className={classNames(
-      'grid size-6 place-items-center rounded-sm text-[0.6rem] font-bold',
-      muted ? 'bg-zinc-900 text-zinc-600' : 'bg-zinc-800 text-current',
-    )}
-  >
+const Monogram = ({ brand }: { brand: string }) => (
+  <span className="grid size-6 place-items-center rounded-sm bg-zinc-800 text-[0.6rem] font-bold text-current">
     {monogram(brand)}
   </span>
 )
@@ -202,7 +183,6 @@ export const QUICK_FILTERS: ReadonlyArray<QuickFilter> = [
     tile: (value) => <Monogram brand={value} />,
     front: 'counted',
     search: true,
-    placeholders: BRAND_PLACEHOLDERS,
   },
   {
     // The vendor's own grouping — one family is one page in their catalogue,
@@ -288,25 +268,13 @@ export const QUICK_FILTERS: ReadonlyArray<QuickFilter> = [
   {
     key: 'LCF',
     label: 'Flute length',
-    icon: <RulerIcon />,
+    icon: <FluteLengthIcon />,
     shape: 'range',
     mode: 'range',
     span: 1,
     kind: 'length',
   },
 ]
-
-/**
- * An answer that wants a second look, and which answers it is about.
- *
- * The sheet's own caution — a bull nose leaves its radius on a floor the
- * model draws sharp — shown where somebody is choosing rather than on a
- * bubble that is on screen whether or not anybody is asking.
- */
-export interface Caution {
-  readonly note: string
-  readonly values: ReadonlyArray<string>
-}
 
 export interface FilterPanelProps {
   readonly facets: Facets
@@ -341,7 +309,6 @@ export interface FilterPanelProps {
   /** No title row, no saved menu: the filters and nothing else. */
   readonly compact?: boolean
   /** Which answers want a second look, by filter key. */
-  readonly cautions?: Readonly<Record<string, Caution>>
 }
 
 /** A labelled block. The icon is what is found at a glance, not the word. */
@@ -388,15 +355,12 @@ const Tile = ({
   option,
   icon,
   pressed,
-  cautioned = false,
   count,
   onToggle,
 }: {
   option: TileOption
   icon: ReactNode
   pressed: boolean
-  /** The sheet cautions about this one for the feature being read. */
-  cautioned?: boolean
   count: number
   onToggle: () => void
 }) => (
@@ -413,13 +377,17 @@ const Tile = ({
     className={classNames(
       'relative flex min-w-0 flex-col items-center gap-1 rounded-md border px-1 py-1.5 transition',
       'focus-visible:ring-info/60 focus-visible:ring-1 focus-visible:outline-none',
-      cautioned
-        ? pressed
-          ? 'border-amber-500/60 bg-amber-500/15 text-amber-300'
-          : 'border-amber-500/40 text-amber-300/80 hover:border-amber-500/60 hover:text-amber-200'
-        : pressed
-          ? 'border-info/60 bg-info/15 text-info'
-          : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-900 hover:text-zinc-100',
+      /*
+        **One colour for a chosen answer** (Paul, 2026-09-01: "we don't need
+        the colouring for bull nose here — even though it leaves a deviation
+        for the feature, show it the same as the others. They'll see the
+        deviation in the tool list"). An amber tile in the type picker warned
+        about a tool before anybody had chosen one, in a place where every
+        other tile means "press me".
+      */
+      pressed
+        ? 'border-info/60 bg-info/15 text-info'
+        : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-900 hover:text-zinc-100',
       // Pressable still — it is how somebody finds out there is nothing — but
       // not looking like one of the answers.
       count === 0 && !pressed && 'opacity-40',
@@ -498,13 +466,6 @@ const matching = <T extends { value: string; label: string }>(
  * than two (Paul, 2026-08-31). Past four the rest are one press away, and
  * pressing grows the block — nothing scrolls inside itself.
  */
-/** The sheet's caution, in its own words, over the answers it is about. */
-const CautionNote = ({ note }: { note: string }) => (
-  <p className="text-2xs mb-1.5 rounded border border-amber-500/30 bg-amber-500/5 px-1.5 py-1 text-amber-300/90">
-    {note}
-  </p>
-)
-
 const ChipPicker = ({
   filter,
   options,
@@ -513,10 +474,8 @@ const ChipPicker = ({
   onAny,
   onToggle,
   onAll,
-  caution,
 }: {
   filter: QuickFilter
-  caution?: Caution | undefined
   options: ReadonlyArray<TileOption & { title?: string }>
   chosen: ReadonlyArray<string>
   counted: ReadonlyMap<string, number>
@@ -554,7 +513,14 @@ const ChipPicker = ({
           count={found.length}
         />
       ) : null}
-      <ChipGroup label={filter.label}>
+      {/*
+        **A grid, not a paragraph of chips** (Paul, 2026-09-01: "instead of the
+        messy text, do a nice grid for the potential options in all of the
+        multiple choice filters"). Wrapped in a row, six part materials came out
+        ragged and read as a sentence; on a grid every answer is the same width
+        and the eye goes down the column.
+      */}
+      <ChipGroup label={filter.label} className="grid! min-w-[19rem] grid-cols-2 items-stretch">
         {single ? (
           <Chip pressed={chosen.length === 0} onClick={onAny}>
             Any
@@ -564,9 +530,6 @@ const ChipPicker = ({
           <Chip
             key={option.value}
             pressed={chosen.includes(option.value)}
-            className={
-              caution?.values.includes(option.value) ? 'border-amber-500/50 text-amber-300' : ''
-            }
             // The count is over what is on screen: a zero says this value is
             // incompatible with the rest of the selection, which is worth
             // knowing before pressing it.
@@ -604,10 +567,8 @@ const TilePicker = ({
   held,
   onToggle,
   onAll,
-  caution,
 }: {
   filter: QuickFilter
-  caution?: Caution | undefined
   options: ReadonlyArray<TileOption>
   chosen: ReadonlyArray<string>
   /** Over the tools on screen: what pressing a tile would leave. */
@@ -652,16 +613,12 @@ const TilePicker = ({
       option={option}
       icon={filter.tile?.(option.value)}
       pressed={chosen.includes(option.value)}
-      cautioned={caution?.values.includes(option.value) ?? false}
       count={counts.get(option.value) ?? 0}
       onToggle={() => onToggle(option.value)}
     />
   )
 
   const rest = options.length - front.length
-  const placeholders = (filter.placeholders ?? []).filter(
-    (name) => !options.some((each) => each.value.toLowerCase() === name.toLowerCase()),
-  )
 
   return (
     <div ref={box}>
@@ -684,7 +641,7 @@ const TilePicker = ({
         className="grid grid-cols-[repeat(auto-fill,minmax(5.75rem,1fr))] gap-1"
       >
         {front.map(tile)}
-        {rest > 0 || placeholders.length > 0 ? (
+        {rest > 0 ? (
           <button
             type="button"
             aria-expanded={open}
@@ -694,9 +651,7 @@ const TilePicker = ({
             className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-zinc-800 px-1 py-1.5 text-zinc-500 transition hover:border-zinc-700 hover:text-zinc-200"
           >
             <DotsThreeIcon weight="bold" className="size-6" />
-            <span className="text-[0.6rem] leading-tight">
-              {rest > 0 ? `${String(rest)} more` : 'more'}
-            </span>
+            <span className="text-[0.6rem] leading-tight">{String(rest)} more</span>
           </button>
         ) : null}
       </div>
@@ -704,7 +659,7 @@ const TilePicker = ({
       {open ? (
         <div className="mt-1 w-[34rem] max-w-[calc(100vw-2rem)] rounded-lg border border-zinc-800 bg-zinc-950 p-2">
           <div className="flex flex-col gap-2">
-            {behind.length === 0 && placeholders.length === 0 ? (
+            {behind.length === 0 ? (
               <p className="text-2xs px-1 py-1 text-zinc-600">Nothing else by that name.</p>
             ) : null}
             {groups.map(([group, members]) => (
@@ -719,28 +674,6 @@ const TilePicker = ({
                 </div>
               </section>
             ))}
-            {placeholders.length > 0 ? (
-              <section>
-                <h5 className="text-2xs mb-1 px-0.5 tracking-wide text-zinc-600 uppercase">
-                  Not in this catalog yet
-                </h5>
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(5.75rem,1fr))] gap-1">
-                  {placeholders.map((name) => (
-                    <span
-                      key={name}
-                      aria-disabled="true"
-                      title={`${name} — not in this catalog yet`}
-                      className="flex min-w-0 cursor-default flex-col items-center gap-1 rounded-md border border-dashed border-zinc-800/80 px-1 py-1.5 text-zinc-700"
-                    >
-                      <Monogram brand={name} muted />
-                      <span className="w-full truncate text-center text-[0.6rem] leading-tight">
-                        {name}
-                      </span>
-                    </span>
-                  ))}
-                </div>
-              </section>
-            ) : null}
           </div>
         </div>
       ) : null}
@@ -852,7 +785,6 @@ export const FilterPanel = ({
   onClear,
   only,
   compact = false,
-  cautions = {},
 }: FilterPanelProps) => {
   const [naming, setNaming] = useState(false)
   const [name, setName] = useState('')
@@ -1069,8 +1001,16 @@ export const FilterPanel = ({
                               : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
                           )}
                         >
-                          {each.value}
-                          <span className="ml-1 text-zinc-600">{each.count}</span>
+                          {/*
+                            **The count of flutes, and the count of tools, are
+                            two numbers** (Paul, 2026-09-01: "differentiate the
+                            count in # flutes"). Side by side and in the same
+                            type, "3 5688" read as one figure. The tally is the
+                            small print, in brackets, the way every other count
+                            on this panel is set.
+                          */}
+                          <span className="font-mono">{each.value}</span>
+                          <span className="ml-1 text-[0.65em] text-zinc-500">({each.count})</span>
                         </button>
                       ))}
                     </div>
@@ -1090,18 +1030,15 @@ export const FilterPanel = ({
               ? `${filter.label} · ${String(chosen.length)}`
               : filter.label
 
-          const caution = cautions[filter.key]
           if (filter.shape === 'tiles') {
             return (
               <Field key={filter.key} icon={filter.icon} label={label} span={filter.span}>
-                {caution ? <CautionNote note={caution.note} /> : null}
                 <TilePicker
                   filter={filter}
                   options={options}
                   chosen={chosen}
                   counts={counted}
                   held={held(filter.key)}
-                  caution={cautions[filter.key]}
                   onToggle={(value) => toggle(filter, value)}
                   onAll={(values) =>
                     setTerm(filter.key, [...new Set([...chosenFor(filter), ...values])])
@@ -1113,13 +1050,11 @@ export const FilterPanel = ({
 
           return (
             <Field key={filter.key} icon={filter.icon} label={label} span={filter.span}>
-              {caution ? <CautionNote note={caution.note} /> : null}
               <ChipPicker
                 filter={filter}
                 options={options}
                 chosen={chosen}
                 counted={counted}
-                caution={cautions[filter.key]}
                 onAny={() => {
                   if (filter.mode === 'single') {
                     onMaterial(null)

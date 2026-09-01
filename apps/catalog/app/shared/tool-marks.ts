@@ -225,6 +225,16 @@ export interface MarkOptions {
    */
   readonly holeDiameter?: number | null
   /**
+   * What that diameter *is*, for the note to name.
+   *
+   * **A deviation from nothing named is a number nobody can act on** (Paul,
+   * 2026-09-01: they should say "Drill Diameter (+0.004 from specified tap
+   * drill)"). On a threaded hole the drill is judged against the tap drill the
+   * thread wants, not against the bore the model draws, and a bare `+0.004`
+   * left somebody working out which.
+   */
+  readonly measuredFrom?: string
+  /**
    * The cone at the bottom of this hole, in degrees, where it has one.
    *
    * A drill's point angle is cautioned against it — a 140° drill in a 118°
@@ -255,6 +265,7 @@ export const marksFor = (
     format = plainFormat,
     cautionedForms = [],
     holeDiameter = null,
+    measuredFrom = 'the hole',
     tipAngle = null,
     floorFillet = null,
   }: MarkOptions = {},
@@ -271,10 +282,8 @@ export const marksFor = (
     verdict.tool.form === 'drill'
   ) {
     const off = bore - holeDiameter
-    marks.DC = {
-      ok: true,
-      note: `${off > 0 ? '+' : off < 0 ? '−' : '±'}${format(Math.abs(off), 'mm')}`,
-    }
+    const by = `${off > 0 ? '+' : off < 0 ? '−' : '±'}${format(Math.abs(off), 'mm')}`
+    marks.DC = { ok: true, note: `${by} from ${measuredFrom}` }
   }
   /**
    * A drill point that differs from the bottom it cuts, **within tolerance**.
