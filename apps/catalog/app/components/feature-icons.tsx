@@ -1,4 +1,5 @@
 import type { ReactElement, ReactNode } from 'react'
+import { FluteLengthIcon, FlutesIcon, ShankIcon } from './tool-icons'
 
 /**
  * A drawing of each feature, instead of a coloured dot.
@@ -391,7 +392,7 @@ const FacesIcon = () => (
   </MeasurementFrame>
 )
 
-const MEASUREMENT_ICONS: Record<string, () => ReactElement> = {
+const MEASUREMENT_ICONS: Record<string, (props: { className?: string }) => ReactElement> = {
   depthBelowTop: ReachIcon,
   featureDepth: DepthIcon,
   minRadius: RadiusIcon,
@@ -409,6 +410,17 @@ const MEASUREMENT_ICONS: Record<string, () => ReactElement> = {
   walls: AreaIcon,
   floors: AreaIcon,
   faces: FacesIcon,
+  // The tool's own geometry, for the panel's measurement table: the codes are
+  // ISO 13399's, and each one borrows the drawing of what it measures.
+  DC: DiameterIcon,
+  RE: RadiusIcon,
+  LD: RatioIcon,
+  SIG: AngleIcon,
+  LCF: FluteLengthIcon,
+  LBH: ReachIcon,
+  OAL: DepthIcon,
+  SFDM: ShankIcon,
+  NOF: FlutesIcon,
 }
 
 /**

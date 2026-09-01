@@ -9,7 +9,13 @@ import {
 } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Badge, Card, Panels } from '@toolpath/ui'
-import { colletsFor, toolCollisions, type CatalogTool, type Margins } from '@toolpath/catalog-data'
+import {
+  colletsFor,
+  colletsForShank,
+  toolCollisions,
+  type CatalogTool,
+  type Margins,
+} from '@toolpath/catalog-data'
 import { useAnalysisEvents } from '@toolpath/part-client'
 import type { PartFeature, PublicInspectionReport } from '@toolpath/part-contracts'
 import { heldRegions } from '@toolpath/part-contracts/selection'
@@ -89,6 +95,7 @@ import { IDLE, groupOf as holeGroupOf, interactionFor } from 'shared/part-intera
 import { arrowsFor, byLargest, keptFeatures, partHighlight } from 'shared/part-selection'
 import { holeAt, holeDepthOf, makersFor, shortfallOf } from 'shared/hole-mode'
 import { hasSharpCorner } from 'shared/feature-defaults'
+import { paneOf, threadPanes } from 'shared/thread-panes'
 import { drillFor, type HoleMode, type ThreadSpec } from 'shared/threads'
 
 /** How one hole is made, and for what thread: hole mode's answer per feature. */
@@ -1074,10 +1081,30 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   }, [holderFilters, curve, margins, thresholds])
   const holding = useMemo<Holding>(() => {
     return {
-      holdersFor: (each) =>
-        optionsFor(each).map((option) => ({
+      /**
+       * **A collet chosen first puts its own chucks at the top** (Paul,
+       * 2026-09-01: "then all holders are shown but we show the ones that work
+       * with that collet at the top"). Every holder is still offered — the
+       * collet is a preference, not a filter — and the ones of its series lead.
+       */
+      holdersFor: (each) => {
+        const series = allCollets.find(
+          (collet) => collet.guid === picked[each.guid]?.colletGuid,
+        )?.series
+        const options = optionsFor(each)
+        const ordered =
+          series === undefined
+            ? options
+            : [
+                ...options.filter((option) => option.holder.colletSeries === series),
+                ...options.filter((option) => option.holder.colletSeries !== series),
+              ]
+        return ordered.map((option) => ({
           guid: option.holder.guid,
-          label: option.holder.catalogNumber,
+          label:
+            option.holder.colletSeries === series
+              ? `${option.holder.catalogNumber} · takes this collet`
+              : option.holder.catalogNumber,
           holder: option.holder,
           trouble:
             option.clears === false
@@ -1085,15 +1112,27 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               : option.band === 'bad'
                 ? 'too little grip'
                 : null,
-        })),
+        }))
+      },
+      /**
+       * With a holder: the collets of its series that close on the shank.
+       * **Without one: every collet that closes on the shank**, whatever series
+       * it belongs to, each saying which series that is — the dropdown used to
+       * be empty until a holder was picked, which read as broken (Paul,
+       * 2026-09-01).
+       */
       colletsFor: (each, holderGuid) => {
         const holder = optionsFor(each).find((option) => option.holder.guid === holderGuid)?.holder
-        return holder === undefined
-          ? []
-          : colletsFor(each, holder, allCollets).map((collet) => ({
-              guid: collet.guid,
-              label: collet.catalogNumber,
-            }))
+        if (holder === undefined) {
+          return colletsForShank(each, allCollets).map((collet) => ({
+            guid: collet.guid,
+            label: `${collet.catalogNumber} · ${collet.series}`,
+          }))
+        }
+        return colletsFor(each, holder, allCollets).map((collet) => ({
+          guid: collet.guid,
+          label: collet.catalogNumber,
+        }))
       },
       chosen: (each) => ({
         holderGuid: picked[each.guid]?.holderGuid ?? null,
@@ -1194,6 +1233,22 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       (chosenTool === null ? (held[0]?.tool ?? null) : null),
     [chosenTool, held, allTools],
   )
+  /**
+   * Which half of a threaded feature the panel is reading: the drill or the
+   * tap.
+   *
+   * **Two tools, so two tabs** (Paul, 2026-09-01: "it should open drill and tap
+   * tabs in the right hand panel when working with a threaded feature"). A
+   * threaded hole is a drill *and* a tap, and the panel is where either is
+   * assembled and kept — so which one is on show is a state of the panel, set
+   * by the list a tool was clicked in and switchable by hand.
+   */
+  const [pane, setPane] = useState<'drill' | 'tap'>('drill')
+  const paneTools = useMemo(
+    () => (threadSpec === null ? null : threadPanes(listed, makers.made, chosenTool)),
+    [threadSpec, makers.made, listed, chosenTool],
+  )
+
   const pick = useCallback(
     (
       guid: string,
@@ -1524,10 +1579,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                       spec={threadSpec}
                       unit={unit}
                       chosen={tool?.guid ?? null}
-                      onChoose={(each) => setChosenTool(each.guid)}
-                      inBom={(each) => keptHere.has(each.guid)}
-                      onBom={(each, at) => setAdding({ tool: each, at })}
-                      onRemoveBom={(each) => commit(removeChoice(sheet, choiceKey, each.guid))}
+                      onChoose={(each) => {
+                        setChosenTool(each.guid)
+                        setPane(paneOf(each))
+                      }}
                       shortfall={(each) => shortfallOf(each, threadReach)}
                       columns={shownColumns(hiddenColumns, columnOrder)}
                     />
@@ -1646,7 +1701,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                       railKeys={{ DC: 'DC', LCF: 'LCF', NOF: 'NOF', form: 'form' }}
                       unit={unit}
                       chosen={tool?.guid ?? null}
-                      onChoose={(each) => setChosenTool(each.guid)}
+                      onChoose={(each) => {
+                        setChosenTool(each.guid)
+                        setPane(paneOf(each))
+                      }}
                       ranges={query.ranges}
                       onRange={applyRange}
                       terms={query.terms}
@@ -1691,7 +1749,78 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           being sorted out, and the panel is the tool alone in the meantime.
         */}
         <Panels.Panel className="min-h-0 overflow-hidden" minSize={280}>
-          {tool ? (
+          {paneTools ? (
+            /*
+              **A threaded hole is two tools** (Paul, 2026-09-01: "it should
+              open drill and tap tabs in the right hand panel when working with
+              a threaded feature"). The drill and the tap are chosen on
+              different numbers and kept separately, and the panel is where
+              either one is assembled — so it is two tabs rather than whichever
+              list was clicked last.
+            */
+            <Card className="flex size-full min-h-0 flex-col overflow-hidden">
+              <div className="flex gap-1 border-b border-zinc-900 px-2 py-1.5">
+                {(
+                  [
+                    ['drill', 'Drill', paneTools.drill],
+                    ['tap', 'Tap', paneTools.tap],
+                  ] as const
+                ).map(([key, label, each]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={pane === key}
+                    disabled={each === null}
+                    onClick={() => {
+                      setPane(key)
+                      if (each) {
+                        setChosenTool(each.guid)
+                      }
+                    }}
+                    className={classNames(
+                      'text-2xs focus-visible:ring-info/60 rounded border px-2 py-0.5 transition focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-zinc-900 disabled:text-zinc-700',
+                      pane === key && each !== null
+                        ? 'border-info/60 bg-info/15 text-info'
+                        : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
+                    )}
+                  >
+                    {label}
+                    {each === null ? <span className="ml-1 text-zinc-600">none</span> : null}
+                  </button>
+                ))}
+              </div>
+              <div className="min-h-0 flex-1 overflow-auto">
+                {(() => {
+                  const reading = pane === 'tap' ? paneTools.tap : paneTools.drill
+                  return reading === null ? (
+                    <p className="p-6 text-center text-sm text-zinc-400">
+                      {pane === 'tap'
+                        ? 'Nothing in the catalog cuts this thread.'
+                        : 'Nothing in the catalog drills this hole.'}
+                    </p>
+                  ) : (
+                    <ToolDetails
+                      tool={reading}
+                      unit={unit}
+                      holding={holding}
+                      saved={keptHere.has(reading.guid)}
+                      onSave={() => {
+                        const held = holding.chosen(reading)
+                        commit(
+                          addChoice(sheet, choiceKey, {
+                            toolGuid: reading.guid,
+                            ...(held.holderGuid === null ? {} : { holderGuid: held.holderGuid }),
+                            ...(held.colletGuid === null ? {} : { colletGuid: held.colletGuid }),
+                          }),
+                        )
+                      }}
+                      onRemove={() => commit(removeChoice(sheet, choiceKey, reading.guid))}
+                    />
+                  )
+                })()}
+              </div>
+            </Card>
+          ) : tool ? (
             <Card className="size-full overflow-auto">
               <ToolDetails
                 tool={tool}

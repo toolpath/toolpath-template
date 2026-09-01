@@ -202,13 +202,14 @@ describe('a suggestion the last feature made is not somebody’s answer', () => 
 
   /**
    * Changed by hand, it is theirs — whatever the next feature would have said.
-   * Every filter but one: see below.
+   * Every filter but the three the feature owns: the tool type, and the two
+   * sizes below.
    */
   it('leaves an answer somebody set themselves', () => {
     const mine = {
       ...EMPTY_QUERY,
       terms: { brand: ['Kennametal'] },
-      ranges: { DC: { max: 3 }, NOF: { min: 6 } },
+      ranges: { NOF: { min: 6 } },
     }
 
     const next = applySuggestions(mine, suggestionsFor(drilled, 'N', [drilled]), filleted, 'N', [
@@ -216,8 +217,45 @@ describe('a suggestion the last feature made is not somebody’s answer', () => 
     ])
 
     expect(next.terms.brand).toEqual(['Kennametal'])
-    expect(next.ranges.DC).toEqual({ max: 3 })
     expect(next.ranges.NOF).toEqual({ min: 6 })
+  })
+
+  /**
+   * **The size of the tool is the feature's to say** (Paul, 2026-09-01: "flute
+   * length and diameter filters do not update when a new feature is selected.
+   * When a new feature is selected, or no feature is active, they should clear
+   * for the next selection"). A diameter typed for one feature hid every tool
+   * that could cut the next.
+   */
+  it('overrules the diameter and the flute length a feature states', () => {
+    const mine = {
+      ...EMPTY_QUERY,
+      ranges: { DC: { max: 3 }, LCF: { min: 40 } },
+    }
+
+    const next = applySuggestions(mine, suggestionsFor(drilled, 'N', [drilled]), filleted, 'N', [
+      filleted,
+    ])
+    const said = suggestionsFor(filleted, 'N', [filleted])
+
+    expect(next.ranges.DC).toEqual(said.ranges.DC)
+    expect(next.ranges.LCF).toEqual(said.ranges.LCF)
+  })
+
+  /** And with no feature at all, they clear rather than standing over the list. */
+  it('clears them when nothing is selected', () => {
+    const mine = {
+      ...EMPTY_QUERY,
+      terms: { brand: ['Kennametal'] },
+      ranges: { DC: { max: 3 }, LCF: { min: 40 }, NOF: { min: 6 } },
+    }
+
+    const next = applySuggestions(mine, suggestionsFor(drilled, 'N', [drilled]), null, 'N', [])
+
+    expect(next.ranges.DC).toBeUndefined()
+    expect(next.ranges.LCF).toBeUndefined()
+    expect(next.ranges.NOF).toEqual({ min: 6 })
+    expect(next.terms.brand).toEqual(['Kennametal'])
   })
 
   /**
@@ -241,7 +279,6 @@ describe('a suggestion the last feature made is not somebody’s answer', () => 
 
     expect(next.terms.form).toEqual(suggestionsFor(filleted, 'N', [filleted]).terms.form)
     expect(next.terms.brand).toEqual(['Kennametal'])
-    expect(next.ranges.DC).toEqual({ max: 3 })
   })
 
   /** With no feature to say otherwise, a type somebody set is still theirs. */

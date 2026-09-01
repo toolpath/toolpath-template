@@ -419,6 +419,68 @@ Everything that lost its last caller went with it — `shared/way-up.ts`,
 `FluteIcon` — because a function whose only caller is its own test reads as
 load-bearing to the next person to open the file.
 
+### Length below the holder, and where it cannot go
+
+**The rule is measured from the top of the tool down** — the shop's clamping
+length is what stays in the holder, and what is left below it is the overall
+length less that. It is applied once, in `shared/clamping-length.ts`, before
+anything reads a tool, so the judge, the columns and the filters all see one
+number.
+
+**And it stops at the shank** (Paul, 2026-09-01: "below holder rule is not
+possible in this scenario… check to make sure the rule is being applied from
+the right direction everywhere and build a plan to ensure length below holder
+is not set in impossible areas"). A holder closes on the shank; it cannot close
+on a flute or on the relief under a necked tool. So the clamped length is capped
+at the shank's own length — `OAL − max(LCF, shoulder length)` — and the length
+below the holder can never come out shorter than the part of the tool that
+cannot be inside one. A ⌀20 necked bull nose with 51 mm of shank was being asked
+for 60 mm and reported 44 mm below the holder, which is a chuck closed on the
+neck.
+
+What is not yet done, in the order it is worth doing:
+
+1. **Say it on the tool.** `clampShortfall` returns how much shank the rule
+   wanted and the tool has not got. Nothing shows it yet; the length-below-holder
+   column is the place, beside the figure it explains.
+2. **Decide whether it is a refusal.** A tool that cannot be held the way a shop
+   holds tools is arguably not eligible for the feature at all, which is a rules
+   sheet question — a `must` on the clamping knob rather than a note — and
+   Paul's to answer.
+3. **Vendor `LSCN` first.** Every stated clamping length is exempt from all of
+   this, because it is the manufacturer's own answer for that tool. No vendor in
+   this catalog publishes one yet; when the scraper carries it, the cap should
+   apply to the rule of thumb only.
+4. **Stickout is the other direction.** `holder-choice.ts` grades a stack by how
+   far it must stand out to clear the part; that measurement starts at the
+   holder nose and is unaffected by this cap, but the two must agree about where
+   the shank begins. They both read `LCF` and `shoulder-length`; a tool whose
+   vendor states neither is the case to watch.
+
+### Where the drill sizes come from
+
+**The Engine's charts, copied** (Paul, 2026-09-01: "what are we using for tap,
+form, etc drill sizes? We should be using whatever Toolpath_UI and
+Toolpath_Engine do — there is a chart somewhere in the repos"). There is:
+`ToolpathPackages/ToolpathEngine/src/tap.jl`.
+
+- `CUTTING_TAP_DRILLS` — a chart, not a formula. Every cut-tap figure in
+  `shared/threads.ts` matched it already except two: M8×1.25 is 6.7 and
+  M10×1.25 is 8.7 there, against the 6.8 and 8.8 of a wall chart.
+- `FORMING_TAP_DRILLS` — the Balax Thredfloer 65 %-thread guide, with the Jarvis
+  formula `d − 0.44193 p` for the sizes Balax does not list. This catalog was
+  using `d − p/2`, which agrees on M6×1 and M8×1.25 and disagrees where it
+  matters: a #6-32 came out ⌀0.122 against the chart's ⌀0.125, which is exactly
+  the hole Paul's near-miss screenshot was about.
+
+`ToolpathUI`'s own `threads.ts` uses `basic diameter − pitch` and says in its
+own comment that it is a suggestion, so it is not a source for this.
+
+The figures are written into the table rather than computed, so every one of
+them can be read against a published chart. When the Engine's chart changes,
+this table is the thing to update — there is no import between the two
+repositories, and there should not be one for twenty numbers.
+
 ### Explicitly not now
 
 - **No accounts, no database.** Everything a person sets is theirs and local

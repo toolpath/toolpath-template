@@ -189,7 +189,9 @@ const DIMENSION_LABEL: Readonly<Record<string, string>> = {
   'shoulder-length': 'shoulder',
   'shoulder-diameter': 'shoulder ⌀',
   stickout: 'stickout',
-  SIG: 'point angle',
+  // A drill's included angle. "Tip angle" is what the table beside it calls
+  // the same number (Paul, 2026-09-01).
+  SIG: 'tip angle',
 }
 
 export const dimensionLabel = (code: string): string => DIMENSION_LABEL[code] ?? code

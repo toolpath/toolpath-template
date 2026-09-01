@@ -141,6 +141,7 @@ export {
   axisConstrains,
   collapse,
   colletsFor,
+  colletsForShank,
   compareHolders,
   holderFacet,
   holderCanTake,

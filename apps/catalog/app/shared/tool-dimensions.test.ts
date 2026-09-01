@@ -186,8 +186,8 @@ describe('labels that would cover each other', () => {
  * showing me a tip angle?"). On a ⌀1 drill the cone is three tenths of a
  * millimetre tall, so the number is the only way the drawing says 140°.
  */
-describe('the point angle', () => {
-  it('calls out a drill’s stated point angle, on the flank it is between', () => {
+describe('the tip angle', () => {
+  it('calls out a drill’s stated tip angle, on the flank it is between', () => {
     const drill = dimensionsFor(tool({ DC: 10, LCF: 40, OAL: 100, SIG: 140 }, 'drill'))
 
     expect(drill.angles).toEqual([
@@ -198,5 +198,10 @@ describe('the point angle', () => {
   it('says nothing about a tool with no point, or a drill that states no angle', () => {
     expect(dimensionsFor(tool({ DC: 10, LCF: 40, SIG: 140 })).angles).toEqual([])
     expect(dimensionsFor(tool({ DC: 10, LCF: 40 }, 'drill')).angles).toEqual([])
+  })
+
+  /** Called what the table beside it calls it (Paul, 2026-09-01). */
+  it('letters it “tip angle”, the way the measurement table does', () => {
+    expect(dimensionLabel('SIG')).toBe('tip angle')
   })
 })

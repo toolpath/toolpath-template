@@ -288,6 +288,22 @@ export const ColletIcon = ({ className }: IconProps) => (
   </Frame>
 )
 
+/** The shank: the plain cylinder a holder grips, with the flutes below it. */
+export const ShankIcon = ({ className }: IconProps) => (
+  <Frame className={className}>
+    <path d="M6 1.5v13h4v-13" />
+    <path d="M5.4 9.5h5.2" strokeWidth={0.85} strokeDasharray="1.4 1" opacity={0.8} />
+  </Frame>
+)
+
+/** The flute count, drawn end-on: teeth around a circle. */
+export const FlutesIcon = ({ className }: IconProps) => (
+  <Frame className={className}>
+    <circle cx="8" cy="8" r="5.5" />
+    <path d="M8 2.5V8M12.9 10.75 8 8M3.1 10.75 8 8" strokeWidth={0.85} />
+  </Frame>
+)
+
 /**
  * Flute length: the cutting part of the tool, with the length that is cutting
  * bracketed beside it.

@@ -49,8 +49,24 @@ export interface ClampingRule {
 const heldDiameter = (tool: CatalogTool): number | undefined =>
   tool.geometry.SFDM ?? tool.geometry.DC
 
-/** What this rule keeps in the holder for one tool, or null where it says nothing. */
-export const clampedLength = (tool: CatalogTool, rule: ClampingRule): number | null => {
+/**
+ * Where the shank starts, measured from the tip.
+ *
+ * **This is the length a holder has to grip in.** Above it is shank; below it
+ * is flute, and on a necked tool the reduced section under the shank as well.
+ * A chuck cannot close on either.
+ */
+const shankFrom = (tool: CatalogTool): number =>
+  Math.max(tool.geometry['shoulder-length'] ?? 0, tool.geometry.LCF ?? 0)
+
+/** How much shank there is to hold: the overall length less what is below it. */
+export const shankLength = (tool: CatalogTool): number | null => {
+  const { OAL } = tool.geometry
+  return OAL === undefined ? null : Math.round(Math.max(0, OAL - shankFrom(tool)) * 100) / 100
+}
+
+/** What this rule *asks* to keep in the holder, or null where it says nothing. */
+export const clampWanted = (tool: CatalogTool, rule: ClampingRule): number | null => {
   const stated = tool.geometry.LSCN
   if (rule.vendorSpec && stated !== undefined && stated > 0) {
     return Math.round(stated * 100) / 100
@@ -60,6 +76,45 @@ export const clampedLength = (tool: CatalogTool, rule: ClampingRule): number | n
     return null
   }
   return Math.round(shank * rule.perDiameter * 100) / 100
+}
+
+/**
+ * What this rule keeps in the holder — **never more shank than the tool has**.
+ *
+ * **The rule cannot reach past the shank** (Paul, 2026-09-01: "below holder
+ * rule is not possible in this scenario… build a plan to ensure length below
+ * holder is not set in impossible areas"). A ⌀20 necked bull nose 104 mm long
+ * with 53 mm of shoulder has 51 mm of shank; 3×D asks for 60. Taken at its
+ * word it left 44 mm below the holder — less than the 53 mm of neck and flute
+ * that cannot be inside one, which is a chuck closed on the relief. Capped, the
+ * answer is the honest one: everything below the shank is below the holder.
+ *
+ * {@link clampShortfall} says by how much the rule was refused, for the tools
+ * where the shop's own rule is not achievable.
+ */
+export const clampedLength = (tool: CatalogTool, rule: ClampingRule): number | null => {
+  const wanted = clampWanted(tool, rule)
+  const shank = shankLength(tool)
+  if (wanted === null) {
+    return null
+  }
+  return shank === null ? wanted : Math.round(Math.min(wanted, shank) * 100) / 100
+}
+
+/**
+ * How much shank the rule asks for and the tool does not have, in millimetres.
+ *
+ * Null where the rule fits — which is nearly every tool, and all of the plain
+ * ones. It is the number to say out loud when a shop's clamping rule cannot be
+ * met: "3×D wants 60 mm and this tool has 51 mm of shank".
+ */
+export const clampShortfall = (tool: CatalogTool, rule: ClampingRule): number | null => {
+  const wanted = clampWanted(tool, rule)
+  const shank = shankLength(tool)
+  if (wanted === null || shank === null || wanted <= shank) {
+    return null
+  }
+  return Math.round((wanted - shank) * 100) / 100
 }
 
 /**

@@ -1,7 +1,7 @@
 import type { CatalogTool } from '@toolpath/catalog-data'
 import { formatLength, type Unit } from '@toolpath/domain/units'
 import { classNames } from '@toolpath/domain/class-names'
-import { PlusIcon, TrashIcon } from '@phosphor-icons/react'
+import { PlusIcon } from '@phosphor-icons/react'
 import { ToolTypeIcon, formLabel } from './tool-icons'
 import { COLUMN_WIDTH } from './tool-table'
 import { formatGeometry } from 'shared/geometry'
@@ -58,9 +58,6 @@ export interface TapTableProps {
   readonly unit: Unit
   readonly chosen: string | null
   readonly onChoose: (tool: CatalogTool) => void
-  readonly inBom: (tool: CatalogTool) => boolean
-  readonly onBom: (tool: CatalogTool, at: DOMRect) => void
-  readonly onRemoveBom: (tool: CatalogTool) => void
   /** The columns the list above is showing, so the two line up. */
   readonly columns: ReadonlyArray<{ readonly code: string; readonly label: string }>
   /**
@@ -92,9 +89,6 @@ export const TapTable = ({
   unit,
   chosen,
   onChoose,
-  inBom,
-  onBom,
-  onRemoveBom,
   columns,
   short = false,
   unheld = false,
@@ -161,9 +155,6 @@ export const TapTable = ({
                   {NOT_THEIRS.has(column.code) ? '—' : (THEIR_WORDS[column.code] ?? column.label)}
                 </th>
               ))}
-              <th scope="col" className={classNames(COLUMN_WIDTH.bom, 'px-3 py-2 font-semibold')}>
-                <span className="sr-only">Order list</span>
-              </th>
             </tr>
           </thead>
           <tbody>
@@ -214,39 +205,6 @@ export const TapTable = ({
                     </td>
                   )
                 })}
-                <td className="px-3 py-2">
-                  <button
-                    type="button"
-                    aria-label={
-                      inBom(tap)
-                        ? `Remove ${tap.catalogNumber} from the order list`
-                        : `Add ${tap.catalogNumber} to the order list`
-                    }
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      if (inBom(tap)) {
-                        onRemoveBom(tap)
-                        return
-                      }
-                      onBom(tap, event.currentTarget.getBoundingClientRect())
-                    }}
-                    className={classNames(
-                      'text-2xs focus-visible:ring-info/60 rounded border px-1.5 py-1 whitespace-nowrap transition focus-visible:ring-1 focus-visible:outline-none',
-                      inBom(tap)
-                        ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300'
-                        : 'border-info/50 text-info hover:border-info/80 hover:bg-info/10 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-600 dark:hover:bg-transparent dark:hover:text-zinc-100',
-                    )}
-                  >
-                    {inBom(tap) ? (
-                      <span className="flex items-center gap-1">
-                        <TrashIcon aria-hidden="true" />
-                        On list
-                      </span>
-                    ) : (
-                      'Add to list'
-                    )}
-                  </button>
-                </td>
               </tr>
             ))}
           </tbody>

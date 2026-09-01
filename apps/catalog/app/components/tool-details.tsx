@@ -7,6 +7,7 @@ import { formatLength, type Unit } from '@toolpath/domain/units'
 import { formatGeometry } from 'shared/geometry'
 import { getFamily } from 'shared/catalog'
 import { ToolTypeIcon, formLabel } from './tool-icons'
+import { MeasurementIcon } from './feature-icons'
 import { AssemblyDrawing } from './assembly-drawing'
 import type { Holding } from './tool-table'
 
@@ -31,6 +32,14 @@ import type { Holding } from './tool-table'
 /** The numbers a tool is chosen on, in the order the question is asked. */
 const KEY_CODES = ['DC', 'RE', 'LCF', 'LBH', 'LD', 'OAL', 'SFDM', 'NOF'] as const
 
+/**
+ * What each number is called, and the code the drawing calls it by.
+ *
+ * **Both** (Paul, 2026-09-01: "show the abbreviation for each dimension shown
+ * in the 2d tool visualization alongside the name in the table"). The drawing
+ * is dimensioned in ISO 13399's codes and the table was named in English, so
+ * pairing a figure with its line meant knowing that "Shank" is `SFDM`.
+ */
 const KEY_LABELS: Record<(typeof KEY_CODES)[number], string> = {
   DC: 'Diameter',
   RE: 'Corner radius',
@@ -41,6 +50,9 @@ const KEY_LABELS: Record<(typeof KEY_CODES)[number], string> = {
   SFDM: 'Shank',
   NOF: 'Flutes',
 }
+
+/** The codes the drawing does not letter, so the table does not either. */
+const UNLETTERED: ReadonlySet<string> = new Set(['LD', 'NOF'])
 
 const SELECT =
   'focus-visible:ring-info/60 w-full truncate rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100 focus-visible:ring-1 focus-visible:outline-none'
@@ -174,12 +186,23 @@ export const ToolDetails = ({ tool, unit, holding, onSave, saved, onRemove }: To
             aria-label="Holder"
             className={SELECT}
             value={chosen.holderGuid ?? ''}
-            onChange={(event) =>
+            /*
+              **A collet chosen first survives the holder** (Paul, 2026-09-01):
+              the collet can be picked before there is a holder, and the holders
+              that take it are listed first — so picking one of them and losing
+              the collet would undo the step that got you there. It is dropped
+              only where the new holder cannot take it.
+            */
+            onChange={(event) => {
+              const holderGuid = event.target.value === '' ? null : event.target.value
+              const kept = holding
+                .colletsFor(tool, holderGuid)
+                .some((each) => each.guid === chosen.colletGuid)
               holding.onChoose(tool, {
-                holderGuid: event.target.value === '' ? null : event.target.value,
-                colletGuid: null,
+                holderGuid,
+                colletGuid: kept ? chosen.colletGuid : null,
               })
-            }
+            }}
           >
             <option value="">No holder</option>
             {holders.map((each) => (
@@ -303,7 +326,15 @@ export const ToolDetails = ({ tool, unit, holding, onSave, saved, onRemove }: To
                   : 'vendor-stated'
               }
             >
-              <dt className="text-2xs text-zinc-500">{KEY_LABELS[code]}</dt>
+              <dt className="text-2xs flex min-w-0 items-center gap-1.5 text-zinc-500">
+                <span className="shrink-0 text-zinc-600">
+                  <MeasurementIcon measurement={code} />
+                </span>
+                <span className="truncate">{KEY_LABELS[code]}</span>
+                {UNLETTERED.has(code) ? null : (
+                  <span className="shrink-0 font-mono text-zinc-600">{code}</span>
+                )}
+              </dt>
               <dd className="font-mono text-sm text-zinc-100">
                 {formatGeometry(code, value, unit)}
                 {provenance && provenance !== 'vendor-stated' ? (

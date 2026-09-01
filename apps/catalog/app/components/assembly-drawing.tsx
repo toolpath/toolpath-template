@@ -86,18 +86,6 @@ const SHEET = {
   connection: '#78818d',
 } as const
 
-const FILL: Record<OutlinePart, string> = {
-  tip: 'fill-yellow-100/70',
-  flutes: 'fill-yellow-100/70',
-  // The reduced section, a shade apart from the shank so the relief reads.
-  neck: 'fill-zinc-400/50',
-  shank: 'fill-zinc-300/40',
-  collet: 'fill-zinc-500',
-  nose: 'fill-zinc-500',
-  body: 'fill-zinc-500',
-  flange: 'fill-zinc-700',
-}
-
 /** The spindle connection: the flange, and the cone nobody states that leads up to it. */
 const isConnection = (segment: OutlineSegment): boolean =>
   segment.part === 'flange' || (segment.part === 'body' && segment.provenance === 'assumed')
@@ -301,7 +289,7 @@ const clipped = (
 }
 
 const ASSUMED: Partial<Record<OutlinePart, string>> = {
-  tip: 'point angle',
+  tip: 'tip angle',
   nose: 'nose length',
   body: 'body cone',
   flange: 'flange thickness',
@@ -622,11 +610,16 @@ export const AssemblyDrawing = ({
           </g>
         ) : null}
 
-        {/* Each segment mirrored about the axis: a body of revolution in elevation. */}
+        {/*
+          Each segment mirrored about the axis: a body of revolution in
+          elevation. The **fills** are per section, because a section that
+          fouls the part is painted red on its own; the **outline** is one
+          stroke around the whole silhouette, so a join between two sections of
+          the same radius is not drawn as an edge.
+        */}
         {outline.segments.map((segment, index) => {
           const rightSide = segment.points.map((each) => `${x(each.r)},${y(each.z)}`)
           const leftSide = [...segment.points].reverse().map((each) => `${x(-each.r)},${y(each.z)}`)
-          const shade = isConnection(segment) ? FILL.flange : FILL[segment.part]
           return (
             <polygon
               key={`${segment.part}-${String(index)}`}
@@ -644,13 +637,69 @@ export const AssemblyDrawing = ({
                           : isConnection(segment)
                             ? SHEET.connection
                             : SHEET.holder,
-                    stroke: SHEET.ink,
+                    stroke: 'none',
                   })}
-              className={classNames(hit.has(segment.part) ? 'fill-danger/70 stroke-danger' : '')}
-              strokeWidth={fontSize * 0.09}
+              className={classNames(hit.has(segment.part) ? 'fill-danger/70' : '')}
             />
           )
         })}
+
+        {/*
+          **Where two sections meet at the same radius, the line is a light
+          dashed one** (Paul, 2026-09-01: "don't show a solid line across the
+          radius — use a dashed lighter line. For bull and ball nose end mills,
+          and at the tip for drills"). A bull nose's corner radius runs into the
+          flutes at exactly the flute diameter, and a drill's point into its
+          body: there is no edge there, and a solid chord across the tool read
+          as one. Where the radius does step — a neck under a shank — the line
+          stays what it is: an edge.
+        */}
+        {outline.segments.slice(0, -1).map((segment, index) => {
+          const next = outline.segments[index + 1]
+          if (next === undefined) {
+            return null
+          }
+          const below = Math.max(...segment.points.map((each) => each.r))
+          const above = Math.max(...next.points.map((each) => each.r))
+          const top = Math.max(...segment.points.map((each) => each.z))
+          const radius = Math.min(below, above)
+          const stepped = Math.abs(below - above) > 0.01
+          return (
+            <line
+              key={`join-${segment.part}-${String(index)}`}
+              data-join={segment.part}
+              x1={x(-radius)}
+              y1={y(top)}
+              x2={x(radius)}
+              y2={y(top)}
+              stroke={SHEET.ink}
+              strokeOpacity={stepped ? 1 : 0.35}
+              strokeWidth={fontSize * (stepped ? 0.09 : 0.06)}
+              {...(stepped
+                ? {}
+                : {
+                    strokeDasharray: `${(fontSize * 0.5).toFixed(2)} ${(fontSize * 0.4).toFixed(2)}`,
+                  })}
+            />
+          )
+        })}
+
+        {/* The silhouette, in one stroke: up the right side and down the left. */}
+        <path
+          data-silhouette
+          d={`M${outline.segments
+            .flatMap((segment) => segment.points)
+            .map((each) => `${x(each.r).toFixed(2)},${y(each.z).toFixed(2)}`)
+            .join(' L')} L${[...outline.segments]
+            .reverse()
+            .flatMap((segment) => [...segment.points].reverse())
+            .map((each) => `${x(-each.r).toFixed(2)},${y(each.z).toFixed(2)}`)
+            .join(' L')} Z`}
+          fill="none"
+          stroke={SHEET.ink}
+          strokeWidth={fontSize * 0.09}
+          strokeLinejoin="round"
+        />
 
         {/*
           The two clearances, each dimensioned at its own tightest point, and

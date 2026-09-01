@@ -526,19 +526,30 @@ const ChipPicker = ({
             Any
           </Chip>
         ) : null}
-        {front.map((option) => (
-          <Chip
-            key={option.value}
-            pressed={chosen.includes(option.value)}
-            // The count is over what is on screen: a zero says this value is
-            // incompatible with the rest of the selection, which is worth
-            // knowing before pressing it.
-            title={option.title ?? `${String(counted.get(option.value) ?? 0)} of the tools listed`}
-            onClick={() => onToggle(option.value)}
-          >
-            {option.label}
-          </Chip>
-        ))}
+        {front.map((option) => {
+          const many = counted.get(option.value) ?? 0
+          return (
+            <Chip
+              key={option.value}
+              pressed={chosen.includes(option.value)}
+              // The count is over what is on screen: a zero says this value is
+              // incompatible with the rest of the selection, which is worth
+              // knowing before pressing it — and it is drawn faint rather than
+              // taken away, because pressing it is how the question widens
+              // (Paul, 2026-09-01).
+              className={many === 0 && !chosen.includes(option.value) ? 'opacity-40' : ''}
+              title={
+                option.title ??
+                (many === 0
+                  ? `${option.label} — none in this list`
+                  : `${String(many)} of the tools listed`)
+              }
+              onClick={() => onToggle(option.value)}
+            >
+              {option.label}
+            </Chip>
+          )
+        })}
         {rest > 0 ? (
           <Chip title={`${String(rest)} more`} onClick={() => setAll(true)}>
             <DotsThreeIcon weight="bold" />
@@ -851,29 +862,26 @@ export const FilterPanel = ({
   }
 
   /**
-   * **What is left to choose, given everything already chosen** (Paul,
-   * 2026-09-01): with a vendor set, only that vendor's families are offered;
-   * with a type set, only the families that hold it.
+   * **Every value, always — the count says what is left** (Paul, 2026-09-01:
+   * "I can't get filters back after removing them! … All of the filter dialogs
+   * should ALWAYS show everything that is available so I could activate them
+   * (the additional options show as disabled to begin with but can be clicked
+   * to activate them)").
    *
-   * The counts are measured against every filter but this axis's own, so an
-   * axis never narrows itself — a chosen vendor does not hide the others, or
-   * a second one could never be added. A value already chosen stays whatever
-   * the count says, because taking somebody's own answer off the panel is
-   * worse than showing them a zero.
+   * They used to be dropped at a count of zero, which is fine until the count
+   * reaches zero *because of what you just chose*: with ball end mills the only
+   * type left, the bull noses were not on the panel to put back, and the way
+   * out was the browser's back button.
+   *
+   * So a zero is drawn rather than removed — greyed, and still pressable,
+   * because pressing it is how somebody widens the question. The counts
+   * themselves are measured against every filter but this axis's own, so an
+   * axis never narrows itself.
    */
   const narrowed = (
-    filter: QuickFilter,
+    _filter: QuickFilter,
     options: ReadonlyArray<TileOption & { title?: string }>,
-  ): ReadonlyArray<TileOption & { title?: string }> => {
-    const counted = counts(filter.key)
-    if (counted.size === 0) {
-      return options
-    }
-    const chosen = chosenFor(filter)
-    return options.filter(
-      (each) => (counted.get(each.value) ?? 0) > 0 || chosen.includes(each.value),
-    )
-  }
+  ): ReadonlyArray<TileOption & { title?: string }> => options
 
   const optionsFor = (filter: QuickFilter): ReadonlyArray<TileOption & { title?: string }> => {
     if (filter.values === 'holders') {

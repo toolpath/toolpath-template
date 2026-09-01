@@ -129,19 +129,40 @@ describe('the hole each way of making a thread starts from', () => {
   /** The chart figure the spec carries: `d − p` on a metric thread. */
   it('drills the tap drill for a cut tap', () => {
     expect(drillFor(m6, 'cut tap')).toBe(5)
-    expect(drillFor(m8, 'cut tap')).toBe(6.8)
+    // The Engine's chart says 6.7 for an M8×1.25, not the 6.8 of the wall chart.
+    expect(drillFor(m8, 'cut tap')).toBe(6.7)
   })
 
   /**
    * A roll tap pushes metal into the crest instead of cutting it away, so it
-   * needs a **bigger** hole — `d − p/2`, which is what the published form-tap
-   * charts are built on. Starting one at a cut-tap size snaps the tap, so this
-   * is the one place the difference really matters (Paul, 2026-08-31).
+   * needs a **bigger** hole. Starting one at a cut-tap size snaps the tap, so
+   * this is the one place the difference really matters (Paul, 2026-08-31).
+   *
+   * **The figures are the Engine's `FORMING_TAP_DRILLS`** (Paul, 2026-09-01:
+   * "we should be using whatever Toolpath_UI and Toolpath_Engine do"). The
+   * `d − p/2` rule this file used agreed on M6×1 and M8×1.25 and was wrong
+   * where it mattered: a #6-32 came out ⌀0.122 against the chart's ⌀0.125.
    */
-  it('drills bigger for a form tap, to within a tenth of the chart', () => {
+  it('drills the Engine’s form-tap chart, not a rule of thumb', () => {
     expect(drillFor(m6, 'form tap')).toBe(5.5)
     expect(drillFor(m8, 'form tap')).toBe(7.4)
     expect(drillFor(m10, 'form tap')).toBe(9.3)
+
+    const six32 = threadNamed('#6-32 UNC')!
+    expect(drillFor(six32, 'form tap')).toBeCloseTo(3.175, 3)
+    expect(six32.major - six32.pitch / 2).toBeCloseTo(3.108, 3)
+  })
+
+  /**
+   * Every row carries both, and both are chart figures rather than arithmetic:
+   * a form drill is always the bigger of the two, and never past the nominal
+   * size.
+   */
+  it('holds a cut and a form drill for every thread, in that order', () => {
+    for (const spec of THREADS) {
+      expect(spec.form, spec.name).toBeGreaterThan(spec.tapDrill)
+      expect(spec.form, spec.name).toBeLessThan(spec.major)
+    }
   })
 
   /** A thread mill cuts the whole form from a hole already at the inside size. */

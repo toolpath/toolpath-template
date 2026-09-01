@@ -221,6 +221,35 @@ export const colletsFor = (
 }
 
 /**
+ * Every collet in the crib that closes on this tool's shank, closest to
+ * on-size first — **whatever series it belongs to**.
+ *
+ * **For choosing a collet before a holder** (Paul, 2026-09-01: "I should be
+ * able to select a collet without selecting a holder… every collet that grips
+ * the tool's shank, which yes, then all holders are shown but we show the ones
+ * that work with that collet at the top"). {@link colletsFor} answers the
+ * other order — holder first, then the collets that fit it — and needs a
+ * holder to have a series to narrow by.
+ */
+export const colletsForShank = (
+  tool: CatalogTool,
+  collets: ReadonlyArray<Collet>,
+): Array<Collet> => {
+  const shank = tool.geometry.SFDM
+  if (shank === undefined) {
+    return []
+  }
+  return collets
+    .filter((collet) => gripsShank(collet, shank))
+    .sort(
+      (a, b) =>
+        collapse(a, shank) - collapse(b, shank) ||
+        a.series.localeCompare(b.series, 'en', { numeric: true }) ||
+        a.catalogNumber.localeCompare(b.catalogNumber, 'en', { numeric: true }),
+    )
+}
+
+/**
  * The distinct values of an axis across a holder list, each with how many
  * holders constraining that axis to that value alone would leave, every
  * other axis as it is.

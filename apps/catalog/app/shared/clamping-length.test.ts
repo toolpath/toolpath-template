@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { CatalogTool } from '@toolpath/catalog-data'
-import { clampedLength, lengthBelowHolder, withClampingLength } from './clamping-length'
+import {
+  clampShortfall,
+  clampWanted,
+  clampedLength,
+  lengthBelowHolder,
+  shankLength,
+  withClampingLength,
+} from './clamping-length'
 
 const tool = (geometry: Record<string, number>): CatalogTool =>
   ({
@@ -58,9 +65,37 @@ describe('what that leaves below the holder', () => {
     expect(lengthBelowHolder(stated, RULE)).toBe(21)
   })
 
-  /** A tool with nothing to spare is pushed all the way in, not given a negative. */
-  it('never leaves less than nothing', () => {
-    expect(lengthBelowHolder(tool({ DC: 6, LCF: 13, OAL: 15 }), RULE)).toBe(0)
+  /**
+   * **The rule cannot reach past the shank** (Paul, 2026-09-01: "below holder
+   * rule is not possible in this scenario… ensure length below holder is not
+   * set in impossible areas").
+   *
+   * A ⌀20 necked bull nose, 104 mm long, whose reduced section runs 53 mm up
+   * from the tip has 51 mm of shank. 3×D asks for 60 — taken at its word it
+   * put 44 mm below the holder, which is less than the neck and the flutes,
+   * and means a chuck closed on the relief. What it can hold is the shank, and
+   * everything below the shank is below the holder.
+   */
+  it('holds no more shank than the tool has, and says how much it wanted', () => {
+    const necked = tool({ DC: 20, SFDM: 20, LCF: 38, 'shoulder-length': 53, OAL: 104 })
+
+    expect(shankLength(necked)).toBe(51)
+    expect(clampWanted(necked, RULE)).toBe(60)
+    expect(clampedLength(necked, RULE)).toBe(51)
+    expect(lengthBelowHolder(necked, RULE)).toBe(53)
+    expect(clampShortfall(necked, RULE)).toBe(9)
+  })
+
+  /** Which is the same rule on a plain tool: the flutes are never in the holder. */
+  it('keeps the flutes out of the holder', () => {
+    expect(lengthBelowHolder(tool({ DC: 6, LCF: 13, OAL: 15 }), RULE)).toBe(13)
+    expect(clampShortfall(tool({ DC: 6, LCF: 13, OAL: 15 }), RULE)).toBe(16)
+  })
+
+  /** Where the rule fits, nothing is short and nothing changes. */
+  it('says nothing is short where the shank is long enough', () => {
+    expect(clampShortfall(sixMil, RULE)).toBeNull()
+    expect(clampShortfall(stated, RULE)).toBeNull()
   })
 
   it('leaves the catalog’s own numbers alone where the rule says nothing', () => {

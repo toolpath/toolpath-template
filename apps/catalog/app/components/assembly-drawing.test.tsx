@@ -115,7 +115,7 @@ describe('the assembly, drawn', () => {
     const tip = container.querySelector('[data-part="tip"]')
     expect(tip?.getAttribute('stroke-dasharray')).toBeNull()
     expect(tip?.getAttribute('data-provenance')).toBe('assumed')
-    expect(screen.getByText(/point angle assumed/)).toBeInTheDocument()
+    expect(screen.getByText(/tip angle assumed/)).toBeInTheDocument()
   })
 
   /**

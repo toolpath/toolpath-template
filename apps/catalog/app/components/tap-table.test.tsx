@@ -32,6 +32,7 @@ const tap: CatalogTool = {
 const spec: ThreadSpec = {
   name: '#4-40 UNC',
   family: 'unified',
+  form: 2.527,
   major: 2.845,
   pitch: 0.635,
   tapDrill: 2.26,
@@ -56,9 +57,6 @@ const show = (props: Partial<Parameters<typeof TapTable>[0]> = {}) =>
         unit="mm"
         chosen={null}
         onChoose={() => {}}
-        inBom={() => false}
-        onBom={() => {}}
-        onRemoveBom={() => {}}
         columns={COLUMNS}
         {...props}
       />
@@ -92,5 +90,22 @@ describe('TapTable', () => {
     show({ short: true, shortfall: () => ({ code: 'LCF', by: 3.5 }) })
 
     expect(screen.getByText(/3\.5/)).toBeInTheDocument()
+  })
+})
+
+/**
+ * **The keeping happens in the panel** (Paul, 2026-09-01: "add to list is still
+ * shown in the tap table — it should open drill and tap tabs in the right hand
+ * panel when working with a threaded feature"). Every other list lost its own
+ * keep button on 2026-09-01; this one had been missed.
+ */
+describe('where a tap is kept', () => {
+  it('offers no keep button of its own', () => {
+    show()
+
+    expect(
+      screen.queryByRole('button', { name: /Add .* to the order list/ }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Add to list')).not.toBeInTheDocument()
   })
 })

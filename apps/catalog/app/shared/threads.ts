@@ -1,6 +1,22 @@
 /**
  * Thread specs, and reading one off a hole.
  *
+ * **The drill sizes are the Engine's** (Paul, 2026-09-01: "what are we using
+ * for tap, form, etc drill sizes? We should be using whatever Toolpath_UI and
+ * Toolpath_Engine do"). They are copied from
+ * `ToolpathPackages/ToolpathEngine/src/tap.jl` — `CUTTING_TAP_DRILLS` for a cut
+ * tap and `FORMING_TAP_DRILLS` for a form tap, the latter being the Balax
+ * Thredfloer 65 %-thread guide with the Jarvis formula `d − 0.44193 p` for the
+ * sizes Balax does not list. They are **not** derived here: the form-tap rule
+ * this file used before, `d − p/2`, agreed with the chart on M6×1 and M8×1.25
+ * and disagreed on the ones that mattered — a #6-32 came out ⌀0.122 against the
+ * chart's ⌀0.125, and M12×1.75 ⌀11.1 against ⌀11.2. Two cut-tap figures moved
+ * with them: M8×1.25 is 6.7 and M10×1.25 is 8.7 in the Engine's chart.
+ *
+ * A row the Engine's chart does not hold carries the Jarvis figure, computed
+ * once and written down here rather than at run time, so every number in this
+ * table can be read against a published one.
+ *
  * A threaded hole is modelled as a hole, and which thread it is for is not in
  * the model — so the application guesses from the diameter and lets somebody
  * say otherwise (Paul, 2026-08-31). **Usually a hole is modelled at the tap
@@ -23,8 +39,20 @@ export interface ThreadSpec {
   readonly major: number
   /** Pitch, in millimetres — for a unified thread, 25.4 / threads per inch. */
   readonly pitch: number
-  /** The drill a shop reaches for, in millimetres: roughly 75 % of thread. */
+  /**
+   * The drill a **cut** tap starts from, in millimetres — roughly 75 % of
+   * thread, and the figure the Engine's `CUTTING_TAP_DRILLS` chart holds.
+   */
   readonly tapDrill: number
+  /**
+   * The drill a **form** tap starts from, in millimetres.
+   *
+   * A roll tap displaces metal into the crest instead of cutting it away, so
+   * it starts from a bigger hole and has a chart of its own — the Engine's
+   * `FORMING_TAP_DRILLS`, which is the Balax Thredfloer 65 %-thread guide with
+   * the Jarvis formula (`d − 0.44193 p`) where Balax lists nothing.
+   */
+  readonly form: number
 }
 
 /** Basic minor diameter: ISO 68-1's `d − 1.0825 p`, and the same for unified. */
@@ -38,33 +66,34 @@ const inch = (value: number) => Math.round(value * 25.4 * 1000) / 1000
  * does not say is coarse.
  */
 export const THREADS: ReadonlyArray<ThreadSpec> = [
-  { name: 'M2×0.4', family: 'metric', major: 2, pitch: 0.4, tapDrill: 1.6 },
-  { name: 'M2.5×0.45', family: 'metric', major: 2.5, pitch: 0.45, tapDrill: 2.05 },
-  { name: 'M3×0.5', family: 'metric', major: 3, pitch: 0.5, tapDrill: 2.5 },
-  { name: 'M4×0.7', family: 'metric', major: 4, pitch: 0.7, tapDrill: 3.3 },
-  { name: 'M5×0.8', family: 'metric', major: 5, pitch: 0.8, tapDrill: 4.2 },
-  { name: 'M5×0.5', family: 'metric', major: 5, pitch: 0.5, tapDrill: 4.5 },
-  { name: 'M6×1', family: 'metric', major: 6, pitch: 1, tapDrill: 5 },
-  { name: 'M6×0.75', family: 'metric', major: 6, pitch: 0.75, tapDrill: 5.25 },
-  { name: 'M8×1.25', family: 'metric', major: 8, pitch: 1.25, tapDrill: 6.8 },
-  { name: 'M8×1', family: 'metric', major: 8, pitch: 1, tapDrill: 7 },
-  { name: 'M10×1.5', family: 'metric', major: 10, pitch: 1.5, tapDrill: 8.5 },
-  { name: 'M10×1.25', family: 'metric', major: 10, pitch: 1.25, tapDrill: 8.8 },
-  { name: 'M10×1', family: 'metric', major: 10, pitch: 1, tapDrill: 9 },
-  { name: 'M12×1.75', family: 'metric', major: 12, pitch: 1.75, tapDrill: 10.2 },
-  { name: 'M12×1.5', family: 'metric', major: 12, pitch: 1.5, tapDrill: 10.5 },
-  { name: 'M12×1.25', family: 'metric', major: 12, pitch: 1.25, tapDrill: 10.8 },
-  { name: 'M14×2', family: 'metric', major: 14, pitch: 2, tapDrill: 12 },
-  { name: 'M16×2', family: 'metric', major: 16, pitch: 2, tapDrill: 14 },
-  { name: 'M16×1.5', family: 'metric', major: 16, pitch: 1.5, tapDrill: 14.5 },
-  { name: 'M20×2.5', family: 'metric', major: 20, pitch: 2.5, tapDrill: 17.5 },
-  { name: 'M20×1.5', family: 'metric', major: 20, pitch: 1.5, tapDrill: 18.5 },
+  { name: 'M2×0.4', family: 'metric', major: 2, pitch: 0.4, tapDrill: 1.6, form: 1.85 },
+  { name: 'M2.5×0.45', family: 'metric', major: 2.5, pitch: 0.45, tapDrill: 2.05, form: 2.3 },
+  { name: 'M3×0.5', family: 'metric', major: 3, pitch: 0.5, tapDrill: 2.5, form: 2.8 },
+  { name: 'M4×0.7', family: 'metric', major: 4, pitch: 0.7, tapDrill: 3.3, form: 3.7 },
+  { name: 'M5×0.8', family: 'metric', major: 5, pitch: 0.8, tapDrill: 4.2, form: 4.6 },
+  { name: 'M5×0.5', family: 'metric', major: 5, pitch: 0.5, tapDrill: 4.5, form: 4.779 },
+  { name: 'M6×1', family: 'metric', major: 6, pitch: 1, tapDrill: 5, form: 5.5 },
+  { name: 'M6×0.75', family: 'metric', major: 6, pitch: 0.75, tapDrill: 5.25, form: 5.669 },
+  { name: 'M8×1.25', family: 'metric', major: 8, pitch: 1.25, tapDrill: 6.7, form: 7.4 },
+  { name: 'M8×1', family: 'metric', major: 8, pitch: 1, tapDrill: 7, form: 7.5 },
+  { name: 'M10×1.5', family: 'metric', major: 10, pitch: 1.5, tapDrill: 8.5, form: 9.3 },
+  { name: 'M10×1.25', family: 'metric', major: 10, pitch: 1.25, tapDrill: 8.7, form: 9.4 },
+  { name: 'M10×1', family: 'metric', major: 10, pitch: 1, tapDrill: 9, form: 9.5 },
+  { name: 'M12×1.75', family: 'metric', major: 12, pitch: 1.75, tapDrill: 10.2, form: 11.2 },
+  { name: 'M12×1.5', family: 'metric', major: 12, pitch: 1.5, tapDrill: 10.5, form: 11.337 },
+  { name: 'M12×1.25', family: 'metric', major: 12, pitch: 1.25, tapDrill: 10.8, form: 11.5 },
+  { name: 'M14×2', family: 'metric', major: 14, pitch: 2, tapDrill: 12, form: 13.0 },
+  { name: 'M16×2', family: 'metric', major: 16, pitch: 2, tapDrill: 14, form: 15.0 },
+  { name: 'M16×1.5', family: 'metric', major: 16, pitch: 1.5, tapDrill: 14.5, form: 15.25 },
+  { name: 'M20×2.5', family: 'metric', major: 20, pitch: 2.5, tapDrill: 17.5, form: 18.895 },
+  { name: 'M20×1.5', family: 'metric', major: 20, pitch: 1.5, tapDrill: 18.5, form: 19.337 },
   {
     name: '#4-40 UNC',
     family: 'unified',
     major: inch(0.112),
     pitch: 25.4 / 40,
     tapDrill: inch(0.089),
+    form: inch(0.0995),
   },
   {
     name: '#6-32 UNC',
@@ -72,6 +101,7 @@ export const THREADS: ReadonlyArray<ThreadSpec> = [
     major: inch(0.138),
     pitch: 25.4 / 32,
     tapDrill: inch(0.1065),
+    form: inch(0.125),
   },
   {
     name: '#8-32 UNC',
@@ -79,6 +109,7 @@ export const THREADS: ReadonlyArray<ThreadSpec> = [
     major: inch(0.164),
     pitch: 25.4 / 32,
     tapDrill: inch(0.136),
+    form: inch(0.1495),
   },
   {
     name: '#10-24 UNC',
@@ -86,6 +117,7 @@ export const THREADS: ReadonlyArray<ThreadSpec> = [
     major: inch(0.19),
     pitch: 25.4 / 24,
     tapDrill: inch(0.1495),
+    form: inch(0.1719),
   },
   {
     name: '#10-32 UNF',
@@ -93,6 +125,7 @@ export const THREADS: ReadonlyArray<ThreadSpec> = [
     major: inch(0.19),
     pitch: 25.4 / 32,
     tapDrill: inch(0.159),
+    form: inch(0.177),
   },
   {
     name: '1/4-20 UNC',
@@ -100,6 +133,7 @@ export const THREADS: ReadonlyArray<ThreadSpec> = [
     major: inch(0.25),
     pitch: 25.4 / 20,
     tapDrill: inch(0.201),
+    form: inch(0.2244),
   },
   {
     name: '1/4-28 UNF',
@@ -107,6 +141,7 @@ export const THREADS: ReadonlyArray<ThreadSpec> = [
     major: inch(0.25),
     pitch: 25.4 / 28,
     tapDrill: inch(0.213),
+    form: inch(0.234),
   },
   {
     name: '5/16-18 UNC',
@@ -114,6 +149,7 @@ export const THREADS: ReadonlyArray<ThreadSpec> = [
     major: inch(0.3125),
     pitch: 25.4 / 18,
     tapDrill: inch(0.257),
+    form: inch(0.2874),
   },
   {
     name: '5/16-24 UNF',
@@ -121,6 +157,7 @@ export const THREADS: ReadonlyArray<ThreadSpec> = [
     major: inch(0.3125),
     pitch: 25.4 / 24,
     tapDrill: inch(0.272),
+    form: inch(0.2913),
   },
   {
     name: '3/8-16 UNC',
@@ -128,6 +165,7 @@ export const THREADS: ReadonlyArray<ThreadSpec> = [
     major: inch(0.375),
     pitch: 25.4 / 16,
     tapDrill: inch(0.3125),
+    form: inch(0.348),
   },
   {
     name: '3/8-24 UNF',
@@ -135,6 +173,7 @@ export const THREADS: ReadonlyArray<ThreadSpec> = [
     major: inch(0.375),
     pitch: 25.4 / 24,
     tapDrill: inch(0.332),
+    form: inch(0.35433),
   },
   {
     name: '7/16-14 UNC',
@@ -142,6 +181,7 @@ export const THREADS: ReadonlyArray<ThreadSpec> = [
     major: inch(0.4375),
     pitch: 25.4 / 14,
     tapDrill: inch(0.368),
+    form: inch(0.404),
   },
   {
     name: '1/2-13 UNC',
@@ -149,6 +189,7 @@ export const THREADS: ReadonlyArray<ThreadSpec> = [
     major: inch(0.5),
     pitch: 25.4 / 13,
     tapDrill: inch(0.4219),
+    form: inch(0.4646),
   },
   {
     name: '1/2-20 UNF',
@@ -156,6 +197,7 @@ export const THREADS: ReadonlyArray<ThreadSpec> = [
     major: inch(0.5),
     pitch: 25.4 / 20,
     tapDrill: inch(0.4531),
+    form: inch(0.476),
   },
   {
     name: '5/8-11 UNC',
@@ -163,6 +205,7 @@ export const THREADS: ReadonlyArray<ThreadSpec> = [
     major: inch(0.625),
     pitch: 25.4 / 11,
     tapDrill: inch(0.5312),
+    form: inch(0.5781),
   },
   {
     name: '3/4-10 UNC',
@@ -170,6 +213,7 @@ export const THREADS: ReadonlyArray<ThreadSpec> = [
     major: inch(0.75),
     pitch: 25.4 / 10,
     tapDrill: inch(0.6562),
+    form: inch(0.7031),
   },
 ]
 
@@ -292,18 +336,15 @@ export type HoleMode = 'plain' | 'cut tap' | 'form tap' | 'thread mill'
  */
 export const HOLE_MODES: ReadonlyArray<HoleMode> = ['plain', 'cut tap', 'form tap']
 
-/** Rounded to a tenth, which is how a tap-drill chart is written. */
-const tenth = (value: number) => Math.round(value * 10) / 10
-
 /**
  * The hole to drill before the thread is made, in millimetres.
  *
- * - **cut tap** — the chart figure the spec carries, `d − p` on a metric
- *   thread: the flutes cut the crest away, so the hole starts near the minor.
- * - **form tap** — `d − p/2`. A roll tap pushes metal up into the crest
- *   instead of cutting it, so it needs a bigger hole and a chart of its own;
- *   this is the rule those charts are built on (M6×1 → 5.5, M8×1.25 → 7.4,
- *   M10×1.5 → 9.3, all within a tenth of the published figures).
+ * Both are chart figures the spec carries, copied from the Engine:
+ *
+ * - **cut tap** — `CUTTING_TAP_DRILLS`. The flutes cut the crest away, so the
+ *   hole starts near the minor diameter.
+ * - **form tap** — `FORMING_TAP_DRILLS`. A roll tap pushes metal up into the
+ *   crest instead of cutting it, so it starts from a bigger hole.
  * - **thread mill** — the basic minor diameter. The mill cuts the whole form
  *   from a hole that is already the thread's inside size.
  */
@@ -314,7 +355,7 @@ export const drillFor = (spec: ThreadSpec, mode: HoleMode): number | null => {
     case 'cut tap':
       return spec.tapDrill
     case 'form tap':
-      return tenth(spec.major - spec.pitch / 2)
+      return spec.form
     case 'thread mill':
       return minorOf(spec)
   }

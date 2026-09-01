@@ -3,6 +3,7 @@ import type { PartFeature } from '@toolpath/part-contracts'
 import type { CatalogTool } from '@toolpath/catalog-data'
 import { standingOf } from './judge'
 import { fittingTools } from './tool-fit'
+import { holeAt } from './hole-mode'
 
 /**
  * The matching, as it behaves — one case per kind of feature.
@@ -232,6 +233,61 @@ describe('a hole', () => {
     // The widest end mill the bore admits leads: it is the exact match now
     // that the 5 %-under rule has gone (Paul, 2026-09-01).
     expect(listFor(flatBottomed)[0]).toBe('FLAT-10 fits')
+  })
+})
+
+/**
+ * **A threaded hole is drilled at the thread's own tap drill** (Paul,
+ * 2026-09-01: "lead with the exact tap-drill size and tell me how close my
+ * diameters are to it"). The hole is stood in at that bore before anything is
+ * judged, so the drill that *is* that size leads and the rest are ranked by how
+ * far off they are — and the drill limit the kernel states for the hole as
+ * drawn moves with it, or every drill between the two came back "too large".
+ */
+describe('the drills for a tapped hole', () => {
+  const drawn = feature('ThroughHole', {
+    kind: 'Hole',
+    // As modelled: the tap drill for an M8×1.25, which the Engine puts at 6.7.
+    diameter: 6.7,
+    maxDrillDiameter: 6.7,
+    cd: { ignore: { min: 6.7, max: 6.7 } },
+  })
+  const crib = [
+    tool('DRILL-6.7', 'drill', { DC: 6.7, LCF: 40, LD: 5, SIG: 140 }),
+    tool('DRILL-7.4', 'drill', { DC: 7.4, LCF: 40, LD: 5, SIG: 140 }),
+    tool('DRILL-7.2', 'drill', { DC: 7.2, LCF: 40, LD: 5, SIG: 140 }),
+  ]
+
+  it('leads with the exact tap drill for a cut tap', () => {
+    const { fitting } = fittingTools([drawn], [drawn], crib)
+
+    expect(fitting[0]?.tool.catalogNumber).toBe('DRILL-6.7')
+  })
+
+  /**
+   * And with the form tap's own bore once that is the choice: ⌀7.4 for an
+   * M8×1.25 out of the Engine's forming chart.
+   *
+   * **The drill limit moves with it.** `maxDrillDiameter` is the kernel's
+   * number for the hole *as drawn*, and the sheet reads it before the
+   * diameter — left at ⌀6.7 it called the ⌀7.4 drill the form tap actually
+   * wants "too large" (Paul, 2026-09-01, with a ⌀0.116 drill refused for a
+   * hole whose form tap wants ⌀0.122).
+   */
+  it('leads with the form tap’s bore rather than refusing it', () => {
+    const bored = holeAt(drawn, 7.4)
+    const { fitting, excluded } = fittingTools([bored], [bored], crib)
+
+    expect(fitting.map((each) => each.tool.catalogNumber)).toEqual(['DRILL-7.4'])
+    // The undersized ones are still refused — a form tap wants its own hole —
+    // but on their own size, not on a limit belonging to the drawn diameter.
+    expect(excluded.map((each) => each.tool.catalogNumber).sort()).toEqual([
+      'DRILL-6.7',
+      'DRILL-7.2',
+    ])
+    expect(
+      excluded.every((each) => each.removed.every((reason) => reason.shortfall !== undefined)),
+    ).toBe(true)
   })
 })
 

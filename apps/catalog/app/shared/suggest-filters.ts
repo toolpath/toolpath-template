@@ -250,6 +250,20 @@ const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.str
 const OVERRULED: ReadonlySet<string> = new Set(['form'])
 
 /**
+ * The ranges a new feature overrules outright, and clears when there is no
+ * feature.
+ *
+ * **The size of the tool is the feature's to say** (Paul, 2026-09-01: "flute
+ * length and diameter filters do not update when a new feature is selected.
+ * When a new feature is selected, or no feature is active, they should clear
+ * for the next selection"). A diameter typed for a ⌀12 pocket is not an answer
+ * about the ⌀5 hole clicked next, and left standing it hid every tool that
+ * could cut it — the same reasoning as the tool type above, on the two numbers
+ * a feature states most directly.
+ */
+const OVERRULED_RANGES: ReadonlySet<string> = new Set(['DC', 'LCF'])
+
+/**
  * The filters a feature suggests, folded onto what is already set.
  *
  * **A suggestion the last feature made is not somebody's answer.** Only filling
@@ -298,7 +312,7 @@ export const applySuggestions = (
   for (const key of new Set([...Object.keys(previous.ranges), ...Object.keys(ranges)])) {
     const held = ranges[key]
     const untouched = held === undefined || same(held, previous.ranges[key])
-    if (!untouched) {
+    if (!untouched && !OVERRULED_RANGES.has(key)) {
       continue
     }
     if (next.ranges[key]) {
@@ -310,6 +324,12 @@ export const applySuggestions = (
   for (const key of Object.keys(next.ranges)) {
     if (ranges[key] === undefined) {
       ranges[key] = next.ranges[key]
+    }
+  }
+  // With no feature, the two the feature owns go back to saying nothing.
+  for (const key of OVERRULED_RANGES) {
+    if (next.ranges[key] === undefined) {
+      delete ranges[key]
     }
   }
   return { ...query, terms, ranges }

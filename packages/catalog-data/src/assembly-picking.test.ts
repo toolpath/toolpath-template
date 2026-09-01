@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   colletsFor,
+  colletsForShank,
   compareHolders,
   holderFacet,
   holdersFor,
@@ -216,6 +217,26 @@ describe('which collets go in a holder', () => {
       'c-er16-wide',
     ])
     expect(isOnSize(wide, 6)).toBe(false)
+  })
+})
+
+/**
+ * **The other order** (Paul, 2026-09-01: "I should be able to select a collet
+ * without selecting a holder… every collet that grips the tool's shank"). The
+ * holder-first list needs a series to narrow by; this one has no holder yet, so
+ * every series is in play and the shank is the whole question.
+ */
+describe('which collets grip a shank, before any holder is chosen', () => {
+  it('offers every series that closes on it, closest to on-size first', () => {
+    const found = colletsForShank(tool(6), COLLETS)
+
+    expect(found.map((each) => each.guid)).toEqual(['c-er16', 'c-pg6-6', 'c-pg6-6-mql', 'c-pg10-6'])
+    expect(found.every((each) => each.clampMax >= 6 && each.clampMin <= 6)).toBe(true)
+  })
+
+  it('offers none for a shank nothing closes on, or a tool that states none', () => {
+    expect(colletsForShank(tool(25), COLLETS)).toEqual([])
+    expect(colletsForShank({ ...tool(6), geometry: {} }, COLLETS)).toEqual([])
   })
 })
 
