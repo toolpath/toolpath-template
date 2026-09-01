@@ -340,14 +340,15 @@ describe('the order list button', () => {
 })
 
 /**
- * **"The diameter match text cuts off for the drill diameter description"**
- * (Paul, 2026-09-01). The note names what it is measured from — "+0.004 from
- * the specified tap drill" — and clipping it to "+0…" left the one word that
- * carries no information. It wraps inside its own cell instead, and the row
- * keeps its own numbers on one line.
+ * **A note is a second line, not a squeeze** (Paul, 2026-09-01: first "the
+ * diameter match text cuts off", then — after it was allowed to wrap beside
+ * the figure — "wildly different row height and still overlapping text.
+ * Tighten it up"). It sits under the number, one line, clipped at the cell's
+ * own width, with the whole sentence on the title. Every row of a list is then
+ * the same height.
  */
 describe('a note that says what it is measured from', () => {
-  it('wraps the whole of it rather than truncating', () => {
+  it('puts it under the number, on one line, with the whole of it on the title', () => {
     render(
       <MemoryRouter>
         <ToolTable
@@ -359,7 +360,10 @@ describe('a note that says what it is measured from', () => {
     )
 
     const note = screen.getByText('+0.10 mm from the specified tap drill')
-    expect(note.className).not.toContain('truncate')
-    expect(note.className).toContain('whitespace-normal')
+    expect(note).toHaveAttribute('title', '+0.10 mm from the specified tap drill')
+    expect(note.className).toContain('line-clamp-2')
+    // Under the figure, not beside it: the cell is a column.
+    expect(note.parentElement?.className).toContain('flex-col')
+    expect(note.previousElementSibling?.textContent).toContain('12.70 mm')
   })
 })

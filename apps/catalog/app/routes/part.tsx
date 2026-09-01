@@ -931,7 +931,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
             format,
             cautionedForms,
             holeDiameter: drilledAt,
-            measuredFrom: threadSpec === null ? 'the hole' : 'the specified tap drill',
+            measuredFrom: threadSpec === null ? 'the hole' : 'the tap drill',
             tipAngle,
             floorFillet,
           })
@@ -1568,9 +1568,19 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                   bore (Paul, 2026-08-31).
                 */}
                 {threadSpec === null ? null : (
-                  // A shade lighter than the drills under it, so the two
-                  // sections read apart at a glance (Paul, 2026-08-31).
-                  <div className="flex min-h-0 shrink grow-0 basis-auto flex-col overflow-hidden border-b border-zinc-800 bg-zinc-900/40">
+                  /*
+                    A shade lighter than the drills under it, so the two
+                    sections read apart at a glance (Paul, 2026-08-31).
+
+                    **And a share of the panel it cannot be squeezed out of**
+                    (Paul, 2026-09-01: "no space is given to taps"). Both
+                    sections size to their own rows and shrink by content, so a
+                    long drill list took everything and left the taps two rows
+                    and a scrollbar. Two fifths is its floor and its ceiling:
+                    enough for a handful of taps, never more than the drills
+                    they are for.
+                  */
+                  <div className="flex max-h-[40%] min-h-[7rem] shrink grow-0 basis-auto flex-col overflow-hidden border-b border-zinc-800 bg-zinc-900/40">
                     <TapTable
                       makers={makers.made}
                       short={makers.short}

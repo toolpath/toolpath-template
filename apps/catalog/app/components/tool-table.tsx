@@ -857,64 +857,69 @@ export const ToolTable = ({
                           : 'text-zinc-300',
                       )}
                     >
-                      <span className="flex items-baseline justify-end gap-1.5 whitespace-nowrap">
-                        {/* Three words for what is wrong; the rule's own
-                          sentence is behind them. */}
+                      {/*
+                        **The number on its own line, what the rules said under
+                        it** (Paul, 2026-09-01: "no space is given to taps, drill
+                        table has wildly different row height and still
+                        overlapping text. Tighten it up"). Beside the figure, a
+                        note wrapped a word at a time and grew the row to eight
+                        lines; truncated inline it collided with the value. A
+                        second line, clipped to one, keeps every row of a list
+                        the same height — and the whole sentence is on the
+                        title.
+                      */}
+                      <span className="flex flex-col items-end leading-tight">
+                        <span className="flex items-baseline justify-end gap-1.5 whitespace-nowrap">
+                          {/* A dash where the vendor states nothing, rather than
+                            a zero that reads as a measured value of zero — and
+                            nothing at all where the words already said the
+                            number this column holds. */}
+                          {mark && !mark.ok && mark.instead ? null : (
+                            <span>
+                              {value === undefined ? '—' : formatGeometry(column.code, value, unit)}
+                            </span>
+                          )}
+                          {/*
+                            A tick means "the rules read this and it passed". A
+                            caution is not that, so it is not a tick: an amber
+                            check read as a green one at a glance and as a smudge
+                            at 12 px (Paul, 2026-08-31). A warning glyph says at
+                            a glance that this one wants a second look.
+                          */}
+                          {mark?.ok ? (
+                            mark.caution === undefined ? (
+                              <CheckIcon
+                                aria-label="within the rules"
+                                className="size-3 shrink-0 text-emerald-400"
+                              />
+                            ) : (
+                              <span className="shrink-0 text-amber-300" title={mark.caution}>
+                                <WarningIcon
+                                  weight="fill"
+                                  aria-label={mark.caution}
+                                  className="size-3.5"
+                                />
+                              </span>
+                            )
+                          ) : null}
+                        </span>
+                        {/* Three words for what is wrong, or how far a drill is
+                          off the hole it is for: one line either way, and the
+                          rule's own sentence behind it. */}
                         {mark && !mark.ok ? (
-                          <span className="text-2xs whitespace-nowrap" title={mark.detail}>
+                          <span
+                            className="text-2xs max-w-full truncate font-sans"
+                            title={mark.detail}
+                          >
                             {mark.why}
                           </span>
-                        ) : null}
-                        {/*
-                          A fact about the column, in the colour of a fact: how
-                          far a drill is off the hole it is for.
-
-                          **It wraps rather than truncating** (Paul, 2026-09-01:
-                          "the diameter match text cuts off for the drill
-                          diameter description"). Since the note names what it
-                          is measured from — "+0.004 from the specified tap
-                          drill" — clipping it to "+0…" left the one word that
-                          carried no information.
-                        */}
-                        {mark?.ok && mark.note ? (
+                        ) : mark?.ok && mark.note ? (
                           <span
-                            className="text-2xs min-w-0 text-right leading-tight whitespace-normal text-zinc-400"
+                            className="text-2xs line-clamp-2 max-w-full font-sans text-zinc-400"
                             title={mark.note}
                           >
                             {mark.note}
                           </span>
-                        ) : null}
-                        {/* A dash where the vendor states nothing, rather than a
-                          zero that reads as a measured value of zero — and
-                          nothing at all where the words already said the
-                          number this column holds. */}
-                        {mark && !mark.ok && mark.instead ? null : (
-                          <span>
-                            {value === undefined ? '—' : formatGeometry(column.code, value, unit)}
-                          </span>
-                        )}
-                        {/*
-                        A tick means "the rules read this and it passed". A
-                        caution is not that, so it is not a tick: an amber
-                        check read as a green one at a glance and as a smudge
-                        at 12 px (Paul, 2026-08-31). A warning glyph says at a
-                        glance that this one wants a second look.
-                      */}
-                        {mark?.ok ? (
-                          mark.caution === undefined ? (
-                            <CheckIcon
-                              aria-label="within the rules"
-                              className="size-3 shrink-0 text-emerald-400"
-                            />
-                          ) : (
-                            <span className="shrink-0 text-amber-300" title={mark.caution}>
-                              <WarningIcon
-                                weight="fill"
-                                aria-label={mark.caution}
-                                className="size-3.5"
-                              />
-                            </span>
-                          )
                         ) : null}
                       </span>
                     </td>
