@@ -188,6 +188,14 @@ recommendation.
   two tabs judged against the right predrill.
 - **Take the bill away** as an order list, or as a Fusion tool library.
 
+**Where it lives**
+
+- `apps/catalog/app/routes/part.tsx` — the whole screen, wired together — the last place to look
+- `apps/catalog/app/shared/` — the rules, each in its own module and tested there
+- `apps/catalog/app/components/` — what draws them
+
+Paths below are relative to `apps/catalog/` unless they say otherwise.
+
 ---
 
 ## 1 Tool filters
@@ -254,6 +262,16 @@ always somebody's preference, and always visible and reversible.
 >   sits with the filters. Should it move next to the part, where it is asked
 >   once?
 
+**Where it lives**
+
+- `app/shared/filter.ts` — the query, what it matches, and the per-axis counts
+- `app/components/filter-panel.tsx` — `QUICK_FILTERS` and `FACET_AXES` — every axis and its values
+- `app/components/filter-rail.tsx` — the bubbles down the left of the part
+- `app/components/column-filter.tsx` — the header filters, and the compare operators
+- `app/shared/suggest-filters.ts` — what a chosen feature and material fill in
+- `app/shared/saved-filters.ts` — named filter sets, kept in the browser
+- `app/shared/holding.ts` — the crib axes — taper and collet series
+
 ---
 
 ## 2 The feature list
@@ -294,6 +312,16 @@ What it does to the tool table:
 >   shop reads a job as a sequence — spot, drill, tap — and nothing on the row
 >   says which pass a tool is for. Does the list need an order, or is that the
 >   order list's job?
+
+**Where it lives**
+
+- `app/shared/feature-list.ts` — what the list holds, its names, ids, storage — and `asked()`
+- `app/shared/recommendations.ts` — a row's answers, and what opens
+- `app/shared/part-interaction.ts` — what a click on the part means
+- `app/components/feature-list-panel.tsx` — the list, its answers, its right-click
+- `app/components/group-editor.tsx` — building a group
+- `app/components/selection-panel.tsx` — the reading, its numbers and its thread
+- `docs/FEATURE-LIST.md` — the full spec
 
 ---
 
@@ -350,6 +378,14 @@ the order the rules rank them, with a mark on every number the rules read.
 > - **Sorting versus ranking.** Sorting by a column throws away the rules'
 >   order, which is the app's actual recommendation.
 
+**Where it lives**
+
+- `app/components/tool-table.tsx` — the table, its columns, its header filters
+- `app/shared/tool-marks.ts` — the tick, the `i`, the warning and the red `x`
+- `app/shared/column-order.ts` — which columns are shown, and in what order
+- `app/shared/tool-order.ts` — kept rows first, then the sheet's order
+- `app/shared/geometry.ts` — how a geometry value is printed
+
 ---
 
 ## 4 The 2D tool viewer
@@ -387,6 +423,16 @@ is one somebody presses to find out whether it did anything.
 >   clearance, not the hole or pocket it is being judged against. That is the
 >   picture a machinist actually wants — Justin's to add, or ours to pass in?
 
+**Where it lives**
+
+- `app/components/tool-details.tsx` — the panel: the drawing, the holding, the buttons
+- `app/shared/tool-actions.ts` — which buttons, given what is being asked
+- `app/components/catalog-drawing.tsx` — the one file that wires the drawing package up
+- `app/shared/tool-drawing-input.ts` — the whole adapter into its input contract
+- `app/shared/holder-choice.ts` — which holders and collets are offered, and the stickout
+- `packages/catalog-data/src/clearance.ts` — whether an assembly clears — the verdict the drawing draws
+- `@toolpath/tool-drawing` — the component itself — another repository, Justin's
+
 ---
 
 ## 5 The order list
@@ -419,6 +465,13 @@ every render, so it can never disagree with the catalog about a diameter.
 >   chosen for, so the reasoning is lost the moment you leave the part page.
 > - **Fusion export is lowest priority** and unproven against Fusion itself.
 >   Treat it as untested until somebody imports one.
+
+**Where it lives**
+
+- `app/routes/order-list.tsx` — the page
+- `app/shared/setup-sheet.ts` — the sheet itself — lines, quantities, storage
+- `app/shared/fusion-library.ts` — the bill as a Fusion library
+- `app/shared/save-file.ts` — saving it from the browser
 
 ---
 
@@ -481,6 +534,13 @@ it is two tools, chosen on different numbers.
 > - **Spot drills and chamfers are not modelled.** A threaded hole is really
 >   three or four operations; the app knows about two.
 
+**Where it lives**
+
+- `app/shared/threads.ts` — the thread table, the Engine's tap-drill charts, reading a hole
+- `app/shared/hole-mode.ts` — standing a hole in at its predrill; which taps reach
+- `app/components/thread-picker.tsx` — the picker, and the deviation marks
+- `app/shared/thread-panes.ts` — which tool leads each tab
+
 ---
 
 ## 7 Tool matching
@@ -491,11 +551,15 @@ and is **not** what runs here.
 
 ### Three sheets, meant to be edited by somebody who does not write code
 
-| File                   | Rows | What it says                                         |
-| ---------------------- | ---- | ---------------------------------------------------- |
-| `rules.csv`            | 54   | feature · when · tool types · rule · level · note    |
-| `knobs.csv`            | 16   | the numbers the rules are written in terms of        |
-| `feature-defaults.csv` | 38   | per feature: what to show, and what filters the list |
+All three sit beside the code that reads them, in `apps/catalog/app/shared/`.
+**They are the files to change when the matching is wrong** — not the
+TypeScript.
+
+| File                              | Rows | What it says                                         | Guide                      |
+| --------------------------------- | ---- | ---------------------------------------------------- | -------------------------- |
+| `app/shared/rules.csv`            | 54   | feature · when · tool types · rule · level · note    | `docs/RULES.md`            |
+| `app/shared/knobs.csv`            | 16   | the numbers the rules are written in terms of        | `docs/RULES.md`            |
+| `app/shared/feature-defaults.csv` | 38   | per feature: what to show, and what filters the list | `docs/FEATURE-DEFAULTS.md` |
 
 - **A rule is a sentence about a number** — _diameter <= largest tool
   diameter_, _flute length past the corner >= feature depth + through overcut_ —
@@ -521,6 +585,31 @@ and is **not** what runs here.
   tools over the tightest corner sat among the merely unpreferred.
 - **Removed tools are kept, not discarded.** "Nothing fits" is only actionable
   when it says which rule did the excluding and by how much.
+
+### The sixteen knobs, and what they are today
+
+Every number a rule is written in terms of. Four are also controls on screen,
+marked **·** — a shop changes those without touching a file, and raising one
+admits tools rather than hiding any.
+
+| Knob                            | Value     | What it decides                                              |
+| ------------------------------- | --------- | ------------------------------------------------------------ |
+| drill oversize **·**            | 0.1016 mm | how far over the hole a drill may be — 0.004 in              |
+| drill undersize **·**           | 0.1016 mm | and how far under; asked separately, because shops differ    |
+| drill angle tolerance shallower | 35°       | how much shallower a drill point may be than a blind bottom  |
+| drill angle tolerance sharper   | 0°        | and sharper — zero, because a sharper point leaves a step    |
+| finishing radius limit **·**    | 0.025 mm  | the largest bull-nose radius allowed to stand in for a flat  |
+| through overcut                 | 0.127 mm  | how far a through cut runs past the bottom                   |
+| chamfer angle tolerance         | 0.15°     | how far a chamfer tool's angle may differ from the feature's |
+| thread mill margin              | 2 %       | how far under the minor diameter a thread mill stays         |
+| good hold                       | 33 %      | share of the overall length that stays in the holder         |
+| least hold                      | 25 %      | below which an assembly is not offered at all                |
+| radial holder clearance         | 0.508 mm  | room between the holder and the part, sideways               |
+| axial holder clearance          | 0.508 mm  | room between the holder nose and the part top                |
+| least stickout                  | 12.7 mm   | the shortest stickout worth setting a tool up at             |
+| stickout step                   | 3.175 mm  | the increment a default stickout lands on, inch              |
+| metric stickout step            | 3 mm      | and metric                                                   |
+| minimum clamping length **·**   | 3 ×D      | shank kept in the holder where the maker does not say        |
 
 ### What a feature asks of a tool
 
@@ -557,3 +646,19 @@ and is **not** what runs here.
 >   more. A feature with no rows falls back to the wildcards, which is safe but
 >   silent — a feature nobody wrote rules for looks exactly like one that passed
 >   them.
+
+**Where it lives**
+
+- `app/shared/rules.csv` · `knobs.csv` — the rules and their numbers; edit these, not the code
+- `app/shared/feature-defaults.csv` — what each feature shows, and what filters its list
+- `app/shared/rules.ts` — reads the sheets; where a new field or condition is declared
+- `app/shared/feature-defaults.ts` — reads the datasheet sheet
+- `app/shared/judge.ts` — verdicts, the four standings, folding several features into one
+- `app/shared/tool-fit.ts` — the catalog judged against a selection
+- `app/shared/holder-choice.ts` — whether anything can hold it, and at what stickout
+- `app/shared/clamping-length.ts` — the minimum clamping length rule
+- `packages/catalog-data/src/fit.ts` — what a feature demands, read off its datasheet
+- `packages/catalog-data/src/clearance.ts` — whether a stack clears the part
+- `app/components/floor-allowance.tsx` · `drill-deviation.tsx` · `clamping-length.tsx` — the knobs a shop can change on screen
+- `docs/RULES.md` · `docs/FEATURE-DEFAULTS.md` — how to edit the sheets without writing code
+- `docs/ENGINE-TOOL-MATCHING.md` — the Engine's wider rule set; reference only, not what runs
