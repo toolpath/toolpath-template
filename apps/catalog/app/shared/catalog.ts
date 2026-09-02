@@ -58,3 +58,36 @@ export const searchableTools = (): ReadonlyArray<CatalogTool> => allTools
 export const getTool = (guid: string): CatalogTool | null => byGuid.get(guid) ?? null
 
 export const getFamily = (id: string): ToolFamily | null => familiesById.get(id) ?? null
+
+/**
+ * Whose each vendor-owned filter value is.
+ *
+ * A family carries its brand on its own record. A product line does not — it
+ * is a string on the tool — so the brands publishing one are read off the
+ * tools once, here, rather than scanned per render. Both answer the one
+ * question the filter panel asks of these axes: with a vendor chosen, which of
+ * these values are that vendor's.
+ *
+ * A list rather than a single brand because nothing stops two vendors printing
+ * the same words on a page, and a value nobody owns comes back empty — which
+ * the panel reads as "not a vendor's to hide".
+ */
+const brandsByProductLine = new Map<string, Set<string>>()
+for (const tool of document.tools) {
+  const line = tool.productLine
+  if (line === null || line === undefined) {
+    continue
+  }
+  const brands = brandsByProductLine.get(line) ?? new Set<string>()
+  brands.add(tool.brand)
+  brandsByProductLine.set(line, brands)
+}
+
+export const brandsOfFamily = (id: string): ReadonlyArray<string> => {
+  const family = familiesById.get(id)
+  return family === undefined ? [] : [family.brand]
+}
+
+export const brandsOfProductLine = (line: string): ReadonlyArray<string> => [
+  ...(brandsByProductLine.get(line) ?? []),
+]

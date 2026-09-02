@@ -148,7 +148,9 @@ application unless that application says otherwise.
   space the viewer fills, and the catalog browser and family list are still
   served at `/catalog` and `/families` with nothing linking to them.
   See `docs/TOOL-CATALOG-PLAN.md`, including _Taken out on 2026-09-01_ for what
-  is parked and where to restore it from.
+  is parked and where to restore it from, and _The filter panel_ for the one
+  rule saying which values a picker offers — an empty answer stays and is
+  greyed, another vendor's family or product line comes off the list.
 - `packages/domain/` (`@toolpath/domain`) is pure helpers more than one
   application needs — unit conversion and formatting, class composition,
   keyboard movement through a list.
