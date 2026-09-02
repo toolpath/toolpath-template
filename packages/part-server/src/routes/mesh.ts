@@ -26,8 +26,15 @@ export const registerMeshRoutes = (app: Hono<AppEnv>, { connection }: PartApiCon
         return fetch(url)
       }
 
+      // The artifact URL on a report is presigned and short-lived, so a part
+      // left open past its expiry fails here. Re-reading the report is what
+      // mints a fresh URL, which is why the retry goes through `load` again
+      // rather than re-fetching the same URL (Justin Gray, 2026-08-28).
       let artifact = await load()
       if (!artifact.ok) {
+        // Release the socket now instead of when the discarded response is
+        // collected: the datasheet fetches behind it were waiting on it.
+        await artifact.body?.cancel()
         artifact = await load()
       }
       if (!artifact.ok) {

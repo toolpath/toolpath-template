@@ -7,11 +7,10 @@ const defaultRootDirectory = resolve(fileURLToPath(new URL('..', import.meta.url
 /**
  * Where hand-written source lives. Everything else is generated or vendored.
  *
- * `apps/dfm` is left out on purpose: it is the template's copy, and the branch
- * that settled its declarations (`paul/directions-mapping` in the DFM
- * repository) has not landed here yet. Add it the day it does.
+ * Both applications: `paul/directions-mapping` landed on 2026-09-02, which is
+ * what this list used to be waiting for.
  */
-const SEARCHED_DIRECTORIES = ['apps/catalog', 'packages', 'scripts']
+const SEARCHED_DIRECTORIES = ['apps', 'packages', 'scripts']
 
 const SKIPPED_DIRECTORIES = new Set([
   'node_modules',

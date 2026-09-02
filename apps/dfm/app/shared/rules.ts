@@ -1,14 +1,17 @@
 import type { FeatureType } from '@toolpath/viewer'
 
-import type { PartFeature } from '@toolpath/part-contracts'
+import type { PartFeature } from './contracts'
 import { readExpression } from './expression'
 import {
   type FeatureMetrics,
+  type MachineSizes,
   type MetricId,
   type PartContext,
   partContext,
   readMetrics,
 } from './metrics'
+
+export type { MachineEnvelope, MachineSizes } from './metrics'
 
 /**
  * DFM rules: how hard a feature is to cut, judged against thresholds a shop
@@ -127,6 +130,21 @@ interface RuleBase {
    * there is no number to place on a scale.
    */
   metric?: MetricId
+  /**
+   * What this rule judges: one feature, or the whole plan.
+   *
+   * Absent is `feature`, which every rule was until now — a measurement off one
+   * pocket, placed on a scale. A **part** rule reads the arrangement itself:
+   * how many setups it runs, how much work each operation does. It is judged
+   * once rather than per feature, never appears in a feature's score, and its
+   * bands price the arrangement as it is being built.
+   *
+   * It is a rule and not a setting because it *is* one — four thresholds and an
+   * optional refusal, a weight, a note, on and off. The alternative was a
+   * separate panel of prices in units nothing else used, which is the thing
+   * this replaced.
+   */
+  scope?: 'feature' | 'part'
   /** How much this rule counts towards the part's score. */
   weight: number
   enabled: boolean
@@ -405,54 +423,261 @@ export const asType = (rule: Rule, type: RuleType): Rule => {
  * shop with a pallet changer buys a setup far more cheaply than one with a vice.
  */
 /**
- * The machine the part has to fit in, in millimetres.
+ * What a **part** rule can read: properties of the arrangement, not of a
+ * feature.
  *
- * Three numbers rather than one, because a machine is three numbers: 30 × 16 ×
- * 20 is what a shop says, and "the longest side" throws away the fact that a
- * long thin part fits a machine a cube of the same length does not.
- *
- * Compared side for side, largest against largest: the part can be turned in
- * the vice, so what matters is whether its three dimensions can be matched up
- * with the machine's, not how it happened to be drawn.
+ * Two, deliberately. They are the two questions a shop actually answers about a
+ * plan — *how many times will you flip it* and *how much work should one
+ * operation do* — and between them they replaced six prices in three different
+ * currencies, none of which appeared anywhere else in the app.
  */
-export interface MachineEnvelope {
-  x: number
-  y: number
-  z: number
+export const PLAN_METRICS = ['setups'] as const
+
+export type PlanMetricId = (typeof PLAN_METRICS)[number]
+
+/** Which rule carries each plan metric's scale. */
+export const PLAN_RULE_IDS: Record<PlanMetricId, string> = {
+  setups: 'plan-setups',
 }
 
-/** Whether the part's box fits, however it is turned. */
-export const fitsMachine = (sides: ReadonlyArray<number>, machine: MachineEnvelope): boolean => {
-  const part = [...sides].sort((a: number, b: number) => b - a)
-  const envelope = [machine.x, machine.y, machine.z].sort((a: number, b: number) => b - a)
+/**
+ * What one more of a thing costs, by the band the plan would land in.
+ *
+ * The same ladder for both part rules, and the reason neither needs a base
+ * price beside it. A shop tunes **where the bands fall** — "five setups is
+ * rats" — and the ladder turns that into an argument the arrangement can have
+ * with itself. Doubling per band is steep enough that `rats` is a real brake
+ * and gentle enough that a genuinely better answer still gets bought.
+ *
+ * `no go` is not on the ladder: it is a refusal, priced at infinity.
+ */
+export const BAND_PRICE: Record<Band, number> = {
+  easy: 1,
+  alright: 2,
+  meh: 4,
+  rats: 8,
+  'no go': Number.POSITIVE_INFINITY,
+}
 
-  return part.every((side, at) => side <= (envelope[at] ?? 0))
+/**
+ * What a setup costs at the `easy` band, as a share of the part.
+ *
+ * Two per cent: enough that a single small face cannot buy a re-fixture, low
+ * enough that swapping four bad readings for one good one always clears it.
+ * Inherited from `newDirectionGain`, which is what it replaced — nothing here
+ * was invented, it was collected.
+ */
+export const SETUP_BASE = 0.02
+
+/**
+ * The scale a **part rule** sets, as four limits and an optional refusal.
+ *
+ * The shape a threshold rule already has, narrowed to what the arrangement
+ * needs. Read off the rules rather than carried beside them: the rule in the
+ * list *is* the setting, so there is nowhere for a second copy to disagree
+ * with it.
+ */
+export interface PlanScale {
+  thresholds: [number, number, number, number]
+  noGo?: number
+  /** `lower is harder` for work per operation, which runs the other way. */
+  direction: RuleDirection
+  /** A wall with no price below it — what an inherited ceiling becomes. */
+  free?: boolean
 }
 
 export interface PlanLimits {
   /**
-   * How much a new way up has to improve the plan before it is worth buying,
-   * as a share of the part's whole score-weighted area.
+   * The rules that judge the **arrangement** — the two part-scoped rules out of
+   * the set in force.
    *
-   * Zero buys an orientation for any improvement at all; a tenth means "worth
-   * at least a tenth of the part". The counterweight the arrangement never had.
+   * Carried here rather than looked up, because the allocator is handed limits
+   * and not a rule set, and widening it to take one would reach through six
+   * signatures. {@link scaleFor} is the only thing that reads them.
    */
-  newDirectionGain: number
-  /** A hard ceiling on orientations, where a shop has one. */
+  planRules?: ReadonlyArray<Rule>
+  /**
+   * @deprecated The old hard ceiling on setups, read only where no part rule
+   * carries a scale.
+   *
+   * Kept because sets saved before part rules existed carry it, and dropping
+   * the field would quietly widen their plans. It meant "and not one more",
+   * which is a refusal — see {@link scaleFor}.
+   */
   maxDirections?: number
   /**
-   * The biggest part the shop can hold.
+   * Whether the plan may **split a feature** between ways up.
+   *
+   * A face belongs to several readings and only one may cut it — but the rest
+   * of those readings are still the right answer for their *other* faces. Off,
+   * a reading is taken whole or not at all, so one contested face costs it
+   * every face it covers and they go to whatever smaller readings come after.
+   *
+   * This replaced a scale over how much work an operation should do. That
+   * priced the same question in points and per cent and average faces, and the
+   * question underneath it was always this one: *may a feature come apart?*
+   * A yes or no is what a shop actually has an opinion about.
+   *
+   * The chooser can still override it for one run — a generator press is a
+   * question about *this* plan, and the rule is the shop's usual answer.
+   */
+  splitFeatures?: boolean
+  /**
+   * The worst band a reading may be cut in — *what you will not cut at all*.
+   *
+   * A band is the **worst rule that fired**, so this is a refusal rather than a
+   * preference: a reading your rules call `no go` is one you have said you do
+   * not want, and it could otherwise still win a face by averaging well across
+   * everything else.
+   *
+   * **A last resort, not a ban.** A reading below the floor may still cut a
+   * face nothing else can reach — leaving it uncut is not an improvement — but
+   * it may never take one from a reading above the floor, and it is offered
+   * last.
+   */
+  worstBand?: Band
+  /**
+   * How many times the arrangement may reconsider itself.
+   *
+   * Filling free ground is monotone and settles on its own. **Swapping is
+   * not**: a swap is accepted on an estimate of what would pick up the ground
+   * it strands, and two readings can each look like an improvement on the other
+   * and trade a face back and forth for ever. That froze the page on a real
+   * part.
+   *
+   * Not a rule and not on screen: it is where the arithmetic stops, not
+   * something a shop has an opinion about. Kept settable for tests, which need
+   * to prove the cap is reached.
+   */
+  rounds?: number
+  /**
+   * Where a reading **no rule judged** ranks, on the band scale — 0 is `easy`,
+   * 4 is `no go`.
+   *
+   * An unjudged reading is not a safe one: the datasheet was sparse, or no rule
+   * was aimed at its type. It should not outrank a reading somebody's limits
+   * actually looked at and called easy.
+   *
+   * Also not a rule. A shop that wants unjudged readings treated differently
+   * has a real answer available to it — write a rule that reaches them.
+   */
+  unjudgedRank?: number
+  /**
+   * Whether the **band** outranks the score when readings are ordered.
+   *
+   * A band is the *worst* rule that fired and a score is a weighted average of
+   * all of them, so a reading one rule refuses can still average well. Band
+   * first means a refusal can win a face; score first keeps every distinction
+   * inside a bucket, which five buckets throw away.
+   */
+  bandFirst?: boolean
+  /**
+   * The part sizes the shop takes, largest and smallest.
    *
    * Part-wide rather than per-feature: nothing about a pocket is wrong when the
-   * part does not fit the machine.
+   * part itself is not one this shop takes.
+   *
+   * Three numbers at each end rather than one, because a machine is three
+   * numbers — 30 × 16 × 20 is what a shop says, and "the longest side" throws
+   * away the fact that a long thin part fits a machine a cube of the same
+   * length does not.
    */
-  machine?: MachineEnvelope
+  machine?: MachineSizes
+}
+
+/**
+ * The scale a set judges the arrangement by, or `null` where it does not.
+ *
+ * **A rule switched off means the shop does not care**, and the honest reading
+ * of that is *nothing is charged* — not a quiet fallback to somebody else's
+ * default, and not "easy at any count", which would still charge the base
+ * price. Off is off, the same as it is for a rule that judges a feature.
+ *
+ * A set saved before part rules existed carries `maxDirections`, which meant
+ * "and not one more" — a refusal. It becomes one, on a scale that charges
+ * nothing below it, so an old set keeps its wall and gains no prices it never
+ * asked for.
+ */
+export const scaleFor = (limits: PlanLimits, metric: PlanMetricId): PlanScale | null => {
+  const rule = limits.planRules?.find((each) => each.id === PLAN_RULE_IDS[metric])
+
+  if (rule === undefined || rule.type !== 'threshold' || !rule.enabled) {
+    if (metric !== 'setups' || limits.maxDirections === undefined) {
+      return null
+    }
+
+    const ceiling = limits.maxDirections
+    return {
+      thresholds: [ceiling, ceiling, ceiling, ceiling],
+      noGo: ceiling,
+      direction: 'higher is harder',
+      // Nothing below the wall is charged: the old field was a ceiling, never
+      // a price, and inventing one for it would change what a saved set does.
+      free: true,
+    }
+  }
+
+  return { thresholds: rule.thresholds, noGo: rule.noGo, direction: rule.direction }
+}
+
+/**
+ * Which band a measurement of the arrangement falls in.
+ *
+ * Inclusive limits, read in the direction the scale runs — setups get worse as
+ * the number climbs, work per operation as it falls, and the same four
+ * thresholds describe both. A refusal can only push the last boundary out,
+ * never pull it in: "rats to five, no go past seven" leaves six as rats rather
+ * than as both.
+ */
+export const bandOnScale = (scale: PlanScale, value: number): Band => {
+  const rising = scale.direction === 'higher is harder'
+  const past = (limit: number) => (rising ? value > limit : value < limit)
+
+  const rats = scale.thresholds[3]
+  const stop =
+    scale.noGo === undefined
+      ? null
+      : rising
+        ? Math.max(scale.noGo, rats)
+        : Math.min(scale.noGo, rats)
+
+  if (stop !== null && past(stop)) {
+    return 'no go'
+  }
+
+  const at = scale.thresholds.findIndex((limit) => !past(limit))
+
+  // Past every limit with no refusal set: the scale keeps going at its worst
+  // band rather than falling off the end.
+  return (at === -1 ? 'rats' : BANDS[at]) as Band
 }
 
 export const DEFAULT_PLAN_LIMITS: PlanLimits = {
-  // Two percent: enough that a single small face cannot buy a re-fixture, low
-  // enough that swapping four bad readings for one good one always clears it.
-  newDirectionGain: 0.02,
+  /*
+   * A reading your own rules call `no go` is refused.
+   *
+   * It was `undefined` — nothing refused — on the reasoning that a floor is a
+   * decision a shop makes and one applied unasked would quietly leave ground
+   * uncut. The second half of that is wrong, and it is what made the first half
+   * look prudent: **a refused reading may still cut a face nothing else
+   * reaches**, because leaving it uncut is not an improvement. It only loses
+   * the right to take a face off a reading above the floor.
+   *
+   * So the honest default is the one a shop has already stated. `no go` is not
+   * a band the arrangement inferred — it is the shop's own rules saying they do
+   * not want this cut, and letting it win a face anyway by averaging well
+   * across everything else is the app quietly overruling them.
+   */
+  worstBand: 'no go',
+  // Enough that the first pass does the work and the rest settle edges.
+  rounds: 8,
+  // Just past `alright`: better than a known problem, worse than a known-good
+  // answer.
+  unjudgedRank: 1.5,
+  bandFirst: false,
+  // A feature may come apart. It is what the rules are for: each face to
+  // whatever cuts it best, and the reading it came from still cuts the rest.
+  splitFeatures: true,
 }
 
 export interface RuleSet {
@@ -657,7 +882,18 @@ export const evaluateRule = (
 
   const value = readValue(rule, metrics)
 
-  if (value === null || !Number.isFinite(value)) {
+  /*
+   * `null` is "nobody measured"; **infinity is a measurement**.
+   *
+   * A ratio against a cutter of zero is unbounded — the worst answer there is,
+   * and one every scale here has a band for at its far end. This threw it away
+   * with `NaN`, so a wall no tool reaches scored `easy` on a reach rule and
+   * `easy` overall, because the only rule that spoke was the one about depth.
+   *
+   * `NaN` is still nothing: it is arithmetic that went wrong rather than an
+   * answer, and there is no end of a scale that means it.
+   */
+  if (value === null || Number.isNaN(value)) {
     return null
   }
 
@@ -745,12 +981,29 @@ export interface RuleReading {
  * agreed or simply never ran, and those read identically until the difference
  * is shown.
  */
+/**
+ * Whether a rule speaks about **features** at all.
+ *
+ * A part rule judges the arrangement, not a pocket. It never contributes to a
+ * feature's score and never appears in a feature's verdict — a plan rule
+ * showing up in a datasheet as "no measurement" would be the app claiming to
+ * have looked at something it was never about.
+ *
+ * One predicate rather than a filter at each call site: several places walk the
+ * rules per feature, and the one that forgot would quietly drop a plan rule
+ * into a score.
+ */
+export const judgesFeatures = (rule: Rule): boolean => rule.scope !== 'part'
+
+/** The other half: rules that judge the arrangement. */
+export const judgesPlan = (rule: Rule): boolean => rule.scope === 'part'
+
 export const readEveryRule = (
   rules: ReadonlyArray<Rule>,
   featureType: FeatureType,
   metrics: FeatureMetrics,
 ): Array<RuleReading> =>
-  rules.map((rule) => {
+  rules.filter(judgesFeatures).map((rule) => {
     const value = readValue(rule, metrics)
     const band = evaluateRule(rule, featureType, metrics)
 
@@ -762,7 +1015,23 @@ export const readEveryRule = (
       return { rule, band: null, value, silence: 'switched off' }
     }
 
-    if (rule.featureTypes.length > 0 && !rule.featureTypes.includes(featureType)) {
+    /*
+     * `sameType`, because that is what the rule itself is judged by.
+     *
+     * This asked `includes` — a strict string match — while `evaluateRule` two
+     * hundred lines up compares the normalised forms. So a rule that had fired
+     * correctly on a `Wall` all along reported its silence, whenever it was
+     * silent for some *other* reason, as "other feature types". The panel said
+     * the rule was aimed elsewhere; it was aimed here and had nothing to
+     * measure.
+     *
+     * A wrong reason is worse than no reason. It sends somebody to edit the
+     * audience of a rule whose audience was never the problem.
+     */
+    if (
+      rule.featureTypes.length > 0 &&
+      !rule.featureTypes.some((each) => sameType(each, featureType))
+    ) {
       return { rule, band: null, value, silence: 'other feature types' }
     }
 
@@ -809,6 +1078,10 @@ export const evaluateFeature = (
   const results: Array<RuleResult> = []
 
   for (const rule of rules) {
+    if (!judgesFeatures(rule)) {
+      continue
+    }
+
     const band = evaluateRule(rule, feature.featureType, metrics)
 
     if (band) {
@@ -1061,8 +1334,8 @@ export const evaluatePart = (
   features: ReadonlyArray<PartFeature>,
   /** The part's bounding box, for the rules that judge the part itself. */
   boundingBox?: ReadonlyArray<number>,
-  /** The machine the part has to fit, from the rule set. */
-  machine?: MachineEnvelope,
+  /** The part sizes the shop takes, from the rule set. */
+  machine?: MachineSizes,
 ): Array<FeatureVerdict> => {
   const context = partContext(features, boundingBox, machine)
 

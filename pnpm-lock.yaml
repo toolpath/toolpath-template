@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@eslint/js':
+        specifier: 10.0.1
+        version: 10.0.1(eslint@10.9.1(jiti@2.7.0))
       eslint:
         specifier: 10.9.1
         version: 10.9.1(jiti@2.7.0)
@@ -150,6 +153,9 @@ importers:
       '@hono/node-server':
         specifier: 1.19.15
         version: 1.19.15(hono@4.13.0)
+      '@hono/zod-validator':
+        specifier: 0.9.0
+        version: 0.9.0(hono@4.13.0)(zod@4.4.3)
       '@phosphor-icons/react':
         specifier: 2.1.10
         version: 2.1.10(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -165,30 +171,24 @@ importers:
       '@toolpath/api':
         specifier: 0.2.3
         version: 0.2.3
-      '@toolpath/domain':
-        specifier: workspace:*
-        version: link:../../packages/domain
-      '@toolpath/part-client':
-        specifier: workspace:*
-        version: link:../../packages/part-client
-      '@toolpath/part-contracts':
-        specifier: workspace:*
-        version: link:../../packages/part-contracts
-      '@toolpath/part-server':
-        specifier: workspace:*
-        version: link:../../packages/part-server
       '@toolpath/ui':
-        specifier: 0.1.0
-        version: 0.1.0(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)
+        specifier: 0.1.1
+        version: 0.1.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)
       '@toolpath/viewer':
         specifier: 0.4.0
         version: 0.4.0(@react-three/drei@10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.4)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)
+      eventsource-parser:
+        specifier: 4.0.0
+        version: 4.0.0
       hono:
         specifier: 4.13.0
         version: 4.13.0
       isbot:
         specifier: ^5
         version: 5.2.1
+      jose:
+        specifier: 6.2.8
+        version: 6.2.8
       react:
         specifier: 19.2.0
         version: 19.2.0
@@ -232,6 +232,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.0
         version: 19.2.4(@types/react@19.2.18)
+      '@types/three':
+        specifier: 0.185.4
+        version: 0.185.4
       '@vitejs/plugin-react':
         specifier: ^5.0.4
         version: 5.2.0(vite@7.3.6(@types/node@24.10.1)(jiti@2.7.0)(lightningcss@1.31.1)(tsx@4.23.12)(yaml@2.9.0))
@@ -826,6 +829,15 @@ packages:
     resolution: {integrity: sha512-MwcE1P+AZ4C6DWlpin/OmOA54mmIZ/+xZuJiQd4SyB29oAJjN30UW9wkKNptW2ctp4cEsvhlLY/CsQ1uoHDloQ==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
+  '@eslint/js@10.0.1':
+    resolution: {integrity: sha512-zeR9k5pd4gxjZ0abRoIaxdc7I3nDktoXZk2qOv9gCNWx3mVwEn32VRhyLaRsDiJjTs0xq/T8mfPtyuXu7GWBcA==}
+    engines: {node: ^20.19.0 || ^22.13.0 || >=24}
+    peerDependencies:
+      eslint: ^10.0.0
+    peerDependenciesMeta:
+      eslint:
+        optional: true
+
   '@eslint/object-schema@3.0.5':
     resolution: {integrity: sha512-vqTaUEgxzm+YDSdElad6PiRoX4t8VGDjCtt05zn4nU810UIx/uNEV7/lZJ6KwFThKZOzOxzXy48da+No7HZaMw==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
@@ -1288,13 +1300,6 @@ packages:
   '@toolpath/api@0.2.3':
     resolution: {integrity: sha512-WHJI84cFpEOaUls5fHOS2BJXk9Prj/nM5sRSy8JCGodLeJcRIH/eYUe+klD6Y39odLfaWShDPbUGg1oTaNvBcg==}
     engines: {node: '>=20'}
-
-  '@toolpath/ui@0.1.0':
-    resolution: {integrity: sha512-IvxV2GxWte1y2++AH5frX8fcTYIsnH9DcEhULO4U0lWy4B1jHTL6treXci4GRJFeMa47ZRiChNJz1ZBuY2HBPg==}
-    peerDependencies:
-      react: ^19.2.0
-      react-dom: ^19.2.0
-      tailwindcss: ^4.0.0
 
   '@toolpath/ui@0.1.1':
     resolution: {integrity: sha512-cVbQ1O5+At76BevWLJGS2i8oyLeneaFTlzM23dfkfIFr+xOkN7tat/WRx81ECCICLln6JDrlhIKhQfwP4EccMA==}
@@ -3510,6 +3515,10 @@ snapshots:
     dependencies:
       '@types/json-schema': 7.0.15
 
+  '@eslint/js@10.0.1(eslint@10.9.1(jiti@2.7.0))':
+    optionalDependencies:
+      eslint: 10.9.1(jiti@2.7.0)
+
   '@eslint/object-schema@3.0.5': {}
 
   '@eslint/plugin-kit@0.7.2':
@@ -3915,22 +3924,6 @@ snapshots:
       '@types/react-dom': 19.2.4(@types/react@19.2.18)
 
   '@toolpath/api@0.2.3': {}
-
-  '@toolpath/ui@0.1.0(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)':
-    dependencies:
-      '@base-ui/react': 1.2.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      '@phosphor-icons/react': 2.1.10(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      '@table-library/react-table-library': 4.1.15(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      clsx: 2.1.1
-      lodash-es: 4.18.1
-      react: 19.2.0
-      react-dom: 19.2.0(react@19.2.0)
-      react-resizable-panels: 4.9.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      tailwind-merge: 3.6.0
-      tailwindcss: 4.3.3
-    transitivePeerDependencies:
-      - '@emotion/react'
-      - '@types/react'
 
   '@toolpath/ui@0.1.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)':
     dependencies:

@@ -13,10 +13,10 @@ const STORAGE_KEY = 'part-viewer:scene-aids'
  * The view cube is not in here. It is a control, not furniture: it does
  * something when clicked.
  */
-export function loadShowAids(storage: Pick<Storage, 'getItem'> | null): boolean {
+export const loadShowAids = (storage: Pick<Storage, 'getItem'> | null): boolean => {
   return storage?.getItem(STORAGE_KEY) === 'on'
 }
 
-export function saveShowAids(storage: Pick<Storage, 'setItem'> | null, shown: boolean): void {
+export const saveShowAids = (storage: Pick<Storage, 'setItem'> | null, shown: boolean): void => {
   storage?.setItem(STORAGE_KEY, shown ? 'on' : 'off')
 }

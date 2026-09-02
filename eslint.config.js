@@ -11,9 +11,9 @@ import tseslint from 'typescript-eslint'
  * `scripts/check-style.mjs`, which owns it alone.
  *
  * Taken from the DFM repository's `eslint.config.js` (2026-08-27) and widened
- * to a workspace with packages. `apps/dfm` is left out for now: it is the
- * template's copy, and the branch that settled its styling has not landed here
- * yet. Add it to `LINTED` the day it does.
+ * to a workspace with packages. Both applications are linted: `paul/
+ * directions-mapping` landed on 2026-09-02, which is what the note here used to
+ * be waiting for.
  *
  * Nothing here is type-aware, so no `tsc` program is built to run it.
  */
@@ -22,7 +22,12 @@ import tseslint from 'typescript-eslint'
 const GLOBAL_SHADOWED =
   '^(MouseEvent|KeyboardEvent|FocusEvent|ChangeEvent|DragEvent|PointerEvent|TouchEvent|WheelEvent|ClipboardEvent|AnimationEvent|TransitionEvent)$'
 
-const LINTED = ['apps/catalog/**/*.{ts,tsx}', 'packages/*/src/**/*.{ts,tsx}', 'scripts/**/*.mjs']
+const LINTED = [
+  'apps/catalog/**/*.{ts,tsx}',
+  'apps/dfm/**/*.{ts,tsx}',
+  'packages/*/src/**/*.{ts,tsx}',
+  'scripts/**/*.mjs',
+]
 
 /**
  * Each layer, most specific first: `app-root` is last so that it catches only
@@ -31,13 +36,13 @@ const LINTED = ['apps/catalog/**/*.{ts,tsx}', 'packages/*/src/**/*.{ts,tsx}', 's
  * that it imports other packages and never an application.
  */
 const ELEMENTS = [
-  { type: 'server', pattern: 'apps/catalog/server' },
-  { type: 'route', pattern: 'apps/catalog/app/routes' },
-  { type: 'component', pattern: 'apps/catalog/app/components' },
-  { type: 'client', pattern: 'apps/catalog/app/client' },
-  { type: 'shared', pattern: 'apps/catalog/app/shared' },
-  { type: 'test', pattern: 'apps/catalog/tests' },
-  { type: 'app-root', pattern: 'apps/catalog/app' },
+  { type: 'server', pattern: 'apps/*/server' },
+  { type: 'route', pattern: 'apps/*/app/routes' },
+  { type: 'component', pattern: 'apps/*/app/components' },
+  { type: 'client', pattern: 'apps/*/app/client' },
+  { type: 'shared', pattern: 'apps/*/app/shared' },
+  { type: 'test', pattern: 'apps/*/tests' },
+  { type: 'app-root', pattern: 'apps/*/app' },
   { type: 'package', pattern: 'packages/*' },
 ]
 
@@ -117,7 +122,7 @@ export default tseslint.config(
     // The browser half. Aliases are resolvable here because Vite and Vitest both
     // load `vite-tsconfig-paths`; the server is left on relative imports because
     // production runs `tsx server/prod.ts` with no bundler to resolve them.
-    files: ['apps/catalog/app/**/*.{ts,tsx}'],
+    files: ['apps/*/app/**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
@@ -134,7 +139,7 @@ export default tseslint.config(
               name: '@toolpath/part-server',
               allowTypeImports: true,
               message:
-                'Only apps/catalog/server may use @toolpath/part-server: it is the one place an API key is handled. Types are fine; values ship it to the browser.',
+                "Only an application's own server may use @toolpath/part-server: it is the one place an API key is handled. Types are fine; values ship it to the browser.",
             },
             {
               name: '@toolpath/api',
@@ -182,9 +187,9 @@ export default tseslint.config(
   {
     // Tests may name SDK values freely: nothing a test imports reaches a browser.
     files: [
-      'apps/catalog/**/*.test.{ts,tsx}',
+      'apps/*/**/*.test.{ts,tsx}',
       'packages/*/src/**/*.test.{ts,tsx}',
-      'apps/catalog/tests/**/*.ts',
+      'apps/*/tests/**/*.ts',
     ],
     rules: { '@typescript-eslint/no-restricted-imports': 'off' },
   },
