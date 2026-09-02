@@ -27,6 +27,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
+  "pnpm": {
+    "overrides": {
+      "@toolpath/tool-scraper": "link:../toolpath-ui-packages/packages/tool-scraper"
+    }
+  },
   "lint-staged": {
     "*": "prettier --write --ignore-unknown"
   },

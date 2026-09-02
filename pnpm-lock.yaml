@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@toolpath/tool-scraper': link:../toolpath-ui-packages/packages/tool-scraper
+
 importers:
 
   .:
@@ -265,6 +268,9 @@ importers:
       '@toolpath/part-contracts':
         specifier: workspace:*
         version: link:../part-contracts
+      '@toolpath/tool-scraper':
+        specifier: link:../../../toolpath-ui-packages/packages/tool-scraper
+        version: link:../../../toolpath-ui-packages/packages/tool-scraper
     devDependencies:
       '@types/node':
         specifier: 24.10.1

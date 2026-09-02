@@ -12,6 +12,7 @@ const assembly: Assembly = {
     catalogNumber: 'TDMX0600',
     materialNumber: null,
     toolType: 'endmill',
+    productLine: null,
     form: 'flat end mill',
     unitSystem: 'metric',
     geometry: { DC: 6, LCF: 13, OAL: 57, SFDM: 6, LBH: 19 },

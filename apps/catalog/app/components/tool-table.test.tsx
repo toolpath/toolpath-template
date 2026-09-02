@@ -12,6 +12,7 @@ const tool: CatalogTool = {
   catalogNumber: 'TDMX0500',
   materialNumber: '6694846',
   toolType: 'endmill',
+  productLine: null,
   form: 'flat end mill',
   unitSystem: 'metric',
   geometry: { DC: 12.7, NOF: 4 },

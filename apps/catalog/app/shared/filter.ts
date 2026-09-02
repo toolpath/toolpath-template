@@ -22,7 +22,17 @@ export const EMPTY_QUERY: ToolQuery = { text: '', terms: {}, ranges: {} }
 
 /** What free text is matched against: identity, never geometry. */
 const haystack = (tool: CatalogTool): string =>
-  [tool.catalogNumber, tool.materialNumber ?? '', tool.brand, tool.familyId].join(' ').toLowerCase()
+  [
+    tool.catalogNumber,
+    tool.materialNumber ?? '',
+    tool.brand,
+    tool.familyId,
+    // The name a machinist types. `GOdrill`, `KenCut FF` and `Viper` are what
+    // a shop calls a tool, and none of them is anywhere else in this list.
+    tool.productLine ?? '',
+  ]
+    .join(' ')
+    .toLowerCase()
 
 /**
  * The axes where a tool carries several values, and matching means "any of".
@@ -32,7 +42,11 @@ const haystack = (tool: CatalogTool): string =>
  * *only* for steel.
  */
 const listValues = (tool: CatalogTool, key: string): ReadonlyArray<string> | null =>
-  key === 'materialGroups' ? tool.materialGroups : null
+  // `null` — nobody rated the tool — carries no values, so it answers no
+  // material question and drops out of a filtered view. That is the same
+  // outcome as `[]` and a different reason for it, which is why the two are
+  // still distinguishable on the tool itself.
+  key === 'materialGroups' ? (tool.materialGroups ?? []) : null
 
 const termValue = (tool: CatalogTool, key: string): string | null => {
   switch (key) {
@@ -46,6 +60,8 @@ const termValue = (tool: CatalogTool, key: string): string | null => {
       return tool.unitSystem
     case 'familyId':
       return tool.familyId
+    case 'productLine':
+      return tool.productLine
     /**
      * **Not a geometry code.** The shank is the catalog's own reading of the
      * shoulder — `shankOf` — and without this case it fell through to

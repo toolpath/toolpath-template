@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 6,
   "builtAt": "2026-08-27",
   "families": [
     {
@@ -63,6 +63,7 @@
         "P",
         "M"
       ],
+      "productLine": "Sample HP Series",
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -100,6 +101,7 @@
         "P",
         "M"
       ],
+      "productLine": "Sample HP Series",
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -137,6 +139,7 @@
         "P",
         "M"
       ],
+      "productLine": "Sample HP Series",
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -174,6 +177,7 @@
         "P",
         "M"
       ],
+      "productLine": "Sample HP Series",
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -211,6 +215,7 @@
         "M",
         "K"
       ],
+      "productLine": "Sample Deep-Hole Series",
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -247,6 +252,7 @@
         "M",
         "K"
       ],
+      "productLine": "Sample Deep-Hole Series",
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -283,6 +289,7 @@
         "M",
         "K"
       ],
+      "productLine": "Sample Deep-Hole Series",
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -316,6 +323,7 @@
         "LD": 3.5
       },
       "materialGroups": [],
+      "productLine": null,
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -348,7 +356,8 @@
         "LBH": 28.58,
         "LD": 3
       },
-      "materialGroups": [],
+      "materialGroups": null,
+      "productLine": null,
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -640,6 +649,20 @@
           },
           {
             "value": "sample-vhm-endmills",
+            "count": 4
+          }
+        ]
+      },
+      {
+        "key": "productLine",
+        "label": "Product line",
+        "values": [
+          {
+            "value": "Sample Deep-Hole Series",
+            "count": 3
+          },
+          {
+            "value": "Sample HP Series",
             "count": 4
           }
         ]

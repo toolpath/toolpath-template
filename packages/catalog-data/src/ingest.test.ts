@@ -99,9 +99,19 @@ describe('ingest', () => {
     ])
   })
 
+  /**
+   * The cast is the point of the test, not a way around the type.
+   *
+   * `ScrapedTool` takes its geometry from `ToolRecord`, so a producer calling
+   * `ingest` in the same process cannot put a `null` in one. This arrives as a
+   * file on disk — a stale store, an older scraper, a hand-edit — and a file is
+   * a boundary the type system does not reach across. The runtime guard is what
+   * holds there, and this is what proves it still does.
+   */
   it('reports a non-numeric measurement instead of coercing it to zero', () => {
+    const onDisk = { DC: 5, RE: null } as unknown as ScrapedTool['geometry']
     const { catalog, notes } = ingest(
-      scrape({ families: [family({ tools: [tool({ geometry: { DC: 5, RE: null } })] })] }),
+      scrape({ families: [family({ tools: [tool({ geometry: onDisk })] })] }),
     )
 
     expect(catalog.tools[0]?.geometry.RE).toBeUndefined()
@@ -117,7 +127,7 @@ describe('ingest', () => {
   })
 
   /** Empty means the vendor indexes this tool under no material, not "all". */
-  it('leaves material groups empty when the vendor states none', () => {
+  it('leaves material groups empty when the vendor rates it for nothing', () => {
     const { catalog } = ingest(
       scrape({ families: [family({ tools: [tool({ materialGroups: [] })] })] }),
     )
@@ -125,10 +135,40 @@ describe('ingest', () => {
     expect(catalog.tools[0]?.materialGroups).toEqual([])
   })
 
-  it('maps a kind it does not know to `other` rather than guessing', () => {
+  /**
+   * The distinction catalog version 5 exists for.
+   *
+   * This read `scraped.materialGroups ?? []`, so a tool nobody rated arrived
+   * indistinguishable from one the vendor rates for nothing. Every Harvey
+   * record is the first — its material index is published per part, where a
+   * scrape cannot reach it — so the collapse put a rating nobody made on
+   * 12,773 tools.
+   */
+  it('keeps “nobody said” apart from “rated for nothing”', () => {
+    const said = ingest(
+      scrape({ families: [family({ tools: [tool({ materialGroups: [] })] })] }),
+    ).catalog
+    const silent = ingest(
+      scrape({ families: [family({ tools: [tool({ materialGroups: null })] })] }),
+    ).catalog
+
+    expect(said.tools[0]?.materialGroups).toEqual([])
+    expect(silent.tools[0]?.materialGroups).toBeNull()
+  })
+
+  /** A store written before the scraper carried the field at all. */
+  it('reads an absent list as “nobody said”, not as an empty rating', () => {
     const { catalog } = ingest(
-      scrape({ families: [family({ tools: [tool({ kind: 'burnisher' })] })] }),
+      scrape({ families: [family({ tools: [tool({ materialGroups: undefined })] })] }),
     )
+
+    expect(catalog.tools[0]?.materialGroups).toBeNull()
+  })
+
+  /** Cast for the same reason as the geometry above: this is a file, not a call. */
+  it('maps a kind it does not know to `other` rather than guessing', () => {
+    const onDisk = 'burnisher' as unknown as ScrapedTool['kind']
+    const { catalog } = ingest(scrape({ families: [family({ tools: [tool({ kind: onDisk })] })] }))
 
     expect(catalog.tools[0]?.toolType).toBe('other')
   })
@@ -159,7 +199,7 @@ describe('ingest', () => {
 
     expect(catalog.builtAt).toBe('2026-09-01')
     expect(catalog.families[0]?.toolCount).toBe(1)
-    expect(catalog.version).toBe(4)
+    expect(catalog.version).toBe(6)
   })
 })
 
@@ -291,5 +331,109 @@ describe('ingesting toolholding', () => {
 
     expect(catalog.holders).toEqual([])
     expect(catalog.collets).toEqual([])
+  })
+})
+
+describe('the vendor’s product line', () => {
+  it('reaches the catalog as the vendor stated it', () => {
+    const { catalog } = ingest(
+      scrape({ families: [family({ tools: [tool({ productLine: 'GOdrill™' })] })] }),
+    )
+    expect(catalog.tools[0]?.productLine).toBe('GOdrill™')
+  })
+
+  /**
+   * Both silences are one. A vendor that names no line says `null`, and a
+   * store written before `@toolpath/tool-scraper` recorded one says nothing at
+   * all — neither is a name, and the catalog is not the place to tell them
+   * apart, because there is nothing a reader could do differently.
+   */
+  it('is null where the vendor names none, and where the store predates the field', () => {
+    const { catalog } = ingest(
+      scrape({
+        families: [
+          family({
+            tools: [
+              tool({ productLine: null }),
+              tool({ guid: '11111111-1111-5111-8111-111111111102' }),
+            ],
+          }),
+        ],
+      }),
+    )
+    expect(catalog.tools.map((each) => each.productLine)).toEqual([null, null])
+  })
+})
+
+describe('one part the vendor published under two of its own facets', () => {
+  const OTHER = '11111111-1111-5111-8111-111111111102'
+
+  const bothWays = (): Scrape =>
+    scrape({
+      families: [
+        family({
+          id: 'end-mills-inch',
+          unit: 'inches',
+          tools: [tool({ geometry: { DC: 0.5, LCF: 1, NOF: 4 } })],
+        }),
+        family({
+          id: 'end-mills-mm',
+          unit: 'millimeters',
+          tools: [tool({ geometry: { DC: 12.7, LCF: 25.4, NOF: 4 } })],
+        }),
+      ],
+    })
+
+  /**
+   * EMUGE splits its end mill category by a unit facet and 750 parts carry
+   * both values. Two catalog tools sharing a join key is what `buildCatalog`
+   * refuses, and the millimetre listing is the one that is not a conversion.
+   */
+  it('is one tool, and it is the millimetre listing', () => {
+    const { catalog } = ingest(bothWays())
+
+    expect(catalog.tools).toHaveLength(1)
+    expect(catalog.tools[0]?.familyId).toBe('end-mills-mm')
+    expect(catalog.tools[0]?.unitSystem).toBe('metric')
+  })
+
+  /** Reported, never silent: the pair is a fact about the vendor's table. */
+  it('says which listing it dropped and why', () => {
+    const { notes } = ingest(bothWays())
+    const note = notes.find((each) => each.code === 'guid')
+
+    expect(note?.familyId).toBe('end-mills-inch')
+    expect(note?.reason).toContain('kept the metric listing')
+  })
+
+  /**
+   * A guid is `uuid5` under the brand's namespace, so a wrong seed is every
+   * one of that vendor's guids. Two different parts sharing one still fails.
+   */
+  it('does not cover for a guid two different parts share', () => {
+    expect(() =>
+      ingest(
+        scrape({
+          families: [
+            family({ id: 'one', tools: [tool({ catalogNumber: 'TDMX0500' })] }),
+            family({ id: 'two', tools: [tool({ catalogNumber: 'TDMX0800' })] }),
+          ],
+        }),
+      ),
+    ).toThrow(/Duplicate tool guid/)
+  })
+
+  it('leaves an ordinary two-family scrape alone', () => {
+    const { catalog, notes } = ingest(
+      scrape({
+        families: [
+          family({ id: 'one', tools: [tool()] }),
+          family({ id: 'two', tools: [tool({ guid: OTHER })] }),
+        ],
+      }),
+    )
+
+    expect(catalog.tools).toHaveLength(2)
+    expect(notes.filter((each) => each.code === 'guid')).toEqual([])
   })
 })

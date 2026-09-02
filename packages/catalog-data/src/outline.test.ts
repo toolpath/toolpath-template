@@ -16,6 +16,7 @@ const tool = (over: Partial<CatalogTool> = {}): CatalogTool => ({
   unitSystem: 'metric',
   geometry: { DC: 6, LCF: 13, OAL: 57, SFDM: 6, LBH: 19 },
   materialGroups: ['P'],
+  productLine: null,
   productLink: null,
   provenance: { DC: 'vendor-stated', LCF: 'vendor-stated', SFDM: 'vendor-stated', LBH: 'derived' },
   ...over,

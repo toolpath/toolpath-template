@@ -21,6 +21,7 @@ const tap: CatalogTool = {
   catalogNumber: 'KTAP440',
   materialNumber: '1234567',
   toolType: 'tap',
+  productLine: null,
   form: 'tap right hand',
   unitSystem: 'inch',
   geometry: { DC: 2.845, LCF: 12, LBH: 15.5, NOF: 3 },

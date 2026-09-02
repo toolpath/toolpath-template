@@ -11,6 +11,7 @@ const tool = (geometry: Record<string, number>, form = 'flat end mill'): Catalog
     catalogNumber: 'TDMX0500',
     materialNumber: null,
     toolType: 'endmill',
+    productLine: null,
     form,
     unitSystem: 'metric',
     geometry,

@@ -218,8 +218,29 @@ reaching across into it.
 ## Vendor Tool Data
 
 - **The scraper is not developed in this repository.** `@toolpath/tool-scraper`
-  lives in the `ui_packages` repository. Do not add scraping code here, and do
-  not copy an older scraper in from elsewhere.
+  lives in the `ui_packages` repository and is an ordinary dependency of
+  `@toolpath/catalog-data`. Do not write a vendor adapter here, and do not copy
+  an older scraper in from elsewhere: a vendor's transport, its column
+  vocabulary and its dimension codes all belong upstream, beside the tests that
+  check them.
+- **One module runs it, and `pnpm lint` says so.**
+  `packages/catalog-data/src/scrape.ts` drives the vendors' scrapers; everything
+  else may name the scraper's **types**, which are erased, and never its values.
+  A scrape is a command somebody runs, not something the product does — without
+  the rule, a route handler importing `scrapeFamily` would quietly turn the
+  catalog into a live proxy onto five vendors' websites, one request per page
+  view. `NO_SCRAPER` in `eslint.config.js`, the same shape as the SDK rule.
+- **A scrape is resumable, and a store is not a cache.**
+  `pnpm --filter @toolpath/catalog-data scrape` writes one file per family under
+  `scrape-out/records/` as each finishes, so a vendor failing costs that family
+  and nothing else; `--refresh` re-scrapes everything and `--only <family.csv>`
+  re-scrapes one. `scrape-out/receipt.json` records the scraper's version and
+  everything the run left out. Re-ingesting the store touches no network.
+- **Toolholding has no record seam yet.** The scraper mints records for cutting
+  tools only — drills, taps and end mills — so holders and collets are still
+  mapped from the vendors' own column labels in `src/vendors/`, one file per
+  vendor, each citing its evidence. That is a stopgap by construction; its exit
+  is a toolholding mapper upstream. See `docs/TOOL-SCRAPER-REFACTOR.md` § step 6.
 - Ingestion consumes the scraper's **records** (`ToolRecord`), never its vendor
   CSVs. A scraped CSV keeps that vendor's own column labels, and those collide
   with ISO 13399 while meaning something else — Kennametal's `D1` is a cutting
@@ -227,6 +248,13 @@ reaching across into it.
   read that vendor's CSV; this repository takes the handoff at the record seam,
   which is also what lets an updated scraper be plugged in without anything
   downstream of `buildCatalog` changing.
+- **A tool carries the vendor's own `productLine`**, and an AEM family its own
+  title. Both are the vendor's words, read off a page rather than derived, and
+  `null` where a vendor names none — the silence, not an unnamed line. The
+  product line is a filter axis of its own because a line spans families, which
+  is the question `familyId` cannot ask. Catalog version 6; re-ingest a store
+  rather than rebuild it, since neither name can be derived from a version-5
+  document.
 - **Geometry keeps the scraper's field names** (`DC`, `SFDM`, `OAL`, `LCF`,
   `RE`, `NOF`, `SIG`, …), with the ISO code recorded alongside. Renaming one
   here would put a translation table between the two vocabularies, which is

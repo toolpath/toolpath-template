@@ -9,6 +9,7 @@ import {
   HashIcon,
   DotsThreeIcon,
   MagnifyingGlassIcon,
+  StackSimpleIcon,
   TagIcon,
   WrenchIcon,
   XIcon,
@@ -17,6 +18,7 @@ import type { Facets } from '@toolpath/catalog-data'
 import { MATERIAL_GROUPS, TOOL_FORMS } from '@toolpath/catalog-data'
 import { classNames } from '@toolpath/domain/class-names'
 import type { Unit } from '@toolpath/domain/units'
+import { getFamily } from 'shared/catalog'
 import { toggleTerm, type ToolQuery } from 'shared/filter'
 import type { SavedFilter } from 'shared/saved-filters'
 import { Chip, ChipGroup } from './chip'
@@ -111,6 +113,17 @@ interface QuickFilter {
   readonly kind?: Kind
   /** Values for an axis the catalog does not enumerate, or the crib's. */
   readonly values?: 'holders' | 'collets' | ReadonlyArray<TileOption & { title?: string }>
+  /**
+   * What a value is called, where the value is an id and not a name.
+   *
+   * The default is the value itself, which is right for a brand, a form or a
+   * flute count — they *are* words. It is wrong for `familyId`, whose values
+   * are the scrape's own keys: the picker read `godrill_3xd_metric` where the
+   * vendor calls that family `GOdrill™ • 3xD • Metric`. Only the label
+   * changes; the value stays the id the URL and the query are keyed by, and
+   * {@link matching} searches both, so typing either finds it.
+   */
+  readonly labelOf?: (value: string) => string
   /** For tiles: how one is drawn. */
   readonly tile?: (value: string) => ReactNode
   /** For tiles: which values stand in front. The rest go behind `…`. */
@@ -153,6 +166,7 @@ const Monogram = ({ brand }: { brand: string }) => (
 export const FACET_AXES: ReadonlyArray<string> = [
   'brand',
   'familyId',
+  'productLine',
   'form',
   'materialGroups',
   'shank',
@@ -190,6 +204,23 @@ export const QUICK_FILTERS: ReadonlyArray<QuickFilter> = [
     key: 'familyId',
     label: 'Family',
     icon: <BookmarksSimpleIcon />,
+    shape: 'chips',
+    mode: 'multi',
+    span: 2,
+    search: true,
+    // The vendor's own title for it, where the scrape carried one. Falls back
+    // to the id, which is what every family read as before the AEM family page
+    // was fetched.
+    labelOf: (value) => getFamily(value)?.name ?? value,
+  },
+  {
+    // One line above the families: `KenCut™ FF` is square and ball nose,
+    // metric and inch, and a shop that has settled on a line wants all of it.
+    // A tool whose vendor names none is under no value here, so this narrows
+    // and never silently drops the unnamed into a bucket.
+    key: 'productLine',
+    label: 'Product line',
+    icon: <StackSimpleIcon />,
     shape: 'chips',
     mode: 'multi',
     span: 2,
@@ -894,10 +925,21 @@ export const FilterPanel = ({
       return narrowed(filter, filter.values)
     }
     const known = facets.terms.find((axis) => axis.key === filter.key)
-    return narrowed(
-      filter,
-      (known?.values ?? []).map((each) => ({ value: each.value, label: each.value })),
-    )
+    const named = (known?.values ?? []).map((each) => ({
+      value: each.value,
+      label: filter.labelOf?.(each.value) ?? each.value,
+    }))
+    // `facetsFor` sorts an axis by its **value**, which is the same thing as
+    // its label everywhere but here. With a `labelOf` the two part company,
+    // and the four chips standing in front then read as an arbitrary handful:
+    // the family picker led with `destinytool end mills inch` and
+    // `emuge taps` — ids beginning with d and e — while every named family
+    // sat behind the `…`. Sorted by what is on the chip, so the order a
+    // reader sees is the order they can predict.
+    if (filter.labelOf) {
+      named.sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true }))
+    }
+    return narrowed(filter, named)
   }
 
   const shownFilters = only

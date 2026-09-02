@@ -21,6 +21,7 @@ const tool = (over: Partial<CatalogTool> & Pick<CatalogTool, 'guid'>): CatalogTo
   catalogNumber: 'TDMX0500',
   materialNumber: '6694846',
   toolType: 'endmill',
+  productLine: null,
   form: 'flat end mill',
   unitSystem: 'metric',
   geometry: { DC: 5, NOF: 4, RE: 0.5 },
@@ -320,6 +321,7 @@ describe('the shank a tool has', () => {
       brand: 'Kennametal',
       form: 'flat end mill',
       toolType: 'endmill',
+      productLine: null,
       unitSystem: 'metric',
       geometry,
       materialGroups: [],
@@ -380,6 +382,7 @@ describe('what each axis has left to offer', () => {
       familyId,
       form,
       toolType: 'endmill',
+      productLine: null,
       geometry: { DC: 6 },
       materialGroups: [],
       provenance: {},
@@ -418,5 +421,42 @@ describe('what each axis has left to offer', () => {
 
     expect(counts.get('form')?.get('drill')).toBe(1)
     expect(counts.get('form')?.get('flat end mill')).toBe(1)
+  })
+})
+
+describe('the product line', () => {
+  const tools = [
+    tool({ guid: 'a', productLine: 'GOdrill™' }),
+    tool({ guid: 'b', productLine: 'KenCut™ FF' }),
+    tool({ guid: 'c', productLine: null }),
+  ]
+
+  it('narrows the list to one vendor’s line', () => {
+    const listed = filterTools(tools, query({ terms: { productLine: ['GOdrill™'] } }))
+    expect(listed.map((each) => each.guid)).toEqual(['a'])
+  })
+
+  /**
+   * A tool whose vendor names no line answers no question about one. That is
+   * the `materialGroups` rule: silence is not a match, and it is not a bucket.
+   */
+  it('leaves out the tools whose vendor names none', () => {
+    const listed = filterTools(
+      tools,
+      query({ terms: { productLine: ['GOdrill™', 'KenCut™ FF'] } }),
+    )
+    expect(listed.map((each) => each.guid)).toEqual(['a', 'b'])
+  })
+
+  /** `GOdrill` is what a machinist types, and it is nowhere else in the row. */
+  it('is free text a search finds the tool by', () => {
+    expect(filterTools(tools, query({ text: 'godrill' })).map((each) => each.guid)).toEqual(['a'])
+  })
+
+  it('counts only the named lines', () => {
+    expect([...countBy(tools, 'productLine')]).toEqual([
+      ['GOdrill™', 1],
+      ['KenCut™ FF', 1],
+    ])
   })
 })

@@ -13,6 +13,7 @@ const tool = (over: Partial<CatalogTool> & Pick<CatalogTool, 'guid'>): CatalogTo
   unitSystem: 'metric',
   geometry: { DC: 5, NOF: 4 },
   materialGroups: ['P'],
+  productLine: null,
   productLink: null,
   provenance: {},
   ...over,
@@ -70,5 +71,36 @@ describe('facetsFor', () => {
 
   it('has nothing to offer for an empty catalog', () => {
     expect(facetsFor([])).toEqual({ terms: [], ranges: [] })
+  })
+})
+
+describe('the product-line axis', () => {
+  /**
+   * A line spans families, so it is the axis a shop asks "the rest of that
+   * line" on. The vendors that name none are the reason it counts `null` as no
+   * value rather than as a bucket: Harvey publishes no line separate from its
+   * part description, and a `—` chip holding every Harvey tool would be an
+   * option nobody can act on.
+   */
+  it('counts the tools whose vendor names a line, and leaves the rest out', () => {
+    const facets = facetsFor([
+      tool({ guid: 'a', productLine: 'GOdrill™' }),
+      tool({ guid: 'b', productLine: 'GOdrill™' }),
+      tool({ guid: 'c', productLine: 'KenCut™ FF' }),
+      tool({ guid: 'd', productLine: null }),
+    ])
+
+    const axis = facets.terms.find((each) => each.key === 'productLine')
+    expect(axis?.label).toBe('Product line')
+    expect(axis?.values).toEqual([
+      { value: 'GOdrill™', count: 2 },
+      { value: 'KenCut™ FF', count: 1 },
+    ])
+  })
+
+  /** A catalog whose vendors name no line gets no control, not an empty one. */
+  it('is not offered at all where nothing states one', () => {
+    const facets = facetsFor([tool({ guid: 'a' }), tool({ guid: 'b' })])
+    expect(facets.terms.find((each) => each.key === 'productLine')).toBeUndefined()
   })
 })

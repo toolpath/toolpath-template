@@ -37,6 +37,10 @@ const endmill = (guid, catalogNumber, dc, lcf, oal, re, nof, dmm) => ({
   // steel and stainless; the drills add cast iron; the taps carry none, which
   // is a real answer rather than a gap.
   materialGroups: ['P', 'M'],
+  // The vendor's own name for the line, which the taps below deliberately
+  // leave `null`: a catalog holds both, and the facet has to count only the
+  // named ones.
+  productLine: 'Sample HP Series',
   productLink: null,
   provenance: {
     DC: 'vendor-stated',
@@ -59,6 +63,7 @@ const drill = (guid, catalogNumber, dc, lcf, oal, sig, dmm) => ({
   unitSystem: 'metric',
   geometry: { DC: dc, LCF: lcf, OAL: oal, SIG: sig, SFDM: dmm },
   materialGroups: ['P', 'M', 'K'],
+  productLine: 'Sample Deep-Hole Series',
   productLink: null,
   // The point angle is a family constant here rather than a per-part column,
   // which is exactly the kind of fact that has to be marked as derived.
@@ -71,7 +76,7 @@ const drill = (guid, catalogNumber, dc, lcf, oal, sig, dmm) => ({
   },
 })
 
-const tap = (guid, catalogNumber, dc, lcf, oal, nof, dmm) => ({
+const tap = (guid, catalogNumber, dc, lcf, oal, nof, dmm, materialGroups) => ({
   guid,
   familyId: 'sample-inch-taps',
   brand: 'WIDIA',
@@ -83,8 +88,13 @@ const tap = (guid, catalogNumber, dc, lcf, oal, nof, dmm) => ({
   // ZEFP is a real vendor column the dictionary deliberately does not define:
   // the detail page has to show it under the vendor's own code.
   geometry: { DC: dc, LCF: lcf, OAL: oal, NOF: nof, SFDM: dmm, ZEFP: 3 },
-  // Kennametal indexes no tap by workpiece material, and neither does this.
-  materialGroups: [],
+  // The two silences, which are different claims and are drawn differently:
+  // `[]` is a vendor index that rates this part for nothing — Kennametal
+  // indexes no tap by workpiece material — and `null` is no index a scrape
+  // could reach, which is every Harvey part.
+  materialGroups,
+  // No line: the vendor names none, which is not the same as an unnamed one.
+  productLine: null,
   productLink: null,
   provenance: {
     DC: 'vendor-stated',
@@ -193,8 +203,17 @@ const catalog = buildCatalog({
       unitSystem: 'inch',
       source: null,
       tools: [
-        tap('33333333-3333-5333-8333-333333333301', 'VTSFT0250', 6.35, 15.875, 63.5, 3, 6.35),
-        tap('33333333-3333-5333-8333-333333333302', 'VTSFT0375', 9.525, 19.05, 76.2, 3, 7.938),
+        tap('33333333-3333-5333-8333-333333333301', 'VTSFT0250', 6.35, 15.875, 63.5, 3, 6.35, []),
+        tap(
+          '33333333-3333-5333-8333-333333333302',
+          'VTSFT0375',
+          9.525,
+          19.05,
+          76.2,
+          3,
+          7.938,
+          null,
+        ),
       ],
     },
   ],

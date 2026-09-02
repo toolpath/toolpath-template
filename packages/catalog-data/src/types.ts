@@ -208,11 +208,45 @@ export interface CatalogTool {
    * ISO 513 workpiece-material groups this tool is indexed under — `P`, `M`,
    * `K`, `N`, `S`, `H`, `C`.
    *
-   * **Empty is a real answer, not "unconstrained".** Kennametal indexes no tap
-   * by workpiece material, and showing every tap under every material on no
-   * evidence is how a shop ends up trusting a recommendation nobody made.
+   * **Three states, and they are different claims.** This was
+   * `ReadonlyArray<string>` until catalog version 5, and an empty array carried
+   * two incompatible facts at once:
+   *
+   * - **`null`** — nobody has said. The vendor publishes no material index a
+   *   scrape can reach, or the sweep that reads one was never run. Says nothing
+   *   about what this tool cuts, and is **not** a claim that it cuts nothing.
+   * - **`[]`** — the vendor's index exists and rates this part for nothing.
+   * - **non-empty** — rated, in {@link MATERIAL_GROUPS} order.
+   *
+   * The distinction is the scraper's, and collapsing it here threw away the
+   * only evidence of which one a tool was: `ingest` read `?? []`, so a Harvey
+   * tool — every one of which is unrated, because Harvey publishes its index
+   * per part where no scrape reaches it — entered the catalog indistinguishable
+   * from a Kennametal tap the vendor really does rate for nothing.
+   *
+   * **Empty is still a real answer, not "unconstrained".** Showing a tool under
+   * every material on no evidence is how a shop ends up trusting a
+   * recommendation nobody made — which is as true of `null` as it was of `[]`.
    */
-  readonly materialGroups: ReadonlyArray<string>
+  readonly materialGroups: ReadonlyArray<string> | null
+  /**
+   * The vendor's own name for the product line this tool belongs to —
+   * `KenCut™ FF`, `MultiDRILL`, `Viper` — or `null` where the vendor names
+   * none.
+   *
+   * **Not the family, and that is the point.** A family is one page in a
+   * vendor's catalogue and its id says how the scrape was run
+   * (`kencut_ff_square_6fl_inch`); a product line is what a machinist calls
+   * the tool. One line spans several families — the same `KenCut™ FF` is a
+   * square end and a ball nose, metric and inch — so filtering by it is the
+   * question "show me the rest of that line" that `familyId` could not ask.
+   *
+   * **`null` is the vendor's silence, not an empty name** — the scraper's own
+   * three-state rule, kept for the reason {@link CatalogTool.materialGroups}
+   * states: Harvey publishes no line separate from its part description, and a
+   * `''` would read as a line with no name.
+   */
+  readonly productLine: string | null
   /** The vendor's page for this tool, where the vendor publishes one. */
   readonly productLink: string | null
   /** Which geometry values are the vendor's, and which this pipeline decided. */
@@ -296,5 +330,18 @@ export interface Catalog {
  *
  * 3 — the document carries toolholding, because a tool nothing holds is not an
  * answer.
+ *
+ * 5 — `materialGroups` tells "nobody said" from "rated for nothing". It is
+ * `null` for the first, where it was `[]` for both, and a dataset built before
+ * this cannot be repaired by reading it: the two states are already merged in
+ * the file. Re-ingest the store rather than rebuild — `scripts/rebuild.mjs`
+ * works forwards from a built dataset and would carry the merge forward.
+ *
+ * 6 — every tool carries the vendor's own `productLine`, which
+ * `@toolpath/tool-scraper` records for the first time, and an AEM family's
+ * `name` is the vendor's own title for it rather than its id with the
+ * underscores taken out. A version-5 dataset states neither, and there is
+ * nothing in it to derive them from — both are the vendor's words and come off
+ * a page. Re-ingest the store; `rebuild.mjs` would only write `null`.
  */
-export const CATALOG_VERSION = 4
+export const CATALOG_VERSION = 6

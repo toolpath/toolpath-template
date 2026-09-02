@@ -22,6 +22,7 @@ const tool: CatalogTool = {
   unitSystem: 'metric',
   geometry: { DC: 6, LCF: 13, OAL: 57, SFDM: 6 },
   materialGroups: ['P'],
+  productLine: null,
   productLink: null,
   provenance: {},
 }

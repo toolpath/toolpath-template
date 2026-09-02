@@ -11,6 +11,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./scrape": {
+      "types": "./dist/scrape.d.ts",
+      "import": "./dist/scrape.js"
+    },
     "./sample-catalog.json": "./fixtures/sample-catalog.json",
     "./vendors/regofix": {
       "types": "./dist/vendors/regofix.d.ts",
@@ -38,7 +42,8 @@
   },
   "dependencies": {
     "@toolpath/domain": "workspace:*",
-    "@toolpath/part-contracts": "workspace:*"
+    "@toolpath/part-contracts": "workspace:*",
+    "@toolpath/tool-scraper": "2.0.0"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

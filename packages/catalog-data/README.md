@@ -12,6 +12,14 @@ compare without the reader knowing which is which. `unitSystem` records how the
 vendor published a family — a fact about the tool, not the unit anything is
 stored in.
 
+A tool carries the vendor's own **`productLine`** — `GOdrill™`, `KenCut™ FF`,
+`Viper` — or `null` where the vendor names none, which is the vendor's silence
+and not an unnamed line. It is a facet of its own because a line spans families:
+the same `KenCut™ FF` is square and ball nose, metric and inch, so `familyId`
+cannot ask "the rest of that line". A **family's `name`** is likewise the
+vendor's own title where the scrape carried one — `GOdrill™ • 3xD • Straight
+Shank • Metric` rather than the id with its underscores taken out.
+
 Geometry keeps `@toolpath/tool-scraper`'s canonical field names, with each
 one's ISO 13399 code recorded beside it. Seven are the standard's own; `SFDM`
 and the two shoulder fields are Autodesk's names, kept because that is what a
@@ -19,11 +27,38 @@ downstream consumer recognises. Renaming them here would mean a translation
 table, and a translation table is where an `SFDM` becomes a `DC` in one
 direction and nobody notices.
 
-## Ingesting a scrape
+## Scraping, then ingesting
 
 ```sh
-pnpm --filter @toolpath/catalog-data ingest ../path/to/scrape.json catalog.json
+pnpm --filter @toolpath/catalog-data scrape                        # every reachable family
+pnpm --filter @toolpath/catalog-data scrape -- --only godrill_3xd_metric.csv
+pnpm --filter @toolpath/catalog-data scrape -- --refresh           # ignore the store
+pnpm --filter @toolpath/catalog-data ingest ../../scrape-out/scrape.json ../../scrape-out/catalog.json
 ```
+
+The scrape writes one file per family under `scrape-out/records/` the moment it
+finishes, so a vendor failing costs that family and nothing else — a full run is
+an afternoon of paced requests, and losing it to a 404 in the last minute is how
+the previous script behaved. A second run scrapes only what the store does not
+already hold. `scrape-out/receipt.json` says what ran, under which scraper
+version, and what it left out.
+
+Kennametal and WIDIA are asked for one thing the variants table does not carry:
+the family page's own `h1`, which is where those two vendors state the family's
+name and the product line. That is a second request per family — thirteen across
+a whole run — and `src/scrape.ts`'s `AEM_TITLE` is the one place it is turned on.
+
+`src/scrape.ts` is where every decision lives; `scripts/scrape.mjs` is only what
+needs `fs`. Nothing else in this package may import the scraper at runtime —
+`NO_SCRAPER` in the repository's `eslint.config.js` — because a scrape is a
+command somebody runs and not something the product does.
+
+**Cutting tools only.** Drills, taps and end mills are the three kinds the
+scraper mints records for. Toolholding still arrives through `src/vendors/`,
+which reads the vendors' own column labels because there is no record seam for a
+holder yet.
+
+## Ingesting a scrape
 
 The input is **records**, not vendor CSVs. A scraped CSV deliberately keeps that
 vendor's own column labels, and those collide with ISO 13399 while meaning
