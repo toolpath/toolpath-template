@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { type PartUploadPhase, uploadPart } from '@toolpath/part-client'
-import { errorMessage } from '@toolpath/part-client'
+import { type PartUploadPhase, uploadPart } from './api'
+import { errorMessage } from './error-message'
 
 export type UploadStatus = 'idle' | PartUploadPhase
 

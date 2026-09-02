@@ -93,9 +93,9 @@ import { usePartMaterial, usePreferences } from 'shared/use-preferences'
 import { recallPart, rememberPart } from 'shared/part-session'
 import { IDLE, groupOf as holeGroupOf, interactionFor } from 'shared/part-interaction'
 import { arrowsFor, byLargest, keptFeatures, partHighlight } from 'shared/part-selection'
-import { holeAt, holeDepthOf, makersFor, shortfallOf } from 'shared/hole-mode'
+import { THREADED_FORMS, holeAt, holeDepthOf, makersFor, shortfallOf } from 'shared/hole-mode'
 import { hasSharpCorner } from 'shared/feature-defaults'
-import { paneOf, threadPanes } from 'shared/thread-panes'
+import { threadPanes } from 'shared/thread-panes'
 import { drillFor, type HoleMode, type ThreadSpec } from 'shared/threads'
 
 /** How one hole is made, and for what thread: hole mode's answer per feature. */
@@ -1235,20 +1235,32 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     [chosenTool, held, allTools],
   )
   /**
-   * Which half of a threaded feature the panel is reading: the drill or the
-   * tap.
+   * Which half of a threaded feature the **list** is showing: the taps, or the
+   * drills under them.
    *
-   * **Two tools, so two tabs** (Paul, 2026-09-01: "it should open drill and tap
-   * tabs in the right hand panel when working with a threaded feature"). A
-   * threaded hole is a drill *and* a tap, and the panel is where either is
-   * assembled and kept — so which one is on show is a state of the panel, set
-   * by the list a tool was clicked in and switchable by hand.
+   * **Taps first** (Paul, 2026-09-02: "I'd like to have the tabs in the tool
+   * table, showing taps first by default, then the drill tab to the right to
+   * switch to it"). They were two tables stacked and a second pair of tabs in
+   * the panel on the right, which spent the panel twice. The thread is the
+   * decision and the drill follows from it, so the taps are the tab somebody
+   * lands on; the panel then reads whichever tool was clicked, in either tab.
    */
-  const [pane, setPane] = useState<'drill' | 'tap'>('drill')
-  const paneTools = useMemo(
-    () => (threadSpec === null ? null : threadPanes(listed, makers.made, chosenTool)),
-    [threadSpec, makers.made, listed, chosenTool],
-  )
+  const [pane, setPane] = useState<'drill' | 'tap'>('tap')
+  /**
+   * What the panel on the right assembles.
+   *
+   * **Whichever tool is selected** (Paul, 2026-09-02: "whichever tool is
+   * selected shows in the right hand panel"). A click in either tab wins; with
+   * nothing clicked it is the head of the tab on show, so a threaded hole opens
+   * on the tap it is for rather than on the drill under it.
+   */
+  const panelTool = useMemo(() => {
+    if (chosenTool !== null || threadSpec === null) {
+      return tool
+    }
+    const panes = threadPanes(listed, makers.made, chosenTool)
+    return (pane === 'tap' ? panes.tap : panes.drill) ?? tool
+  }, [chosenTool, threadSpec, tool, listed, makers.made, pane])
 
   const pick = useCallback(
     (
@@ -1522,7 +1534,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                    * to be able to see what stopped them and
                                    * undo it (Paul, 2026-08-31).
                                    */
-                                  applyTerm('form', choice.mode === 'plain' ? [] : ['drill'])
+                                  applyTerm('form', choice.mode === 'plain' ? [] : THREADED_FORMS)
                                 },
                               },
                             })}
@@ -1555,77 +1567,55 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                   table is a flip away, and the filters overlay it. */}
               <Card className="relative flex size-full min-h-0 flex-col overflow-hidden">
                 {/* The panel measures itself here: `Card` takes no ref. */}
-                {/*
-                  **Hole mode, taps first** (Paul, 2026-09-01: "when I define a
-                  hole as threaded, I should select the tap before the drill —
-                  taps should be shown at the top of the list"). The thread is
-                  the decision; the drill follows from it, and reading them the
-                  other way round asks for the bore before anybody has said what
-                  it is for.
-
-                  Two sections rather than one list: they are chosen on
-                  different numbers, and a single ranking would compare a
-                  diameter that means the thread against one that means the
-                  bore (Paul, 2026-08-31).
-                */}
-                {threadSpec === null ? null : (
-                  /*
-                    A shade lighter than the drills under it, so the two
-                    sections read apart at a glance (Paul, 2026-08-31).
-
-                    **And a share of the panel it cannot be squeezed out of**
-                    (Paul, 2026-09-01: "no space is given to taps", then "taps
-                    should get at most 3/5 of the panel"). Both sections size to
-                    their own rows and shrink by content, so a long drill list
-                    took everything and left the taps two rows and a scrollbar.
-                    Three fifths is the ceiling and seven rem the floor: the
-                    thread is the decision, so its own list gets the room, and
-                    the drills it implies keep the rest.
-                  */
-                  <div className="flex max-h-[60%] min-h-[7rem] shrink grow-0 basis-auto flex-col overflow-hidden border-b border-zinc-800 bg-zinc-900/40">
-                    <TapTable
-                      makers={makers.made}
-                      short={makers.short}
-                      unheld={makers.unheld}
-                      mode={holeChoice.mode}
-                      spec={threadSpec}
-                      unit={unit}
-                      chosen={tool?.guid ?? null}
-                      onChoose={(each) => {
-                        setChosenTool(each.guid)
-                        setPane(paneOf(each))
-                      }}
-                      shortfall={(each) => shortfallOf(each, threadReach)}
-                      columns={shownColumns(hiddenColumns, columnOrder)}
-                    />
-                  </div>
-                )}
-                <div
-                  className={classNames(
-                    'flex min-h-0 min-w-0 flex-col overflow-hidden',
-                    /*
-                     * **Each section is as tall as its own rows.** A fixed
-                     * three-fifths share held the panel open under two drills
-                     * and put the taps half a screen below them (Paul,
-                     * 2026-09-01: "we don't need the white space here"). At
-                     * `flex: 0 1 auto` both sections size to their content and
-                     * only shrink when together they overflow — and shrinking
-                     * is weighted by content, so the long list gives up the
-                     * space and scrolls while the short one keeps its rows.
-                     */
-                    threadSpec === null ? 'flex-1' : 'shrink basis-auto grow-0',
-                  )}
-                >
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                   <p
                     data-list-chrome
                     className="flex items-center gap-2 border-b border-zinc-900 px-3 py-2 text-sm"
                   >
-                    <span className="text-zinc-200">
-                      {threadSpec === null ? listTitle : `Drills for the ${threadSpec.name} hole`}
-                    </span>
-                    <Badge variant={listed.length === 0 ? 'danger' : 'secondary'}>
-                      {listed.length}
-                    </Badge>
+                    {/*
+                      **Two tabs on the list, taps first** (Paul, 2026-09-02:
+                      "I'd like to have the tabs in the tool table, showing taps
+                      first by default, then the drill tab to the right to
+                      switch to it"). They were two tables stacked, which spent
+                      the panel twice and made the reading order a layout
+                      question. The thread is the decision and the drill follows
+                      from it, so the taps are the tab somebody lands on;
+                      whichever tool is clicked, in either tab, is the one the
+                      panel on the right assembles.
+                    */}
+                    {threadSpec === null ? (
+                      <span className="text-zinc-200">{listTitle}</span>
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        {(
+                          [
+                            ['tap', `Taps for ${threadSpec.name}`, makers.made.length],
+                            ['drill', 'Drills', listed.length],
+                          ] as const
+                        ).map(([key, label, many]) => (
+                          <button
+                            key={key}
+                            type="button"
+                            aria-pressed={pane === key}
+                            onClick={() => setPane(key)}
+                            className={classNames(
+                              'focus-visible:ring-info/60 flex items-center gap-1.5 rounded border px-2 py-0.5 text-sm transition focus-visible:ring-1 focus-visible:outline-none',
+                              pane === key
+                                ? 'border-info/60 bg-info/15 text-info'
+                                : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
+                            )}
+                          >
+                            {label}
+                            <span className="text-2xs text-zinc-500">{many}</span>
+                          </button>
+                        ))}
+                      </span>
+                    )}
+                    {threadSpec === null ? (
+                      <Badge variant={listed.length === 0 ? 'danger' : 'secondary'}>
+                        {listed.length}
+                      </Badge>
+                    ) : null}
                     {reading === null ? (
                       <span className="text-2xs text-zinc-500">
                         click a feature on the part for the ones that cut it
@@ -1693,59 +1683,70 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                     </span>
                   </p>
                   <div
-                    // Each section scrolls in its own share of the panel, the
-                    // way the list does when it has the panel to itself.
+                    // Whichever tab is open scrolls in the whole panel.
                     className="min-h-0 flex-1 overflow-auto"
                   >
-                    <ToolTable
-                      // Kept for this feature, then the sheet's order or
-                      // whatever column the list is sorted by.
-                      tools={shownRows}
-                      // Nothing fits, so every row is a near miss: the list
-                      // says so on each of them, not only in its heading.
-                      nearest={reading !== null && tools.length === 0 && closest.length > 0}
-                      /*
+                    {threadSpec !== null && pane === 'tap' ? (
+                      <TapTable
+                        makers={makers.made}
+                        short={makers.short}
+                        unheld={makers.unheld}
+                        mode={holeChoice.mode}
+                        spec={threadSpec}
+                        unit={unit}
+                        chosen={tool?.guid ?? null}
+                        onChoose={(each) => setChosenTool(each.guid)}
+                        shortfall={(each) => shortfallOf(each, threadReach)}
+                        columns={shownColumns(hiddenColumns, columnOrder)}
+                      />
+                    ) : (
+                      <ToolTable
+                        // Kept for this feature, then the sheet's order or
+                        // whatever column the list is sorted by.
+                        tools={shownRows}
+                        // Nothing fits, so every row is a near miss: the list
+                        // says so on each of them, not only in its heading.
+                        nearest={reading !== null && tools.length === 0 && closest.length > 0}
+                        /*
                           The rail asks these questions too, so the column
                           headers hand them over rather than opening a second
                           control for the same filter.
                         */
-                      onRailFilter={setAskedFilter}
-                      railKeys={{ DC: 'DC', LCF: 'LCF', NOF: 'NOF', form: 'form' }}
-                      unit={unit}
-                      chosen={tool?.guid ?? null}
-                      onChoose={(each) => {
-                        setChosenTool(each.guid)
-                        setPane(paneOf(each))
-                      }}
-                      ranges={query.ranges}
-                      onRange={applyRange}
-                      terms={query.terms}
-                      onTerm={applyTerm}
-                      hiddenColumns={hiddenColumns}
-                      columnOrder={columnOrder}
-                      marks={marksOf}
-                      sort={sort}
-                      onSort={setSort}
-                      holding={holding}
-                      search={numberSearch}
-                      onSearch={setNumberSearch}
-                      /*
-                       * Only in hole mode, where a tap section is under it.
-                       *
-                       * **Expanded, the section shows everything and scrolls.**
-                       * A panel three rows tall cannot answer "show me the rest"
-                       * by drawing four; the press has to hand the section the
-                       * whole panel, and the one scrollbar that comes with it is
-                       * not the two competing ones that made this rule
-                       * (Paul, 2026-08-31).
-                       */
-                      // **Nothing is kept from the list any more** (Paul,
-                      // 2026-09-01): a row is a tool to read, and what gets
-                      // ordered is a tool with its holding — which is
-                      // decided in the panel, so the button lives there.
-                      inBom={(each) => keptHere.has(each.guid)}
-                      keptElsewhere={(each) => bom.has(each.guid) && !keptHere.has(each.guid)}
-                    />
+                        onRailFilter={setAskedFilter}
+                        railKeys={{ DC: 'DC', LCF: 'LCF', NOF: 'NOF', form: 'form' }}
+                        unit={unit}
+                        chosen={tool?.guid ?? null}
+                        onChoose={(each) => setChosenTool(each.guid)}
+                        ranges={query.ranges}
+                        onRange={applyRange}
+                        terms={query.terms}
+                        onTerm={applyTerm}
+                        hiddenColumns={hiddenColumns}
+                        columnOrder={columnOrder}
+                        marks={marksOf}
+                        sort={sort}
+                        onSort={setSort}
+                        holding={holding}
+                        search={numberSearch}
+                        onSearch={setNumberSearch}
+                        /*
+                         * Only in hole mode, where a tap section is under it.
+                         *
+                         * **Expanded, the section shows everything and scrolls.**
+                         * A panel three rows tall cannot answer "show me the rest"
+                         * by drawing four; the press has to hand the section the
+                         * whole panel, and the one scrollbar that comes with it is
+                         * not the two competing ones that made this rule
+                         * (Paul, 2026-08-31).
+                         */
+                        // **Nothing is kept from the list any more** (Paul,
+                        // 2026-09-01): a row is a tool to read, and what gets
+                        // ordered is a tool with its holding — which is
+                        // decided in the panel, so the button lives there.
+                        inBom={(each) => keptHere.has(each.guid)}
+                        keptElsewhere={(each) => bom.has(each.guid) && !keptHere.has(each.guid)}
+                      />
+                    )}
                   </div>
                 </div>
               </Card>
@@ -1761,100 +1762,29 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           being sorted out, and the panel is the tool alone in the meantime.
         */}
         <Panels.Panel className="min-h-0 overflow-hidden" minSize={280}>
-          {paneTools ? (
-            /*
-              **A threaded hole is two tools** (Paul, 2026-09-01: "it should
-              open drill and tap tabs in the right hand panel when working with
-              a threaded feature"). The drill and the tap are chosen on
-              different numbers and kept separately, and the panel is where
-              either one is assembled — so it is two tabs rather than whichever
-              list was clicked last.
-            */
-            <Card className="flex size-full min-h-0 flex-col overflow-hidden">
-              <div className="flex gap-1 border-b border-zinc-900 px-2 py-1.5">
-                {(
-                  [
-                    ['drill', 'Drill', paneTools.drill],
-                    ['tap', 'Tap', paneTools.tap],
-                  ] as const
-                ).map(([key, label, each]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    aria-pressed={pane === key}
-                    disabled={each === null}
-                    onClick={() => {
-                      setPane(key)
-                      if (each) {
-                        setChosenTool(each.guid)
-                      }
-                    }}
-                    className={classNames(
-                      'text-2xs focus-visible:ring-info/60 rounded border px-2 py-0.5 transition focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-zinc-900 disabled:text-zinc-700',
-                      pane === key && each !== null
-                        ? 'border-info/60 bg-info/15 text-info'
-                        : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
-                    )}
-                  >
-                    {label}
-                    {each === null ? <span className="ml-1 text-zinc-600">none</span> : null}
-                  </button>
-                ))}
-              </div>
-              <div className="min-h-0 flex-1 overflow-auto">
-                {(() => {
-                  const reading = pane === 'tap' ? paneTools.tap : paneTools.drill
-                  return reading === null ? (
-                    <p className="p-6 text-center text-sm text-zinc-400">
-                      {pane === 'tap'
-                        ? 'Nothing in the catalog cuts this thread.'
-                        : 'Nothing in the catalog drills this hole.'}
-                    </p>
-                  ) : (
-                    <ToolDetails
-                      tool={reading}
-                      unit={unit}
-                      holding={holding}
-                      saved={keptHere.has(reading.guid)}
-                      onSave={() => {
-                        const held = holding.chosen(reading)
-                        commit(
-                          addChoice(sheet, choiceKey, {
-                            toolGuid: reading.guid,
-                            ...(held.holderGuid === null ? {} : { holderGuid: held.holderGuid }),
-                            ...(held.colletGuid === null ? {} : { colletGuid: held.colletGuid }),
-                          }),
-                        )
-                      }}
-                      onRemove={() => commit(removeChoice(sheet, choiceKey, reading.guid))}
-                    />
-                  )
-                })()}
-              </div>
-            </Card>
-          ) : tool ? (
+          {panelTool ? (
             <Card className="size-full overflow-auto">
               <ToolDetails
-                tool={tool}
+                tool={panelTool}
                 unit={unit}
                 holding={holding}
-                saved={keptHere.has(tool.guid)}
+                saved={keptHere.has(panelTool.guid)}
                 /*
                   **No dialog** (Paul, 2026-09-01): the holder and the collet
                   are chosen in this panel, above the button, so asking again
                   in a box is asking a question already answered.
                 */
                 onSave={() => {
-                  const held = holding.chosen(tool)
+                  const held = holding.chosen(panelTool)
                   commit(
                     addChoice(sheet, choiceKey, {
-                      toolGuid: tool.guid,
+                      toolGuid: panelTool.guid,
                       ...(held.holderGuid === null ? {} : { holderGuid: held.holderGuid }),
                       ...(held.colletGuid === null ? {} : { colletGuid: held.colletGuid }),
                     }),
                   )
                 }}
-                onRemove={() => commit(removeChoice(sheet, choiceKey, tool.guid))}
+                onRemove={() => commit(removeChoice(sheet, choiceKey, panelTool.guid))}
               />
             </Card>
           ) : (

@@ -1,24 +1,138 @@
 @import 'tailwindcss';
 @import '@toolpath/ui/theme.css';
 
-:root {
-  color-scheme: dark;
-  font-family: var(--font-body);
-  background: var(--color-zinc-950);
+@theme {
+  /*
+   * The colour an offer is painted in — the picker's own violet.
+   *
+   * Deliberately outside the direction cycle and the difficulty ramp: proposed
+   * work is not a direction and not a verdict, and borrowing either colour
+   * would make the app look like it had decided something.
+   */
+  --color-proposed: #8b5cf6;
 }
 
-* {
-  box-sizing: border-box;
+/*
+ * The app's own surfaces, as roles rather than as greys.
+ *
+ * Every panel, rule and label used to name a zinc step directly, which reads
+ * fine until somebody wants the other theme: 445 uses of 22 greys, each of them
+ * a decision about *contrast* written down as a decision about *darkness*. The
+ * names below say what a colour is for, and the two blocks under them say what
+ * that means in each theme.
+ *
+ * `inline` so the generated utilities resolve the variable at use rather than
+ * baking its value in — which is what lets one class follow the cascade into
+ * `.dark` instead of needing a `dark:` twin everywhere.
+ */
+@theme inline {
+  /** The page itself, and anything sitting flat on it. */
+  --color-ground: var(--ground);
+  /** A panel or a hover, lifted off the ground. */
+  --color-surface: var(--surface);
+  /** Lifted again: a chip, a pressed control, a well. */
+  --color-raised: var(--raised);
+  /** The most lifted thing in the app. */
+  --color-lift: var(--lift);
+
+  /** A hairline between things that belong together. */
+  --color-edge: var(--edge);
+  /** A real border, around something that stands alone. */
+  --color-edge-strong: var(--edge-strong);
+  /** A border under the pointer. */
+  --color-edge-hover: var(--edge-hover);
+
+  /** Headings and numbers — the thing being read. */
+  --color-ink: var(--ink);
+  --color-ink-strong: var(--ink-strong);
+  /** Body copy. */
+  --color-ink-body: var(--ink-body);
+  /** A label beside the thing it names. */
+  --color-ink-muted: var(--ink-muted);
+  /** An aside, a unit, a count. */
+  --color-ink-dim: var(--ink-dim);
+  /** Present but not being offered: a disabled control, a spent hint. */
+  --color-ink-faint: var(--ink-faint);
 }
-body {
-  margin: 0;
-  min-width: 320px;
-  color: var(--color-zinc-300);
-  background: var(--color-zinc-950);
+
+/*
+ * Light, and the default until somebody says otherwise is still dark — the
+ * class on `<html>` decides, and it is written before first paint.
+ */
+:root {
+  /*
+   * Written out rather than borrowed from the kit's zinc scale.
+   *
+   * That scale is tuned for dark surfaces — its `zinc-100` is `#e1e1e1`, which
+   * is a real grey rather than a hint of one, and panels painted with it read
+   * as off-white boxes on a white page instead of as the page.
+   */
+  --ground: #ffffff;
+  --surface: #f6f6f7;
+  --raised: #ececee;
+  --lift: #dededf;
+
+  --edge: #e8e8ea;
+  --edge-strong: #d6d6d9;
+  --edge-hover: #a8a8ad;
+
+  --ink: #1a1a1d;
+  --ink-strong: #2a2a2e;
+  --ink-body: #43434a;
+  --ink-muted: #5c5c64;
+  --ink-dim: #78787f;
+  --ink-faint: #a3a3aa;
+
+  color-scheme: light;
+  font-family: var(--font-body);
+  background: var(--ground);
 }
-button,
-input {
-  font: inherit;
+
+/*
+/* Dark, and the whole page with it — the model window included. */
+.dark {
+  --ground: var(--color-zinc-950);
+  --surface: var(--color-zinc-900);
+  --raised: var(--color-zinc-800);
+  --lift: var(--color-zinc-700);
+
+  --edge: var(--color-zinc-800);
+  --edge-strong: var(--color-zinc-700);
+  --edge-hover: var(--color-zinc-500);
+
+  --ink: var(--color-zinc-100);
+  --ink-strong: var(--color-zinc-200);
+  --ink-body: var(--color-zinc-300);
+  --ink-muted: var(--color-zinc-400);
+  --ink-dim: var(--color-zinc-500);
+  --ink-faint: var(--color-zinc-600);
+
+  color-scheme: dark;
+}
+
+/*
+ * The resets belong in `base`, and it is not a tidiness point.
+ *
+ * Tailwind puts its utilities in `@layer utilities`, and an unlayered rule
+ * beats a layered one whatever the specificity — so `button, input { font:
+ * inherit }` sitting outside every layer quietly won against `text-2xs`,
+ * `font-mono` and every other font utility, on every button and input in the
+ * app. They were in the markup, generated in the stylesheet, and doing nothing.
+ */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    min-width: 320px;
+    color: var(--ink-body);
+    background: var(--ground);
+  }
+  button,
+  input {
+    font: inherit;
+  }
 }
 
 /* Keep an API key visually private without marking it as a browser-managed password field. */

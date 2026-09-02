@@ -39,8 +39,8 @@ describe('ingest', () => {
       OAL: 57,
       NOF: 4,
       SFDM: 6,
-      LBH: 18,
-      LD: 3.6,
+      LBH: 39,
+      LD: 7.8,
     })
     expect(catalog.tools[0]?.provenance.LD).toBe('derived')
     expect(catalog.tools[0]?.unitSystem).toBe('metric')

@@ -104,12 +104,24 @@ What the checks cannot carry:
 - `apps/*/server` deliberately keeps relative imports into `app/shared`:
   production runs `tsx server/prod.ts` with no bundler to resolve an alias.
 
-**`apps/dfm` is outside the sensors for now.** It is the template's copy, and
-the branch that settled its styling and layering (`paul/directions-mapping` in
-the DFM repository, with its own `eslint.config.js` and `check-style`) has not
-landed here. The day it does, add `apps/dfm` to `LINTED` in `eslint.config.js`
-and to `SEARCHED_DIRECTORIES` in `scripts/check-style.mjs`, and delete this
-paragraph.
+**Both applications are inside the sensors.** `paul/directions-mapping` landed
+on 2026-09-02, so `apps/dfm` is in `LINTED` in `eslint.config.js` and in
+`SEARCHED_DIRECTORIES` in `scripts/check-style.mjs`, and the layer patterns are
+`apps/*` rather than one application's.
+
+The DFM application carries two sensors of its own that the catalog has no
+equivalent for, and they are rules rather than preferences:
+
+- **`apps/dfm/app/kit-usage.test.ts`** pins raw `<button>` at its current count,
+  so it can fall but not rise. The kit exports `Button` and `IconButton` and
+  both pass `aria-*` and `title` through. Reach for the kit in new code and
+  lower the budget whenever a migration lands; a failure there is the rule being
+  broken, not a flaky test.
+- **`apps/dfm/app/styles.test.ts`** reads `app/styles.css` directly and holds
+  two invariants nothing else can see: every colour role is defined under both
+  `:root` and `.dark`, and font resets stay inside `@layer base` where a utility
+  can still win. An unlayered `font: inherit` beat every Tailwind font utility
+  silently, and a role defined in one theme keeps the other theme's value.
 
 ### Layering
 

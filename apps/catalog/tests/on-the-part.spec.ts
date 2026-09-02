@@ -58,11 +58,20 @@ const drawn = (page: Page) =>
 const at = async (page: Page, point: { x: number; y: number }) => {
   // The viewer is mounted, unmounted and mounted again while the mesh is on
   // its way, so a click that is only *scheduled* after the canvas was seen can
-  // still land in a gap where there is none to measure.
+  // still land in a gap where there is none to measure. `toBeVisible` is not
+  // enough on its own: a canvas that has mounted but not been laid out is
+  // visible and has no box, which read as `Cannot read properties of null`
+  // once in a hundred runs (2026-09-02). Waiting for the box is waiting for
+  // the thing the click actually needs.
   const canvas = page.locator('canvas')
   await expect(canvas).toBeVisible()
-  const box = (await canvas.boundingBox())!
-  await page.mouse.click(box.x + box.width * point.x, box.y + box.height * point.y)
+  let box = await canvas.boundingBox()
+  await expect(async () => {
+    box = await canvas.boundingBox()
+    expect(box).not.toBeNull()
+  }).toPass({ timeout: 10_000 })
+  const seen = box!
+  await page.mouse.click(seen.x + seen.width * point.x, seen.y + seen.height * point.y)
   await drawn(page)
 }
 

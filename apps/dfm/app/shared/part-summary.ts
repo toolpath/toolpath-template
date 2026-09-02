@@ -1,5 +1,5 @@
-import type { PublicInspectionReport } from '@toolpath/part-contracts'
-import { directionLabel } from '@toolpath/part-contracts/report'
+import type { PublicInspectionReport } from './contracts'
+import { directionLabel } from './report'
 
 /**
  * What the Engine found, before anybody has clicked anything.
@@ -33,24 +33,58 @@ export interface PartSummary {
   readonly regions: number
   readonly triangles: number
   readonly points: number
-  readonly directions: readonly DirectionCount[]
-  readonly types: readonly TypeCount[]
+  readonly directions: ReadonlyArray<DirectionCount>
+  readonly types: ReadonlyArray<TypeCount>
   readonly timing: { readonly download: number; readonly analysis: number; readonly total: number }
 }
 
-const labelForType = (value: string): string =>
+/**
+ * A feature type as a person reads it: "Through hole", not "Through Hole".
+ *
+ * Sentence case, because a type is a noun phrase rather than a title, and a
+ * column of title-cased ones reads as a list of headings. Exported so the
+ * mapping panel names a reading the same way this list does — `report.ts` has
+ * its own title-cased version for the datasheet heading, where it *is* a title.
+ *
+ * Deliberately does not split camelCase. The Engine reports both `blind_hole`
+ * and `BlindHole` depending on kernel version, and splitting the latter would
+ * quietly rename types across a page nobody asked to change.
+ */
+export const typeLabel = (value: string): string =>
   value
     .split('_')
     .filter(Boolean)
     .map((word, at) => (at === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word))
     .join(' ')
 
+/**
+ * The same label, said of several — "Blind holes", not "Blind hole".
+ *
+ * A row standing for sixteen holes is about the sixteen, and a singular noun in
+ * front of the count makes the reader correct it themselves.
+ *
+ * English's regular rule and only that: every type the Engine reports is a plain
+ * noun phrase — hole, pocket, slot, boss, face, chamfer — so `-es` after a
+ * sibilant and `-s` otherwise covers all of them. Works on either casing, so the
+ * datasheet's title-cased heading gets it from here too.
+ */
+export const pluralLabel = (value: string): string => {
+  const lower = value.toLowerCase()
+  if (/(s|x|z|ch|sh)$/.test(lower)) {
+    return `${value}es`
+  }
+  if (/[^aeiou]y$/.test(lower)) {
+    return `${value.slice(0, -1)}ies`
+  }
+  return `${value}s`
+}
+
 const asMs = (value: unknown): number => (typeof value === 'number' && value >= 0 ? value : 0)
 
-export function partSummary(
+export const partSummary = (
   report: PublicInspectionReport,
   activeDirection: number | null = null,
-): PartSummary {
+): PartSummary => {
   const held = activeDirection === null ? null : report.candidateDirections[activeDirection]
   const perDirection = new Map<string, number>()
   const perType = new Map<string, number>()
@@ -82,7 +116,7 @@ export function partSummary(
     types: [...perType]
       .map(([type, features]) => ({
         type,
-        label: labelForType(type),
+        label: typeLabel(type),
         features,
         inDirection: held ? (perTypeHeld.get(type) ?? 0) : null,
       }))

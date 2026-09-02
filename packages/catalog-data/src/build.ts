@@ -11,7 +11,8 @@ import {
 } from './types.js'
 import type { ToolForm } from './forms.js'
 import { facetsFor } from './facets.js'
-import { HELD_SHARE, type Collet, type Holder } from './toolholding.js'
+import { type Collet, type Holder } from './toolholding.js'
+import { lengthBelowHolder } from './clamping.js'
 
 /**
  * What ingestion hands this package.
@@ -113,14 +114,14 @@ const formOf = (tool: ToolInput): { form: ToolForm; provenance: Provenance } => 
 /**
  * The facts this package works out for a tool, marked as its own.
  *
- * - `LBH`, length below holder: **flute length plus one diameter**, always —
- *   the least a cutter stands out with its flutes clear of the collet and a
- *   diameter's worth of shank showing — unless that would leave less than a
- *   third of the overall length in the holder, in which case it is two thirds
- *   of the overall length. The vendor's shoulder length is deliberately not
- *   it: on a tool with no neck the shoulder *is* the flute length, and a rule
- *   that read it gave half the catalog a length below holder equal to its
- *   flutes.
+ * - `LBH`, length below holder: the overall length less the shank the shop
+ *   keeps clamped — `clamping.ts` is the rule and the reasoning, and this
+ *   builds with its default of the vendor's `LSCN` where one is stated and 3×D
+ *   of the shank where none is. It replaced a rule of this package's own —
+ *   flute length plus a diameter, capped at two thirds of the overall length —
+ *   which disagreed with what the part page applied over the top, so the same
+ *   tool read one way on the catalog page and another beside a feature (Paul,
+ *   2026-09-02).
  * - `LD`: length below holder over cutting diameter, the "3×D" a shop reads
  *   reach in.
  * - `form`: what the tool is in a CAM library's words.
@@ -143,11 +144,10 @@ export const withDerived = (tool: ToolInput): CatalogTool => {
   /** Unstated, or stated by an earlier run of this same function. */
   const ours = (code: string) => geometry[code] === undefined || provenance[code] === 'derived'
 
-  const { DC, LCF, OAL } = geometry
-  if (ours('LBH') && DC !== undefined && LCF !== undefined && DC > 0) {
-    const wanted = LCF + DC
-    const mostOut = OAL === undefined ? wanted : OAL * (1 - HELD_SHARE)
-    geometry.LBH = round(Math.min(wanted, mostOut))
+  const { DC } = geometry
+  const below = ours('LBH') ? lengthBelowHolder(geometry) : null
+  if (below !== null) {
+    geometry.LBH = round(below)
     provenance.LBH = 'derived'
   }
 

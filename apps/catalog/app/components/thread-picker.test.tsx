@@ -57,22 +57,39 @@ describe('what the panel says about a hole before anything is chosen', () => {
   })
 
   /**
-   * **The way it is made, named — not the bore it starts from** (Paul,
-   * 2026-09-01: "we should just select cut tap or form tap, the numbers
-   * confuse the issue"). The bore is still on the control, in the title,
-   * because it is what the drill list is judged against.
+   * **A row each, with the drill it starts from** (Paul, 2026-09-02: "we should
+   * show the expected cut and form tap drill for cut and form taps when a
+   * thread is selected from the drop down — it should show the cut and form tap
+   * options in rows with standard tap drill diameters for each").
+   *
+   * The numbers came off these controls on 2026-09-01, when they sat under a
+   * list of *suggested* threads and three diameters were on screen at once.
+   * With the thread settled they are the question: the two ways of making it
+   * want different holes, and the drill list is judged against whichever is
+   * chosen.
    */
-  it('offers cut and form tap by name, with the bore each starts from in the title', () => {
+  it('offers cut and form tap as rows, each with its own standard tap drill', () => {
     show({ spec: threadNamed('M6×1'), mode: 'cut tap' })
 
     const cut = screen.getByRole('button', { name: 'M6×1 cut tap' })
     const form = screen.getByRole('button', { name: 'M6×1 form tap' })
 
+    // The Engine's charts: ⌀5.00 for a cut tap, ⌀5.50 for a form tap.
+    expect(screen.getByText('Standard predrill')).toBeInTheDocument()
     expect(cut).toHaveTextContent('Cut tap')
-    expect(cut).not.toHaveTextContent('⌀')
-    // A form tap wants `d − p/2`, half a millimetre more hole than the cut tap's.
-    expect(cut).toHaveAttribute('title', expect.stringContaining('⌀5.00 mm'))
-    expect(form).toHaveAttribute('title', expect.stringContaining('⌀5.50 mm'))
+    expect(cut).toHaveTextContent('⌀5.00 mm')
+    expect(form).toHaveTextContent('⌀5.50 mm')
+    expect(cut).toHaveAttribute('aria-pressed', 'true')
+    expect(form).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  /** And how far the hole as modelled is from each of them. */
+  it('says how far the modelled hole is from each drill', () => {
+    show({ spec: threadNamed('M6×1'), mode: 'cut tap', holeDiameter: 5 })
+
+    // ⌀5 is the cut tap's drill exactly, and half a millimetre under the form's.
+    expect(screen.getByRole('button', { name: 'M6×1 cut tap' })).toHaveTextContent('exactly')
+    expect(screen.getByRole('button', { name: 'M6×1 form tap' })).toHaveTextContent('−0.50')
   })
 
   /** Nothing to make until there is a thread to make. */
@@ -119,13 +136,25 @@ describe('picking a thread', () => {
     expect(onChange).toHaveBeenCalledWith({ mode: 'form tap', spec: threadNamed('M6×1') })
   })
 
-  /** And the way back out, without going through the list. */
-  it('goes back to a plain hole in one click', () => {
-    const onChange = show({ spec: threadNamed('M6×1'), mode: 'cut tap' })
+  /**
+   * **The heading says what the hole is** (Paul, 2026-09-02: "when a hole is
+   * selected, it should say <Thread Spec> Threaded Hole instead of
+   * thread:plain"), and the way back out is the first option in the list —
+   * "remove the 'make it plain' button, you can just do that through the drop
+   * down" (same day). One way to say a thing is enough.
+   */
+  it('heads the box with the thread, and offers no second way back to plain', () => {
+    show({ spec: threadNamed('M6×1'), mode: 'cut tap' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'plain hole' }))
+    expect(screen.getByText('M6×1 threaded hole')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /plain/i })).not.toBeInTheDocument()
+  })
 
-    expect(onChange).toHaveBeenCalledWith({ mode: 'plain', spec: null })
+  /** With no thread it is the question rather than an answer. */
+  it('heads the box “Thread” while the hole is plain', () => {
+    show()
+
+    expect(screen.getByText('Thread')).toBeInTheDocument()
   })
 
   /**

@@ -138,6 +138,18 @@ export {
 } from './clearance.js'
 export { materialProfile, type OutlinePoint } from './outline.js'
 export {
+  DEFAULT_CLAMPING,
+  belowHolderFor,
+  clampShortfall,
+  clampWanted,
+  clampedLength,
+  headLength,
+  heldDiameter,
+  lengthBelowHolder,
+  type ClampingRule,
+} from './clamping.js'
+
+export {
   HOLDER_AXES,
   applicableFilters,
   axisConstrains,

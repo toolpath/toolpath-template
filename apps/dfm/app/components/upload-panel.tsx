@@ -1,7 +1,7 @@
 import { Button } from '@toolpath/ui'
 import { useState } from 'react'
-import type { UploadStatus } from '../client/use-part-upload'
-import { CAD_EXTENSIONS } from '@toolpath/part-contracts'
+import type { UploadStatus } from 'client/use-part-upload'
+import { CAD_EXTENSIONS } from 'shared/cad'
 
 const uploadLabel = (status: UploadStatus): string => {
   switch (status) {
@@ -36,7 +36,7 @@ export const UploadPanel = ({
   return (
     <div className="mt-8 space-y-6">
       <div className="space-y-4">
-        <label className="block text-sm font-semibold text-zinc-100" htmlFor="part">
+        <label className="block text-sm font-semibold text-ink" htmlFor="part">
           CAD file
           <input
             id="part"
@@ -45,10 +45,10 @@ export const UploadPanel = ({
             required
             accept={CAD_EXTENSIONS.join(',')}
             onChange={(event) => setFile(event.currentTarget.files?.item(0) ?? null)}
-            className="mt-2 block w-full cursor-pointer rounded-lg border border-zinc-700 bg-transparent px-3 py-3 text-sm text-zinc-300 file:mr-4 file:rounded file:border-0 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-zinc-100 hover:file:bg-zinc-800"
+            className="mt-2 block w-full cursor-pointer rounded-lg border border-edge-strong bg-transparent px-3 py-3 text-sm text-ink-body file:mr-4 file:rounded file:border-0 file:bg-surface file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-ink hover:file:bg-raised"
           />
         </label>
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-ink-dim">
           Supported: STEP, IGES, SolidWorks part, Parasolid. Maximum 100 MiB.
         </p>
         {error ? (
@@ -63,7 +63,9 @@ export const UploadPanel = ({
           isLoading={isUploading}
           disabled={!file || isBusy}
           onClick={() => {
-            if (file) void onUpload(file)
+            if (file) {
+              void onUpload(file)
+            }
           }}
         >
           {uploadLabel(status)}

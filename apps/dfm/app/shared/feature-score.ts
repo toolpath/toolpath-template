@@ -9,8 +9,6 @@ export interface FeatureScore {
   readonly score: number | null
 }
 
-export const UNJUDGED: FeatureScore = { band: null, score: null }
-
 /**
  * Every feature's verdict, by tag, ready for a list to show.
  *
@@ -19,7 +17,9 @@ export const UNJUDGED: FeatureScore = { band: null, score: null }
  * looked at it. A feature failing one rule of five reads differently from one
  * failing all five, and a row showing only the colour cannot tell them apart.
  */
-export function featureScores(verdicts: readonly FeatureVerdict[]): Map<string, FeatureScore> {
+export const featureScores = (
+  verdicts: ReadonlyArray<FeatureVerdict>,
+): Map<string, FeatureScore> => {
   const scores = new Map<string, FeatureScore>()
 
   for (const verdict of verdicts) {

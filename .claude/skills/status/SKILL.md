@@ -15,6 +15,9 @@ unstaged/untracked work. Name only a few files; summarize larger groups.
 
 Then identify only evidence-backed open items:
 
+- `pnpm lint` when the diff touches `apps/dfm/`. It is the cheapest gate and the
+  only one that proves the layering, so a boundary break is worth catching at a
+  checkpoint rather than at review;
 - test results from the most relevant existing command, if it is safe and
   proportionate to run (`pnpm test` for unit work; `pnpm test:e2e` for an E2E
   change);

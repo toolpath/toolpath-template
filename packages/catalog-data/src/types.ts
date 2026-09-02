@@ -100,7 +100,7 @@ export const GEOMETRY_FIELDS: Readonly<Record<string, GeometryField>> = {
     label: 'Length below holder',
     unit: 'mm',
     description:
-      'Flute length plus one diameter, capped so a third of the overall length stays in the holder. Where stickout starts.',
+      'The overall length less the shank the shop keeps clamped — the minimum clamping length, ×D of the shank. Where stickout starts.',
     iso: null,
   },
   /**

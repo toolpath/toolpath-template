@@ -21,11 +21,6 @@ import type { FeatureMetrics } from './metrics'
  * quietly reading as nothing.
  */
 
-/** Every measurement a rule can name, with what it means. */
-export const MEASUREMENTS: ReadonlyArray<{ name: string; note: string }> = METRICS.map(
-  (metric) => ({ name: metric.id, note: metric.note }),
-)
-
 const NAMES = new Set<string>(METRICS.map((metric) => metric.id))
 
 type Token =

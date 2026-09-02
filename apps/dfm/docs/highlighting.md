@@ -95,6 +95,14 @@ That third rule is the caller's to enforce (`typeIsAsking`), not
 `listHighlight`'s. Deciding it inside on "is anything selected" would make a
 type opened _after_ a click paint nothing at all.
 
+**Naming a hole lights every identical hole on the part.** Sixteen of one
+diameter, depth and way up are one tool and one operation, so reading one reads
+all of them — anything else describes one of the sixteen and stays silent about
+the other fifteen. The exception is the one gesture that says otherwise: a hole
+named from inside its own **opened group** in Map features lights only itself
+(`alone`). That row is the one place somebody has pointed at _this one_, and
+answering it by lighting the other fifteen is the app ignoring them.
+
 ---
 
 ## 4. The palette

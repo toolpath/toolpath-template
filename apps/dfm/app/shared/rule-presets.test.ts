@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { FeatureType as EngineFeatureType } from '@toolpath/api'
-import type { PartFeature } from '@toolpath/part-contracts'
+import type { PartFeature } from './contracts'
 import { DEFAULT_RULES, DEFAULT_RULE_SET, PRESET_SETS } from './rule-presets'
 import { evaluateFeature, evaluatePart, scoreFeature, scorePart } from './rules'
 
@@ -29,9 +29,17 @@ const feature = (over: Record<string, unknown> = {}) =>
 
 describe('the shipped set', () => {
   test('ships the prototype’s own rules, rule for rule', () => {
+    /*
+     * Fifteen. The outer fillet radii joined — the same question the floor
+     * radii ask, of the blend on the outside of the part — and the part size
+     * left: it is not a property of a feature, so banding it once per feature
+     * said the same thing about every pocket on a part that does not fit. It
+     * is a shop's answer now, under *What part sizes do you take?*, beside the
+     * other two decisions about a plan that are not scales.
+     */
     expect(DEFAULT_RULES).toHaveLength(15)
-    expect(DEFAULT_RULES.filter((rule) => rule.type === 'threshold')).toHaveLength(9)
-    expect(DEFAULT_RULES.filter((rule) => rule.type === 'match')).toHaveLength(4)
+    expect(DEFAULT_RULES.filter((rule) => rule.type === 'threshold')).toHaveLength(8)
+    expect(DEFAULT_RULES.filter((rule) => rule.type === 'match')).toHaveLength(5)
   })
 
   test('keeps the numbers somebody argued over', () => {
@@ -104,18 +112,30 @@ describe('who the cavity rules judge', () => {
     new Set(DEFAULT_RULES.find((rule) => rule.id === id)?.featureTypes ?? [])
 
   test('counts a filleted pocket as the cavity it is', () => {
-    // It has gone missing from this list twice. Without it five rules skip the
-    // type: the narrowest cut, wall height, sharp corners, the milling radius
-    // range, and the floor radii it is reported against.
+    // It has gone missing from this list twice. Without it four rules skip the
+    // type: the narrowest cut, wall height, the milling radius range, and the
+    // floor radii it is reported against.
     for (const rule of [
       'min-cutout-width',
       'wall-height-ratio',
-      'sharp-corners',
       'cutter-diameter',
       'standard-floor-radius',
     ]) {
       expect(audience(rule).has(EngineFeatureType.FilletedPocket)).toBe(true)
     }
+  })
+
+  /*
+   * Sharp corners left the cavity list, and judges every type.
+   *
+   * Its audience was doing the metric's job. A feature reporting no cutter at
+   * all is a sharp corner whatever the Engine called it — and aiming the rule
+   * at cavities and profiles meant it could not see a `Wall` whose datasheet
+   * says plainly that nothing fits. The measurement already decides who this
+   * speaks about; narrowing it by type only ever lost cases.
+   */
+  test('lets sharp corners judge anything that reports a cutter', () => {
+    expect(audience('sharp-corners').size).toBe(0)
   })
 
   test('leaves the drill sizes to the holes', () => {

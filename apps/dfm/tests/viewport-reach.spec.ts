@@ -1,69 +1,27 @@
 import { type Page, expect, test } from '@playwright/test'
 
-const readyEvent = {
-  status: 'ready',
-  report: {
-    partId: 'part-1',
-    reportId: 'report-1',
-    jobId: 'job-1',
-    kernelVersion: 'test',
-    units: { length: 'mm', angle: 'deg' },
-    regions: [],
-    candidateDirections: [],
-    meshPointCount: 0,
-    meshTriangleCount: 0,
-    hasMeshGlb: false,
-    hasMeshStl: false,
-    hasThumbnail: false,
-    downloadMs: 1,
-    analysisMs: 2,
-    totalMs: 3,
-    features: [
-      {
-        featureTag: 'hole-1',
-        featureType: 'BlindHole',
-        regionIdxs: [0],
-        machiningDirection: { x: 0, y: 0, z: 1 },
-        axis: { x: 0, y: 0, z: 1 },
-        // A current Engine datasheet with enough on it for a rule to have an
-        // opinion: 25.4 deep in a 6.35 bore is 4:1, which the shipped set calls
-        // `alright`.
-        datasheet: {
-          featureType: 'BlindHole',
-          zMax: 0,
-          zMin: -25.4,
-          extendedZMax: 0,
-          extendedZMin: -25.4,
-          radialStockToLeave: 0,
-          axialStockToLeave: 0,
-          toleranceBand: { atolIgnore: 0, atolDeviate: 0, atolMax: 0 },
-          hasFloor: true,
-          hasWall: true,
-          floorishArea: 0,
-          wallishArea: 0,
-          facts: {
-            kind: 'Hole',
-            diameter: 6.35,
-            fullConeDeg: 118,
-            isCounterbore: false,
-            holeProcess: 'Drill',
-            cd: {
-              ignore: { min: 6.35, max: 6.35 },
-              deviate: { min: 6.35, max: 6.35 },
-              effectiveAdaptive: { min: 6.35, max: 6.35 },
-              terminalCornerRadius: 0,
-            },
-            maxSpotDiameter: 0,
-            maxDrillDiameter: 6.35,
-            maxEndmillDiameter: 6.35,
-            filletRadius: 0,
-            filletHeight: 0,
-          },
-        },
-      },
-    ],
-  },
-}
+import { UP, faces, report, richHole, uploadTo } from './part-fixture'
+
+/**
+ * Two faces and the two ways up that reach them.
+ *
+ * It had neither, which was fine while every test here was about the
+ * viewport's edges — but the rules page judges the readings **the plan cuts**,
+ * and a part with no candidate directions can hold no plan, so those tests were
+ * asking what the rules made of nothing.
+ *
+ * The report, its datasheet and the route table behind it were written out here
+ * by hand and again in `dfm.spec`. They live in `part-fixture` now, which is
+ * also what stops the two drifting into testing two different Engines.
+ */
+const part = report({
+  regions: faces(2),
+  // −X rather than the fixture's −Y: nothing here reads the label, but the two
+  // are different ways up and swapping one for the other while moving the
+  // report out of this file would be a change nobody asked for.
+  candidateDirections: [UP, { x: -1, y: 0, z: 0 }],
+  features: [richHole('hole-1', UP, [0])],
+})
 
 /** The rules fold up, so reading one starts by opening it. */
 export const openRule = async (page: Page, name: string) => {
@@ -83,48 +41,20 @@ export const openRule = async (page: Page, name: string) => {
  */
 /** Connects, uploads and lands on the inspector with a report the server mocked. */
 export const openInspector = async (page: Page) => {
-  let connected = false
-  await page.route('**/api/**', async (route) => {
-    const request = route.request()
-    const url = new URL(request.url())
-    if (url.pathname === '/api/session') {
-      if (request.method() === 'GET') return route.fulfill({ json: { connected } })
-      if (request.method() === 'POST') {
-        connected = true
-        return route.fulfill({ status: 201, json: { connected: true } })
-      }
-      connected = false
-      return route.fulfill({ status: 204 })
-    }
-    if (url.pathname === '/api/parts' && request.method() === 'POST')
-      return route.fulfill({
-        status: 201,
-        json: { partId: 'part-1', uploadUrl: 'https://upload.test/source' },
-      })
-    if (url.pathname === '/api/parts/part-1' && request.method() === 'PATCH')
-      return route.fulfill({ status: 202, json: { partId: 'part-1', jobId: 'job-1' } })
-    if (url.pathname === '/api/parts/part-1/events')
-      return route.fulfill({
-        contentType: 'text/event-stream',
-        body: `event: analysis\ndata: ${JSON.stringify(readyEvent)}\n\n`,
-      })
-    return route.fallback()
-  })
-  await page.route('https://upload.test/source', (route) => route.fulfill({ status: 200 }))
-
-  await page.goto('/')
-  await page.getByLabel('Toolpath Engine API key').fill('tp_key')
-  await page.getByRole('button', { name: 'Connect' }).click()
-  await page.getByLabel('CAD file').setInputFiles({
-    name: 'fixture.step',
-    mimeType: 'model/step',
-    buffer: Buffer.from('STEP fixture'),
-  })
-  const analyze = page.getByRole('button', { name: 'Analyze part' })
-  await expect(analyze).toBeEnabled()
-  await analyze.click()
-  await expect(page).toHaveURL(/\/parts\/part-1/)
+  await uploadTo(page, part)
   await expect(page.getByRole('button', { name: 'Section' })).toBeVisible()
+}
+
+/**
+ * Put a plan on the part, because the rules page is about the work it will do.
+ *
+ * It judges the readings the plan cuts rather than every reading the Engine
+ * reported — most of those are alternatives nobody chose — so with nothing
+ * mapped there is nothing for a rule to have bitten on, and the page says so.
+ */
+const mapEverything = async (page: Page) => {
+  await page.getByRole('tab', { name: 'Directions' }).click()
+  await page.getByRole('button', { name: /Required, filled/ }).click()
 }
 
 test('takes a pointer at its own edges and corners', async ({ page }) => {
@@ -135,7 +65,9 @@ test('takes a pointer at its own edges and corners', async ({ page }) => {
   // the old dead strip.
   const owners = await page.evaluate(() => {
     const viewer = document.querySelector('section.relative')
-    if (!viewer) throw new Error('no viewer section')
+    if (!viewer) {
+      throw new Error('no viewer section')
+    }
     const box = viewer.getBoundingClientRect()
     const inset = 3
     const spots: Record<string, [number, number]> = {
@@ -189,7 +121,6 @@ test('paints the part by difficulty, and remembers that it was asked to', async 
 test('shows the limits it judges by, and what they made of a feature', async ({ page }) => {
   await openInspector(page)
 
-  await expect(page.getByRole('tab', { name: 'Directions' })).toHaveCount(0)
   await page.getByRole('tab', { name: 'Rules' }).click()
   await expect(page.getByLabel('Rule set')).toHaveValue('default')
   await expect(page.getByText('Drilling L/D ratio').first()).toBeVisible()
@@ -216,13 +147,24 @@ test('shows the limits it judges by, and what they made of a feature', async ({ 
   await expect(page.getByText('∞ – 3.0').first()).toBeVisible()
 
   await page.getByRole('tab', { name: 'Inspector' }).click()
-  const unitBottom = await page
-    .getByRole('button', { name: /Units: mm\. Switch to in/ })
-    .evaluate((element) => element.getBoundingClientRect().bottom)
+  /*
+   * The unit switch used to sit in the Geometry panel, and this guarded it
+   * against the counts under it. It lives in the viewer's bottom bar now — it
+   * is true of every number on every tab, so it belongs somewhere all of them
+   * can reach — and what it must not crowd is the size reading beside it.
+   */
+  const units = page.getByRole('button', { name: /Units: mm\. Switch to in/ })
+  await expect(units).toBeVisible()
+
+  // Below the counts now rather than above them, which is the whole of the
+  // move. No size reading beside it here: this report carries no mesh, and a
+  // part with no geometry has no size to report.
+  const switchTop = (await units.boundingBox())!.y
   const featuresTop = await page
     .getByText('Features', { exact: true })
     .evaluate((element) => element.getBoundingClientRect().top)
-  expect(featuresTop - unitBottom).toBeGreaterThanOrEqual(12)
+  expect(switchTop).toBeGreaterThan(featuresTop)
+  await expect(page.getByRole('button', { name: /^Part size/ })).toHaveCount(0)
   await page.getByRole('button', { name: /BlindHole/ }).click()
   await page
     .getByRole('button', { name: /hole-1/ })
@@ -231,15 +173,28 @@ test('shows the limits it judges by, and what they made of a feature', async ({ 
 
   await expect(page.getByRole('heading', { name: 'Difficulty' })).toBeVisible()
 
-  // The working, a hover away: the arithmetic, the datasheet fields behind it,
-  // and the limits with the band it landed in. A verdict saying "L/D is 4"
-  // cannot be checked; one that names its fields can be argued with.
-  await page.getByRole('button', { name: /How Drilling L\/D ratio is worked out/ }).hover()
+  /*
+   * The working, a hover away: the arithmetic, the datasheet fields behind it,
+   * and the limits with the band it landed in. A verdict saying "L/D is 4"
+   * cannot be checked; one that names its fields can be argued with.
+   *
+   * The hover is retried with the assertion rather than done once before it.
+   * The tooltip opens 700ms after the pointer arrives, and anything that moves
+   * the button within that window — a re-render, a late layout shift — takes
+   * the pointer off it and cancels the open. Nothing then re-enters the button,
+   * because `hover()` moved the mouse once and the mouse stays where it was
+   * put, so the tooltip never opens and the wait runs out against a button that
+   * is sitting right there. Re-hovering each attempt makes a lost open heal
+   * instead of ending the test.
+   */
+  const working = page.getByText('part top − zMin ÷ facts.diameter')
+  await expect(async () => {
+    await page.getByRole('button', { name: /How Drilling L\/D ratio is worked out/ }).hover()
+    await expect(working).toBeVisible({ timeout: 2_000 })
+  }).toPass({ timeout: 15_000 })
 
-  // The arithmetic, then the fields it read and what each held. A ratio's
-  // inputs are lengths, so they carry no ":1" — that would be a unit the
-  // Engine never reported.
-  await expect(page.getByText('part top − zMin ÷ facts.diameter')).toBeVisible()
+  // The fields it read and what each held. A ratio's inputs are lengths, so
+  // they carry no ":1" — that would be a unit the Engine never reported.
   await expect(page.getByText('6.35 mm', { exact: true }).last()).toBeVisible()
   // The fourth box bounds rats, and is where a refusal starts when a rule
   // names none of its own.
@@ -383,6 +338,7 @@ test('switching or resetting a preset discards temporary rule edits', async ({ p
  */
 test('lists the features each rule bit on, and opens one', async ({ page }) => {
   await openInspector(page)
+  await mapEverything(page)
   await page.getByRole('tab', { name: 'Rules' }).click()
 
   const drilling = await openRule(page, 'Drilling L/D ratio')
@@ -396,16 +352,78 @@ test('lists the features each rule bit on, and opens one', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Blind Hole' })).toBeVisible()
 })
 
+test('a band opens onto the features in it, with what cost them', async ({ page }) => {
+  /*
+   * Pressing `3 rats` used to narrow the rule list far below and leave the row
+   * looking the same, so the answer arrived somewhere the eye was not.
+   */
+  await openInspector(page)
+  await mapEverything(page)
+  await page.getByRole('tab', { name: 'Rules' }).click()
+
+  // Whichever band this fixture's work landed in — the press is the same.
+  const counted = page.getByRole('button', { name: /— [1-9]\d* features?$/ }).first()
+  await counted.click()
+
+  await expect(counted).toHaveAttribute('aria-pressed', 'true')
+
+  // A feature under it, and a rule chip beside the feature.
+  const opened = counted.locator('..').locator('ul li button').first()
+  await expect(opened).toBeVisible()
+  await expect(opened.getByTitle(/weight \d+/).first()).toBeVisible()
+})
+
+test('the worst of it can be read past, rather than stopping at six', async ({ page }) => {
+  // A part with nine things wrong showed six and said nothing about the other
+  // three — a list that cannot be argued past.
+  await openInspector(page)
+  await mapEverything(page)
+  await page.getByRole('tab', { name: 'Rules' }).click()
+
+  const more = page.getByRole('button', { name: /^Show all \d+$/ })
+  if ((await more.count()) === 0) {
+    // This fixture is small enough that everything costly already fits, which
+    // is the other half of the rule: no press where there is nothing behind it.
+    await expect(page.getByRole('button', { name: /^Show all/ })).toHaveCount(0)
+    return
+  }
+
+  await more.click()
+  await expect(page.getByRole('button', { name: 'Show fewer' })).toBeVisible()
+})
+
+test('an opened rule says where the mapped work landed, band by band', async ({ page }) => {
+  /*
+   * The rows name each feature and the badge at the top names the worst of
+   * them; neither answers *how much of my part is in trouble under this limit*,
+   * which is the question a threshold is argued with.
+   */
+  await openInspector(page)
+  await mapEverything(page)
+  await page.getByRole('tab', { name: 'Rules' }).click()
+
+  const drilling = await openRule(page, 'Drilling L/D ratio')
+
+  await expect(drilling.getByTitle(/of the mapped features are/).first()).toBeVisible()
+})
+
 /** The arrows walk a rule into the features under it, and on into the next. */
 test('walks the rules and their features with the keyboard', async ({ page }) => {
   await openInspector(page)
+  await mapEverything(page)
   await page.getByRole('tab', { name: 'Rules' }).click()
   // Wait for the panel to be the rules panel: `[data-row]` also matches the
   // summary's type rows, and reaching for one mid-swap grabs a row on its way
   // out of the document.
   await expect(page.getByRole('button', { name: 'Add rule' })).toBeVisible()
 
-  const rows = page.locator('[data-row]')
+  /*
+   * Scoped to the list, not the page. `[data-row]` also marks the summary's
+   * rows above it, and those are in a different keynav container — so focusing
+   * one and pressing a key moves nothing, which reads as a broken walk. It
+   * passed for as long as the fixture happened to have an empty summary.
+   */
+  const rows = page.locator('[data-keynav="rules"] [data-row]')
   await rows.first().focus()
   const first = await page.locator(':focus').getAttribute('data-row')
 
@@ -431,9 +449,16 @@ test('walks the rules and their features with the keyboard', async ({ page }) =>
  */
 test('scores every feature where it is named', async ({ page }) => {
   await openInspector(page)
+  await mapEverything(page)
 
-  // In the summary's list, under the type that holds it.
-  await page.getByRole('button', { name: /BlindHole/ }).click()
+  // In the summary's list, under the type that holds it. Back on the Inspector
+  // first: the plan's own rows name the same reading, and this is about the
+  // summary's.
+  await page.getByRole('tab', { name: 'Inspector' }).click()
+  await page
+    .getByRole('button', { name: /BlindHole/ })
+    .first()
+    .click()
   const row = page.getByRole('button', { name: /hole-1/ }).first()
   await expect(row).toContainText(/\d+/)
 
@@ -519,16 +544,28 @@ test('sums the part up, and filters the limits by what they cost', async ({ page
   expect(await rules.count()).toBe(before)
 })
 
-test('does not offer a directions view', async ({ page }) => {
+test('offers a directions view and a directions paint mode', async ({ page }) => {
   await openInspector(page)
 
   await expect(page.getByRole('tab', { name: 'Inspector' })).toBeVisible()
   await expect(page.getByRole('tab', { name: 'Rules' })).toBeVisible()
-  await expect(page.getByRole('tab', { name: 'Directions' })).toHaveCount(0)
+  // The mapping page, added with the plan model. It is a tab rather than a
+  // route: the report is component state from one SSE subscription, so a
+  // sibling route would re-open the stream on every visit.
+  await expect(page.getByRole('tab', { name: 'Directions' })).toBeVisible()
 
+  // Painting the part *by* direction is back, pointed at the plan. It was
+  // removed from PAINT_MODES once; this asserts the restoration rather than the
+  // removal, which is what §3.4 footnote 7 said would happen.
   await expect(page.getByRole('button', { name: 'Plain' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Difficulty' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Directions' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Directions', exact: true })).toBeVisible()
+
+  // And the pass toggle beside the modes, but only while they mean something.
+  await expect(page.getByRole('button', { name: 'rough' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Directions', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'rough' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'finish' })).toBeVisible()
 })
 
 test('copies individual datasheet values and the raw API record', async ({ page }) => {
@@ -611,4 +648,180 @@ test('reads each feature as the keyboard reaches it', async ({ page }) => {
   // No Enter: landing on the row is the request. Two gestures for one question
   // is what this list used to ask for.
   await expect(page.getByRole('heading', { name: 'Blind Hole' })).toBeVisible()
+})
+
+test('the plan is judged by rules of its own, in the rules list', async ({ page }) => {
+  await openInspector(page)
+  await page.getByRole('tab', { name: 'Rules' }).click()
+
+  /*
+   * Nine knobs asked three questions in three currencies, and a shop could move
+   * any of them, press generate, and get the same plan back. Two rules ask the
+   * two that matter, in the vocabulary the rest of the set is written in — so
+   * they live in the rules list, under a heading that says what they are about.
+   */
+  /*
+   * Read off the list as text rather than by role. The headings are uppercased
+   * in CSS — so they read `THE PLAN ITSELF` on screen and `The plan itself` in
+   * the DOM, and `toContainText` compares the DOM.
+   */
+  const list = page.locator('[data-keynav="rules"]')
+  await expect(list).toContainText('The plan itself')
+  await expect(list).toContainText('Every feature')
+  await expect(list).toContainText('Setups the plan runs')
+
+  /*
+   * "Smallest operation worth running" was a scale over how much work one
+   * operation should do. It priced the same question in points and per cent
+   * and average faces, and the question underneath was always a yes or no.
+   */
+  await expect(list).toContainText('May the plan split a feature?')
+  await expect(list).not.toContainText('Smallest operation worth running')
+
+  // A part rule has not measured nothing — it is about the plan, and has not
+  // been asked yet. "nothing to measure" reads as a rule that failed to fire.
+  await expect(list).toContainText('judged over the plan')
+
+  /*
+   * The two that are not scales sit with the two that are — a refusal and a
+   * choice of ranking, under the same heading rather than in a panel below the
+   * list where nobody found them.
+   */
+  await expect(list).toContainText('What is a no-go feature for op-planning?')
+  await expect(list).toContainText('Rank a reading by its band, or by its score?')
+
+  /*
+   * They fold like a rule card, so what each is set to is on the row and the
+   * control is under it. A reading the shop's own rules call `no go` is refused
+   * out of the box — it can still cut a face nothing else reaches, it just
+   * cannot take one from a reading above the floor.
+   */
+  await expect(list).toContainText('no go')
+
+  // `exact`, because the chevron beside it is named "<title>: what it is set
+  // to" and a substring match finds both.
+  await page
+    .getByRole('button', { name: 'What is a no-go feature for op-planning?', exact: true })
+    .click()
+  await expect(page.getByRole('button', { name: 'Will not cut no go' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+
+  await page.getByRole('button', { name: 'Cut anything' }).click()
+  await expect(page.getByRole('button', { name: 'Cut anything' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+
+  /*
+   * And the panel of prices is gone rather than renamed. A stale field left
+   * behind would be a second place to set what the rules now decide.
+   */
+  for (const gone of [
+    'Worth a separate operation, in points',
+    'Worth re-fixturing to cut better',
+    'Cost of one more operation',
+    'Smallest operation worth running',
+    'Where an unjudged reading sits',
+    'Times it may reconsider',
+  ]) {
+    await expect(page.getByLabel(gone)).toHaveCount(0)
+  }
+
+  /*
+   * A count of setups is a count. It read `mm²` while the rule borrowed a
+   * feature metric to hang its thresholds on, which is the sort of thing only
+   * somebody looking at the screen catches.
+   */
+  await expect(list).not.toContainText('mm²')
+})
+
+test('the wheel zooms to the cursor, or to the middle, and remembers which', async ({ page }) => {
+  /*
+   * A preference rather than a right answer. Zooming to the cursor is what
+   * Fusion does and what most people reach for; on a trackpad it can walk the
+   * model off screen, which is why the other one stays — and why a double
+   * click re-frames whichever is on.
+   */
+  await openInspector(page)
+
+  const zoom = page.getByRole('button', { name: 'Zoom to cursor' })
+  await expect(zoom).toHaveAttribute('aria-pressed', 'true')
+
+  await zoom.click()
+  await expect(page.getByRole('button', { name: 'Zoom to centre' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  )
+
+  // Kept across a reload, like the paint mode and the scene aids.
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Zoom to centre' })).toBeVisible()
+})
+
+test('the two toolbars ask two different questions, and sit apart', async ({ page }) => {
+  /*
+   * One shelf used to carry both. *What is the part coloured by* is about the
+   * report and is the first thing anybody reaches for; arrows, zoom, grid and
+   * section are about how you are looking at it. Splitting them put the washes
+   * in the corner the eye starts in and the view tools under the model, clear
+   * of the view cube in the opposite corner.
+   */
+  await openInspector(page)
+
+  const washes = page.getByRole('group', { name: 'Colour the part by' })
+  const view = page.getByRole('group', { name: 'View controls' })
+
+  await expect(washes).toBeVisible()
+  await expect(view).toBeVisible()
+
+  // Each control belongs to exactly one of them.
+  await expect(washes.getByRole('button', { name: 'Difficulty' })).toBeVisible()
+  await expect(view.getByRole('button', { name: /Zoom to/ })).toBeVisible()
+  await expect(washes.getByRole('button', { name: /Zoom to/ })).toHaveCount(0)
+  await expect(view.getByRole('button', { name: 'Difficulty' })).toHaveCount(0)
+
+  // The view shelf is below the washes, and to the right of them.
+  const top = (await washes.boundingBox())!
+  const bottom = (await view.boundingBox())!
+  expect(bottom.y).toBeGreaterThan(top.y + top.height)
+  expect(bottom.x).toBeGreaterThan(top.x)
+})
+
+test('the wash buttons still answer to their words, now they wear a glyph', async ({ page }) => {
+  /*
+   * The glyph is decoration beside the word, so it is hidden from the
+   * accessible name rather than read out alongside it. A button that started
+   * announcing itself as "cube Plain" is one every test and every screen
+   * reader addresses by a name nobody chose.
+   */
+  await openInspector(page)
+
+  const washes = page.getByRole('group', { name: 'Colour the part by' })
+
+  for (const name of ['Plain', 'Directions', 'Difficulty']) {
+    await expect(washes.getByRole('button', { name, exact: true })).toHaveCount(1)
+  }
+})
+
+test('which pass the colours mean is asked only while they mean something', async ({ page }) => {
+  // On Plain there is no pass to be showing, so the row is not there to press.
+  await openInspector(page)
+
+  const passes = page.getByRole('group', { name: 'Which pass the colours mean' })
+  const washes = page.getByRole('group', { name: 'Colour the part by' })
+
+  await washes.getByRole('button', { name: 'Plain', exact: true }).click()
+  await expect(passes).toHaveCount(0)
+
+  await washes.getByRole('button', { name: 'Directions', exact: true }).click()
+  await expect(passes.getByRole('button', { name: 'rough' })).toBeVisible()
+
+  // Under the modes rather than beside them: together they ran off the canvas
+  // and the clipped control was the one saying what you were looking at.
+  const above = (await washes.boundingBox())!
+  const below = (await passes.boundingBox())!
+  expect(below.y).toBeGreaterThan(above.y)
+  expect(below.x + below.width).toBeLessThanOrEqual(above.x + above.width + 1)
 })

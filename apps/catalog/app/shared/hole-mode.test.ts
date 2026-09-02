@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { PartFeature } from '@toolpath/part-contracts'
 import type { CatalogTool } from '@toolpath/catalog-data'
 import { asRecord } from '@toolpath/part-contracts/datasheet'
-import { holeAt, makersFor, reaches, shortfallOf, tapsFor } from './hole-mode'
+import { THREADED_FORMS, holeAt, makersFor, reaches, shortfallOf, tapsFor } from './hole-mode'
 import { threadNamed } from './threads'
 
 /**
@@ -271,5 +271,42 @@ describe('why a threading tool is not on the list', () => {
 
     expect(reaches(stubby, { depth: 20, below: 40 })).toBe(false)
     expect(reaches(stubby, { depth: 20, below: 40, clears: () => true })).toBe(true)
+  })
+})
+
+/**
+ * **Saying a hole is threaded says which tools it takes** (Paul, 2026-09-02:
+ * "tap is not automatically added to tool type filter when I define a hole as
+ * threaded. It should be. So, when I enable cut or form tap on a feature,
+ * Right and Left Hand Taps should be automatically added as eligible tool
+ * types"). The choice used to write `drill` into the type filter and nothing
+ * else, which admitted the tool that makes the hole and not the one that cuts
+ * the thread.
+ */
+describe('the tool forms a threaded hole takes', () => {
+  it('is the drill and both hands of tap', () => {
+    expect([...THREADED_FORMS].sort()).toEqual(['drill', 'tap left hand', 'tap right hand'])
+  })
+
+  /**
+   * The same rule the tap list itself uses, so the two cannot drift apart —
+   * and neither takes a **tapered mill** for a tap, which `startsWith('tap')`
+   * did until this was written.
+   */
+  it('admits every form the taps for a thread are drawn from, and no milling cutter', () => {
+    const spec = threadNamed('M6×1')!
+    const handed = (catalogNumber: string, form: string): CatalogTool =>
+      ({ guid: catalogNumber, catalogNumber, form, geometry: { DC: 6 } }) as unknown as CatalogTool
+    const taps = tapsFor(spec, [
+      handed('RH', 'tap right hand'),
+      handed('LH', 'tap left hand'),
+      handed('TAPER', 'tapered mill'),
+    ])
+
+    expect(taps.map((each) => each.catalogNumber).sort()).toEqual(['LH', 'RH'])
+    for (const tap of taps) {
+      expect(THREADED_FORMS).toContain(tap.form)
+    }
+    expect(THREADED_FORMS).not.toContain('tapered mill')
   })
 })

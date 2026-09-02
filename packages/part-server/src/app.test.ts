@@ -76,6 +76,59 @@ describe('DFM Hono API', () => {
     await expect(response.text()).resolves.toBe('ok')
   })
 
+  test('hardens every response, and keeps API replies out of every cache', async () => {
+    const app = createApp()
+    const health = await app.request('/health')
+    const session = await app.request('/api/session')
+
+    // `secureHeaders()` is one line in `app.ts`, and until this ran, deleting it
+    // failed nothing: the whole suite passed on an app serving no headers at all.
+    expect(health.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(health.headers.get('X-Frame-Options')).toBe('SAMEORIGIN')
+    expect(health.headers.get('Referrer-Policy')).toBe('no-referrer')
+    expect(health.headers.get('Strict-Transport-Security')).toContain('max-age=')
+
+    // A connection state or a part report held in a shared cache is somebody
+    // else's session. The probe is deliberately cacheable; nothing under /api is.
+    expect(session.headers.get('Cache-Control')).toBe('no-store')
+    expect(session.headers.get('Pragma')).toBe('no-cache')
+    expect(health.headers.get('Cache-Control')).toBeNull()
+  })
+
+  test('refuses a write that did not come from this origin', async () => {
+    const app = createApp()
+
+    /*
+     * The connection cookie is `SameSite=Lax`, which still rides along on a
+     * top-level request from another origin. `csrf()` is what refuses those.
+     *
+     * Every other test in this file sends `Sec-Fetch-Site: same-origin`, so
+     * until this ran the guard could be deleted with the suite still green.
+     */
+    const crossSite = await app.request('/api/session', {
+      method: 'DELETE',
+      headers: { Cookie: await cookieFor(), 'Sec-Fetch-Site': 'cross-site' },
+    })
+    expect(crossSite.status).toBe(403)
+
+    /*
+     * A form-encoded body is the one shape a cross-origin page can post without
+     * a preflight, so it is the request the guard exists for. The JSON posts
+     * every other test makes are protected by the preflight instead, which is
+     * why they are not refused here.
+     */
+    const forged = await app.request('/api/parts', {
+      method: 'POST',
+      headers: {
+        Cookie: await cookieFor(),
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Origin: 'https://evil.test',
+      },
+      body: 'filename=fixture.step',
+    })
+    expect(forged.status).toBe(403)
+  })
+
   test('validates and seals the BYOK key, reports connection state, and clears the session', async () => {
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init)
@@ -432,6 +485,59 @@ describe('DFM Hono API', () => {
     })
   })
 
+  test('fetches datasheet batches concurrently, under a cap, without losing one', async () => {
+    // Ten batches of the fifty-feature URL-safe batch size. Serially that is ten round trips the
+    // browser waits through after the analysis has already succeeded.
+    const features = Array.from({ length: 500 }, (unused, index) => ({
+      featureId: `feature-${index}`,
+      featureTag: `hole-${index}`,
+      featureType: 'blind_hole',
+      regionIdxs: [0],
+      machiningDirection: { x: 0, y: 0, z: 1 },
+      axis: { x: 0, y: 0, z: 1 },
+    }))
+    let inFlight = 0
+    let peakInFlight = 0
+    let batches = 0
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      const url = new URL(request.url)
+      if (request.method === 'GET' && url.pathname === '/v1/parts/part-1') {
+        return Response.json({ ...report(), features })
+      }
+      if (request.method === 'GET' && url.pathname === '/v1/parts/part-1/features') {
+        batches += 1
+        inFlight += 1
+        peakInFlight = Math.max(peakInFlight, inFlight)
+        const ids = url.searchParams.get('ids')?.split(',') ?? []
+        // Hold the batch open so overlapping requests are observable at all.
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        inFlight -= 1
+        return Response.json({
+          datasheets: ids.map((id) => ({
+            featureId: id,
+            featureTag: id.replace('feature-', 'hole-'),
+            featureType: 'blind_hole',
+            datasheet: { facts: { kind: 'Hole', diameter: 6.35 }, zMin: 2, zMax: 12 },
+          })),
+          notFound: [],
+        })
+      }
+      throw new Error(`Unexpected request ${request.method} ${request.url}`)
+    })
+
+    const analysis = await readAnalysis('tp_secret_key', 'part-1', analysisJob('succeeded'))
+
+    expect(batches).toBe(10)
+    expect(peakInFlight).toBeGreaterThan(1)
+    expect(peakInFlight).toBeLessThanOrEqual(4)
+    expect(analysis.status).toBe('ready')
+    // Every batch writes into one shared map, so a lost or overwritten key would show up here.
+    expect(
+      analysis.status === 'ready' && analysis.report.features.every((feature) => feature.datasheet),
+    ).toBe(true)
+  })
+
   test('maps queued and failed Engine job events without requesting a report', async () => {
     await expect(readAnalysis('tp_secret_key', 'part-1', analysisJob('queued'))).resolves.toEqual({
       status: 'pending',
@@ -447,7 +553,27 @@ describe('DFM Hono API', () => {
     })
   })
 
+  test('says so when a succeeded job has no report behind it', async () => {
+    // Engine reported success and then 404s the report. Rare, and the alternative
+    // to saying something is a page that waits for ever on work already finished.
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (new URL(request.url).pathname === '/v1/parts/part-1') {
+        return Response.json({ detail: 'Not found' }, { status: 404 })
+      }
+      throw new Error(`Unexpected request ${request.method} ${request.url}`)
+    })
+
+    await expect(
+      readAnalysis('tp_secret_key', 'part-1', analysisJob('succeeded')),
+    ).resolves.toEqual({
+      status: 'failed',
+      message: 'Analysis completed, but the report was not available. Try opening the part again.',
+    })
+  })
+
   test('sends a terminal event when the Engine event stream fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     vi.stubGlobal('fetch', async () => {
       throw new Error('Engine unavailable')
     })
@@ -456,7 +582,85 @@ describe('DFM Hono API', () => {
     })
 
     expect(response.status).toBe(200)
-    await expect(response.text()).resolves.toContain('"status":"failed"')
+    const body = await response.text()
+    expect(body).toContain('"status":"failed"')
+    /*
+     * The browser is told one fixed sentence. Asserting only `"status":"failed"`
+     * would pass just as happily on a handler that forwarded the Engine's own
+     * words, which is the thing this whole layer exists to prevent.
+     *
+     * It is the generic sentence rather than a status-bearing one because the
+     * SDK wraps `engineFetch`'s `EngineError` in its own `FetchError` before the
+     * route sees it. The diagnostic is not lost — it is in the server log
+     * asserted below — and either way nothing from Engine reaches the page.
+     */
+    expect(body).toContain('Could not monitor this analysis. Try opening the part again.')
+    expect(body).not.toContain('Engine unavailable')
+    expect(consoleError).toHaveBeenCalledWith(
+      '[part-viewer] Engine transport failure',
+      expect.objectContaining({ error: 'Engine unavailable' }),
+    )
+  })
+
+  test('refuses a job event it cannot read, rather than forwarding one', async () => {
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (new URL(request.url).pathname === '/v1/jobs/job-1/events') {
+        return new Response('event: job\ndata: {"nothing":"like a job"}\n\n', {
+          headers: { 'Content-Type': 'text/event-stream' },
+        })
+      }
+      throw new Error(`Unexpected request ${request.method} ${request.url}`)
+    })
+    const response = await createApp().request('/api/parts/part-1/events?jobId=job-1', {
+      headers: { Cookie: await cookieFor() },
+    })
+
+    const body = await response.text()
+    expect(body).toContain('"status":"failed"')
+    expect(body).toContain('Could not monitor this analysis. Try opening the part again.')
+    // Whatever Engine actually sent stays server-side.
+    expect(body).not.toContain('like a job')
+  })
+
+  test('reports an empty event stream instead of waiting on it', async () => {
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (new URL(request.url).pathname === '/v1/jobs/job-1/events') {
+        return new Response(null, { headers: { 'Content-Type': 'text/event-stream' } })
+      }
+      throw new Error(`Unexpected request ${request.method} ${request.url}`)
+    })
+    const response = await createApp().request('/api/parts/part-1/events?jobId=job-1', {
+      headers: { Cookie: await cookieFor() },
+    })
+
+    await expect(response.text()).resolves.toContain(
+      'Could not monitor this analysis. Try opening the part again.',
+    )
+  })
+
+  test('reports a stream that ends before the analysis does', async () => {
+    /*
+     * A proxy timing the connection out mid-analysis. The last thing the browser
+     * heard was `pending`, so the alternative to a terminal event here is a
+     * progress card that never resolves — `analysis-states.spec.ts` pins the
+     * browser's half of the same failure.
+     */
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (new URL(request.url).pathname === '/v1/jobs/job-1/events') {
+        return analysisStream(analysisJob('running'))
+      }
+      throw new Error(`Unexpected request ${request.method} ${request.url}`)
+    })
+    const response = await createApp().request('/api/parts/part-1/events?jobId=job-1', {
+      headers: { Cookie: await cookieFor() },
+    })
+
+    const body = await response.text()
+    expect(body).toContain('"status":"pending"')
+    expect(body).toContain('Could not monitor this analysis. Try opening the part again.')
   })
 
   test('retries a mesh artifact once with a fresh report URL', async () => {
@@ -483,5 +687,101 @@ describe('DFM Hono API', () => {
     })
     expect(reportReads).toBe(2)
     await expect(response.text()).resolves.toBe('mesh bytes')
+    // The bytes behind a presigned URL are as private as the URL was.
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+  })
+
+  test('says a mesh is unavailable when the report carries no artifact for it', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (request.method === 'GET' && new URL(request.url).pathname === '/v1/parts/part-1') {
+        return Response.json(report(null))
+      }
+      throw new Error(`Unexpected request ${request.method} ${request.url}`)
+    })
+    const response = await createApp().request('/api/parts/part-1/mesh?jobId=job-1&format=glb', {
+      headers: { Cookie: await cookieFor() },
+    })
+
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toEqual({
+      error: 'mesh_unavailable',
+      message: 'Toolpath Engine request failed (HTTP 404).',
+    })
+    expect(consoleError).toHaveBeenCalled()
+  })
+
+  test('gives up after one mesh retry rather than looping on a refused artifact', async () => {
+    /*
+     * Both reads mint a URL that is still refused: the artifact is genuinely
+     * gone rather than merely stale. The retry that fixes an expiry has to stop
+     * being a retry at some point, and the tests above only ever prove the read
+     * that succeeds the second time.
+     */
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    let reportReads = 0
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      const url = new URL(request.url)
+      if (request.method === 'GET' && url.pathname === '/v1/parts/part-1') {
+        reportReads += 1
+        return Response.json(report('https://mesh.test/gone.glb'))
+      }
+      if (url.pathname === '/gone.glb') {
+        return new Response(null, { status: 403 })
+      }
+      throw new Error(`Unexpected request ${request.method} ${request.url}`)
+    })
+    const response = await createApp().request('/api/parts/part-1/mesh?jobId=job-1&format=glb', {
+      headers: { Cookie: await cookieFor() },
+    })
+
+    expect(reportReads).toBe(2)
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: 'mesh_unavailable',
+      message: 'Toolpath Engine request failed (HTTP 403).',
+    })
+    expect(consoleError).toHaveBeenCalled()
+  })
+
+  test('releases the discarded mesh response before retrying', async () => {
+    let cancelled = false
+    let reportReads = 0
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      const url = new URL(request.url)
+      if (request.method === 'GET' && url.pathname === '/v1/parts/part-1') {
+        reportReads += 1
+        return Response.json(
+          report(`https://mesh.test/${reportReads === 1 ? 'expired' : 'fresh'}.glb`),
+        )
+      }
+      if (url.pathname === '/expired.glb') {
+        return new Response(
+          new ReadableStream({
+            start: (controller) => {
+              controller.enqueue(new TextEncoder().encode('<Error>AccessDenied</Error>'))
+            },
+            cancel: () => {
+              cancelled = true
+            },
+          }),
+          { status: 403 },
+        )
+      }
+      if (url.pathname === '/fresh.glb') {
+        return new Response('mesh bytes', { headers: { 'Content-Type': 'model/gltf-binary' } })
+      }
+      throw new Error(`Unexpected request ${request.method} ${request.url}`)
+    })
+    const response = await createApp().request('/api/parts/part-1/mesh?jobId=job-1&format=glb', {
+      headers: { Cookie: await cookieFor() },
+    })
+
+    await expect(response.text()).resolves.toBe('mesh bytes')
+    // An unread, uncancelled body holds its socket until the response is collected.
+    expect(cancelled).toBe(true)
   })
 })

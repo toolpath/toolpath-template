@@ -95,13 +95,15 @@ export const TapTable = ({
   shortfall,
 }: TapTableProps) => (
   <div className="flex min-h-0 flex-col">
+    {/*
+      **The tab above says what this list is** (Paul, 2026-09-02, moving the
+      tabs onto the table), so the chrome here is only what the tab cannot say:
+      what the taps were matched on, and what is wrong with the answer.
+    */}
     <p
       data-list-chrome
       className="flex items-center gap-2 border-b border-zinc-900 px-3 py-2 text-sm"
     >
-      <span className="text-zinc-200">
-        {mode === 'thread mill' ? 'Thread mills' : 'Taps'} for {spec.name}
-      </span>
       <span className="text-2xs text-zinc-500">
         {mode === 'thread mill'
           ? `inside the ⌀${formatLength(minorOf(spec), unit)} minor diameter`

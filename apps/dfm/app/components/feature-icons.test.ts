@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { MEASUREMENT_ICONS } from './feature-icons'
-import { STRIP_LABELS } from '@toolpath/part-contracts/measurements'
+import { STRIP_LABELS } from 'shared/measurements'
 
 describe('measurement icons', () => {
   test('draws every measurement the strip can show', () => {
