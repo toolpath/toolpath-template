@@ -32,6 +32,11 @@ right-click.
 | `feature` | one decision — usually one feature | —                          |
 | `group`   | several, chosen together           | `results: 'all' \| 'each'` |
 
+**Either kind can hold more than one tool.** A hole is a spot drill and a drill;
+a pocket is a rougher and a finisher. The sheet has always kept a feature's
+choices as a list, and the page treated it as one — which made the second tool
+for a feature a thing nobody could add.
+
 Both kinds carry **tags**, plural. A bolt circle of eight identical holes is one
 decision and one row everywhere else on the page (`groupOf` in
 `part-interaction`), so a `feature` item already holds eight tags. The
@@ -168,6 +173,9 @@ Opens the group editor, seeded with whatever is already clicked.
 
 **Choosing the tool is what adds it.** Nothing else does.
 
+This is the **first** tool. Every one after it is added from the panel beside the
+table — see §8.
+
 - For a feature or an `all` group: the tool the list has **highlighted** — the
   table opens with its first row highlighted and the panel beside it assembling
   that very tool, so the button takes it without a second click. Near misses
@@ -185,6 +193,9 @@ Opens the group editor, seeded with whatever is already clicked.
   cut by one end mill is four operations with one tool.
 - The line carries the **holder, collet and stickout** picked for that tool, if
   any.
+- **The new row stays selected.** It used to put everything down, which left
+  nothing active — and with nothing active the panel has nothing to add a second
+  tool to. The row somebody has just made is the row they are working on.
 
 ---
 
@@ -198,11 +209,14 @@ Glyph, name, and — for a group — what it wants back (`one for all` / `one ea
 and how many features it stands for (`×16`). A feature row shows its way up
 instead.
 
-### The answer under it
+### The answers under it
 
-The tool that answers the row, with what it is held in beneath the catalog
-number. Pressing it asks that row's question in full: the tool table below fills
-with everything that fits.
+**One line per tool the row is answered with**, each with what it is held in
+beneath the catalog number. Pressing one asks that row's question in full — the
+tool table below fills with everything that fits — and opens _that_ tool in the
+panel beside the table, which is where it is removed or re-held. Without that
+press there is no way to reach the second tool of a feature, and no way to take
+it off.
 
 **The decision where there is one, the recommendation where there is not.** Once
 a tool is on the bill for a feature, that — with its holder and collet — is the
@@ -283,18 +297,37 @@ a passing one.
 
 ## 8. The panel beside the table
 
-It **adds nothing**. Tools reach the bill by confirming a feature or a group.
+It always says **what the tool is on the list for** — the features it is
+cutting, by name.
 
-What it does:
+What it offers depends on what is being asked about and whether this tool is one
+of its tools. With more than one tool allowed, "what does this button do" stops
+being obvious and becomes four questions, so the answer is a rule
+(`app/shared/tool-actions.ts`) rather than a shape of JSX.
 
-- **Says what the tool is on the list for** — the features it is cutting, by
-  name.
-- **Update tool assembly** — save the holder and collet onto every one of them.
-  The only thing the panel still owns is the assembly of a decision already made.
-- **Use this tool instead** — when what is selected already has a different tool.
-  Cleared and rewritten in one commit, so it replaces rather than adding a
-  second line. Without it, a change of mind about a feature was a decision with
-  no way to make it.
+| What is asked                                | Buttons                                     |
+| -------------------------------------------- | ------------------------------------------- |
+| nothing                                      | none — nothing to add it to                 |
+| a feature or group with **no tools yet**     | **Add tool**                                |
+| this tool is **one of its** tools            | **Update tool assembly**\*, **Remove tool** |
+| it has tools and this is **not** one of them | **Replace _B976Z02500_**, **Add this tool** |
+
+\* only when the holder or collet in the panel differs from what was saved. A
+button that saves what is already saved is one somebody presses to find out
+whether it did anything.
+
+- **Add tool** — the first tool. On a draft this confirms it, so the row and its
+  tool arrive together.
+- **Update tool assembly** — writes the holder and collet onto every feature this
+  tool is cutting.
+- **Remove tool** — takes this tool off every feature being asked about, **and
+  takes the row off the list if it has no tools left**.
+- **Replace …** — clears what is mapped and puts this in its place, in one
+  commit. It names the tool it drops, because with several mapped there is
+  otherwise no telling which one goes; where several go, it says
+  _Replace all tools_ instead of naming one.
+- **Add this tool** — adds it beside the ones already there. This is what makes a
+  feature hold a spot drill and a drill.
 
 ---
 
@@ -305,8 +338,9 @@ One sheet, `tool-catalog.setup.<partId>`, keyed by feature tag.
 - **The key is the hole group's own tag**, not whichever sibling was under the
   mouse. Keyed by the click, the panel wrote a second line beside the one the
   feature list had already put there.
-- A line is `{ toolGuid, holderGuid?, colletGuid?, stickout? }`. Tool-only lines
-  are legal and are what confirming without a holder writes.
+- A feature holds **a list of lines**, not one. A line is
+  `{ toolGuid, holderGuid?, colletGuid?, stickout? }`; tool-only lines are legal
+  and are what confirming without a holder writes.
 - `addChoice` replaces by tool guid, so adding a holder to a tool already on the
   list updates that line.
 

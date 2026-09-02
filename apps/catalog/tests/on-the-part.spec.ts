@@ -255,33 +255,30 @@ test('a tool is read in the panel and reaches the bill with its feature', async 
   const panel = page.getByRole('img', { name: /drawn from its stated dimensions/ })
   await expect(panel).toBeVisible()
 
-  // Nothing is added from the panel any more.
+  // The panel adds the first tool, now that a feature can hold several.
   await expect(page.getByRole('button', { name: 'Add to list' })).toHaveCount(0)
-  await page.getByRole('button', { name: 'Use this tool' }).click()
+  await page.getByRole('button', { name: 'Add tool' }).click()
 
   // Opened again from the row it now answers, the panel says what it is on the
-  // list for and offers the one thing it still owns: the assembly.
+  // list for and offers what can be done to it.
   const list = page.getByRole('list', { name: 'Features being asked about' })
-  await list.getByRole('button', { name: /Every tool that fits/ }).click()
+  await list.getByRole('button', { name: new RegExp(`^${number} for `) }).click()
 
   await expect(page.getByText(/On the list for/)).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Update tool assembly' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove tool' })).toBeVisible()
 
   /**
-   * **And a second thought is offered** (Paul, 2026-09-02: "when I'm in the
-   * list for a feature that has a tool mapped and looking at a tool that is not
-   * mapped, I should see the option to 'use this tool instead'"). Nothing adds
-   * tools from this panel any more, so without it a change of mind about a
-   * feature was a decision with no way to make it.
+   * **A feature can hold more than one** (Paul, 2026-09-02: "a feature or group
+   * can have multiple tools saved to it, not just one"). A tool that is not one
+   * of them offers both: take their place, or stand beside them.
    */
   await page.getByRole('table').getByRole('row').nth(2).click()
-  const swap = page.getByRole('button', { name: 'Use this tool instead' })
-  await expect(swap).toBeVisible()
-  await swap.click()
+  await expect(page.getByRole('button', { name: new RegExp(`^Replace ${number}$`) })).toBeVisible()
+  await page.getByRole('button', { name: 'Add this tool' }).click()
 
-  // The one line for that feature is the new tool, not a second beside it.
-  await expect(page.getByText(/On the list for/)).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Use this tool instead' })).toBeHidden()
+  // Two tools on the row now, and the second is the one the panel is showing.
+  await expect(list.getByRole('button', { name: / for / })).toHaveCount(2)
+  await expect(page.getByRole('button', { name: 'Remove tool' })).toBeVisible()
 
   /**
    * **And it reaches the bill, under the number a shop orders by** (Paul,
@@ -353,11 +350,10 @@ test('a click previews and asks, and the list answers for itself', async ({ page
   const list = page.getByRole('list', { name: 'Features being asked about' })
   await expect(list).toBeVisible()
   await expect(list.getByRole('listitem')).toHaveCount(1)
-  // And the list below goes back to the catalog, narrowed by the filters, which
-  // is a list worth reading on its own (Paul, 2026-09-02: "list of tools should
-  // be on by default and show the all tools").
+  // And the row it just made is the row it is working on, so the list below is
+  // still that feature's (Paul, 2026-09-02, on adding a second tool to it).
   await expect(page.getByRole('searchbox', { name: 'Search by catalog number' })).toBeVisible()
-  await expect(page.getByText('Every tool in the catalog')).toBeVisible()
+  await expect(page.getByText(/^Cuts the /)).toBeVisible()
 })
 
 /**
@@ -434,7 +430,7 @@ test('takes a removed row off the bill as well as off the list', async ({ page }
   await expect(list.getByRole('listitem')).toHaveCount(1)
 
   await list.getByRole('button').first().click({ button: 'right' })
-  await page.getByRole('button', { name: 'Remove' }).click()
+  await page.getByRole('button', { name: 'Remove', exact: true }).click()
 
   await expect(list).toBeHidden()
   // And nothing of it is left on the sheet the bill and the grey paint are
@@ -484,9 +480,15 @@ test('presses the tool under a row for everything that fits it', async ({ page }
   await page.getByRole('table').getByRole('row').nth(1).click()
   await page.getByRole('button', { name: /^Create group and add tools?$/ }).click()
 
-  await expect(page.getByText('Every tool in the catalog')).toBeVisible()
+  // The group it just made is what it is working on, so the list below is
+  // already the group's. Putting it down goes back to the catalog, and its own
+  // answer is the way back in.
+  await expect(page.getByText('Cuts every feature in the group')).toBeVisible()
   const list = page.getByRole('list', { name: 'Features being asked about' })
-  await list.getByRole('button', { name: /Every tool that fits/ }).click()
+  await list.getByRole('button', { name: '4 × Face', exact: true }).click()
+  await expect(page.getByText('Every tool in the catalog')).toBeVisible()
+
+  await list.getByRole('button', { name: / for / }).click()
 
   await expect(page.getByText('Cuts every feature in the group')).toBeVisible()
   await expect(page.getByRole('searchbox', { name: 'Search by catalog number' })).toBeVisible()

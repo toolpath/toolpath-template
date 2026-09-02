@@ -19,9 +19,7 @@ const ANSWERS: Array<RecommendationRow> = [
     itemId: 'feature-1',
     tag: null,
     label: 'Pocket',
-    tool: tool('5510VXD375', 9.525),
-    holder: null,
-    collet: null,
+    picks: [{ tool: tool('5510VXD375', 9.525), holder: null, collet: null }],
     chosen: false,
     note: null,
     children: [],
@@ -31,9 +29,7 @@ const ANSWERS: Array<RecommendationRow> = [
     itemId: 'group-1',
     tag: null,
     label: '2 × Through Hole',
-    tool: null,
-    holder: null,
-    collet: null,
+    picks: [],
     chosen: false,
     note: '2 tools, one per feature',
     children: [
@@ -42,9 +38,7 @@ const ANSWERS: Array<RecommendationRow> = [
         itemId: 'group-1',
         tag: 'hole-1',
         label: 'Through Hole',
-        tool: tool('B976Z02500', 2.5),
-        holder: null,
-        collet: null,
+        picks: [{ tool: tool('B976Z02500', 2.5), holder: null, collet: null }],
         chosen: false,
         note: null,
         children: [],
@@ -54,9 +48,7 @@ const ANSWERS: Array<RecommendationRow> = [
         itemId: 'group-1',
         tag: 'hole-2',
         label: 'Through Hole',
-        tool: null,
-        holder: null,
-        collet: null,
+        picks: [],
         chosen: false,
         note: 'nothing fits',
         children: [],
@@ -216,9 +208,9 @@ describe('the list of what has been asked about', () => {
   it('asks for everything that fits when its tool is pressed', () => {
     const { onSelect } = show({ answers: ANSWERS })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Every tool that fits Pocket' }))
+    fireEvent.click(screen.getByRole('button', { name: '5510VXD375 for Pocket' }))
 
-    expect(onSelect).toHaveBeenCalledWith('feature-1')
+    expect(onSelect).toHaveBeenCalledWith('feature-1', null, '5510VXD375')
   })
 
   /**
@@ -230,11 +222,9 @@ describe('the list of what has been asked about', () => {
     const { onSelect } = show({ answers: ANSWERS, open: ['group-1'] })
 
     expect(screen.getByText('nothing fits')).toBeInTheDocument()
-    fireEvent.click(
-      screen.getAllByRole('button', { name: 'Every tool that fits Through Hole' })[0]!,
-    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'B976Z02500 for Through Hole' })[0]!)
 
-    expect(onSelect).toHaveBeenCalledWith('group-1', 'hole-1')
+    expect(onSelect).toHaveBeenCalledWith('group-1', 'hole-1', 'B976Z02500')
   })
 
   /** Closed, it says how many answers it is standing in front of. */

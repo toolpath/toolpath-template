@@ -8,9 +8,7 @@ const tool = (guid: string): CatalogTool =>
 
 /** The rules' own pick, with nothing chosen to hold it in yet. */
 const recommends = (guid: string) => ({
-  tool: tool(guid),
-  holder: null,
-  collet: null,
+  picks: [{ tool: tool(guid), holder: null, collet: null }],
   chosen: false,
 })
 
@@ -27,7 +25,7 @@ describe('the list answered a row at a time', () => {
   it('recommends one tool per row, named by what the row is', () => {
     const rows = recommendationRows(LIST, { topFor: (tags) => recommends(tags.join('+')), nameOf })
 
-    expect(rows.map((row) => [row.label, row.tool?.guid])).toEqual([
+    expect(rows.map((row) => [row.label, row.picks[0]?.tool.guid])).toEqual([
       ['Pocket', 'pocket-1'],
       ['2 × Through Hole', 'hole-1+hole-2'],
       // A group asked for one each has no single tool to name, so it counts them.
@@ -46,7 +44,9 @@ describe('the list answered a row at a time', () => {
 
     expect(rows[0]?.children).toEqual([])
     expect(rows[1]?.children).toEqual([])
-    expect(rows[2]?.children.map((child) => [child.label, child.tool?.guid, child.tag])).toEqual([
+    expect(
+      rows[2]?.children.map((child) => [child.label, child.picks[0]?.tool.guid, child.tag]),
+    ).toEqual([
       ['Through Hole', 'hole-3', 'hole-3'],
       ['Pocket', 'pocket-2', 'pocket-2'],
     ])
@@ -80,7 +80,7 @@ describe('the list answered a row at a time', () => {
       { topFor: () => recommends('B976Z02500'), nameOf },
     )
 
-    expect(rows[0]?.tool?.guid).toBe('B976Z02500')
+    expect(rows[0]?.picks[0]?.tool.guid).toBe('B976Z02500')
     expect(rows[0]?.note).toBeNull()
   })
 
@@ -98,5 +98,47 @@ describe('the list answered a row at a time', () => {
       'nothing fits',
     ])
     expect(rows[2]?.children.map((child) => child.note)).toEqual(['nothing fits', 'nothing fits'])
+  })
+})
+
+/**
+ * **More than one, where somebody chose more than one** (Paul, 2026-09-02: "a
+ * feature or group can have multiple tools saved to it, not just one"). A hole
+ * is a spot drill and a drill.
+ */
+describe('a row answered with several tools', () => {
+  it('carries every one of them, in the order they were chosen', () => {
+    const rows = recommendationRows([{ kind: 'feature', id: 'feature-1', tags: ['hole-1'] }], {
+      topFor: () => ({
+        picks: [
+          { tool: tool('SPOT'), holder: 'BT30-ER16', collet: 'ER16-3' },
+          { tool: tool('DRILL'), holder: null, collet: null },
+        ],
+        chosen: true,
+      }),
+      nameOf,
+    })
+
+    expect(rows[0]?.picks.map((pick) => pick.tool.guid)).toEqual(['SPOT', 'DRILL'])
+    expect(rows[0]?.picks[0]?.holder).toBe('BT30-ER16')
+    expect(rows[0]?.chosen).toBe(true)
+    expect(rows[0]?.note).toBeNull()
+  })
+
+  /** Counted across every tool of every feature, so a group says how many it holds. */
+  it('counts a one-each group’s tools across all of its features', () => {
+    const rows = recommendationRows(
+      [{ kind: 'group', id: 'group-1', tags: ['hole-1', 'pocket-1'], results: 'each' }],
+      {
+        topFor: (tags) => ({
+          picks: [{ tool: tool(tags.join('+')), holder: null, collet: null }],
+          chosen: true,
+        }),
+        nameOf,
+      },
+    )
+
+    expect(rows[0]?.note).toBe('2 tools, one per feature')
+    expect(rows[0]?.picks).toEqual([])
   })
 })

@@ -37,6 +37,7 @@ import {
   chosenFor,
   removeChoice,
   useSetupSheet,
+  type SetupSheet,
 } from 'shared/setup-sheet'
 import { PartViewer } from 'components/part-viewer'
 import { SelectionPanel } from 'components/selection-panel'
@@ -55,6 +56,7 @@ import {
   type Results,
 } from 'shared/feature-list'
 import { recommendationRows, type Answer } from 'shared/recommendations'
+import { toolActionLabel, toolActions, type ToolAction } from 'shared/tool-actions'
 import { featureRow } from 'shared/feature-rows'
 import {
   TAP_COLUMNS,
@@ -1207,9 +1209,12 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       >
     >
   >({})
+  /** A tool a press asked for, kept across the reading it also asked for. */
+  const wantedTool = useRef<string | null>(null)
   useEffect(() => {
     setPicked({})
-    setChosenTool(null)
+    setChosenTool(wantedTool.current)
+    wantedTool.current = null
   }, [focused])
 
   /**
@@ -1603,16 +1608,22 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
        * in only until somebody has made one.
        */
       const decided = tags[0] === undefined ? [] : choicesFor(sheet, tags[0])
-      const line = decided[0]
-      const chosen =
-        line === undefined ? undefined : allTools.find((one) => one.guid === line.toolGuid)
-      if (line !== undefined && chosen !== undefined) {
-        return {
-          tool: chosen,
-          holder: allHolders.find((one) => one.guid === line.holderGuid)?.catalogNumber ?? null,
-          collet: allCollets.find((one) => one.guid === line.colletGuid)?.catalogNumber ?? null,
-          chosen: true,
-        }
+      const picks = decided.flatMap((line) => {
+        const kept = allTools.find((one) => one.guid === line.toolGuid)
+        return kept === undefined
+          ? []
+          : [
+              {
+                tool: kept,
+                holder:
+                  allHolders.find((one) => one.guid === line.holderGuid)?.catalogNumber ?? null,
+                collet:
+                  allCollets.find((one) => one.guid === line.colletGuid)?.catalogNumber ?? null,
+              },
+            ]
+      })
+      if (picks.length > 0) {
+        return { picks, chosen: true }
       }
       const features = keptFeatures(report.features, tags)
       if (features.length === 0) {
@@ -1641,7 +1652,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         if (
           holdable(verdict.tool, allHolders, allCollets, holderFilters, reach, margins, thresholds)
         ) {
-          return { tool: verdict.tool, holder: null, collet: null, chosen: false }
+          return {
+            picks: [{ tool: verdict.tool, holder: null, collet: null }],
+            chosen: false,
+          }
         }
       }
       return null
@@ -1719,25 +1733,28 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   }, [topFor])
 
   /**
-   * Whether the tool in the panel would be a **change of mind**.
+   * The tools already on the bill for what is being asked about.
    *
-   * What is selected already has a tool, and this is not it (Paul, 2026-09-02:
-   * "I should see the option to 'use this tool instead' to map the new tool to
-   * the feature and update the BOM and list"). Nothing adds tools from that
-   * panel any more, so without this a second thought about a feature was a
-   * decision with no way to make it.
+   * **A feature can hold several** (Paul, 2026-09-02: "a feature or group can
+   * have multiple tools saved to it, not just one") — a hole is a spot drill
+   * and a drill — so this is a set rather than a tool, and what the panel
+   * offers is decided from it.
    */
-  const instead = useMemo(() => {
-    if (panelTool === null || !asking || askedNow.summary) {
-      return false
+  const mappedHere = useMemo(() => {
+    if (!asking) {
+      return []
     }
-    const already = new Set(
-      distinctIn(askedNow.tags).flatMap((each) =>
-        each[0] === undefined ? [] : choicesFor(sheet, each[0]).map((choice) => choice.toolGuid),
-      ),
-    )
-    return already.size > 0 && !already.has(panelTool.guid)
-  }, [panelTool, asking, askedNow, distinctIn, sheet])
+    const guids = new Set<string>()
+    for (const each of distinctIn(askedNow.tags)) {
+      if (each[0] === undefined) {
+        continue
+      }
+      for (const choice of choicesFor(sheet, each[0])) {
+        guids.add(choice.toolGuid)
+      }
+    }
+    return [...guids]
+  }, [asking, askedNow.tags, distinctIn, sheet])
 
   const summaryRows = useMemo(
     () => recommendationRows(list, { topFor: answerFor, nameOf, split: distinctIn }),
@@ -1758,7 +1775,15 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   /* ----------------------- editing the feature list ----------------------- */
 
   const selectRow = useCallback(
-    (id: string | null, tag: string | null = null) => {
+    (id: string | null, tag: string | null = null, toolGuid?: string) => {
+      /*
+        **Pressing a tool on a row opens that tool** (Paul, 2026-09-02, on a
+        feature holding several). Without it there is no way to reach the
+        second one, and no way to remove it. Held in a ref as well because
+        reading a feature clears the chosen tool on the next commit, and this
+        press means to set one.
+      */
+      wantedTool.current = toolGuid ?? null
       setDraft(null)
       setSelectedId(id)
       setSelectedTag(tag)
@@ -1769,6 +1794,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         return
       }
       dispatch({ type: 'read', featureTag: reading })
+      setChosenTool(toolGuid ?? null)
       if (tag === null && item?.kind === 'group' && item.results === 'each') {
         // A group that answers per feature is opened by selecting it: its
         // features are the answer, so hiding them behind a caret hides it.
@@ -1834,8 +1860,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       if (results === 'each') {
         commit(
           distinctIn(tags).reduce((current, each) => {
-            const best = answerFor(each)
-            return best === null || each[0] === undefined
+            const best = answerFor(each)?.picks[0]
+            return best === undefined || each[0] === undefined
               ? current
               : addChoice(current, each[0], { toolGuid: best.tool.guid })
           }, sheet),
@@ -1896,14 +1922,19 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     }
     // One feature is one question, so it takes the tool that was picked for it.
     billFor(kept, 'all')
-    setList((current) =>
-      addItem(current, { kind: 'feature', id: nextId(current, 'feature'), tags: [...kept] }),
-    )
+    const made: ListItem = { kind: 'feature', id: nextId(list, 'feature'), tags: [...kept] }
+    setList((current) => addItem(current, made))
     setDraft(null)
-    // Nothing selected afterwards, so the page answers with the list it has
-    // just grown rather than going on answering the click that built it.
-    dispatch({ type: 'reset' })
-  }, [kept, billFor])
+    /**
+     * **And it stays the thing being asked about** (Paul, 2026-09-02, on a
+     * feature holding several tools). It used to put everything down, which
+     * left nothing active — and with nothing active the panel beside the table
+     * has nothing to add a second tool *to*. The row somebody has just made is
+     * the row they are working on.
+     */
+    setSelectedId(made.id)
+    setSelectedTag(null)
+  }, [kept, billFor, list])
 
   const confirmDraft = useCallback(() => {
     if (draft === null || kept.length === 0) {
@@ -1933,13 +1964,135 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       draft.editing === null ? addItem(current, made) : replaceItem(current, made),
     )
     setDraft(null)
-    dispatch({ type: 'reset' })
+    // The row somebody has just made is the row they are working on.
+    setSelectedId(made.id)
+    setSelectedTag(null)
   }, [draft, kept, list, addFeature, billFor, unbill])
 
   const cancelDraft = useCallback(() => {
     setDraft(null)
     dispatch({ type: 'reset' })
   }, [])
+
+  /**
+   * The row on the list the panel's buttons act on, where there is one.
+   *
+   * A previewed feature can already be on the list — clicking it on the part is
+   * how somebody goes back to it — so this is not simply the selected row.
+   */
+  const activeItem = useMemo(
+    () =>
+      selectedItem ??
+      list.find((item) => askedNow.tags.every((tag) => item.tags.includes(tag))) ??
+      null,
+    [selectedItem, list, askedNow.tags],
+  )
+
+  /**
+   * What the panel beside the table offers for the tool it is showing.
+   *
+   * The rule is `shared/tool-actions`; this is what each of its answers does.
+   * All five write through the same two places — the list and the sheet —
+   * because the list drives everything (Paul, 2026-09-02).
+   */
+  const panelActions = useMemo(() => {
+    if (panelTool === null) {
+      return []
+    }
+    const held = holding.chosen(panelTool)
+    const first = distinctIn(askedNow.tags)[0]?.[0]
+    const line = first === undefined ? null : chosenFor(sheet, first, panelTool.guid)
+    const wanted = toolActions({
+      active: asking && !askedNow.summary,
+      mapped: mappedHere.length,
+      here: mappedHere.includes(panelTool.guid),
+      assemblyChanged:
+        line !== null &&
+        ((line.holderGuid ?? null) !== held.holderGuid ||
+          (line.colletGuid ?? null) !== held.colletGuid),
+    })
+    /** This tool, with whatever the panel has it held in. */
+    const asLine = {
+      toolGuid: panelTool.guid,
+      ...(held.holderGuid === null ? {} : { holderGuid: held.holderGuid }),
+      ...(held.colletGuid === null ? {} : { colletGuid: held.colletGuid }),
+    }
+    const across = (change: (sheet: SetupSheet, featureTag: string) => SetupSheet) =>
+      commit(
+        distinctIn(askedNow.tags).reduce(
+          (current, each) => (each[0] === undefined ? current : change(current, each[0])),
+          sheet,
+        ),
+      )
+    const run: Record<ToolAction, () => void> = {
+      add: () => {
+        if (draft?.kind === 'group') {
+          confirmDraft()
+          return
+        }
+        addFeature()
+      },
+      // Cleared and written in one commit: two would each read the sheet this
+      // render closed over, and the second would undo the first.
+      replace: () => across((current, tag) => addChoice(clearChoice(current, tag), tag, asLine)),
+      also: () => across((current, tag) => addChoice(current, tag, asLine)),
+      update: () =>
+        commit(
+          mappedTags.reduce((current, tag) => {
+            const had = chosenFor(current, tag, panelTool.guid)
+            return had === null ? current : addChoice(current, tag, { ...had, ...asLine })
+          }, sheet),
+        ),
+      /**
+       * **And the row goes with its last tool** (Paul, 2026-09-02: "remove
+       * tool, which would remove that tool from the list — and that feature
+       * from the list if no other tools are mapped to it").
+       */
+      remove: () => {
+        const next = distinctIn(askedNow.tags).reduce(
+          (current, each) =>
+            each[0] === undefined ? current : removeChoice(current, each[0], panelTool.guid),
+          sheet,
+        )
+        commit(next)
+        const left = distinctIn(askedNow.tags).some(
+          (each) => each[0] !== undefined && choicesFor(next, each[0]).length > 0,
+        )
+        if (!left && activeItem !== null) {
+          setList((current) => removeItem(current, activeItem.id))
+          selectRow(null)
+        }
+      },
+    }
+    return wanted.map((action) => ({
+      key: action,
+      label: toolActionLabel(action, {
+        // Named by the number a shop orders by, not by the guid it is keyed on.
+        dropping: mappedHere.map(
+          (guid) => allTools.find((one) => one.guid === guid)?.catalogNumber ?? guid,
+        ),
+      }),
+      onClick: run[action],
+      danger: action === 'remove',
+    }))
+  }, [
+    panelTool,
+    holding,
+    distinctIn,
+    askedNow,
+    asking,
+    sheet,
+    mappedHere,
+    mappedTags,
+    commit,
+    draft,
+    confirmDraft,
+    addFeature,
+    activeItem,
+    setList,
+    selectRow,
+    allTools,
+  ])
 
   /**
    * The keys act on the list on screen, from anywhere on the page.
@@ -2213,7 +2366,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                             items={list}
                             selectedId={selectedId}
                             selectedTag={selectedTag}
-                            onSelect={(id, tag) => selectRow(id, tag ?? null)}
+                            onSelect={(id, tag, toolGuid) => selectRow(id, tag ?? null, toolGuid)}
+                            chosenTool={chosenTool}
                             /*
                             **The answer sits under the question** (Paul,
                             2026-09-02: "get rid of the bottom table and just
@@ -2811,45 +2965,13 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                   time, a stickout, changed on a decision already made.
                 */
                 mappedTo={mappedTo}
-                {...(instead
-                  ? {
-                      onReplace: () => {
-                        const held = holding.chosen(panelTool)
-                        const line = {
-                          toolGuid: panelTool.guid,
-                          ...(held.holderGuid === null ? {} : { holderGuid: held.holderGuid }),
-                          ...(held.colletGuid === null ? {} : { colletGuid: held.colletGuid }),
-                        }
-                        // Cleared and written in one commit: two would each read
-                        // the sheet this render closed over, and the second
-                        // would undo the first.
-                        commit(
-                          distinctIn(askedNow.tags).reduce(
-                            (current, each) =>
-                              each[0] === undefined
-                                ? current
-                                : addChoice(clearChoice(current, each[0]), each[0], line),
-                            sheet,
-                          ),
-                        )
-                      },
-                    }
-                  : {})}
-                onUpdate={() => {
-                  const held = holding.chosen(panelTool)
-                  commit(
-                    mappedTags.reduce((current, tag) => {
-                      const had = chosenFor(current, tag, panelTool.guid)
-                      return had === null
-                        ? current
-                        : addChoice(current, tag, {
-                            ...had,
-                            ...(held.holderGuid === null ? {} : { holderGuid: held.holderGuid }),
-                            ...(held.colletGuid === null ? {} : { colletGuid: held.colletGuid }),
-                          })
-                    }, sheet),
-                  )
-                }}
+                /*
+                  **Nothing is worked out here** (Paul, 2026-09-02, on a feature
+                  holding more than one tool). Which of the five actions apply
+                  is four sentences about the list, and `shared/tool-actions`
+                  is where they are said and tested.
+                */
+                actions={panelActions}
               />
             </Card>
           ) : (

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowSquareOutIcon, TrashIcon } from '@phosphor-icons/react'
+import { ArrowSquareOutIcon } from '@phosphor-icons/react'
 import { Badge } from '@toolpath/ui'
 import { classNames } from '@toolpath/domain/class-names'
 import type { CatalogTool } from '@toolpath/catalog-data'
@@ -69,9 +69,21 @@ export interface ToolDetailsProps {
    * read, and what gets ordered is a tool *with* a holder and a collet — which
    * is a decision made here, so the button that finishes it is here too.
    */
-  readonly onSave?: () => void
-  readonly saved?: boolean
-  readonly onRemove?: () => void
+  /**
+   * What can be done with this tool, given what is being asked about.
+   *
+   * **Handed in rather than worked out here** (Paul, 2026-09-02, on a feature
+   * holding more than one tool): which of add, update, remove, replace and
+   * "add this one too" apply is four sentences about the *list*, and
+   * `shared/tool-actions` is where they are said and tested. This panel draws
+   * them.
+   */
+  readonly actions?: ReadonlyArray<{
+    readonly key: string
+    readonly label: string
+    readonly onClick: () => void
+    readonly danger?: boolean
+  }>
   /**
    * The features on the list this tool is already cutting, by name.
    *
@@ -81,38 +93,14 @@ export interface ToolDetailsProps {
    * catalog, whichever decisions had been made with it.
    */
   readonly mappedTo?: ReadonlyArray<string>
-  /**
-   * Save the holder, collet and stickout onto every one of them.
-   *
-   * The only way a tool reaches the bill now is by confirming a feature or a
-   * group with it, so this panel no longer adds anything — what it does is
-   * change the assembly of something already there (Paul, 2026-09-02: "if I add
-   * or edit a holder, collet, or in the future, stickout on a tool that is
-   * mapped to features on the list, it should say 'update tool assembly'").
-   */
-  readonly onUpdate?: () => void
-  /**
-   * Put this tool in place of the one the selected feature already has.
-   *
-   * **The way to change your mind** (Paul, 2026-09-02: "when I'm in the list
-   * for a feature that has a tool mapped and looking at a tool that is not
-   * mapped, I should see the option to 'use this tool instead'"). Nothing adds
-   * tools from this panel any more, so a second choice for a feature that had
-   * one was a decision with no way to make it.
-   */
-  readonly onReplace?: () => void
 }
 
 export const ToolDetails = ({
   tool,
   unit,
   holding,
-  onSave,
-  saved,
-  onRemove,
+  actions = [],
   mappedTo = [],
-  onUpdate,
-  onReplace,
 }: ToolDetailsProps) => {
   const family = getFamily(tool.familyId)
   /**
@@ -178,58 +166,30 @@ export const ToolDetails = ({
             <Badge variant="secondary">{formLabel(tool)}</Badge>
           </span>
         </span>
-        {onReplace === undefined ? null : (
-          <button
-            type="button"
-            onClick={onReplace}
-            title="Cut the selected feature with this tool instead, on the list and on the bill"
-            className="text-2xs focus-visible:ring-info/60 inline-flex shrink-0 items-center gap-1 rounded border-2 border-emerald-600 bg-zinc-950 px-2 py-1 font-bold whitespace-nowrap text-emerald-600 transition hover:border-emerald-500 hover:text-emerald-500 focus-visible:ring-1 focus-visible:outline-none"
-          >
-            Use this tool instead
-          </button>
-        )}
-        {onReplace !== undefined || onUpdate === undefined || mappedTo.length === 0 ? null : (
-          <button
-            type="button"
-            onClick={onUpdate}
-            title={`Save this holder and collet onto ${mappedTo.join(', ')}`}
-            className="text-2xs focus-visible:ring-info/60 inline-flex shrink-0 items-center gap-1 rounded border-2 border-emerald-600 bg-zinc-950 px-2 py-1 font-bold whitespace-nowrap text-emerald-600 transition hover:border-emerald-500 hover:text-emerald-500 focus-visible:ring-1 focus-visible:outline-none"
-          >
-            Update tool assembly
-          </button>
-        )}
-        {onSave === undefined ? null : (
-          <button
-            type="button"
-            onClick={() => {
-              if (saved === true) {
-                onRemove?.()
-                return
-              }
-              onSave()
-            }}
-            /*
-              **Green, bold, and on its own ground** (Paul, 2026-09-01): the
-              button that keeps a tool is the one thing in this panel somebody
-              presses, and the blue wash behind it was tinting it. The solid
-              surface underneath is what keeps it the colour it is.
-            */
-            className={classNames(
-              'text-2xs focus-visible:ring-info/60 inline-flex shrink-0 items-center gap-1 rounded border-2 bg-zinc-950 px-2 py-1 font-bold whitespace-nowrap transition focus-visible:ring-1 focus-visible:outline-none',
-              saved === true
-                ? 'border-emerald-500 text-emerald-500 hover:bg-emerald-500/10'
-                : 'border-emerald-600 text-emerald-600 hover:border-emerald-500 hover:text-emerald-500',
-            )}
-          >
-            {saved === true ? (
-              <>
-                <TrashIcon aria-hidden="true" />
-                On list
-              </>
-            ) : (
-              'Add to list'
-            )}
-          </button>
+        {actions.length === 0 ? null : (
+          <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+            {actions.map((action) => (
+              <button
+                key={action.key}
+                type="button"
+                onClick={action.onClick}
+                /*
+                  **Bold, and on its own ground** (Paul, 2026-09-01): these are
+                  the things somebody presses in this panel, and the blue wash
+                  behind it was tinting them. The solid surface underneath is
+                  what keeps them the colour they are.
+                */
+                className={classNames(
+                  'text-2xs focus-visible:ring-info/60 inline-flex shrink-0 items-center gap-1 rounded border-2 bg-zinc-950 px-2 py-1 font-bold whitespace-nowrap transition focus-visible:ring-1 focus-visible:outline-none',
+                  action.danger === true
+                    ? 'border-danger/70 text-danger hover:border-danger hover:bg-danger/10'
+                    : 'border-emerald-600 text-emerald-600 hover:border-emerald-500 hover:text-emerald-500',
+                )}
+              >
+                {action.label}
+              </button>
+            ))}
+          </span>
         )}
       </div>
 

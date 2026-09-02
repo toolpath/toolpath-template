@@ -26,12 +26,26 @@ import { groupLabel, labelOf, type ListItem } from './feature-list'
  * that — with whatever it is held in — is the answer; the rules' own pick is
  * what stands in until then.
  */
-export interface Answer {
+export interface Pick {
   readonly tool: CatalogTool
   /** The holder it is held in, by catalog number, where one has been chosen. */
   readonly holder: string | null
   readonly collet: string | null
-  /** Whether somebody chose it, rather than the rules recommending it. */
+}
+
+export interface Answer {
+  /**
+   * The tools answering these features.
+   *
+   * **More than one, where somebody chose more than one** (Paul, 2026-09-02: "a
+   * feature or group can have multiple tools saved to it, not just one"). A
+   * hole is a spot drill and a drill; the sheet has always held a list, and the
+   * row showed the head of it.
+   *
+   * Exactly one where it is a recommendation: the rules put one tool first.
+   */
+  readonly picks: ReadonlyArray<Pick>
+  /** Whether somebody chose these, rather than the rules recommending one. */
   readonly chosen: boolean
 }
 
@@ -43,11 +57,8 @@ export interface RecommendationRow {
   /** The feature a child row is about; null on an item's own row. */
   readonly tag: string | null
   readonly label: string
-  /** The tool answering this row, where the row has a single answer. */
-  readonly tool: CatalogTool | null
-  /** What it is held in, where that has been decided. */
-  readonly holder: string | null
-  readonly collet: string | null
+  /** The tools answering this row — empty where it has no answer. */
+  readonly picks: ReadonlyArray<Pick>
   /** Whether the answer is a decision rather than a recommendation. */
   readonly chosen: boolean
   /** What the row says in place of a tool: how many, or that there are none. */
@@ -74,9 +85,9 @@ export interface Reading {
 const oneEach = (tags: ReadonlyArray<string>): Array<ReadonlyArray<string>> =>
   tags.map((tag) => [tag])
 
-/** How many different tools a set of rows recommends. */
+/** How many different tools a set of rows answers with. */
 const distinct = (rows: ReadonlyArray<RecommendationRow>): number =>
-  new Set(rows.flatMap((row) => (row.tool ? [row.tool.guid] : []))).size
+  new Set(rows.flatMap((row) => row.picks.map((pick) => pick.tool.guid))).size
 
 export const recommendationRows = (
   list: ReadonlyArray<ListItem>,
@@ -92,16 +103,14 @@ export const recommendationRows = (
           itemId: item.id,
           tag: tags[0] ?? null,
           label: groupLabel(tags.map(nameOf)),
-          tool: answer?.tool ?? null,
-          holder: answer?.holder ?? null,
-          collet: answer?.collet ?? null,
+          picks: answer?.picks ?? [],
           chosen: answer?.chosen ?? false,
           note: answer === null ? 'nothing fits' : null,
           children: [],
         }
       })
       const kinds = distinct(children)
-      const only = kinds === 1 ? (children.find((row) => row.tool !== null) ?? null) : null
+      const only = kinds === 1 ? (children.find((row) => row.picks.length > 0) ?? null) : null
       return {
         id: item.id,
         itemId: item.id,
@@ -112,9 +121,7 @@ export const recommendationRows = (
           tool — which is what a group of identical holes does, and saying
           "3 tools" about one drill would be a worse answer than the drill.
         */
-        tool: only?.tool ?? null,
-        holder: only?.holder ?? null,
-        collet: only?.collet ?? null,
+        picks: only?.picks ?? [],
         chosen: only?.chosen ?? false,
         note:
           kinds === 1
@@ -131,9 +138,7 @@ export const recommendationRows = (
       itemId: item.id,
       tag: null,
       label,
-      tool: answer?.tool ?? null,
-      holder: answer?.holder ?? null,
-      collet: answer?.collet ?? null,
+      picks: answer?.picks ?? [],
       chosen: answer?.chosen ?? false,
       note:
         answer !== null

@@ -10,7 +10,7 @@ import { classNames } from '@toolpath/domain/class-names'
 import { formatGeometry } from 'shared/geometry'
 import type { Unit } from '@toolpath/domain/units'
 import { labelOf, type ListItem } from 'shared/feature-list'
-import type { RecommendationRow } from 'shared/recommendations'
+import type { Pick, RecommendationRow } from 'shared/recommendations'
 import { ToolTypeIcon } from './tool-icons'
 
 /**
@@ -44,7 +44,9 @@ export interface FeatureListPanelProps {
   readonly selectedId: string | null
   /** The feature inside a group whose tools are on screen, where it is one. */
   readonly selectedTag?: string | null
-  readonly onSelect: (id: string | null, tag?: string | null) => void
+  readonly onSelect: (id: string | null, tag?: string | null, toolGuid?: string) => void
+  /** The tool the panel beside the table is showing, so its line reads as chosen. */
+  readonly chosenTool?: string | null
   /**
    * What each row is answered with: the one tool the rules put first.
    *
@@ -158,44 +160,41 @@ const MenuItem = ({
 )
 
 /**
- * What a row is answered with: the tool the rules put first, and the way to
- * the whole offer behind it.
+ * One tool a row is answered with, and the way to the whole offer behind it.
  *
- * Grey and plain where there is no answer — "no one tool cuts all of these" is
- * the group's own result, not a failure of the panel — and not pressable, since
- * there is nothing to open.
+ * **A row can carry several** (Paul, 2026-09-02: "a feature or group can have
+ * multiple tools saved to it"): a hole is a spot drill and a drill, so each
+ * gets a line and each is a way in — pressing one opens *that* tool in the
+ * panel beside the table, which is where it is removed or re-held.
  */
 const Answer = ({
-  row,
+  pick,
   unit,
   here,
+  label,
   onOpen,
 }: {
-  row: RecommendationRow | undefined
+  pick: Pick
   unit: Unit
   here: boolean
+  /** What the row is, for the press to name what it opens. */
+  label: string
   onOpen: () => void
 }) => {
-  if (row === undefined) {
-    return null
-  }
-  if (row.tool === null) {
-    return <span className="text-2xs px-1 text-zinc-600">{row.note ?? '—'}</span>
-  }
-  const diameter = row.tool.geometry.DC
+  const diameter = pick.tool.geometry.DC
   /*
     **What it is held in, under it** (Paul, 2026-09-02: "holders and collets
     should also be shown with the tool in the feature list"). A decision is a
     tool *and* what puts it in the spindle, and the cards that used to say so
     beside the part are gone.
   */
-  const holding = [row.holder, row.collet].filter((each) => each !== null).join(' · ')
+  const holding = [pick.holder, pick.collet].filter((each) => each !== null).join(' · ')
   return (
     <button
       type="button"
       aria-pressed={here}
-      aria-label={`Every tool that fits ${row.label}`}
-      title={`Every tool that fits ${row.label} — ${row.tool.catalogNumber}${holding === '' ? '' : ` in ${holding}`}`}
+      aria-label={`${pick.tool.catalogNumber} for ${label}`}
+      title={`${pick.tool.catalogNumber}${holding === '' ? '' : ` in ${holding}`} — every tool that fits ${label}`}
       onClick={onOpen}
       className={classNames(
         'text-2xs flex w-full flex-col gap-0.5 rounded border px-1.5 py-0.5 text-left transition',
@@ -206,9 +205,9 @@ const Answer = ({
     >
       <span className="flex w-full items-center gap-1.5">
         <span className="shrink-0">
-          <ToolTypeIcon toolType={row.tool.form} />
+          <ToolTypeIcon toolType={pick.tool.form} />
         </span>
-        <span className="min-w-0 flex-1 truncate font-mono">{row.tool.catalogNumber}</span>
+        <span className="min-w-0 flex-1 truncate font-mono">{pick.tool.catalogNumber}</span>
         <span className="shrink-0 font-mono text-zinc-500">
           {diameter === undefined ? '' : formatGeometry('DC', diameter, unit)}
         </span>
@@ -220,11 +219,49 @@ const Answer = ({
   )
 }
 
+/** Every tool a row is answered with, or what it says in place of them. */
+const Answers = ({
+  row,
+  unit,
+  chosenTool,
+  here,
+  onOpen,
+}: {
+  row: RecommendationRow | undefined
+  unit: Unit
+  /** The tool the panel is showing, so the row can mark which of its lines it is. */
+  chosenTool: string | null
+  here: boolean
+  onOpen: (toolGuid: string) => void
+}) => {
+  if (row === undefined) {
+    return null
+  }
+  if (row.picks.length === 0) {
+    return <span className="text-2xs px-1 text-zinc-600">{row.note ?? '—'}</span>
+  }
+  return (
+    <div className="flex flex-col gap-0.5">
+      {row.picks.map((pick) => (
+        <Answer
+          key={pick.tool.guid}
+          pick={pick}
+          unit={unit}
+          label={row.label}
+          here={here && (chosenTool === null || chosenTool === pick.tool.guid)}
+          onOpen={() => onOpen(pick.tool.guid)}
+        />
+      ))}
+    </div>
+  )
+}
+
 export const FeatureListPanel = ({
   items,
   selectedId,
   selectedTag = null,
   onSelect,
+  chosenTool = null,
   answers = [],
   unit,
   open,
@@ -391,7 +428,13 @@ export const FeatureListPanel = ({
                 */}
                 {answer !== undefined && (answer.children.length === 0 || !opened) ? (
                   <div className="mt-0.5 ml-6">
-                    <Answer row={answer} unit={unit} here={here} onOpen={() => onSelect(item.id)} />
+                    <Answers
+                      row={answer}
+                      unit={unit}
+                      chosenTool={chosenTool}
+                      here={here}
+                      onOpen={(toolGuid) => onSelect(item.id, null, toolGuid)}
+                    />
                   </div>
                 ) : null}
 
@@ -413,11 +456,12 @@ export const FeatureListPanel = ({
                                 {child.tag === null ? '' : (directionOf?.(child.tag) ?? '')}
                               </span>
                             </span>
-                            <Answer
+                            <Answers
                               row={child}
                               unit={unit}
+                              chosenTool={chosenTool}
                               here={item.id === selectedId && selectedTag === child.tag}
-                              onOpen={() => onSelect(item.id, child.tag)}
+                              onOpen={(toolGuid) => onSelect(item.id, child.tag, toolGuid)}
                             />
                           </li>
                         ))
