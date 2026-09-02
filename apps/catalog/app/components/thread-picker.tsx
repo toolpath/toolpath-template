@@ -58,15 +58,6 @@ const MAKING: ReadonlyArray<{ mode: HoleMode; label: string }> = HOLE_MODES.filt
   (mode) => mode !== 'plain',
 ).map((mode) => ({ mode, label: mode === 'form tap' ? 'Form tap' : 'Cut tap' }))
 
-/**
- * The offers are the smallest type in the box on purpose: two drill sizes and
- * a thread name have to sit on one line in a panel three hundred pixels wide,
- * and the line ran off the edge at the size the rest of the box uses (Paul,
- * 2026-09-01).
- */
-const CHIP =
-  'focus-visible:ring-info/60 rounded border px-1 py-0.5 text-[9px] leading-4 tracking-tight transition focus-visible:ring-1 focus-visible:outline-none'
-
 export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: ThreadPickerProps) => {
   /**
    * How far the model is from the size that reading expects, signed: `+` is a
@@ -91,17 +82,19 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
         is labelled, the second is labelled, and each row carries how far the
         model is from the size that reading expects.
       */}
+      {/*
+        **The heading says what the hole is** (Paul, 2026-09-02: "when a hole is
+        selected, it should say <Thread Spec> Threaded Hole instead of
+        thread:plain"). A clear control used to sit here reading "plain hole",
+        opposite the word THREAD, which read as a statement that the hole was
+        plain — while an M3×0.5 was chosen underneath it. It has gone with the
+        wording: the first option in the list below is "No thread — a plain
+        hole", and one way to say a thing is enough (Paul, same day).
+      */}
       <div className="flex flex-wrap items-baseline gap-x-2">
-        <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">Thread</span>
-        {spec === null ? null : (
-          <button
-            type="button"
-            onClick={() => onChange({ mode: 'plain', spec: null })}
-            className="text-2xs ml-auto text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline"
-          >
-            plain hole
-          </button>
-        )}
+        <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
+          {spec === null ? 'Thread' : `${spec.name} threaded hole`}
+        </span>
       </div>
 
       <div className="text-2xs flex items-baseline justify-between gap-2 text-zinc-500">
@@ -158,13 +151,33 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
       </label>
 
       {/*
-        **How it is made, and the bore that way starts from.** A form tap wants
-        half a millimetre more hole than a cut tap on an M6, so the drill a
-        choice implies is the thing worth printing beside it.
+        **Each way of making it, with the drill it starts from** (Paul,
+        2026-09-02: "we should show the expected cut and form tap drill for cut
+        and form taps when a thread is selected from the drop down — it should
+        show the cut and form tap options in rows with standard tap drill
+        diameters for each").
+        
+        The numbers came off these controls on 2026-09-01, when they sat under
+        a list of *suggested* threads and three diameters were on screen at
+        once. With the thread settled they are the whole question: a cut tap
+        and a form tap for the same thread want different holes — ⌀0.201 in
+        against ⌀0.2244 in on a 1/4-20 — and the drill list is judged against
+        whichever is chosen. Rows rather than chips, because each carries a
+        figure and how far the model is from it.
       */}
       {spec === null ? null : (
-        <div className="flex items-center gap-1">
-          <span className="text-2xs w-24 shrink-0 text-zinc-500">Made by:</span>
+        <div className="mt-0.5 flex flex-col gap-0.5">
+          {/*
+            **Column headings, because each row carries two figures** (Paul,
+            2026-09-02: "the table needs a table for Standard Drill and
+            Deviation from Modeled Diameter"). Two bare numbers to the right of
+            "Cut tap" do not say which is the chart's and which is this hole's.
+          */}
+          <span className="text-[9px] flex items-end gap-2 px-1.5 tracking-wide text-zinc-600 uppercase">
+            <span className="min-w-0 flex-1">Made by</span>
+            <span className="w-20 text-right leading-tight">Standard drill</span>
+            <span className="w-16 shrink-0 text-right leading-tight">Deviation from modeled ⌀</span>
+          </span>
           {MAKING.map((way) => {
             const drill = drillFor(spec, way.mode)
             const on = mode === way.mode
@@ -181,23 +194,24 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
                 }
                 onClick={() => onChange({ mode: way.mode, spec })}
                 className={classNames(
-                  CHIP,
-                  'min-w-0 flex-1 truncate whitespace-nowrap',
+                  'focus-visible:ring-info/60 flex items-baseline gap-2 rounded border px-1.5 py-1 text-left transition focus-visible:ring-1 focus-visible:outline-none',
                   on
                     ? 'border-info/60 bg-info/15 text-info'
                     : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
                 )}
               >
-                {/*
-                  **The name, not the bore** (Paul, 2026-09-01: "we should just
-                  select cut tap or form tap, the numbers confuse the issue").
-                  Three diameters were on screen at once — the modelled hole,
-                  the cut-tap bore and the form-tap bore — and the two on the
-                  buttons read as the sizes being chosen between. The bore each
-                  one starts from is still in the title, and it is what the
-                  drill list is judged against.
-                */}
-                {way.label}
+                <span className="text-2xs min-w-0 flex-1 truncate">{way.label}</span>
+                {drill === null ? null : (
+                  <>
+                    <span className="w-16 text-right font-mono text-[11px] whitespace-nowrap">
+                      ⌀{formatLength(drill, unit)}
+                    </span>
+                    {/* How far the hole as modelled is from that drill. */}
+                    <span className="w-20 shrink-0 text-right font-mono text-[10px] text-zinc-500">
+                      {deviation(holeDiameter - drill)}
+                    </span>
+                  </>
+                )}
               </button>
             )
           })}
