@@ -30,7 +30,7 @@ test('browses, filters, and keeps the selection in the URL', async ({ page }) =>
 test('narrows by the vendor’s product line, and names a family by the vendor’s name', async ({
   page,
 }) => {
-  await page.goto('/')
+  await page.goto('/catalog')
 
   // The chip's label is the family's name; its value is still the id, which is
   // what the URL carries and what a shared link has to keep working.
