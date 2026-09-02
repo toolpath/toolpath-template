@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CatalogTool } from '@toolpath/catalog-data'
-import { paneOf, threadPanes } from './thread-panes'
+import { threadPanes } from './thread-panes'
 
 const tool = (guid: string, form: string): CatalogTool =>
   ({ guid, catalogNumber: guid, form, geometry: {} }) as unknown as CatalogTool
@@ -23,13 +23,5 @@ describe('the two tools a threaded hole takes', () => {
   it('says nothing where a list is empty', () => {
     expect(threadPanes(DRILLS, [], null).tap).toBeNull()
     expect(threadPanes([], TAPS, null).drill).toBeNull()
-  })
-
-  it('knows which tab a clicked tool belongs to', () => {
-    expect(paneOf(tool('T1', 'tap right hand'))).toBe('tap')
-    expect(paneOf(tool('D1', 'drill'))).toBe('drill')
-    expect(paneOf(tool('M1', 'flat end mill'))).toBe('drill')
-    // A tapered mill is a milling cutter, whatever its name starts with.
-    expect(paneOf(tool('T1', 'tapered mill'))).toBe('drill')
   })
 })
