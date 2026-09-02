@@ -5,9 +5,10 @@ import { defineConfig, loadEnv } from 'vite'
 import tsconfigPaths from 'vite-tsconfig-paths'
 import { DEV_SERVER_EXCLUDE } from './dev-server-exclude'
 
-import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
+import { CATALOG_VERSION } from '@toolpath/catalog-data'
+import { datasetSource } from './dataset-source'
 
 /**
  * Which dataset gets bundled.
@@ -17,16 +18,25 @@ import { resolve } from 'node:path'
  * against the sample and a machine that has run a scrape builds against the
  * real thing — without either one committing the difference. `CATALOG_DATASET`
  * overrides both, for a dataset kept somewhere else.
+ *
+ * A file built against another contract is refused and the reason printed
+ * here, where whoever started the build can read it: `dataset-source.ts` says
+ * why.
  */
 const datasetPath = (root: string): string => {
   const override = process.env.CATALOG_DATASET
-  if (override) {
-    return resolve(override)
+  const chosen = datasetSource(
+    {
+      ...(override ? { override: resolve(override) } : {}),
+      scraped: resolve(root, '../../scrape-out/catalog.json'),
+      sample: createRequire(import.meta.url).resolve('@toolpath/catalog-data/sample-catalog.json'),
+    },
+    CATALOG_VERSION,
+  )
+  if (chosen.note) {
+    console.warn(`[catalog] ${chosen.note}`)
   }
-  const scraped = resolve(root, '../../scrape-out/catalog.json')
-  return existsSync(scraped)
-    ? scraped
-    : createRequire(import.meta.url).resolve('@toolpath/catalog-data/sample-catalog.json')
+  return chosen.path
 }
 
 export default defineConfig(({ mode }) => {
