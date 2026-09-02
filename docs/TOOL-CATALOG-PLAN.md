@@ -650,11 +650,14 @@ vocabulary, so a typo fails the gate rather than showing nothing.
 
 Reach is deliberately **not** a filter: it depends on the holder, and checking
 that an assembly clears the part is the assembly's question. `LBH` stays on
-each tool as a figure — flute length plus one diameter, capped so a third of
-the overall length stays in the holder; never the vendor's shoulder length,
-which on a tool with no neck is just the flute length again — and L/D is
-length below holder over diameter. The derivation re-runs on every build, so
-changing the rule and running `rebuild.mjs` reaches an existing dataset.
+each tool as a figure — the overall length less the shank the shop keeps
+clamped, `catalog-data/clamping.ts` — and L/D is length below holder over
+diameter. **One rule, in the package**: the dataset used to carry a rule of
+its own while the part page applied the clamping rule over the top, so the
+same tool read one way on the catalog page and another beside a feature (Paul,
+2026-09-02). The derivation re-runs on every build, so changing the rule and
+running `rebuild.mjs` reaches an existing dataset; the page applies a shop's
+own multiple over it through `withClampingLength`.
 
 ## Building an assembly
 

@@ -1,25 +1,22 @@
-import { type CatalogTool } from '@toolpath/catalog-data'
+import {
+  DEFAULT_CLAMPING,
+  clampWanted,
+  clampedLength,
+  lengthBelowHolder,
+  type CatalogTool,
+  type ClampingRule,
+} from '@toolpath/catalog-data'
+
+export { clampWanted, clampedLength, lengthBelowHolder, type ClampingRule }
 
 /**
- * How much shank stays in the holder, and what that leaves below it.
+ * The shop's clamping rule, as this page lets somebody set it.
  *
- * **ISO 13399 calls it `LSCN`** — *clamping length minimum*, stated against
- * the shank diameter `DMM`, which is what a multiple of "D" means here: the
- * holder grips the shank, not the cut. The manufacturers publish it per tool: the five
- * Seco end mills Paul checked (2026-09-01) want between 4 and 6 diameters
- * clamped, against the 3×D rule of thumb everybody quotes, and the difference
- * is most of a tool's reach.
- *
- * So the rule reads **the vendor's own number first** and falls back to a
- * multiple of the diameter for every tool that publishes none — which is every
- * tool in this catalog today, because no scraper carries the column yet. The
- * day one does, the tools that have it stop guessing without anybody changing
- * a setting.
- *
- * What it decides is `LBH`, and `LBH` is then arithmetic: the overall length
- * less the shank held. A ⌀6 end mill 57 long, clamped 6×D as Seco asks, has
- * 21 mm below the holder and an L/D of 3.5 — the reach question answered in
- * the shop's terms rather than the catalog's.
+ * **The rule itself is `@toolpath/catalog-data`'s** (Paul, 2026-09-02). It has
+ * to be: the dataset is built with it, so a tool's length below holder is the
+ * same number on the catalog page as beside a feature. What lives here is the
+ * knob — the default the rail starts at, and applying a changed one to the
+ * whole catalog.
  */
 
 /**
@@ -28,125 +25,8 @@ import { type CatalogTool } from '@toolpath/catalog-data'
  */
 export const CLAMPING_KNOB = 'minimum clamping length'
 
-/** What a shop holds: the vendor's number where there is one, else a multiple of the diameter. */
-export interface ClampingRule {
-  /** Read the manufacturer's `LSCN` where the tool publishes one. On by default. */
-  readonly vendorSpec: boolean
-  /** Diameters to clamp where it does not — the rule of thumb is 3. Zero for none. */
-  readonly perDiameter: number
-}
-
-/**
- * The diameter a clamping length is a multiple **of**: the shank.
- *
- * **`LSCN` is stated against `DMM`**, the shank diameter, and the shank is
- * what the holder grips — a keyseat cutter 22 mm across on a ⌀12 shank is
- * clamped on 12 (Paul, 2026-09-01). Reading it off the cut made every
- * disc-shaped tool ask for a clamp it has no shank for. The cut stands in only
- * where a vendor states no shank, which is a tool this rule cannot be precise
- * about either way.
- */
-const heldDiameter = (tool: CatalogTool): number | undefined =>
-  tool.geometry.SFDM ?? tool.geometry.DC
-
-/**
- * Where the shank starts, measured from the tip.
- *
- * **This is the length a holder has to grip in.** Above it is shank; below it
- * is flute, and on a necked tool the reduced section under the shank as well.
- * A chuck cannot close on either.
- */
-const shankFrom = (tool: CatalogTool): number =>
-  Math.max(tool.geometry['shoulder-length'] ?? 0, tool.geometry.LCF ?? 0)
-
-/** How much shank there is to hold: the overall length less what is below it. */
-export const shankLength = (tool: CatalogTool): number | null => {
-  const { OAL } = tool.geometry
-  return OAL === undefined ? null : Math.round(Math.max(0, OAL - shankFrom(tool)) * 100) / 100
-}
-
-/** What this rule *asks* to keep in the holder, or null where it says nothing. */
-export const clampWanted = (tool: CatalogTool, rule: ClampingRule): number | null => {
-  const stated = tool.geometry.LSCN
-  if (rule.vendorSpec && stated !== undefined && stated > 0) {
-    return Math.round(stated * 100) / 100
-  }
-  const shank = heldDiameter(tool)
-  if (rule.perDiameter <= 0 || shank === undefined || shank <= 0) {
-    return null
-  }
-  return Math.round(shank * rule.perDiameter * 100) / 100
-}
-
-/**
- * What this rule keeps in the holder.
- *
- * The rule's own answer wherever the tool can take it, and where it cannot,
- * whatever {@link lengthBelowHolder} leaves — the two are one subtraction
- * apart, and the drawing shades the held part from this one.
- */
-export const clampedLength = (tool: CatalogTool, rule: ClampingRule): number | null => {
-  const below = lengthBelowHolder(tool, rule)
-  const { OAL } = tool.geometry
-  if (below === null || OAL === undefined) {
-    return clampWanted(tool, rule)
-  }
-  return Math.round((OAL - below) * 100) / 100
-}
-
-/**
- * How much shank the rule asks for and the tool does not have, in millimetres.
- *
- * Null where the rule fits — which is nearly every tool, and all of the plain
- * ones. It is the number to say out loud when a shop's clamping rule cannot be
- * met: "3×D wants 60 mm and this tool has 51 mm of shank".
- */
-export const clampShortfall = (tool: CatalogTool, rule: ClampingRule): number | null => {
-  const wanted = clampWanted(tool, rule)
-  const shank = shankLength(tool)
-  if (wanted === null || shank === null || wanted <= shank) {
-    return null
-  }
-  return Math.round((wanted - shank) * 100) / 100
-}
-
-/**
- * What is left below the holder.
- *
- * **Measured from the top of the tool down** (Paul, 2026-09-01, twice, and the
- * second time with the arithmetic: "our rule should be Length Below Holder =
- * OAL − (Minimum Clamping Length Multiplier × SFDM)"). The shop's rule says
- * how much *shank* stays in the holder; everything else is out, and the tool
- * is not pushed in further than that because a shorter stickout is somebody's
- * decision rather than a default.
- *
- * **Except where that would bury the head.** A ⌀20 necked bull nose 104 mm
- * long with 53 mm of shoulder gets 44 mm from the rule, which is less than the
- * neck and the flutes and means a chuck closed on the relief. There the tool
- * comes out to its head plus one shank diameter — a diameter of plain shank
- * showing under the holder, which is Paul's rule for the case (2026-09-01:
- * "when the vendor recc or Minimum Clamping Length Multiplier means the length
- * below holder would be less than or equal to the shoulder length, do the
- * shoulder length + SFDM = LBH").
- *
- * Never past the overall length: a tool too short to hold at all is held by
- * all of it, and the reach rules refuse it on the number rather than on a
- * negative.
- */
-export const lengthBelowHolder = (tool: CatalogTool, rule: ClampingRule): number | null => {
-  const wanted = clampWanted(tool, rule)
-  const { OAL } = tool.geometry
-  if (wanted === null || OAL === undefined) {
-    return null
-  }
-  const below = OAL - wanted
-  const head = shankFrom(tool)
-  if (head <= 0 || below > head) {
-    return Math.round(Math.max(0, below) * 100) / 100
-  }
-  const shank = heldDiameter(tool) ?? 0
-  return Math.round(Math.min(OAL, head + shank) * 100) / 100
-}
+/** What the dataset was built with, and what the rail starts at. */
+export const SHEET_CLAMPING: ClampingRule = DEFAULT_CLAMPING
 
 /**
  * The catalog as this shop reads it.
@@ -164,7 +44,7 @@ export const withClampingLength = (
     return tools
   }
   return tools.map((tool) => {
-    const below = lengthBelowHolder(tool, rule)
+    const below = lengthBelowHolder(tool.geometry, rule)
     const { DC } = tool.geometry
     if (below === null || DC === undefined || DC <= 0) {
       return tool

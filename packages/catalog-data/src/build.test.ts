@@ -105,44 +105,46 @@ describe('undefinedGeometryCodes', () => {
 })
 
 describe('what the pipeline works out for itself', () => {
-  /** Nothing stated below the shank: flute length plus one diameter, the shop rule of thumb. */
-  it('derives length below holder as flute length plus a diameter, and L/D from that', () => {
-    const derived = withDerived(tool({ guid: 'a', familyId: 'f', geometry: { DC: 5, LCF: 13 } }))
+  /**
+   * **The clamping rule, built in** (Paul, 2026-09-02: "I think we should do
+   * what I did"). The dataset used to carry a rule of this package's own —
+   * flute length plus a diameter, capped at two thirds of the overall length —
+   * while the part page applied the shop's clamping rule over the top, so the
+   * same tool read one way on the catalog page and another beside a feature.
+   * `clamping.ts` is the rule and holds its own tests; these are that the
+   * build uses it.
+   */
+  it('derives length below holder from the clamping rule, and L/D from that', () => {
+    // 57 long on a ⌀6 shank, 3×D clamped: 39 below the holder, and 39 ÷ 5.
+    const derived = withDerived(
+      tool({ guid: 'a', familyId: 'f', geometry: { DC: 5, SFDM: 6, LCF: 13, OAL: 57 } }),
+    )
 
-    expect(derived.geometry.LBH).toBe(18)
+    expect(derived.geometry.LBH).toBe(39)
     expect(derived.provenance.LBH).toBe('derived')
-    expect(derived.geometry.LD).toBe(3.6)
+    expect(derived.geometry.LD).toBe(7.8)
     expect(derived.provenance.LD).toBe('derived')
   })
 
-  /**
-   * On a tool with no neck the shoulder length *is* the flute length, and a
-   * rule that read it gave half the catalog a length below holder equal to its
-   * flutes. The shoulder stays a fact about the neck; it is not the stickout.
-   */
-  it('ignores the shoulder length: flute length plus a diameter, always', () => {
+  /** No shank stated: the cut stands in, because there is nothing else. */
+  it('measures the clamp against the cut where no shank is stated', () => {
     const derived = withDerived(
-      tool({
-        guid: 'a',
-        familyId: 'f',
-        geometry: { DC: 5, LCF: 13, OAL: 57, 'shoulder-length': 13 },
-        provenance: { 'shoulder-length': 'vendor-stated' },
-      }),
+      tool({ guid: 'a', familyId: 'f', geometry: { DC: 5, LCF: 13, OAL: 57 } }),
     )
 
-    expect(derived.geometry.LBH).toBe(18)
-    expect(derived.provenance.LBH).toBe('derived')
-    expect(derived.geometry.LD).toBe(3.6)
+    expect(derived.geometry.LBH).toBe(42)
   })
 
-  /** A third of the tool stays in the holder, whatever the flutes say. */
-  it('keeps a third of the overall length in the holder', () => {
+  /**
+   * And where the rule would leave the holder gripping the head, the tool comes
+   * out to the head plus a diameter of shank instead.
+   */
+  it('leaves a diameter of shank showing rather than burying the head', () => {
     const stubby = withDerived(
-      tool({ guid: 'a', familyId: 'f', geometry: { DC: 5, LCF: 13, OAL: 24 } }),
+      tool({ guid: 'a', familyId: 'f', geometry: { DC: 5, SFDM: 6, LCF: 13, OAL: 24 } }),
     )
 
-    expect(stubby.geometry.LBH).toBe(16)
-    expect(stubby.geometry.LD).toBe(3.2)
+    expect(stubby.geometry.LBH).toBe(19)
   })
 
   /** A figure this package worked out last time is replaced by what the rule says now. */
@@ -151,18 +153,18 @@ describe('what the pipeline works out for itself', () => {
       tool({
         guid: 'a',
         familyId: 'f',
-        geometry: { DC: 5, LCF: 13, OAL: 57, LBH: 13, LD: 2.6 },
+        geometry: { DC: 5, SFDM: 6, LCF: 13, OAL: 57, LBH: 13, LD: 2.6 },
         provenance: { LBH: 'derived', LD: 'derived' },
       }),
     )
-    expect(rebuilt.geometry.LBH).toBe(18)
-    expect(rebuilt.geometry.LD).toBe(3.6)
+    expect(rebuilt.geometry.LBH).toBe(39)
+    expect(rebuilt.geometry.LD).toBe(7.8)
 
     const stated = withDerived(
       tool({
         guid: 'a',
         familyId: 'f',
-        geometry: { DC: 5, LCF: 13, OAL: 57, LBH: 30 },
+        geometry: { DC: 5, SFDM: 6, LCF: 13, OAL: 57, LBH: 30 },
         provenance: { LBH: 'vendor-stated' },
       }),
     )
@@ -189,8 +191,9 @@ describe('what the pipeline works out for itself', () => {
       families: [family({ id: 'f', tools: [tool({ guid: 'a', familyId: 'f' })] })],
     })
 
-    expect(catalog.tools[0]?.geometry.LBH).toBe(17)
-    expect(catalog.tools[0]?.geometry.LD).toBe(3.4)
+    // ⌀6 shank, 50 long, 3×D clamped: 32 below the holder, and 32 ÷ 5.
+    expect(catalog.tools[0]?.geometry.LBH).toBe(32)
+    expect(catalog.tools[0]?.geometry.LD).toBe(6.4)
     expect(catalog.facets.ranges.map((axis) => axis.key)).toEqual(
       expect.arrayContaining(['LBH', 'LD']),
     )
