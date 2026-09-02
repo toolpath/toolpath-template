@@ -75,6 +75,7 @@ describe('what the panel says about a hole before anything is chosen', () => {
     const form = screen.getByRole('button', { name: 'M6×1 form tap' })
 
     // The Engine's charts: ⌀5.00 for a cut tap, ⌀5.50 for a form tap.
+    expect(screen.getByText('Standard predrill')).toBeInTheDocument()
     expect(cut).toHaveTextContent('Cut tap')
     expect(cut).toHaveTextContent('⌀5.00 mm')
     expect(form).toHaveTextContent('⌀5.50 mm')

@@ -151,7 +151,7 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
       </label>
 
       {/*
-        **Each way of making it, with the drill it starts from** (Paul,
+        **Each way of making it, with the predrill it starts from** (Paul,
         2026-09-02: "we should show the expected cut and form tap drill for cut
         and form taps when a thread is selected from the drop down — it should
         show the cut and form tap options in rows with standard tap drill
@@ -172,10 +172,12 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
             2026-09-02: "the table needs a table for Standard Drill and
             Deviation from Modeled Diameter"). Two bare numbers to the right of
             "Cut tap" do not say which is the chart's and which is this hole's.
+            *Predrill* rather than *drill*, because it is the hole made before
+            the thread is (Paul, same day).
           */}
           <span className="text-[9px] flex items-end gap-2 px-1.5 tracking-wide text-zinc-600 uppercase">
             <span className="min-w-0 flex-1">Made by</span>
-            <span className="w-20 text-right leading-tight">Standard drill</span>
+            <span className="w-20 text-right leading-tight">Standard predrill</span>
             <span className="w-16 shrink-0 text-right leading-tight">Deviation from modeled ⌀</span>
           </span>
           {MAKING.map((way) => {
