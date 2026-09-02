@@ -381,7 +381,45 @@ mounts geometry.
 
 ---
 
-## 12. Not built
+## 12. Working on this
+
+**Read in this order.** The pure modules carry the rules and their reasons;
+`routes/part.tsx` is wiring and is the last place to look, not the first.
+
+1. `app/shared/feature-list.ts` — what the list is, and `asked()`, which decides
+   what everything downstream answers.
+2. `app/shared/part-interaction.ts` — what a click means.
+3. `app/shared/recommendations.ts` and `app/shared/tool-actions.ts` — what a row
+   answers with, and what the panel offers for it.
+4. The components, then the route.
+
+**Change the rule, not the route.** Almost every behaviour on this page is one
+sentence in one of those four modules, each tested against literals. If a change
+looks like it belongs in `part.tsx`, check first whether it is really a change to
+`asked()`, to `toolActions()`, or to the reducer — it usually is, and there it
+costs three assertions instead of a Playwright run.
+
+**What the gates are.** `pnpm check` runs style, lint, build, types and the unit
+suites; `pnpm test:e2e` runs both applications' Playwright suites. CI runs all of
+it plus `pnpm format:check` on every pull request and every push to `main`. The
+cube fixture carries nine tools, so most of its features answer "nothing fits" —
+that is the fixture, not a defect, and a test that needs a tool to fit has to
+pick one the nine can cut.
+
+**Known engineering debts**, none of them behavioural:
+
+- `routes/part.tsx` is past three thousand lines and carries several
+  responsibilities. The pure rules have been pulled out of it steadily; the
+  holder/collet picking and the bill writing are the next candidates.
+- There is no coverage tooling (`@vitest/coverage-v8` is not installed), so
+  "what is untested" is answered by reading rather than by measurement.
+- `apps/catalog` has no `docker:build`, so unlike the DFM application its
+  production image is not proven by CI.
+- `main` has no branch protection, so CI is not a required check.
+
+---
+
+## 13. Not built
 
 - **Threads on groups of holes.** Holes in a group should list as sets by
   diameter and depth, each set taking the thread picker exactly as an individual

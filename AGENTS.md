@@ -163,6 +163,13 @@ application unless that application says otherwise.
   is parked and where to restore it from, and _The filter panel_ for the one
   rule saying which values a picker offers — an empty answer stays and is
   greyed, another vendor's family or product line comes off the list.
+  **The part page is the feature list, and the feature list drives everything**
+  (Paul, 2026-09-02). Read `docs/FEATURE-LIST.md` before changing anything on
+  that page: it is the whole spec — what a click means in each of the four
+  modes, what a group is, what the part paints, and what reaches the bill.
+  Nothing on the setup sheet is there except because a row put it there, and it
+  goes when that row goes; a second way to add or remove a tool is the defect
+  that spec exists to prevent.
   **The 2D tool drawing is not this application's** — it is
   `@toolpath/tool-drawing`, and `app/components/catalog-drawing.tsx` is the one
   file that wires it up. See `docs/TOOL-DRAWING-PLAN.md`.
@@ -192,7 +199,25 @@ application unless that application says otherwise.
   feature** — `clearance.ts` — which is a tool-selection question with a dozen
   callers that draw nothing, so it stays here while the picture of it lives in
   the drawing package.
+  The catalog's part page is four pure modules and four components over one
+  route, and the pure half is where its rules live. A change to how it behaves is
+  almost always a change to one of these rather than to `routes/part.tsx`:
+
+| Question                                     | Module                                  |
+| -------------------------------------------- | --------------------------------------- |
+| what the list holds, its names, ids, storage | `app/shared/feature-list.ts`            |
+| which of four things the page is being asked | `asked()`, same file                    |
+| a row's answer, and what it opens to         | `app/shared/recommendations.ts`         |
+| what the panel offers for the tool it shows  | `app/shared/tool-actions.ts`            |
+| what a click on the part means               | `app/shared/part-interaction.ts`        |
+| the list, its answers and its right-click    | `app/components/feature-list-panel.tsx` |
+| building a group                             | `app/components/group-editor.tsx`       |
+| the reading, its numbers and its thread      | `app/components/selection-panel.tsx`    |
+| the tool table and its marks                 | `app/components/tool-table.tsx`         |
+
 - `docs/` holds planning documents that outlive a single change.
+  `docs/FEATURE-LIST.md` is the spec for the catalog's part page and the one to
+  read first when working on it.
   `docs/FEATURE-DEFAULTS.md` is the guide to the catalog's feature datasheet,
   `apps/catalog/app/shared/feature-defaults.csv`, and `docs/RULES.md` the
   guide to its rules sheet, `rules.csv` and `knobs.csv` beside it — the files
@@ -349,6 +374,10 @@ original. For the catalog:
 - **Anything that begins with a click on the part goes in
   `tests/on-the-part.spec.ts`**, against `tests/cube-fixture.ts` — the only
   fixture that mounts geometry. Nothing else can reach that stack.
+- **The cube fixture carries nine tools**, so most of its features answer
+  "nothing fits". That is the fixture, not a bug: a test that needs a tool to
+  fit must pick one the nine can cut, and a near miss is still a row the list
+  draws and the panel can act on.
 - **Never capture a real part's report and check it in.** The vendored viewer
   cube is the one exception, for the one reason `cube-fixture.ts` gives.
 - **A rule may want a sensor instead of a test.** `eslint.config.js`,

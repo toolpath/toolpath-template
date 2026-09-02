@@ -164,6 +164,10 @@ apps/catalog              @toolpath/catalog         browse tools, and match them
   selection held in the URL. The catalog browser and the family list are still
   there and still tested at `/catalog` and `/families`, and nothing links to
   them — see _Taken out on 2026-09-01_.
+- **The part page is a feature list** since 2026-09-02, and the list drives
+  everything: what the part paints, what the tool table is for, and what reaches
+  the bill. `docs/FEATURE-LIST.md` is the whole spec and the first thing to read
+  before touching that page.
 
 ## Phases
 
@@ -372,6 +376,34 @@ really about the stack rather than the cutter.
   kernel's raw record behind a disclosure.
 - ⬜ A preferences screen. Nominating happens inline on the part page today,
   which means a shop cannot see or reorder its own list anywhere.
+
+### Phase 4b — the feature list ✅ 2026-09-02
+
+The selection was invisible: clicking a face put its hole group into the
+interaction reducer's `kept`, the tool list was judged against everything in it,
+and nothing on screen said what "everything" was. The list is that set made
+explicit — a row per thing asked about, a group being one row that holds
+several — and it became the only thing that writes the bill.
+
+- ✅ **Items are features or groups**, both carrying tags plural because eight
+  identical holes are one decision. A group says what it wants back: one tool
+  that cuts all of them, or the best tool for each.
+- ✅ **Either can hold several tools.** A hole is a spot drill and a drill. The
+  sheet always kept a list; the page treated it as one.
+- ✅ **Choosing a tool is what writes the bill**, one line per distinct feature,
+  and removing the last tool takes the row with it. There is no second place to
+  add or remove one.
+- ✅ **Kept per part** beside the setup sheet, so a reload no longer throws the
+  list away while the tools chosen for it stay on the bill.
+- ✅ Two performance defects fixed on the way: every row was judged against the
+  whole catalog and filtered afterwards, and nothing was cached.
+- ⬜ **Threads on groups of holes** — holes should list as sets by diameter and
+  depth, each set taking the thread picker as an individual feature does.
+  `threads` is keyed per feature tag today, which is what stands in the way.
+- ⬜ **Stickout** is carried on a bill line but is not editable in the panel.
+
+Everything above is specified in `docs/FEATURE-LIST.md`, which is kept current
+with the code rather than as a record of intent.
 
 ### Phase 5 — the viewer, and Fusion ⬜
 

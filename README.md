@@ -66,6 +66,46 @@ The application uses released `@toolpath/api`, `@toolpath/ui`, and `@toolpath/vi
 See [the DFM application README](apps/dfm/README.md) for architecture and
 request-flow details.
 
+## Working on the tool catalog
+
+Four things surprise people on their first day with `apps/catalog`. None of them
+is a bug.
+
+**Build the workspace packages before starting the dev server.** They are
+consumed from `dist/`, which is not in git, so a fresh clone has nothing to
+link:
+
+```sh
+pnpm build        # or pnpm check, which builds as part of the gate
+pnpm dev:catalog  # http://localhost:5174
+```
+
+**A fresh checkout has nine tools, not seventeen thousand.** Vendor data is the
+vendor's and is never committed, so `catalog-dataset` resolves to the committed
+sample and most features answer "nothing fits". To work against a real catalog,
+scrape one on your own machine:
+
+```sh
+pnpm --filter @toolpath/catalog-data scrape   # writes the gitignored scrape-out/
+```
+
+The dev server prints which dataset it picked at start-up. `CATALOG_DATASET`
+overrides the choice if you have a `catalog.json` from somewhere else.
+
+**Everyone brings their own Toolpath API key**, typed into the application
+rather than kept in a file. Nothing secret travels with a branch.
+
+**Never run `pnpm check` while the dev server is running.** It rebuilds the
+workspace packages underneath Vite, which then serves stale optimised
+dependencies and the page goes black. If that happens:
+
+```sh
+rm -rf apps/catalog/node_modules/.vite && pnpm dev:catalog
+```
+
+Then read [`docs/FEATURE-LIST.md`](docs/FEATURE-LIST.md) — it is the spec for
+the part page, which is most of what the catalog is.
+
 ## The applications in this workspace
 
 | Path           | What it is                                                                   |
