@@ -29,6 +29,7 @@
   },
   "pnpm": {
     "overrides": {
+      "@toolpath/tool-drawing": "link:../toolpath-ui-packages/packages/tool-drawing",
       "@toolpath/tool-scraper": "link:../toolpath-ui-packages/packages/tool-scraper"
     }
   },

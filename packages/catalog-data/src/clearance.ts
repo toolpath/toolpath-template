@@ -29,6 +29,21 @@ import type { CatalogTool } from './types.js'
  */
 
 /** The tallest material within `offset` mm of the cut, above the feature's bottom. */
+/**
+ * **A twin of this lives in `@toolpath/tool-drawing/clearance`**, and that is
+ * deliberate.
+ *
+ * § 6 of the drawing plan had this staying here alone, and that turned out to
+ * be wrong: `tightestGaps` cannot be written without it, and `tightestGaps` is
+ * drawing-only, so it moved and this had to go with it. What stayed is the
+ * original, because the sweep above and `section.ts` both read it and neither
+ * draws anything — putting the verdict behind a rendering package is the one
+ * thing this whole split exists to avoid.
+ *
+ * The two must agree exactly. They are read against each other by
+ * `outline.test.ts`, which checks the drawn staircase matches this function at
+ * every offset.
+ */
 export const heightAt = (curve: ReachCurve, offset: number): number => {
   // "Material within h[i] rises to v[i]": for an offset between knots the
   // material could be anywhere out to the next knot, so the next knot's height

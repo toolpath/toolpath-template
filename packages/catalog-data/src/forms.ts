@@ -120,6 +120,19 @@ export const shankOf = (tool: {
  * is still a relief the drawing shows, but not a *reduced* shank by Paul's
  * definition: 860 end mills have such a relief, 245 of them under the cut.
  */
+/**
+ * **A twin of this lives in `@toolpath/tool-drawing`**, and that is deliberate.
+ *
+ * `assemblyOutline` needs it to tell a neck from plain shank, and a package
+ * that draws tools may not depend on this catalog's data package — the input
+ * contract is the package's own precisely so that it does not. Copying eight
+ * lines of a stated-shoulder test was the cheaper of the two wrongs. This copy
+ * stays because `clearance.ts` and `toolholding.ts` still call it, neither of
+ * which draws anything.
+ *
+ * If the rule ever changes, it changes in both places or the picture and the
+ * verdict disagree about the same tool.
+ */
 export const hasNeck = (tool: { readonly geometry: Readonly<Record<string, number>> }): boolean => {
   const { LCF, SFDM, DC } = tool.geometry
   const shoulder = tool.geometry['shoulder-length']

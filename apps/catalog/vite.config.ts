@@ -36,7 +36,13 @@ export default defineConfig(({ mode }) => {
     // Server configuration reads the environment explicitly above. Prevent Vite
     // from performing a second, client-oriented .env load.
     envDir: false,
-    resolve: { alias: { 'catalog-dataset': datasetPath(import.meta.dirname) } },
+    resolve: {
+      // `@toolpath/tool-drawing` is linked from a sibling checkout that has a
+      // React of its own, and React is a peer dependency there. Without this
+      // the drawing renders against a second React and every hook throws.
+      dedupe: ['react', 'react-dom'],
+      alias: { 'catalog-dataset': datasetPath(import.meta.dirname) },
+    },
     // 5173 is the DFM application's. Both are `react-router dev` and would
     // otherwise default to the same port, so whichever booted first would win.
     server: { port: 5174, strictPort: true },
@@ -74,6 +80,6 @@ export default defineConfig(({ mode }) => {
     // shell's index.html. `@toolpath/ui` must be bundled into it rather than
     // externalised: one of its dependencies uses a directory import that Node's
     // ESM resolver refuses, and only Vite's resolver gets it right.
-    ssr: { noExternal: ['@toolpath/ui', '@toolpath/viewer'] },
+    ssr: { noExternal: ['@toolpath/ui', '@toolpath/viewer', '@toolpath/tool-drawing'] },
   }
 })

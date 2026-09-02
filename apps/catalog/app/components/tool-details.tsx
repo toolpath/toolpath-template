@@ -8,7 +8,7 @@ import { formatGeometry } from 'shared/geometry'
 import { getFamily } from 'shared/catalog'
 import { ToolTypeIcon, formLabel } from './tool-icons'
 import { MeasurementIcon } from './feature-icons'
-import { AssemblyDrawing } from './assembly-drawing'
+import { CatalogDrawing } from './catalog-drawing'
 import type { Holding } from './tool-table'
 
 /**
@@ -286,7 +286,7 @@ export const ToolDetails = ({ tool, unit, holding, onSave, saved, onRemove }: To
           panel rather than as the panel itself.
         */}
         <div className="flex min-h-0 flex-1 flex-col">
-          <AssemblyDrawing
+          <CatalogDrawing
             tool={tool}
             unit={unit}
             dimensions

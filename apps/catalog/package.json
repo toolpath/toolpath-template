@@ -22,6 +22,7 @@
     "@toolpath/part-client": "workspace:*",
     "@toolpath/part-contracts": "workspace:*",
     "@toolpath/part-server": "workspace:*",
+    "@toolpath/tool-drawing": "0.0.0",
     "@toolpath/ui": "0.1.1",
     "@toolpath/viewer": "0.4.0",
     "react": "19.2.0",

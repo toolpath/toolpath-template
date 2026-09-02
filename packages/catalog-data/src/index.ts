@@ -125,16 +125,7 @@ export {
   type Silhouette,
   type SilhouettePart,
 } from './clearance.js'
-export {
-  assemblyOutline,
-  materialProfile,
-  type Outline,
-  type Outlined,
-  type OutlinePart,
-  type OutlinePoint,
-  type OutlineSegment,
-} from './outline.js'
-export { tightestGaps, wallFaceAt, type AxialGap, type Gap, type Gaps } from './gaps.js'
+export { materialProfile, type OutlinePoint } from './outline.js'
 export {
   HOLDER_AXES,
   applicableFilters,

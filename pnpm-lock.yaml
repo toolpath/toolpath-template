@@ -5,6 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  '@toolpath/tool-drawing': link:../toolpath-ui-packages/packages/tool-drawing
   '@toolpath/tool-scraper': link:../toolpath-ui-packages/packages/tool-scraper
 
 importers:
@@ -68,6 +69,9 @@ importers:
       '@toolpath/part-server':
         specifier: workspace:*
         version: link:../../packages/part-server
+      '@toolpath/tool-drawing':
+        specifier: link:../../../toolpath-ui-packages/packages/tool-drawing
+        version: link:../../../toolpath-ui-packages/packages/tool-drawing
       '@toolpath/ui':
         specifier: 0.1.1
         version: 0.1.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)

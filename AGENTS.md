@@ -151,6 +151,9 @@ application unless that application says otherwise.
   is parked and where to restore it from, and _The filter panel_ for the one
   rule saying which values a picker offers — an empty answer stays and is
   greyed, another vendor's family or product line comes off the list.
+  **The 2D tool drawing is not this application's** — it is
+  `@toolpath/tool-drawing`, and `app/components/catalog-drawing.tsx` is the one
+  file that wires it up. See `docs/TOOL-DRAWING-PLAN.md`.
 - `packages/domain/` (`@toolpath/domain`) is pure helpers more than one
   application needs — unit conversion and formatting, class composition,
   keyboard movement through a list.
@@ -164,9 +167,19 @@ application unless that application says otherwise.
   the only place any application's API key is handled.**
 - `packages/part-client/` (`@toolpath/part-client`) is the browser half of that
   API: typed fetches and the session and analysis-event hooks.
+- **`@toolpath/tool-drawing` is not in this repository.** It is developed in
+  `toolpath-ui-packages` and consumed here, like `@toolpath/ui`,
+  `@toolpath/viewer` and `@toolpath/tool-scraper`. It draws a cutting tool and
+  its holder in 2D from an input contract of its own: `/geometry` is pure and
+  server-safe, `/clearance` is the optional overlay. Do not write a second
+  drawing here — `app/components/catalog-drawing.tsx` is the whole seam, and
+  `app/shared/tool-drawing-input.ts` the whole adapter.
 - `packages/catalog-data/` (`@toolpath/catalog-data`) is the tool catalog's data
   contract, its pure record-to-catalog transform, the tool-fit calculation, and
-  the committed sample dataset.
+  the committed sample dataset. It also answers **whether an assembly clears a
+  feature** — `clearance.ts` — which is a tool-selection question with a dozen
+  callers that draw nothing, so it stays here while the picture of it lives in
+  the drawing package.
 - `docs/` holds planning documents that outlive a single change.
   `docs/FEATURE-DEFAULTS.md` is the guide to the catalog's feature datasheet,
   `apps/catalog/app/shared/feature-defaults.csv`, and `docs/RULES.md` the
@@ -207,6 +220,19 @@ reaching across into it.
   The one package that handles an API key is `@toolpath/part-server`, which
   exists precisely so that handling happens in exactly one place; no other
   package may read `APP_SESSION_SECRET` or construct a Toolpath client.
+- **A rendering package takes the verdict as data.** `@toolpath/tool-drawing`
+  draws the clearance around a tool; `clearance()` in `@toolpath/catalog-data`
+  decides it, for twelve callers that draw nothing at all. Nothing in
+  `packages/` may import the drawing package's values — `NO_DRAWING` in
+  `eslint.config.js`, the same shape as the SDK and scraper rules — because that
+  is how a selection engine ends up behind a dependency on React.
+- **Two helpers are duplicated on purpose, and say so.** `hasNeck`
+  (`catalog-data/src/forms.ts`) and `heightAt` (`catalog-data/src/clearance.ts`)
+  each have a twin inside `@toolpath/tool-drawing`. The package may not depend
+  on this catalog's data package — its input contract is its own so that it does
+  not — and both copies still have non-drawing callers here. Each carries a
+  comment naming its twin. Change one and change the other, or the picture and
+  the verdict disagree about the same tool.
 - **Watch what a barrel export drags in.** `@toolpath/part-contracts` is split
   into subpaths because its report readers import `@toolpath/viewer`, which
   installs camera controls against a DOM at import time — enough to break a Hono
@@ -297,6 +323,17 @@ original. For the catalog:
 - **Component tests work**, including for components importing `@toolpath/ui`
   and, with the viewer package mocked, `@toolpath/viewer` —
   `components/part-viewer.test.tsx` pins the props that reach it.
+- **A test that reads the dataset says which dataset.** `vitest.config.ts` pins
+  `catalog-dataset` to the committed sample so a suite gives the same answer on
+  every machine; `shared/drawable-forms.test.ts` adds a second layer that reads
+  the gitignored scrape where a machine has one, and skips out loud where it
+  does not. That layer is the only place a newly scraped family with no drawing
+  generator turns red.
+- **A duplicate across a package boundary gets a lockstep test, not a comment.**
+  `shared/drawing-frame.ts` recomputes the frame `<ToolDrawing>` settled on,
+  because the package hands its children none;
+  `components/catalog-drawing.test.tsx` renders the real component and requires
+  the two `viewBox` strings to be identical. A copy nobody checks drifts.
 - **Anything that begins with a click on the part goes in
   `tests/on-the-part.spec.ts`**, against `tests/cube-fixture.ts` — the only
   fixture that mounts geometry. Nothing else can reach that stack.

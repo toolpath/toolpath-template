@@ -89,6 +89,26 @@ const NO_SCRAPER = {
     'Only packages/catalog-data/src/scrape.ts may run the scraper. A scrape is a command somebody runs; import a type if a type is all you need.',
 }
 
+/**
+ * The drawing is a renderer; the verdict is not.
+ *
+ * `@toolpath/tool-drawing` draws a tool and, optionally, the clearance around
+ * it. What decides that clearance — `clearance()` in `catalog-data` — has a
+ * dozen callers that draw nothing at all: the filters, the rules sheet, the
+ * holder choice, the tool-fit sort. Letting a package import the drawing is how
+ * that engine ends up behind a dependency on React, and the split between
+ * `clearance.ts` here and `/clearance` there exists precisely to stop it.
+ *
+ * An application may import it; that is what an application is for. A package
+ * may name its types, which are erased, and never its values.
+ */
+const NO_DRAWING = {
+  group: ['@toolpath/tool-drawing', '@toolpath/tool-drawing/*'],
+  allowTypeImports: true,
+  message:
+    'A package may not import @toolpath/tool-drawing. Drawing belongs to an application; a package that needs one takes the picture as data. Import a type if a type is all you need.',
+}
+
 const POLICIES = [
   may('server', ['server', 'shared', 'package']),
   may('route', ['route', 'component', 'client', 'shared', 'app-root', 'package']),
@@ -191,7 +211,7 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
-        { patterns: [RELATIVE_JS, NO_SDK, NO_SCRAPER] },
+        { patterns: [RELATIVE_JS, NO_SDK, NO_SCRAPER, NO_DRAWING] },
       ],
     },
   },
@@ -200,7 +220,10 @@ export default tseslint.config(
     // name its types and nothing else — see NO_SCRAPER.
     files: ['packages/catalog-data/src/scrape.ts'],
     rules: {
-      '@typescript-eslint/no-restricted-imports': ['error', { patterns: [RELATIVE_JS, NO_SDK] }],
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        { patterns: [RELATIVE_JS, NO_SDK, NO_DRAWING] },
+      ],
     },
   },
   {
