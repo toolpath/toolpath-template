@@ -31,7 +31,8 @@ export const threadPanes = (
  * Which tab a tool belongs to, for a click in either list.
  *
  * A tap is a tap by its form; everything else in these two lists is what makes
- * the hole.
+ * the hole. The space in `'tap '` is deliberate — `tapered mill` is a milling
+ * cutter, and `startsWith('tap')` took it for a tap (2026-09-02).
  */
 export const paneOf = (tool: CatalogTool): 'drill' | 'tap' =>
-  tool.form.startsWith('tap') ? 'tap' : 'drill'
+  tool.form.startsWith('tap ') ? 'tap' : 'drill'

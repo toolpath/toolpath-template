@@ -93,7 +93,7 @@ import { usePartMaterial, usePreferences } from 'shared/use-preferences'
 import { recallPart, rememberPart } from 'shared/part-session'
 import { IDLE, groupOf as holeGroupOf, interactionFor } from 'shared/part-interaction'
 import { arrowsFor, byLargest, keptFeatures, partHighlight } from 'shared/part-selection'
-import { holeAt, holeDepthOf, makersFor, shortfallOf } from 'shared/hole-mode'
+import { THREADED_FORMS, holeAt, holeDepthOf, makersFor, shortfallOf } from 'shared/hole-mode'
 import { hasSharpCorner } from 'shared/feature-defaults'
 import { paneOf, threadPanes } from 'shared/thread-panes'
 import { drillFor, type HoleMode, type ThreadSpec } from 'shared/threads'
@@ -1521,7 +1521,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                    * to be able to see what stopped them and
                                    * undo it (Paul, 2026-08-31).
                                    */
-                                  applyTerm('form', choice.mode === 'plain' ? [] : ['drill'])
+                                  applyTerm('form', choice.mode === 'plain' ? [] : THREADED_FORMS)
                                 },
                               },
                             })}

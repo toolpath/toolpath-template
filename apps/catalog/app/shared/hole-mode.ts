@@ -1,5 +1,5 @@
 import type { PartFeature } from '@toolpath/part-contracts'
-import type { CatalogTool } from '@toolpath/catalog-data'
+import { TOOL_FORMS, type CatalogTool } from '@toolpath/catalog-data'
 import { asNumber, asRecord } from '@toolpath/part-contracts/datasheet'
 import { partTop } from '@toolpath/part-contracts/measurements'
 import { makerOf, minorOf, type HoleMode, type ThreadSpec } from './threads'
@@ -60,6 +60,35 @@ export const holeAt = (feature: PartFeature, diameter: number): PartFeature => {
   } as PartFeature
 }
 
+/**
+ * Whether a form is a tap.
+ *
+ * **The space matters.** `startsWith('tap')` also catches `tapered mill`,
+ * which is a milling cutter — so `tapsFor` was offering one as a tap for a
+ * thread whose nominal size it happened to match (found 2026-09-02, adding the
+ * taps to the type filter).
+ */
+const isTap = (form: string): boolean => form.startsWith('tap ')
+
+/**
+ * The tool forms a threaded hole is made with: the drill that makes the hole,
+ * and the taps that cut the thread.
+ *
+ * **Saying a hole is threaded says which tools it takes** (Paul, 2026-09-02:
+ * "tap is not automatically added to tool type filter when I define a hole as
+ * threaded. It should be"). Choosing cut or form tap wrote `drill` into the
+ * type filter and nothing else, so the taps the same choice asks for were
+ * outside what the filters admitted.
+ *
+ * Read off {@link TOOL_FORMS} by the same rule {@link tapsFor} uses — a form
+ * whose name begins with `tap` — so a hand this catalog does not hold yet
+ * arrives without anybody editing a list.
+ */
+export const THREADED_FORMS: ReadonlyArray<string> = [
+  'drill',
+  ...TOOL_FORMS.filter((form) => isTap(form.value)).map((form) => form.value),
+]
+
 /** How far a tap's own diameter may be from the thread's, in millimetres. */
 const TAP_WITHIN = 0.2
 
@@ -75,7 +104,7 @@ const TAP_WITHIN = 0.2
  */
 export const tapsFor = (spec: ThreadSpec, tools: ReadonlyArray<CatalogTool>): Array<CatalogTool> =>
   tools
-    .filter((tool) => tool.form.startsWith('tap'))
+    .filter((tool) => isTap(tool.form))
     .filter((tool) => {
       const size = tool.geometry.DC
       return size !== undefined && Math.abs(size - spec.major) <= TAP_WITHIN

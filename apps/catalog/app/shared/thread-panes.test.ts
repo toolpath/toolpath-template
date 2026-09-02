@@ -29,5 +29,7 @@ describe('the two tools a threaded hole takes', () => {
     expect(paneOf(tool('T1', 'tap right hand'))).toBe('tap')
     expect(paneOf(tool('D1', 'drill'))).toBe('drill')
     expect(paneOf(tool('M1', 'flat end mill'))).toBe('drill')
+    // A tapered mill is a milling cutter, whatever its name starts with.
+    expect(paneOf(tool('T1', 'tapered mill'))).toBe('drill')
   })
 })
