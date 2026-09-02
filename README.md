@@ -103,8 +103,10 @@ dependencies and the page goes black. If that happens:
 rm -rf apps/catalog/node_modules/.vite && pnpm dev:catalog
 ```
 
-Then read [`docs/FEATURE-LIST.md`](docs/FEATURE-LIST.md) — it is the spec for
-the part page, which is most of what the catalog is.
+Then read [`docs/CATALOG-SPEC.md`](docs/CATALOG-SPEC.md) — how a shop uses the
+catalog, what each part of the screen is for, and the seven areas specified with
+their open questions. [`docs/FEATURE-LIST.md`](docs/FEATURE-LIST.md) is the part
+page in full detail.
 
 ## The applications in this workspace
 

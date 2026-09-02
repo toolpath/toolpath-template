@@ -216,8 +216,12 @@ application unless that application says otherwise.
 | the tool table and its marks                 | `app/components/tool-table.tsx`         |
 
 - `docs/` holds planning documents that outlive a single change.
-  `docs/FEATURE-LIST.md` is the spec for the catalog's part page and the one to
-  read first when working on it.
+  `docs/CATALOG-SPEC.md` is the tool catalog specified end to end — how a shop
+  uses it, the screen, and the seven areas (filters, the feature list, the tool
+  table, the 2D viewer, the order list, threaded holes, tool matching), each
+  with its open questions. Read it first.
+  `docs/FEATURE-LIST.md` is the part page in full detail, and the one to read
+  before changing it.
   `docs/FEATURE-DEFAULTS.md` is the guide to the catalog's feature datasheet,
   `apps/catalog/app/shared/feature-defaults.csv`, and `docs/RULES.md` the
   guide to its rules sheet, `rules.csv` and `knobs.csv` beside it — the files
