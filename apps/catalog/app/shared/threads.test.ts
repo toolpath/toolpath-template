@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   drillFor,
+  readLabel,
   threadOptions,
   makerOf,
   minorOf,
@@ -175,5 +176,19 @@ describe('the hole each way of making a thread starts from', () => {
     expect(makerOf('cut tap')).toBe('tap')
     expect(makerOf('form tap')).toBe('tap')
     expect(makerOf('thread mill')).toBe('thread mill')
+  })
+})
+
+/**
+ * **The list ranks; it does not argue** (Paul, 2026-09-02: "just 'tap drill' or
+ * 'nominal diameter', etc"). `nominal` and `minor` are the diameter by those
+ * names, and an option reading only "nominal" is an adjective with its noun
+ * missing.
+ */
+describe('what a reading is called', () => {
+  it('names the diameter, except where the name is already a thing', () => {
+    expect(readLabel('tap drill')).toBe('tap drill')
+    expect(readLabel('nominal')).toBe('nominal diameter')
+    expect(readLabel('minor')).toBe('minor diameter')
   })
 })

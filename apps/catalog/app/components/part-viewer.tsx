@@ -1,4 +1,4 @@
-import { Component, Suspense, useMemo, useState } from 'react'
+import { Component, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 import {
   Axes,
@@ -132,11 +132,19 @@ export interface PartViewerProps {
    */
   readonly overlay?: ReactNode
   /**
-   * What sits over the part on its right: the tools kept for it, one card per
-   * feature (Paul's layout, 2026-08-31). Below the view cube, which owns the
-   * corner.
+   * Whether the overlay may grow past the bottom of the viewer.
+   *
+   * **A form has to be finishable** (Paul, 2026-09-02: "make the selection
+   * dialog go over the table — the table is blocking me from confirming long
+   * lists right now"). The box is clipped to the viewer, which is right for a
+   * panel that is read at a glance and wrong for one with a confirm button at
+   * the bottom of a list somebody is still adding to. While that is on screen
+   * the viewer stops clipping and stands above the panel below it.
+   *
+   * The corners go square for as long as it is set, which is what the clipping
+   * was doing: a fair price for a button somebody can reach.
    */
-  readonly aside?: ReactNode
+  readonly overlaySpills?: boolean
   /**
    * Features a tool has been kept for, painted a shade darker so the part
    * says what is done without anything having to be selected.
@@ -161,12 +169,36 @@ export const PartViewer = ({
   directionColor,
   details,
   overlay,
-  aside,
+  overlaySpills = false,
   tooled = [],
   onCloseDetails,
   onPickFace,
   onClear,
 }: PartViewerProps) => {
+  /**
+   * How far in the feature record has to start to clear the questions.
+   *
+   * The record used to start at a fixed `21rem`, which was the width of the
+   * two boxes over the top-left corner **on the day it was written**. The
+   * feature box grows — a threaded hole adds a thread picker and two rows of
+   * predrills — and past 21rem the record opened over the box it was opened
+   * from (Paul, 2026-09-02: "it should start to the right of the feature
+   * box"). Measured instead, so it tracks whatever the corner holds.
+   */
+  const questions = useRef<HTMLDivElement>(null)
+  const [questionsWidth, setQuestionsWidth] = useState<number | null>(null)
+  useEffect(() => {
+    const box = questions.current
+    if (box === null || typeof ResizeObserver === 'undefined') {
+      return
+    }
+    const measure = () => setQuestionsWidth(box.getBoundingClientRect().width)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(box)
+    return () => observer.disconnect()
+  }, [overlay])
+
   const [showAids, setShowAids] = useState(false)
   // Off by default (Paul, 2026-08-30): the stack in the scene is a check, not the view.
   const [sectioning, setSectioning] = useState(false)
@@ -219,10 +251,14 @@ export const PartViewer = ({
       // it made the canvas 77px taller than its panel at 720px, so the bottom of
       // the part was drawn under the tool list — and clicks there went to the
       // list, not the part. `tests/on-the-part.spec.ts` found it.
-      className="relative size-full overflow-hidden rounded-xl bg-zinc-950"
+      className={classNames(
+        'relative size-full rounded-xl bg-zinc-950',
+        overlaySpills ? 'z-50' : 'overflow-hidden',
+      )}
     >
       {overlay ? (
         <div
+          ref={questions}
           /*
            * Two columns, and they stay where they are: the questions, then
            * what is being read. It wrapped by height for a while and the
@@ -233,19 +269,6 @@ export const PartViewer = ({
           className="pointer-events-none absolute top-3 bottom-3 left-3 z-40 flex gap-2 [&>*]:pointer-events-auto"
         >
           {overlay}
-        </div>
-      ) : null}
-
-      {aside ? (
-        <div /*
-         * Up the right edge **from the bottom**, so a growing list never
-         * reaches the view cube in the corner above it (Paul, 2026-08-31).
-         * `top-24` is the ceiling that guarantees it; past that they wrap
-         * into another column to the left.
-         */
-          className="pointer-events-none absolute top-24 right-3 bottom-3 z-40 flex flex-col-reverse flex-wrap-reverse content-start gap-2 [&>*]:pointer-events-auto"
-        >
-          {aside}
         </div>
       ) : null}
 
@@ -300,8 +323,18 @@ export const PartViewer = ({
           both `z-40` — so the panel opened *behind* the two things covering
           that corner, and the part showed through what was left. It now starts
           past that column, sits above the part, and is opaque.
+
+          Where it starts is **measured**, not a number: `left-[21rem]` was the
+          corner's width the day it was written, and a threaded hole's feature
+          box is wider than that (Paul, 2026-09-02). The class stays as what to
+          do before the first measurement.
         */
-        <div className="absolute inset-y-3 right-3 left-[21rem] z-30 flex flex-col overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950 shadow-xl">
+        <div
+          className="absolute inset-y-3 right-3 left-[21rem] z-30 flex flex-col overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950 shadow-xl"
+          // A runtime measurement, which is what `style` is for here: 12px of
+          // margin, the questions themselves, and the gap between the columns.
+          style={questionsWidth === null ? undefined : { left: questionsWidth + 20 }}
+        >
           <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2">
             <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
               Feature details

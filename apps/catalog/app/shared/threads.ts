@@ -220,6 +220,17 @@ export const THREADS: ReadonlyArray<ThreadSpec> = [
 /** Which of a spec's three diameters the hole was modelled at. */
 export type ThreadRead = 'tap drill' | 'minor' | 'nominal'
 
+/**
+ * What a reading is called where somebody reads it.
+ *
+ * `nominal` and `minor` are the *diameter* by those names, and a list that
+ * says only "nominal" reads as an adjective with its noun missing. `tap drill`
+ * is already the name of a thing (Paul, 2026-09-02: "just 'tap drill' or
+ * 'nominal diameter', etc").
+ */
+export const readLabel = (read: ThreadRead): string =>
+  read === 'tap drill' ? 'tap drill' : `${read} diameter`
+
 export interface ThreadGuess {
   readonly spec: ThreadSpec
   /** What the hole diameter matched. */

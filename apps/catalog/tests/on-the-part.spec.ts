@@ -26,7 +26,12 @@ const FACE = { x: 0.5, y: 0.5 } // the face under the default camera's centre
 // viewer's own controls sit along the bottom middle.
 const NOTHING = { x: 0.86, y: 0.86 }
 
-const PROMPT = /Click a face on the part/
+/**
+ * **The box is not drawn until there is something to put in it** (Paul,
+ * 2026-09-02, moving the editor beside the list): what is being read is a card
+ * of its own now, so "nothing read" is the card being absent rather than a
+ * field saying so.
+ */
 
 /**
  * A window somebody would actually work in.
@@ -85,20 +90,20 @@ const at = async (page: Page, point: { x: number; y: number }) => {
 const ready = async (page: Page) => {
   await expect(async () => {
     await at(page, FACE)
-    await expect(field(page)).not.toHaveText(PROMPT)
+    await expect(field(page)).toBeVisible()
   }).toPass({ timeout: 20_000 })
 }
 
 test.beforeEach(async ({ page }) => {
   await openCube(page)
   await expect(page.locator('canvas')).toBeVisible()
-  await expect(field(page)).toHaveText(PROMPT)
+  await expect(field(page)).toBeHidden()
 })
 
 test('a click on a face names its reading, and lists the tools that cut it', async ({ page }) => {
   await ready(page)
 
-  await expect(field(page)).not.toHaveText(PROMPT)
+  await expect(field(page)).toBeVisible()
   await expect(page.getByText(/^Cuts the /)).toBeVisible()
 })
 
@@ -109,7 +114,7 @@ test('clicking the same face again walks its readings', async ({ page }) => {
 
   await at(page, FACE)
 
-  await expect(field(page)).not.toHaveText(PROMPT)
+  await expect(field(page)).toBeVisible()
   await expect(field(page)).not.toHaveText(first)
 })
 
@@ -137,7 +142,7 @@ test('a click keeps the selection whose filters it just wrote', async ({ page })
   for (let attempt = 0; attempt < 20; attempt += 1) {
     await at(page, FACE)
     if (new URL(page.url()).searchParams.getAll('form').length > 0) {
-      await expect(field(page)).not.toHaveText(PROMPT)
+      await expect(field(page)).toBeVisible()
       return
     }
   }
@@ -149,7 +154,7 @@ test('Escape puts the reading down', async ({ page }) => {
 
   await page.keyboard.press('Escape')
 
-  await expect(field(page)).toHaveText(PROMPT)
+  await expect(field(page)).toBeHidden()
 })
 
 /**
@@ -166,10 +171,10 @@ test('a click on nothing answers the open question, then puts the reading down',
   await ready(page)
 
   await at(page, NOTHING)
-  await expect(field(page)).not.toHaveText(PROMPT)
+  await expect(field(page)).toBeVisible()
 
   await at(page, NOTHING)
-  await expect(field(page)).toHaveText(PROMPT)
+  await expect(field(page)).toBeHidden()
 })
 
 /**
@@ -218,7 +223,7 @@ test('a reading named by hand is the one the list is for', async ({ page }) => {
     }
   }
 
-  await expect(field(page)).not.toHaveText(PROMPT)
+  await expect(field(page)).toBeVisible()
   /*
    * The list is *judged for* the named reading — which the header says out
    * loud, because judging happens against what is kept and produces a count of
@@ -230,16 +235,16 @@ test('a reading named by hand is the one the list is for', async ({ page }) => {
 })
 
 /**
- * **A tool is kept from the panel, and nowhere else** (Paul, 2026-09-01: "add
- * to list should always happen in the right hand panel… clicking a row should
- * open the right hand panel. Button in the top right to save tool").
+ * **A tool reaches the bill by being chosen for a feature** (Paul, 2026-09-02:
+ * "Add to list button can go away — we are now adding tools to the BOM by
+ * confirming the feature/tool mapping"). The panel used to keep it on its own,
+ * which is a tool ordered for nothing in particular.
  *
- * The row used to carry its own keep button; taking it away made the panel the
- * only way through, which is the path everything else — the holder, the collet,
- * the drawing — is already on. Nothing covered it end to end, so this is the
- * one test that walks it: read a face, click a tool, keep it from the panel.
+ * Nothing covered the path end to end, so this is the one test that walks it:
+ * read a face, read the tool in the panel, and confirm the feature with it.
  */
-test('a tool is read in the panel and kept from it', async ({ page }) => {
+test('a tool is read in the panel and reaches the bill with its feature', async ({ page }) => {
+  await page.getByRole('button', { name: 'Add feature' }).click()
   await ready(page)
 
   const row = page.getByRole('table').getByRole('row').nth(1)
@@ -250,13 +255,30 @@ test('a tool is read in the panel and kept from it', async ({ page }) => {
   const panel = page.getByRole('img', { name: /drawn from its stated dimensions/ })
   await expect(panel).toBeVisible()
 
-  const keep = page.getByRole('button', { name: 'Add to list' })
-  await expect(keep).toBeVisible()
-  await keep.click()
+  // The panel adds the first tool, now that a feature can hold several.
+  await expect(page.getByRole('button', { name: 'Add to list' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Add tool' }).click()
 
-  // The panel says it is kept, and so does the row it was chosen from.
-  await expect(page.getByRole('button', { name: /On list/ })).toBeVisible()
-  await expect(page.getByRole('table').getByText('on list').first()).toBeVisible()
+  // Opened again from the row it now answers, the panel says what it is on the
+  // list for and offers what can be done to it.
+  const list = page.getByRole('list', { name: 'Features being asked about' })
+  await list.getByRole('button', { name: new RegExp(`^${number} for `) }).click()
+
+  await expect(page.getByText(/On the list for/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove tool' })).toBeVisible()
+
+  /**
+   * **A feature can hold more than one** (Paul, 2026-09-02: "a feature or group
+   * can have multiple tools saved to it, not just one"). A tool that is not one
+   * of them offers both: take their place, or stand beside them.
+   */
+  await page.getByRole('table').getByRole('row').nth(2).click()
+  await expect(page.getByRole('button', { name: new RegExp(`^Replace ${number}$`) })).toBeVisible()
+  await page.getByRole('button', { name: 'Add this tool' }).click()
+
+  // Two tools on the row now, and the second is the one the panel is showing.
+  await expect(list.getByRole('button', { name: / for / })).toHaveCount(2)
+  await expect(page.getByRole('button', { name: 'Remove tool' })).toBeVisible()
 
   /**
    * **And it reaches the bill, under the number a shop orders by** (Paul,
@@ -268,7 +290,7 @@ test('a tool is read in the panel and kept from it', async ({ page }) => {
   await page.getByRole('link', { name: 'Order list' }).click()
 
   const bill = page.getByRole('table')
-  await expect(bill.getByText(number.replace('near miss', '').trim())).toBeVisible()
+  await expect(bill.getByText(number.trim())).toBeVisible()
   await expect(page.getByRole('columnheader', { name: 'Product' })).toHaveCount(0)
   await expect(page.getByRole('columnheader', { name: 'Model' })).toHaveCount(0)
   // One grouping: the assembly (Paul, 2026-09-01: "we can remove by feature").
@@ -301,4 +323,173 @@ test('the vendor picker lists what is in the catalog, and nothing else', async (
   await expect(picker).toBeVisible()
   await expect(picker.getByRole('button', { name: 'Kennametal' })).toBeVisible()
   await expect(page.getByText('Not in this catalog yet')).toHaveCount(0)
+})
+
+/**
+ * The feature list: what a click adds, and what the list answers with.
+ *
+ * **The selection used to be invisible** (Paul, 2026-09-02). Clicking a face
+ * put its hole group into the page's kept set and judged the tool list against
+ * everything in it, with nothing saying what "everything" was. A click now
+ * previews and asks; the list is only ever what somebody put there.
+ */
+test('a click previews and asks, and the list answers for itself', async ({ page }) => {
+  await ready(page)
+
+  // Previewed: the reading is on screen and the two ways in are offered, but
+  // nothing has been added yet.
+  const add = page.getByRole('button', { name: 'Add feature', exact: true })
+  await expect(add).toBeVisible()
+  await expect(page.getByRole('list', { name: 'Features being asked about' })).toBeHidden()
+
+  await page.getByRole('table').getByRole('row').nth(1).click()
+  await add.click()
+
+  // On the list, with its own answer under it — and the panel below waits to
+  // be asked rather than falling back to the catalog.
+  const list = page.getByRole('list', { name: 'Features being asked about' })
+  await expect(list).toBeVisible()
+  await expect(list.getByRole('listitem')).toHaveCount(1)
+  // And the row it just made is the row it is working on, so the list below is
+  // still that feature's (Paul, 2026-09-02, on adding a second tool to it).
+  await expect(page.getByRole('searchbox', { name: 'Search by catalog number' })).toBeVisible()
+  await expect(page.getByText(/^Cuts the /)).toBeVisible()
+})
+
+/**
+ * **Two buttons, not one that asks** (Paul, 2026-09-02: "it should show buttons
+ * for Add Feature or Add Group, not the weird combined one"). A feature is
+ * added by pointing at one, so its button waits for a face.
+ */
+test('offers both ways in, and asks for a face rather than refusing', async ({ page }) => {
+  await page.getByRole('button', { name: 'Add feature' }).click()
+  await expect(page.getByText(/Click a face on the part, then press Add feature/)).toBeVisible()
+
+  await page.getByRole('button', { name: 'Add group' }).click()
+
+  await expect(page.getByText('New group')).toBeVisible()
+  await expect(page.getByRole('radio', { name: /One tool for all of them/ })).toBeChecked()
+  await expect(page.getByRole('button', { name: /^Create group and add tools?$/ })).toBeDisabled()
+})
+
+/**
+ * **The list is the work, so it survives a reload** (Paul, 2026-09-02: "we need
+ * to be showing the tool/feature list — it keeps disappearing", and "the
+ * highlighting is sticking around, so it must be surviving the reload"). The
+ * setup sheet has been kept per part since 2026-08-10 and the list was not, so
+ * a refresh threw away everything somebody had picked out while the tools they
+ * had chosen for it stayed on the bill and on the part.
+ */
+test('keeps the list across a reload', async ({ page }) => {
+  await page.getByRole('button', { name: 'Add group' }).click()
+  await page.getByRole('button', { name: /Add every Face/ }).click()
+  await page.getByRole('radio', { name: /The best tool for each/ }).click()
+  await page.getByRole('button', { name: /^Create group and add tools?$/ }).click()
+
+  const list = page.getByRole('list', { name: 'Features being asked about' })
+  await expect(list.getByRole('listitem')).toHaveCount(1)
+
+  await page.reload()
+
+  await expect(list.getByRole('listitem')).toHaveCount(1)
+  await expect(list.getByText('4 × Face')).toBeVisible()
+})
+
+/**
+ * **A feature is added on purpose** (Paul, 2026-09-02: "need an 'add to list'
+ * button at the bottom right of add feature once I've got it selected to
+ * confirm I actually want to add it"). The button that starts the add is at the
+ * top of the box and the reading it would add is at the bottom of it.
+ */
+test('confirms a feature from under the reading it is adding', async ({ page }) => {
+  await page.getByRole('button', { name: 'Add feature' }).click()
+  await ready(page)
+
+  // The table opens with its first row highlighted and the panel beside it
+  // assembling that very tool, so the button takes it without a second click
+  // (Paul, 2026-09-02).
+  await page.getByRole('button', { name: 'Use this tool' }).click()
+
+  const list = page.getByRole('list', { name: 'Features being asked about' })
+  await expect(list.getByRole('listitem')).toHaveCount(1)
+  await expect(page.getByRole('button', { name: 'Use this tool' })).toBeHidden()
+})
+
+/**
+ * **The list drives everything** (Paul, 2026-09-02: "the grey coloring is
+ * showing up even after I've removed a feature or list, and the tool assemblies
+ * from those features and groups are sticking around in the BOM"). The list and
+ * the bill were kept side by side and only one of them was being edited.
+ */
+test('takes a removed row off the bill as well as off the list', async ({ page }) => {
+  await page.getByRole('button', { name: 'Add feature' }).click()
+  await ready(page)
+  await page.getByRole('button', { name: 'Use this tool' }).click()
+
+  const list = page.getByRole('list', { name: 'Features being asked about' })
+  await expect(list.getByRole('listitem')).toHaveCount(1)
+
+  await list.getByRole('button').first().click({ button: 'right' })
+  await page.getByRole('button', { name: 'Remove', exact: true }).click()
+
+  await expect(list).toBeHidden()
+  // And nothing of it is left on the sheet the bill and the grey paint are
+  // both read from.
+  const kept = await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((each) => each.startsWith('tool-catalog.setup.'))
+    return key === undefined ? null : localStorage.getItem(key)
+  })
+  expect(kept).toContain('"choices":{}')
+})
+
+/**
+ * A group is built by clicking the faces in it, and it answers the question its
+ * result option asks — a group wanting one tool **each** answering in one row
+ * that opens (Paul, 2026-09-02).
+ */
+test('a group is built on the part and answers per its result option', async ({ page }) => {
+  await ready(page)
+  await page.getByRole('button', { name: 'Add group' }).click()
+
+  await expect(page.getByText('New group')).toBeVisible()
+
+  // The list below is already showing what fits the group as it stands, with
+  // its first row highlighted, so the group takes that one (Paul, 2026-09-02).
+  await expect(page.getByRole('button', { name: /^Create group and add tools?$/ })).toBeEnabled()
+
+  // A group asked for one tool *each* shows no list at all: the question is one
+  // per feature, and the answers arrive when the group does (Paul, same day).
+  await page.getByRole('radio', { name: /The best tool for each/ }).click()
+  await expect(page.getByText(/Tools will automatically be selected/)).toBeVisible()
+  await page.getByRole('button', { name: /^Create group and add tools?$/ }).click()
+
+  const list = page.getByRole('list', { name: 'Features being asked about' })
+  await expect(list.getByRole('listitem')).toHaveCount(1)
+  await expect(list.getByText('one each')).toBeVisible()
+})
+
+/**
+ * **The answer is the way through to the offer behind it** (Paul, 2026-09-02:
+ * "clicking on the tool there would show the list of compatible tools for that
+ * feature or folder, depending on the settings"). Until it is pressed the panel
+ * below waits to be asked — it never falls back to the catalog.
+ */
+test('presses the tool under a row for everything that fits it', async ({ page }) => {
+  await page.getByRole('button', { name: 'Add group' }).click()
+  await page.getByRole('button', { name: /Add every Face/ }).click()
+  await page.getByRole('table').getByRole('row').nth(1).click()
+  await page.getByRole('button', { name: /^Create group and add tools?$/ }).click()
+
+  // The group it just made is what it is working on, so the list below is
+  // already the group's. Putting it down goes back to the catalog, and its own
+  // answer is the way back in.
+  await expect(page.getByText('Cuts every feature in the group')).toBeVisible()
+  const list = page.getByRole('list', { name: 'Features being asked about' })
+  await list.getByRole('button', { name: '4 × Face', exact: true }).click()
+  await expect(page.getByText('Every tool in the catalog')).toBeVisible()
+
+  await list.getByRole('button', { name: / for / }).click()
+
+  await expect(page.getByText('Cuts every feature in the group')).toBeVisible()
+  await expect(page.getByRole('searchbox', { name: 'Search by catalog number' })).toBeVisible()
 })

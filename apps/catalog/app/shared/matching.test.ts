@@ -289,6 +289,60 @@ describe('the drills for a tapped hole', () => {
       excluded.every((each) => each.removed.every((reason) => reason.shortfall !== undefined)),
     ).toBe(true)
   })
+
+  /**
+   * **Every hole in the group, or none of them** (Paul, 2026-09-02: "full tap
+   * drill matches should be shown first — lead with green checks not i icons").
+   *
+   * Clicking a hole keeps its group — eight on a bolt circle are one decision —
+   * and the list is judged against all of them at once. The route stood only
+   * the *focused* one in at the tap drill, and `foldVerdicts` takes its rank
+   * key from the **first** feature in the fold, which is whichever the kernel
+   * reported first. So an M3×0.5 modelled at ⌀2.6 ranked a ⌀2.6 drill above
+   * the ⌀2.5 that is its tap drill, while the deviation column — which reads
+   * the predrill directly — marked the ⌀2.5 as the exact one.
+   *
+   * They are the same hole by definition: same diameter, same depth, same way
+   * up. One predrill, and this is the shape of that promise.
+   */
+  it('ranks by the predrill however the group is ordered', () => {
+    const modelled = feature('ThroughHole', {
+      kind: 'Hole',
+      // Drawn at the nominal ⌀2.6, tapped M3×0.5, whose drill is ⌀2.5.
+      diameter: 2.6,
+      maxDrillDiameter: 2.6,
+      cd: { ignore: { min: 2.6, max: 2.6 } },
+    })
+    const taps = [
+      tool('DRILL-2.6', 'drill', { DC: 2.6, LCF: 40, LD: 5, SIG: 140 }),
+      tool('DRILL-2.5', 'drill', { DC: 2.5, LCF: 40, LD: 5, SIG: 140 }),
+    ]
+    const sibling = { ...modelled, featureTag: 'hole-2' } as PartFeature
+    const group = [modelled, sibling].map((each) => holeAt(each, 2.5))
+
+    const { fitting } = fittingTools(group, group, taps)
+
+    expect(fitting[0]?.tool.catalogNumber).toBe('DRILL-2.5')
+  })
+
+  /** And left half-stood-in it ranks by the model, which is the defect. */
+  it('ranks by the model where a sibling is left at the drawn size', () => {
+    const modelled = feature('ThroughHole', {
+      kind: 'Hole',
+      diameter: 2.6,
+      maxDrillDiameter: 2.6,
+      cd: { ignore: { min: 2.6, max: 2.6 } },
+    })
+    const taps = [
+      tool('DRILL-2.6', 'drill', { DC: 2.6, LCF: 40, LD: 5, SIG: 140 }),
+      tool('DRILL-2.5', 'drill', { DC: 2.5, LCF: 40, LD: 5, SIG: 140 }),
+    ]
+    const half = [modelled, holeAt({ ...modelled, featureTag: 'hole-2' } as PartFeature, 2.5)]
+
+    const { fitting } = fittingTools(half, half, taps)
+
+    expect(fitting[0]?.tool.catalogNumber).toBe('DRILL-2.6')
+  })
 })
 
 describe('the faces and the surfaces', () => {
