@@ -1106,8 +1106,9 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               ? `${option.holder.catalogNumber} · takes this collet`
               : option.holder.catalogNumber,
           holder: option.holder,
-          trouble:
-            option.clears === false
+          trouble: option.unstocked
+            ? `no ${option.holder.colletSeries ?? 'matching'} collet stocked`
+            : option.clears === false
               ? 'collision with geometry'
               : option.band === 'bad'
                 ? 'too little grip'

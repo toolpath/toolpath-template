@@ -26,8 +26,21 @@ import type { CatalogTool, Provenance } from './types.js'
  * home for that mapping is the scraper, beside the vendor knowledge it needs.
  */
 
-/** How a holder grips a shank. */
-export type Clamping = 'bore' | 'collet' | 'shrink'
+/**
+ * How a holder grips a shank.
+ *
+ * Four values, and three of them are one answer to the *fit* question: a bore,
+ * a shrink-fit and a hydraulic chuck all grip the shank directly and are held
+ * to the same rule, where a collet chuck needs a collet between them. They stay
+ * apart because the distinction is one a buyer makes — a shrink-fit holder
+ * needs an induction heater on the bench and a hydraulic chuck an actuation
+ * screw — and because a vendor states which it published.
+ *
+ * `hydraulic` arrived with the scraper's toolholding records: MariTool's leaf
+ * categories classify parts as hydraulic outright, and folding them into `bore`
+ * here would be this package re-classifying a family the vendor already named.
+ */
+export type Clamping = 'bore' | 'collet' | 'shrink' | 'hydraulic'
 
 /**
  * Which surfaces of the spindle interface touch: the taper alone, or the

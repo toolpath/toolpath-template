@@ -14,6 +14,9 @@ export default defineConfig({
       'catalog-dataset': createRequire(import.meta.url).resolve(
         '@toolpath/catalog-data/sample-catalog.json',
       ),
+      'catalog-profiles': createRequire(import.meta.url).resolve(
+        '@toolpath/catalog-data/sample-profiles.json',
+      ),
     },
   },
   test: {

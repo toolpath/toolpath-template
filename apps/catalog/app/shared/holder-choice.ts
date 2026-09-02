@@ -4,8 +4,9 @@ import {
   colletsFor,
   holdBand,
   holderCanTake,
-  holdersFor,
+  holdersToShow,
   matchesFilters,
+  seriesSize,
   stickoutLimits,
   type CatalogTool,
   type Collet,
@@ -39,6 +40,17 @@ export interface HolderOption {
   readonly holder: Holder
   /** The collet drawn and checked with it: the closest to on-size, or none for a bore. */
   readonly collet: Collet | null
+  /**
+   * True for a collet chuck whose series the crib stocks no collet of.
+   *
+   * **Offered, and never a fit claim.** Such a holder grips nothing as it
+   * stands, so it is listed last, never recommended, and excluded from
+   * {@link canBeHeld} — but it is *listed*, because "why is my ER16 chuck not
+   * here" is the question hiding it creates, and the answer is a purchase
+   * order rather than a fact about the tool. `seriesUnstocked` in
+   * `@toolpath/catalog-data` draws the distinction this reports.
+   */
+  readonly unstocked: boolean
   /** The length to set the tool up at, or null where the tool states no flutes. */
   readonly stickout: number | null
   /** What the holder needs to clear the part by the margins, or null without a reach curve. */
@@ -136,8 +148,28 @@ const optionFor = (
     clears,
     collisions: check?.collisions ?? [],
     grade,
+    unstocked: false,
     recommended: false,
   }
+}
+
+/**
+ * Whether an unstocked chuck is worth offering for this tool at all.
+ *
+ * **The series' nominal size as a loose bound**, the same one
+ * `holder-browse.ts` draws a colletless assembly against — an ER16 closes on
+ * 10 mm, not 16, and inventing the real capacity table here would be a
+ * clamping claim made up on the spot. Its whole job is to keep a 25 mm shank
+ * out of an ER11 chuck, where offering it would be absurd enough to read as a
+ * claim that it fits.
+ */
+const withinSeries = (tool: CatalogTool, holder: Holder): boolean => {
+  const shank = tool.geometry.SFDM
+  if (shank === undefined) {
+    return false
+  }
+  const bound = seriesSize(holder.colletSeries)
+  return bound === null || shank <= bound
 }
 
 export const holderOptions = (
@@ -149,17 +181,34 @@ export const holderOptions = (
   margins: Margins,
   thresholds: HoldThresholds,
 ): Array<HolderOption> => {
-  const options = holdersFor(tool, holders, collets, filters).map((holder) =>
+  const shown = holdersToShow(tool, holders, collets, filters)
+  const options = shown.holding.map((holder) =>
     optionFor(tool, holder, collets, curve, margins, thresholds),
   )
   const ordered = options
     .map((option, index) => ({ option, index }))
     .sort((a, b) => GRADE_ORDER[a.option.grade] - GRADE_ORDER[b.option.grade] || a.index - b.index)
     .map((each) => each.option)
+  /**
+   * The chucks the crib has no collet for, after everything that grips.
+   *
+   * They are graded like the rest — the stack is drawn and checked with no
+   * collet in it, which is what a shop would be looking at — but they sort
+   * below every stocked holder whatever that grading says, because a holder
+   * that cannot grip today is not competing with one that can.
+   */
+  const unstocked = shown.unstocked
+    .filter((holder) => withinSeries(tool, holder))
+    .map((holder) => ({
+      ...optionFor(tool, holder, collets, curve, margins, thresholds),
+      unstocked: true,
+    }))
   const first = ordered[0]
-  return first && first.grade !== 'bad'
-    ? ordered.map((option) => (option === first ? { ...option, recommended: true } : option))
-    : ordered
+  const graded =
+    first && first.grade !== 'bad'
+      ? ordered.map((option) => (option === first ? { ...option, recommended: true } : option))
+      : ordered
+  return [...graded, ...unstocked]
 }
 
 /**
@@ -192,10 +241,17 @@ export const holdable = (
  * counted, not offered.
  */
 export const canBeHeld = (options: ReadonlyArray<HolderOption>): boolean =>
-  options.some((option) => option.grade !== 'bad')
+  options.some((option) => !option.unstocked && option.grade !== 'bad')
 
 /** Why a stack is graded as it is, in a few words for the list — and nothing when it is fine. */
 export const describeGrade = (option: HolderOption): string => {
+  // Said before anything geometric: a chuck with no collet in the crib holds
+  // nothing, whatever the drawn stack clears.
+  if (option.unstocked) {
+    return option.holder.colletSeries === null
+      ? 'the crib stocks no collet for it'
+      : `the crib stocks no ${option.holder.colletSeries} collet`
+  }
   if (option.clears === false) {
     const first = option.collisions[0]
     if (first?.part === 'shank' || first?.part === 'neck') {

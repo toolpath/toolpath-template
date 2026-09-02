@@ -29,6 +29,31 @@ const datasetPath = (root: string): string => {
     : createRequire(import.meta.url).resolve('@toolpath/catalog-data/sample-catalog.json')
 }
 
+/**
+ * Which measured holder profiles get bundled.
+ *
+ * The same rule as {@link datasetPath}, one document over: a scrape that has
+ * run `toolpath-scrape profiles` on this machine leaves `scrape-out/profiles.json`
+ * beside its catalog, and a checkout has the committed synthetic sample. They
+ * are two aliases rather than one because the profiles are a second document
+ * on purpose — ~110 vertices per holder that only an assembly drawing needs,
+ * and every page loads the catalog.
+ *
+ * A dataset and a profiles document that disagree are not an error here:
+ * `profileFor` answers null for a holder nobody measured, which is what a
+ * partially-measured catalog genuinely is.
+ */
+const profilesPath = (root: string): string => {
+  const override = process.env.CATALOG_PROFILES
+  if (override) {
+    return resolve(override)
+  }
+  const scraped = resolve(root, '../../scrape-out/profiles.json')
+  return existsSync(scraped)
+    ? scraped
+    : createRequire(import.meta.url).resolve('@toolpath/catalog-data/sample-profiles.json')
+}
+
 export default defineConfig(({ mode }) => {
   Object.assign(process.env, loadEnv(mode, process.cwd(), ''))
 
@@ -41,7 +66,10 @@ export default defineConfig(({ mode }) => {
       // React of its own, and React is a peer dependency there. Without this
       // the drawing renders against a second React and every hook throws.
       dedupe: ['react', 'react-dom'],
-      alias: { 'catalog-dataset': datasetPath(import.meta.dirname) },
+      alias: {
+        'catalog-dataset': datasetPath(import.meta.dirname),
+        'catalog-profiles': profilesPath(import.meta.dirname),
+      },
     },
     // 5173 is the DFM application's. Both are `react-router dev` and would
     // otherwise default to the same port, so whichever booted first would win.

@@ -108,7 +108,7 @@ const TERM_PARAMS: Readonly<Record<TermAxis, string>> = {
   clamping: 'clamping',
   colletSeries: 'series',
 }
-const CLAMPINGS: ReadonlyArray<Clamping> = ['bore', 'collet', 'shrink']
+const CLAMPINGS: ReadonlyArray<Clamping> = ['bore', 'collet', 'shrink', 'hydraulic']
 const CONTACTS: ReadonlyArray<Contact> = ['taper', 'face']
 
 /** A param name under a prefix; an empty prefix is the bare name. */

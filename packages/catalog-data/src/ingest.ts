@@ -187,7 +187,7 @@ const TOOL_TYPES: Readonly<Record<string, ToolType>> = {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-const CLAMPINGS: ReadonlySet<string> = new Set<Clamping>(['bore', 'collet', 'shrink'])
+const CLAMPINGS: ReadonlySet<string> = new Set<Clamping>(['bore', 'collet', 'shrink', 'hydraulic'])
 
 const requireGuid = (guid: string, what: string): string => {
   if (!UUID.test(guid)) {
@@ -334,7 +334,7 @@ const toolFrom = (
 const holderFrom = (scraped: ScrapedHolder): Holder => {
   if (!CLAMPINGS.has(scraped.clamping)) {
     throw new IngestError(
-      `Holder ${scraped.catalogNumber} clamps by "${scraped.clamping}", which is not bore, collet or shrink.`,
+      `Holder ${scraped.catalogNumber} clamps by "${scraped.clamping}", which is none of ${[...CLAMPINGS].sort().join(', ')}.`,
     )
   }
   const clamping = scraped.clamping as Clamping

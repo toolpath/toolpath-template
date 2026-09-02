@@ -8,6 +8,8 @@ import {
   holderFiltersFrom,
   holderNeedsCollet,
   holdersFor,
+  holdersToShow,
+  seriesUnstocked,
   isOnSize,
   selectCollet,
   selectHolder,
@@ -189,12 +191,15 @@ const HolderRow = ({
   recommended,
   selected,
   onSelect,
+  unstocked = false,
 }: {
   holder: Holder
   unit: Unit
   recommended: boolean
   selected: boolean
   onSelect: () => void
+  /** This holder's collet series is one the crib stocks none of. */
+  unstocked?: boolean
 }) => (
   <li className="flex items-stretch gap-1">
     <button
@@ -208,6 +213,11 @@ const HolderRow = ({
         {recommended ? (
           <Badge size="sm" variant="info">
             recommended
+          </Badge>
+        ) : null}
+        {unstocked ? (
+          <Badge size="sm" variant="secondary">
+            no collet stocked
           </Badge>
         ) : null}
       </span>
@@ -285,13 +295,25 @@ export const AssemblyPicker = ({
   }
 
   const unfiltered = holdersFor(tool, allHolders, allCollets)
-  const holders = holdersFor(tool, allHolders, allCollets, holderFiltersFrom(selection))
+  // Two groups, never one list: `unstocked` are collet chucks whose series the
+  // crib has none of. They are shown so a holder can be looked at and drawn,
+  // and they are never a claim that the stack holds the tool — which is why
+  // they are rendered apart and marked rather than merged into the order.
+  const { holding: holders, unstocked } = holdersToShow(
+    tool,
+    allHolders,
+    allCollets,
+    holderFiltersFrom(selection),
+  )
   const holder = allHolders.find((each) => each.guid === selection.holder) ?? null
   const collets = holder === null ? [] : colletsFor(tool, holder, allCollets)
   const collet = allCollets.find((each) => each.guid === selection.collet) ?? null
   const shank = tool.geometry.SFDM
   const needsCollet = holder !== null && holderNeedsCollet(holder)
   const complete = holder !== null && (!needsCollet || collet !== null)
+  // A holder can be selected and drawn while the crib stocks no collet for it.
+  // It cannot be ordered as a stack, which `complete` already gates.
+  const unstockedSelection = holder !== null && seriesUnstocked(holder, allCollets)
 
   const entry: SavedAssembly | null =
     holder === null
@@ -356,6 +378,29 @@ export const AssemblyPicker = ({
               </ul>
             </>
           )}
+
+          {unstocked.length === 0 ? null : (
+            <>
+              <Hint className="mt-3 mb-2">
+                {unstocked.length} collet {unstocked.length === 1 ? 'chuck' : 'chucks'} whose series
+                this crib stocks no collet for. They can be drawn and looked at; nothing here says
+                they hold this tool.
+              </Hint>
+              <ul className="flex flex-col gap-1">
+                {unstocked.map((option) => (
+                  <HolderRow
+                    key={option.guid}
+                    holder={option}
+                    unit={unit}
+                    recommended={false}
+                    unstocked
+                    selected={option.guid === selection.holder}
+                    onSelect={() => onChange(selectHolder(selection, option.guid))}
+                  />
+                ))}
+              </ul>
+            </>
+          )}
         </Pane>
 
         <Pane label="Collets" muted={holder !== null && !needsCollet}>
@@ -364,7 +409,15 @@ export const AssemblyPicker = ({
           ) : !needsCollet ? (
             <Hint>No collet needed: a {styleLabel(holder)} clamps the shank itself.</Hint>
           ) : collets.length === 0 ? (
-            <Hint>No {holder.colletSeries} collet in the catalog closes on this shank.</Hint>
+            // Two different answers wore one sentence until 2026-09-02: a crib
+            // that stocks the series and nothing in it that closes on this
+            // shank, and a crib that stocks none of the series at all. The
+            // first is a sizing problem and the second is a purchasing one.
+            <Hint>
+              {unstockedSelection
+                ? `This crib stocks no ${holder.colletSeries} collet at all. The holder is drawn without one — it holds nothing until you have the collet.`
+                : `No ${holder.colletSeries} collet in the catalog closes on this shank.`}
+            </Hint>
           ) : (
             <>
               <Hint className="mb-2">

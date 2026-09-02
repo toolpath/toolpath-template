@@ -199,7 +199,7 @@ describe('ingest', () => {
 
     expect(catalog.builtAt).toBe('2026-09-01')
     expect(catalog.families[0]?.toolCount).toBe(1)
-    expect(catalog.version).toBe(6)
+    expect(catalog.version).toBe(7)
   })
 })
 

@@ -12,6 +12,7 @@ export default [
   index('routes/parts.tsx', { id: 'start' }),
   route('catalog', 'routes/home.tsx'),
   route('families', 'routes/families.tsx'),
+  route('holders', 'routes/holders.tsx'),
   route('tools/:guid', 'routes/tool.tsx'),
   route('parts', 'routes/parts.tsx'),
   route('parts/:partId', 'routes/part.tsx'),

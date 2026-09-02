@@ -343,5 +343,12 @@ export interface Catalog {
  * underscores taken out. A version-5 dataset states neither, and there is
  * nothing in it to derive them from — both are the vendor's words and come off
  * a page. Re-ingest the store; `rebuild.mjs` would only write `null`.
+ *
+ * 7 — toolholding comes from `@toolpath/tool-scraper`'s own `HolderRecord` and
+ * `ColletRecord` rather than from this package reading a vendor's column
+ * labels, and `Clamping` gained `hydraulic`, which the records state and the
+ * three-value union rejected. A version-6 dataset cannot be repaired by reading
+ * it: it holds no toolholding at all, because nothing ever wrote any. Re-ingest
+ * the store.
  */
-export const CATALOG_VERSION = 6
+export const CATALOG_VERSION = 7

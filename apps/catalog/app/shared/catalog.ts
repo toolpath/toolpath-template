@@ -4,10 +4,13 @@ import type {
   Collet,
   Facets,
   Holder,
+  HolderProfile,
+  Profiles,
   ToolFamily,
 } from '@toolpath/catalog-data'
-import { CATALOG_VERSION } from '@toolpath/catalog-data'
+import { CATALOG_VERSION, PROFILES_VERSION, profileFor } from '@toolpath/catalog-data'
 import dataset from 'catalog-dataset'
+import profileDocument from 'catalog-profiles'
 
 /**
  * The only module in this application that touches the dataset.
@@ -48,6 +51,32 @@ export const facets: Facets = document.facets
 export const holders: ReadonlyArray<Holder> = document.holders ?? []
 export const collets: ReadonlyArray<Collet> = document.collets ?? []
 export const hasToolholding = (): boolean => holders.length > 0
+
+/**
+ * The measured half, kept out of the catalog document on purpose.
+ *
+ * A profile is ~110 vertices that only an assembly drawing needs, and this
+ * module is imported by every page. It is loaded here rather than in the
+ * drawing so that {@link getProfile} stays the one way to reach it — the same
+ * rule the dataset itself follows.
+ *
+ * **A missing profile is not an error.** A catalog is measured holder by
+ * holder, so a holder with none is the ordinary state and draws parametrically;
+ * only a *version* mismatch is a stale artifact worth refusing at import.
+ */
+const measured = profileDocument as unknown as Profiles
+
+if (measured.profilesVersion !== PROFILES_VERSION) {
+  throw new Error(
+    `Holder profiles are version ${measured.profilesVersion}; this application reads version ${PROFILES_VERSION}.`,
+  )
+}
+
+/** The silhouette measured off this holder's own CAD model, or null where none was. */
+export const getProfile = (guid: string): HolderProfile | null => profileFor(measured, guid)
+
+/** Whether this dataset was measured at all — "none yet" and "none for this holder" differ. */
+export const hasProfiles = (): boolean => Object.keys(measured.holders).length > 0
 
 const byGuid = new Map(document.tools.map((tool) => [tool.guid, tool]))
 const familiesById = new Map(document.families.map((family) => [family.id, family]))

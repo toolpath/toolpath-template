@@ -51,6 +51,11 @@ export interface OrderDialogProps {
 
 /** What is wrong with a holder, in the words a machinist would use. */
 const troubleWith = (option: HolderOption): string | null => {
+  // A chuck with no collet in the crib holds nothing yet, which is the first
+  // thing to say about it — the stack below is a picture, not an offer.
+  if (option.unstocked) {
+    return describeGrade(option)
+  }
   if (option.clears === false) {
     const what = describeGrade(option)
     return `holder collision with geometry${what === '' ? '' : ` — ${what}`}`

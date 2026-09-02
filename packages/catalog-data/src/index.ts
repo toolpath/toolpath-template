@@ -33,6 +33,17 @@ export {
 } from './build.js'
 export { facetsFor } from './facets.js'
 export {
+  NO_PROFILES,
+  PROFILES_VERSION,
+  belowGageLine,
+  ingestProfiles,
+  profileFor,
+  type HolderProfile,
+  type ProfileDatum,
+  type ProfilePoint,
+  type Profiles,
+} from './profiles.js'
+export {
   demandOf,
   demandsOf,
   fitAgainst,
@@ -138,6 +149,8 @@ export {
   holderCanTake,
   holderNeedsCollet,
   holdersFor,
+  holdersToShow,
+  seriesUnstocked,
   isOnSize,
   matchesFilters,
   seriesSize,

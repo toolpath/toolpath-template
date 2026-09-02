@@ -24,7 +24,8 @@
       "types": "./dist/vendors/maritool.d.ts",
       "import": "./dist/vendors/maritool.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./sample-profiles.json": "./fixtures/sample-profiles.json"
   },
   "sideEffects": false,
   "files": [
@@ -38,12 +39,15 @@
     "rebuild": "pnpm build && node scripts/rebuild.mjs",
     "scrape": "pnpm build && node scripts/scrape.mjs",
     "check-types": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:sample-profiles": "pnpm build && node scripts/build-sample-profiles.mjs",
+    "scrape:holding": "pnpm build && node scripts/scrape-holding.mjs",
+    "profiles": "pnpm build && node scripts/profiles.mjs"
   },
   "dependencies": {
     "@toolpath/domain": "workspace:*",
     "@toolpath/part-contracts": "workspace:*",
-    "@toolpath/tool-scraper": "2.0.0"
+    "@toolpath/tool-scraper": "2.1.0"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

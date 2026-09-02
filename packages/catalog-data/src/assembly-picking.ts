@@ -174,6 +174,44 @@ export const holderCanTake = (
       )
     : holderTakesTool(holder, null, tool)
 
+/**
+ * Whether this holder takes a collet series the crib stocks none of.
+ *
+ * **A fact about the crib, never a fit claim.** `holderCanTake` answers whether
+ * a stack grips a tool and must stay strict — a bare ER32 chuck grips nothing,
+ * and softening that is how a cutter ends up on the floor. This answers a
+ * different question that a *picture* needs: is this holder absent from the
+ * list because it cannot hold the tool, or because nobody has bought its
+ * collets yet? MariTool publishes 135 collet chucks and no collets at all, and
+ * without the distinction every one of them is invisible for a reason the UI
+ * cannot state.
+ */
+export const seriesUnstocked = (holder: Holder, collets: ReadonlyArray<Collet>): boolean =>
+  holderNeedsCollet(holder) &&
+  (seriesIndex(collets).get(holder.colletSeries ?? '') ?? []).length === 0
+
+/**
+ * The holders worth *showing* for a tool, in two groups.
+ *
+ * `holding` is `holdersFor` — what actually grips this tool, unchanged.
+ * `unstocked` is the collet chucks whose series the crib has none of: shown so
+ * a holder can be looked at and drawn, and never presented as something that
+ * can hold the tool. A caller that renders them without saying which group they
+ * came from has misused this.
+ */
+export const holdersToShow = (
+  tool: CatalogTool,
+  holders: ReadonlyArray<Holder>,
+  collets: ReadonlyArray<Collet>,
+  filters: HolderFilters = {},
+): { holding: Array<Holder>; unstocked: Array<Holder> } => ({
+  holding: holdersFor(tool, holders, collets, filters),
+  unstocked: holders
+    .filter((holder) => matchesFilters(holder, filters))
+    .filter((holder) => seriesUnstocked(holder, collets))
+    .sort(compareHolders),
+})
+
 export const holdersFor = (
   tool: CatalogTool,
   holders: ReadonlyArray<Holder>,

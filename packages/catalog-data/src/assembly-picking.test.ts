@@ -4,10 +4,13 @@ import {
   colletsForShank,
   compareHolders,
   holderFacet,
+  holderCanTake,
   holdersFor,
+  holdersToShow,
   isOnSize,
   matchesFilters,
   seriesSize,
+  seriesUnstocked,
 } from './assembly-picking.js'
 import {
   emptyBuildSelection,
@@ -327,5 +330,48 @@ describe('a selection and its URL', () => {
     expect(
       selectHolder({ ...emptyBuildSelection(), collet: 'c-pg6-6' }, 'h-pg10').collet,
     ).toBeNull()
+  })
+})
+
+describe('holders the crib stocks no collet for', () => {
+  const chuck = holder({
+    guid: 'h-chuck',
+    catalogNumber: 'CAT40-ER32-3.0',
+    clamping: 'collet',
+    colletSeries: 'ER32',
+    boreDiameter: null,
+  })
+  const bore = holder({
+    guid: 'h-bore',
+    catalogNumber: 'CAT40-SF.250',
+    clamping: 'shrink',
+    colletSeries: null,
+    boreDiameter: 6,
+  })
+
+  it('tells an unstocked series from a series that simply does not fit', () => {
+    // Two different answers: nobody has bought an ER32 collet, versus the crib
+    // has them and none closes on this shank. The first is a purchasing
+    // problem and the second is a sizing one.
+    const wrongSize = collet({ guid: 'c-1', catalogNumber: 'ER32-20', series: 'ER32' })
+
+    expect(seriesUnstocked(chuck, [])).toBe(true)
+    expect(seriesUnstocked(chuck, [wrongSize])).toBe(false)
+    expect(seriesUnstocked(bore, [])).toBe(false)
+  })
+
+  it('shows them apart from the holders that can hold the tool', () => {
+    const shown = holdersToShow(tool(6), [chuck, bore], [])
+
+    expect(shown.holding).toEqual([bore])
+    expect(shown.unstocked).toEqual([chuck])
+  })
+
+  it('never moves a holder into the list that says it holds the tool', () => {
+    const shown = holdersToShow(tool(6), [chuck, bore], [])
+
+    for (const each of shown.unstocked) {
+      expect(holderCanTake(tool(6), each, [])).toBe(false)
+    }
   })
 })

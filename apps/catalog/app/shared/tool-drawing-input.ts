@@ -1,6 +1,11 @@
-import type { Assembly, CatalogTool, Holder, ToolForm } from '@toolpath/catalog-data'
-import { TOOL_FORMS } from '@toolpath/catalog-data'
-import type { ViewerAssembly, ViewerHolder, ViewerTool } from '@toolpath/tool-drawing/geometry'
+import type { Assembly, CatalogTool, Holder, HolderProfile, ToolForm } from '@toolpath/catalog-data'
+import { TOOL_FORMS, belowGageLine } from '@toolpath/catalog-data'
+import type {
+  ViewerAssembly,
+  ViewerHolder,
+  ViewerHolderProfile,
+  ViewerTool,
+} from '@toolpath/tool-drawing/geometry'
 
 /**
  * The one seam between this catalog's records and `@toolpath/tool-drawing`.
@@ -53,9 +58,54 @@ export const toViewerHolder = (holder: Holder): ViewerHolder => ({
   provenance: holder.provenance,
 })
 
-export const toViewerAssembly = (assembly: DrawableAssembly): ViewerAssembly => ({
+/**
+ * A holder as its own CAD model measures it.
+ *
+ * The alternative to {@link toViewerHolder} rather than a refinement of it, and
+ * the package's own `ViewerHolderProfile` says why: reducing a measured
+ * silhouette to a nose and a body throws away the only reason to measure it.
+ * So the two are mapped separately and {@link toViewerAssembly} picks one.
+ *
+ * `colletSeries` and `colletProtrusion` still come off the vendor's table —
+ * a measurement of a bare holder cannot state what a seated collet does — and
+ * `points` is marked as the vendor's because the solid measured is the
+ * vendor's own model rather than a derivation from its published numbers.
+ *
+ * **What goes into the spindle is not drawn.** `belowGageLine` cuts a
+ * `gage-line` profile at the spindle face, so the taper and the retention knob
+ * above it — half the vertices of a CAT40 model, and half the height of the
+ * frame — never reach the package. A `nose`-datumed profile has no line to cut
+ * on and is passed whole.
+ */
+export const toViewerHolderProfile = (
+  holder: Holder,
+  profile: HolderProfile,
+): ViewerHolderProfile => ({
+  points: belowGageLine(profile),
+  datum: profile.datum,
+  colletSeries: holder.colletSeries,
+  colletProtrusion: holder.colletProtrusion,
+  provenance: { ...holder.provenance, points: 'vendor-stated' },
+})
+
+/**
+ * The stack the drawing gets, measured where this holder has been measured.
+ *
+ * A profile with no holder beside it draws nothing: the two collet fields are
+ * the vendor's and there is nowhere else to read them from, and a caller that
+ * has a profile always has the holder it was keyed to.
+ */
+export const toViewerAssembly = (
+  assembly: DrawableAssembly,
+  profile: HolderProfile | null = null,
+): ViewerAssembly => ({
   tool: toViewerTool(assembly.tool),
-  holder: assembly.holder === null ? null : toViewerHolder(assembly.holder),
+  holder:
+    assembly.holder === null
+      ? null
+      : profile === null
+        ? toViewerHolder(assembly.holder)
+        : toViewerHolderProfile(assembly.holder, profile),
   stickout: assembly.stickout,
 })
 

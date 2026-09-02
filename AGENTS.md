@@ -154,6 +154,12 @@ application unless that application says otherwise.
   **The 2D tool drawing is not this application's** — it is
   `@toolpath/tool-drawing`, and `app/components/catalog-drawing.tsx` is the one
   file that wires it up. See `docs/TOOL-DRAWING-PLAN.md`.
+  **A holder can be drawn from its own CAD model** rather than from the nine
+  numbers a vendor publishes: `catalog-profiles` is a second Vite alias beside
+  `catalog-dataset`, `shared/catalog.ts` `getProfile` is the only way to reach
+  it, and `/holders` browses the rack and draws one. `docs/HOLDER-PROFILES.md`
+  is the guide, including the two things deliberately left undone — clearance
+  still reasons from the published dimensions, and the record seam below.
 - `packages/domain/` (`@toolpath/domain`) is pure helpers more than one
   application needs — unit conversion and formatting, class composition,
   keyboard movement through a list.
@@ -176,7 +182,10 @@ application unless that application says otherwise.
   `app/shared/tool-drawing-input.ts` the whole adapter.
 - `packages/catalog-data/` (`@toolpath/catalog-data`) is the tool catalog's data
   contract, its pure record-to-catalog transform, the tool-fit calculation, and
-  the committed sample dataset. It also answers **whether an assembly clears a
+  the committed sample dataset. `profiles.ts` is the measured-holder half —
+  its own document, keyed by guid and read lazily, because a silhouette is
+  ~110 vertices only an assembly drawing needs and every page loads the
+  catalog. It also answers **whether an assembly clears a
   feature** — `clearance.ts` — which is a tool-selection question with a dozen
   callers that draw nothing, so it stays here while the picture of it lives in
   the drawing package.
@@ -226,11 +235,12 @@ reaching across into it.
   `packages/` may import the drawing package's values — `NO_DRAWING` in
   `eslint.config.js`, the same shape as the SDK and scraper rules — because that
   is how a selection engine ends up behind a dependency on React.
-- **Two helpers are duplicated on purpose, and say so.** `hasNeck`
-  (`catalog-data/src/forms.ts`) and `heightAt` (`catalog-data/src/clearance.ts`)
+- **Three helpers are duplicated on purpose, and say so.** `hasNeck`
+  (`catalog-data/src/forms.ts`), `heightAt` (`catalog-data/src/clearance.ts`)
+  and the gage-line crossing in `belowGageLine` (`catalog-data/src/profiles.ts`)
   each have a twin inside `@toolpath/tool-drawing`. The package may not depend
   on this catalog's data package — its input contract is its own so that it does
-  not — and both copies still have non-drawing callers here. Each carries a
+  not — and every copy still has non-drawing callers here. Each carries a
   comment naming its twin. Change one and change the other, or the picture and
   the verdict disagree about the same tool.
 - **Watch what a barrel export drags in.** `@toolpath/part-contracts` is split
@@ -264,11 +274,27 @@ reaching across into it.
   and nothing else; `--refresh` re-scrapes everything and `--only <family.csv>`
   re-scrapes one. `scrape-out/receipt.json` records the scraper's version and
   everything the run left out. Re-ingesting the store touches no network.
-- **Toolholding has no record seam yet.** The scraper mints records for cutting
-  tools only — drills, taps and end mills — so holders and collets are still
-  mapped from the vendors' own column labels in `src/vendors/`, one file per
-  vendor, each citing its evidence. That is a stopgap by construction; its exit
-  is a toolholding mapper upstream. See `docs/TOOL-SCRAPER-REFACTOR.md` § step 6.
+- **Toolholding takes the record seam, like a cutting tool does.**
+  `@toolpath/tool-scraper` 2.1.0 mints `HolderRecord` and `ColletRecord`, and
+  `src/scrape.ts` drives them through `boundToolholding`/`toHolding` — the exit
+  `docs/TOOL-SCRAPER-REFACTOR.md` § step 6 named, taken on 2026-09-02. It is a
+  **separate command and a separate store**, `pnpm --filter @toolpath/catalog-data
+scrape:holding` into `scrape-out/toolholding/`, because a shop re-scrapes
+  13,000 cutting tools far less often than 550 holders; `scripts/store.mjs`
+  merges both stores into one `scrape.json`, so running either alone never drops
+  the other's work.
+- **A holder record carries no silhouette.** It states a taper, a clamping mode,
+  a gage length, a bore, a body diameter and a lock-nut diameter — and no nose
+  diameter, nose length, projection or flange diameter. Those are what the
+  `src/vendors/` stopgap pinned by hand off DIN 4000 sheets, and the honest
+  source for a silhouette is the vendor's own CAD model, which the record points
+  at. So the measured profile is load-bearing rather than a nicety; see
+  `docs/HOLDER-PROFILES.md`.
+- **`src/vendors/` is dead and kept on purpose.** Nothing calls it now that the
+  seam is taken. It is the only written record of REGO-FIX's DIN 4000 code
+  pinning, each mapping citing its evidence, so it stays until either that
+  evidence moves upstream or somebody decides the measured profile has replaced
+  it outright. Do not add a vendor to it.
 - Ingestion consumes the scraper's **records** (`ToolRecord`), never its vendor
   CSVs. A scraped CSV keeps that vendor's own column labels, and those collide
   with ISO 13399 while meaning something else — Kennametal's `D1` is a cutting

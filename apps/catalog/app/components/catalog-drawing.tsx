@@ -26,6 +26,7 @@ import {
   type Gaps,
 } from '@toolpath/tool-drawing/clearance'
 import { assemblyLabel } from 'shared/assemblies'
+import { getProfile } from 'shared/catalog'
 import { toViewerAssembly } from 'shared/tool-drawing-input'
 import { useTheme } from 'shared/use-theme'
 
@@ -66,6 +67,15 @@ export interface CatalogDrawingProps {
   readonly margins?: Margins
   readonly dimensions?: boolean
   readonly dimensionSides?: 'one' | 'both'
+  /**
+   * Draw the holder from its measured silhouette where one exists.
+   *
+   * On by default, and worth a switch rather than a constant: the parametric
+   * holder is what `clearance()` still reasons about, so being able to put the
+   * two pictures side by side is how a disagreement between the drawing and the
+   * verdict under it gets noticed at all.
+   */
+  readonly measured?: boolean
 }
 
 export const CatalogDrawing = ({
@@ -76,14 +86,20 @@ export const CatalogDrawing = ({
   margins = NO_MARGINS,
   dimensions = false,
   dimensionSides = 'one',
+  measured = true,
 }: CatalogDrawingProps) => {
   const [theme] = useTheme()
   const format = (millimetres: number) => formatLength(millimetres, unit)
-  const viewer = toViewerAssembly({
-    tool,
-    holder: assembly?.holder ?? null,
-    stickout: assembly?.stickout ?? null,
-  })
+  const holder = assembly?.holder ?? null
+  const holderProfile = measured && holder !== null ? getProfile(holder.guid) : null
+  const viewer = toViewerAssembly(
+    {
+      tool,
+      holder,
+      stickout: assembly?.stickout ?? null,
+    },
+    holderProfile,
+  )
   const caption = assembly === null ? tool.catalogNumber : assemblyLabel(assembly)
 
   /**

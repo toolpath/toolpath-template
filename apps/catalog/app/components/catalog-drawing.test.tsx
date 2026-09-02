@@ -64,6 +64,9 @@ const collet: Collet = {
 }
 
 const assembly: Assembly = { tool, holder, collet, stickout: 25, maxStickout: null }
+
+/** A holder the committed sample profiles document measures — `BT30ER16060M`. */
+const MEASURED_GUID = '44444444-4444-5444-8444-444444444401'
 const curve = { horizontalOffset: [0, 2, 8, 15], verticalOffset: [12, 12, 30, 30] }
 
 /**
@@ -164,6 +167,14 @@ describe('the catalog drawing', () => {
  * ever breaks, the package throws rather than drawing in an invented frame, so
  * this goes red rather than sliding an overlay quietly off a tool.
  */
+/** How many vertices the holder is drawn with, across every segment of it. */
+const holderVertices = (container: Element): number =>
+  Array.from(
+    container.querySelectorAll('[data-part="body"], [data-part="flange"], [data-part="nose"]'),
+  )
+    .map((each) => (each.getAttribute('points') ?? '').trim().split(/\s+/).length)
+    .reduce((total, each) => total + each, 0)
+
 describe('the overlay this application draws', () => {
   it('is drawn inside the tool drawing, in its frame', () => {
     const container = drawn(
@@ -181,5 +192,67 @@ describe('the overlay this application draws', () => {
 
     expect(container.querySelector('svg')).not.toBeNull()
     expect(container.querySelector('[data-clearance]')).toBeNull()
+  })
+
+  /**
+   * That a measured silhouette actually reaches the package.
+   *
+   * The holder fixtures above carry guids nothing has measured, so every test
+   * before this one draws the parametric holder — which is right, and leaves
+   * the measured path uncovered. This one uses a guid the committed sample
+   * profiles document does measure and pins the difference: a measured holder
+   * is drawn with every vertex the model has, where the published one is a
+   * nose, a body and a flange.
+   */
+  it('draws the measured silhouette where the holder has been measured', () => {
+    const measuredHolder: Holder = { ...holder, guid: MEASURED_GUID }
+    const stack: Assembly = { ...assembly, holder: measuredHolder }
+
+    const measured = drawn(<CatalogDrawing tool={tool} assembly={stack} unit="mm" />)
+    const measuredVertices = holderVertices(measured)
+
+    StubResizeObserver.all = []
+    const parametric = drawn(
+      <CatalogDrawing tool={tool} assembly={stack} unit="mm" measured={false} />,
+    )
+
+    expect(measuredVertices).toBeGreaterThan(holderVertices(parametric))
+  })
+
+  /**
+   * **The spindle end is cut off, not scaled into the frame.**
+   *
+   * A measured model carries the 7:24 taper and the retention knob above the
+   * gage line, and drawing them shrinks the tool to fit a shape nobody is
+   * asking this picture about. `belowGageLine` cuts there, so the measured
+   * holder has no flange segment at all — where the published one, which stops
+   * at its gauge length by construction, still draws its V-flange.
+   */
+  it('draws nothing above the gage line of a measured holder', () => {
+    const measuredHolder: Holder = { ...holder, guid: MEASURED_GUID }
+    const stack: Assembly = { ...assembly, holder: measuredHolder }
+
+    const measured = drawn(<CatalogDrawing tool={tool} assembly={stack} unit="mm" />)
+
+    expect(measured.querySelector('[data-part="flange"]')).toBeNull()
+
+    StubResizeObserver.all = []
+    const parametric = drawn(
+      <CatalogDrawing tool={tool} assembly={stack} unit="mm" measured={false} />,
+    )
+
+    expect(parametric.querySelector('[data-part="flange"]')).not.toBeNull()
+  })
+
+  it('falls back to the parametric holder for one nothing has measured', () => {
+    const unmeasured = drawn(<CatalogDrawing tool={tool} assembly={assembly} unit="mm" />)
+    const forced = (() => {
+      StubResizeObserver.all = []
+      return drawn(<CatalogDrawing tool={tool} assembly={assembly} unit="mm" measured={false} />)
+    })()
+
+    expect(unmeasured.querySelector('svg')?.getAttribute('viewBox')).toBe(
+      forced.querySelector('svg')?.getAttribute('viewBox'),
+    )
   })
 })

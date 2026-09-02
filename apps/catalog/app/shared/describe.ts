@@ -28,6 +28,8 @@ export const styleLabel = (holder: Pick<Holder, 'clamping' | 'brand'>): string =
       return holder.brand === 'REGO-FIX' ? 'powRgrip collet chuck' : 'collet chuck'
     case 'shrink':
       return 'shrink fit'
+    case 'hydraulic':
+      return 'hydraulic chuck'
     case 'bore':
       return 'direct bore'
   }

@@ -33,9 +33,7 @@ import { createFetcher } from '@toolpath/tool-scraper'
 import { scraperVersion } from '@toolpath/tool-scraper/node'
 
 import { scrapeCuttingTools } from '../dist/scrape.js'
-
-const ROOT = resolve(fileURLToPath(new URL('../../..', import.meta.url)), 'scrape-out')
-const RECORDS = resolve(ROOT, 'records')
+import { ROOT, RECORDS, ensureStore, writeMergedScrape } from './store.mjs'
 
 const argv = process.argv.slice(2)
 const refresh = argv.includes('--refresh')
@@ -51,7 +49,7 @@ if (argv.includes('--only') && (only === undefined || only.startsWith('--'))) {
 
 const fileFor = (id) => resolve(RECORDS, `${id}.json`)
 
-mkdirSync(RECORDS, { recursive: true })
+ensureStore()
 console.log(`Scrape root: ${ROOT}\n`)
 
 const warnings = []
@@ -97,19 +95,7 @@ await scrapeCuttingTools({
 
 /* ───────────────────── the merged handoff, from the store ───────────────────── */
 
-const families = readdirSync(RECORDS)
-  .filter((name) => name.endsWith('.json'))
-  .sort()
-  .map((name) => JSON.parse(readFileSync(resolve(RECORDS, name), 'utf8')))
-
-const builtAt = new Date().toISOString().slice(0, 10)
-const tools = families.reduce((sum, family) => sum + family.tools.length, 0)
-
-writeFileSync(
-  resolve(ROOT, 'scrape.json'),
-  `${JSON.stringify({ builtAt, families, holders: [], collets: [] }, null, 2)}\n`,
-  'utf8',
-)
+const { families, tools, holders, collets } = writeMergedScrape()
 
 writeFileSync(
   resolve(ROOT, 'receipt.json'),
@@ -120,8 +106,12 @@ writeFileSync(
       // store scraped by an older scraper has to be able to say so.
       scraperVersion: scraperVersion(),
       scrapedThisRun: scraped,
-      familiesInStore: families.length,
+      familiesInStore: families,
       tools,
+      // Written by `scrape-holding.mjs`, not by this run — stated so a receipt
+      // says what the store holds rather than what this command scraped.
+      holders,
+      collets,
       leftOut: left,
       warnings,
     },
@@ -132,8 +122,9 @@ writeFileSync(
 )
 
 console.log(
-  `\n${tools} tools across ${families.length} families in the store ` +
-    `(${scraped} scraped this run) -> ${resolve(ROOT, 'scrape.json')}`,
+  `\n${tools} tools across ${families} families, ${holders} holders and ` +
+    `${collets} collets in the store (${scraped} families scraped this run) ` +
+    `-> ${resolve(ROOT, 'scrape.json')}`,
 )
 
 if (left.length > 0) {

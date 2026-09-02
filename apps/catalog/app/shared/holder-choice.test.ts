@@ -146,6 +146,49 @@ describe('the holders that work, pulled out to what the feature needs', () => {
     expect(options[0]).toMatchObject({ required: null, stickout: 13, clears: null, grade: 'good' })
   })
 
+  /**
+   * MariTool publishes 233 ER chucks and the crib holds no ER collet, so the
+   * gate that keeps an ER16 chuck out of the list is a purchase order rather
+   * than anything about this tool. It is offered, last, and says why.
+   */
+  it('offers a chuck whose series the crib stocks none of, last and never recommended', () => {
+    const options = holderOptions(
+      tool,
+      [
+        holder('er16', 20, { colletSeries: 'ER16', catalogNumber: 'BT30-ER16-60' }),
+        holder('pg', 20),
+      ],
+      [collet],
+      {},
+      curve,
+      room,
+      thresholds,
+    )
+    expect(options.map((each) => [each.holder.guid, each.unstocked, each.recommended])).toEqual([
+      ['pg', false, true],
+      ['er16', true, false],
+    ])
+    expect(describeGrade(options[1]!)).toBe('the crib stocks no ER16 collet')
+    // It grips nothing as it stands, so it must not make the tool holdable.
+    expect(canBeHeld([options[1]!])).toBe(false)
+    expect(canBeHeld(options)).toBe(true)
+  })
+
+  /** A loose bound, and the only job it has: a 20 mm shank is not offered an ER16 chuck. */
+  it('keeps an unstocked chuck out where the shank is over the series size', () => {
+    const wide = { ...tool, geometry: { ...tool.geometry, DC: 20, SFDM: 20 } }
+    const options = holderOptions(
+      wide,
+      [holder('er16', 30, { colletSeries: 'ER16' }), holder('er32', 30, { colletSeries: 'ER32' })],
+      [collet],
+      {},
+      null,
+      room,
+      thresholds,
+    )
+    expect(options.map((each) => each.holder.guid)).toEqual(['er32'])
+  })
+
   it('respects the holder filters', () => {
     const options = holderOptions(
       tool,

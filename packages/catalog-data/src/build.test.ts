@@ -87,7 +87,7 @@ describe('buildCatalog', () => {
 
     expect(catalog.builtAt).toBe('2026-08-27')
     // Literal on purpose: moving it is a decision, and this is where it is made.
-    expect(catalog.version).toBe(6)
+    expect(catalog.version).toBe(7)
     expect(catalog.tools).toEqual([])
   })
 })
