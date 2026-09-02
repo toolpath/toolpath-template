@@ -172,6 +172,13 @@ application unless that application says otherwise.
   it, and `/holders` browses the rack and draws one. `docs/HOLDER-PROFILES.md`
   is the guide, including the two things deliberately left undone — clearance
   still reasons from the published dimensions, and the record seam below.
+  **The feature list is what drives the page** (Paul, 2026-09-02): a click on
+  the part adds a row, a row is what the tool table is being asked about, and a
+  tool reaches the bill only because a row put it there — there is no second
+  place to add one. `shared/feature-list.ts` is the model and
+  `components/feature-list-panel.tsx` the list on screen;
+  `docs/FEATURE-LIST.md` is the spec, including _Where the rules live_ for
+  which file owns which rule and _Not built_ for what is deliberately absent.
 - `packages/domain/` (`@toolpath/domain`) is pure helpers more than one
   application needs — unit conversion and formatting, class composition,
   keyboard movement through a list.
