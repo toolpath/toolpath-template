@@ -78,8 +78,18 @@ export const IDLE: Interaction = {
 export type InteractionAction =
   /** An arrow pressed on the part. */
   | { readonly type: 'arm'; readonly direction: number }
-  /** A click on the part: a face, or `null` for a click that hit nothing on the mesh. */
-  | { readonly type: 'click'; readonly pick: PartPick | null }
+  /**
+   * A click on the part: a face, or `null` for a click that hit nothing on the
+   * mesh.
+   *
+   * `collecting` is a click made **while a group is being built**, which is a
+   * different act: an ordinary click swaps the guess for whatever was clicked
+   * last, and a group is built by clicking six faces in a row (Paul,
+   * 2026-09-02). So a collecting click adds — and, on a face already in, takes
+   * it out again, which is the only way to correct a mis-click on the part
+   * itself.
+   */
+  | { readonly type: 'click'; readonly pick: PartPick | null; readonly collecting?: boolean }
   /** A click on nothing at all — the viewer's `onPointerMissed`. */
   | { readonly type: 'miss' }
   /** A reading named from a list. */
@@ -90,6 +100,23 @@ export type InteractionAction =
   | { readonly type: 'toggle'; readonly featureTag: string }
   /** Escape, outward one press at a time. */
   | { readonly type: 'escape' }
+  /**
+   * Start again from a set somebody already has: editing a group they built.
+   *
+   * The group is theirs rather than a guess, so nothing here is `guessed` —
+   * walking a face's readings afterwards must not quietly take one of them
+   * away again.
+   */
+  | { readonly type: 'collect'; readonly tags: ReadonlyArray<string> }
+  /**
+   * Everything down at once.
+   *
+   * Escape puts things down one at a time on purpose, which is right for a
+   * keypress and wrong for confirming a group: what was being picked has
+   * become a row on the list, and leaving it selected as well would have the
+   * page answering the same question twice (Paul, 2026-09-02).
+   */
+  | { readonly type: 'reset' }
 
 export type InteractionPart = Pick<PublicInspectionReport, 'features' | 'candidateDirections'>
 
@@ -251,6 +278,56 @@ export const interactionFor = (part: InteractionPart) => {
 
         const selection = pickFace(state.selection, action.pick, preferArmed(state.activeDirection))
         const group = selection.focused === null ? [] : groupOf(part.features, selection.focused)
+        if (action.collecting) {
+          /**
+           * **While a group is being built, a click is a toggle** (Paul,
+           * 2026-09-02: "if I click on a new one, it should add it to the list
+           * of enabled features" and "clicking a pre-selected feature should
+           * unselect it").
+           *
+           * An ordinary click means two things at once — it swaps the guess for
+           * whatever was clicked last, and clicking one face twice walks its
+           * readings — and neither is what a click means here. A face is in the
+           * group or it is not, and pressing it says which. **The arrows choose
+           * the reading**, which is the "after I select the direction, if
+           * applicable" half and which `arm` already does by swapping what the
+           * click guessed.
+           *
+           * Pressing the *same* face is its own case, and asked the way
+           * `pickFace` asks it — by the region held, not by which readings the
+           * click resolved to. A reading can own several faces, so a click on a
+           * genuinely new face lands on readings a held one already offered:
+           * comparing those would have made the second feature of a group read
+           * as the first being pressed twice, and taken it out again.
+           */
+          const again =
+            state.selection.picks.length === 1 &&
+            state.selection.picks[0]?.region === action.pick.region
+          if (again) {
+            return {
+              selection: NOTHING_SELECTED,
+              focused: null,
+              activeDirection: null,
+              kept: dropAll(state.kept, state.guessed),
+              guessed: [],
+              chose: false,
+            }
+          }
+          if (group.length === 0) {
+            return state
+          }
+          const inAlready = group.every((tag) => state.kept.includes(tag))
+          return {
+            selection,
+            focused: selection.focused,
+            activeDirection: null,
+            kept: inAlready ? dropAll(state.kept, group) : keepAll(state.kept, group),
+            // What this face stands for, so choosing its direction replaces it
+            // rather than leaving both readings in the group.
+            guessed: inAlready ? [] : group,
+            chose: false,
+          }
+        }
         return {
           selection,
           focused: selection.focused,
@@ -308,6 +385,12 @@ export const interactionFor = (part: InteractionPart) => {
           guessed: state.guessed.filter((each) => !group.includes(each)),
         }
       }
+
+      case 'collect':
+        return { ...state, kept: [...action.tags], guessed: [] }
+
+      case 'reset':
+        return IDLE
 
       case 'escape': {
         // The reading first, then the list — undoing a click must not cost the

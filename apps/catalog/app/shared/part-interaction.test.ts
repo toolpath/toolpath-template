@@ -193,6 +193,85 @@ describe('a click on a face', () => {
   })
 })
 
+/**
+ * **A group is built by clicking the faces in it** (Paul, 2026-09-02). An
+ * ordinary click swaps the guess for whatever was clicked last, which is right
+ * when the click is the question — and wrong while somebody is picking out six
+ * features one at a time.
+ */
+describe('a click while a group is being built', () => {
+  it('adds the face to what is kept rather than swapping the last one out', () => {
+    const state = run(
+      { type: 'click', pick: pickForRegion(5, ['hole-a']), collecting: true },
+      { type: 'click', pick: face(), collecting: true },
+    )
+
+    // The two holes are identical, so one click keeps both: a bolt circle is
+    // one decision wherever it is asked about.
+    expect(state.kept).toEqual(['hole-a', 'hole-b', 'pocket'])
+    expect(state.focused).toBe('pocket')
+  })
+
+  /** And clicking one that is already in takes it out (Paul, 2026-09-02). */
+  it('takes a face out again when it is already in', () => {
+    const state = run(
+      { type: 'click', pick: pickForRegion(5, ['hole-a']), collecting: true },
+      { type: 'click', pick: face(), collecting: true },
+      { type: 'click', pick: pickForRegion(5, ['hole-a']), collecting: true },
+    )
+
+    expect(state.kept).toEqual(['pocket'])
+  })
+
+  /**
+   * **The face, not the reading it landed on.** Clicking a face a second time
+   * lands on its next reading; asking whether *that* was the one held would
+   * have made the second press add a second reading of the same face instead
+   * of undoing the first.
+   */
+  it('takes the face out on a second press rather than walking its readings', () => {
+    const state = run(
+      { type: 'click', pick: pickForRegion(5, ['hole-a']), collecting: true },
+      { type: 'click', pick: face(), collecting: true },
+      { type: 'click', pick: face(), collecting: true },
+    )
+
+    expect(state.kept).toEqual(['hole-a', 'hole-b'])
+  })
+
+  /**
+   * And choosing the direction afterwards corrects the click rather than
+   * adding to it — the same swap `arm` already does, which is what makes
+   * "after I select the direction, if applicable" work (Paul, 2026-09-02).
+   */
+  it('replaces the guess when a direction is chosen for it', () => {
+    const state = run(
+      { type: 'click', pick: pickForRegion(5, ['hole-a']), collecting: true },
+      { type: 'click', pick: face(), collecting: true },
+      { type: 'arm', direction: 1 },
+    )
+
+    expect(state.kept).toEqual(['hole-a', 'hole-b', 'wall'])
+  })
+})
+
+/**
+ * Escape puts things down one at a time, which is right for a keypress and
+ * wrong for confirming a group: what was being picked has become a row on the
+ * list (Paul, 2026-09-02).
+ */
+describe('putting everything down at once', () => {
+  it('leaves nothing read and nothing kept', () => {
+    const state = run(
+      { type: 'click', pick: pickForRegion(5, ['hole-a']), collecting: true },
+      { type: 'click', pick: face(), collecting: true },
+      { type: 'reset' },
+    )
+
+    expect(state).toEqual(IDLE)
+  })
+})
+
 describe('what is kept by hand', () => {
   it('survives a walk of the face’s readings', () => {
     const state = run(

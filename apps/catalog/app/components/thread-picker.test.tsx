@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { threadNamed } from 'shared/threads'
 import { ThreadPicker } from './thread-picker'
+
+/**
+ * The group the closest readings are ranked into. Its options are named the
+ * same as their twins in the full list below it, so a lookup says which.
+ */
+const closestMatches = (): HTMLElement =>
+  screen.getByRole('group', { name: 'Closest match to modeled diameter' })
 
 /** ⌀5.00 is M6×1's tap drill, which is the reading a hole is likeliest to be drawn at. */
 const TAP_DRILL_FOR_M6 = 5
@@ -15,6 +22,8 @@ const show = (props: Partial<Parameters<typeof ThreadPicker>[0]> = {}) => {
       spec={null}
       unit="mm"
       onChange={onChange}
+      // The sheet's own: 0.004 in either way, in millimetres.
+      deviation={{ over: 0.1016, under: 0.1016 }}
       {...props}
     />,
   )
@@ -33,9 +42,9 @@ describe('what the panel says about a hole before anything is chosen', () => {
 
     expect(screen.getByText('Modeled hole diameter:')).toBeInTheDocument()
     expect(screen.getByText('⌀5.00 mm')).toBeInTheDocument()
-    // ⌀5 is exactly M6×1's tap drill, so the option says so rather than "+0.00".
+    // ⌀5 is M6×1's tap drill, and the option names that diameter — nothing more.
     expect(
-      screen.getByRole('option', { name: 'M6×1 — its tap drill, exactly' }),
+      within(closestMatches()).getByRole('option', { name: 'M6×1 — tap drill' }),
     ).toBeInTheDocument()
   })
 
@@ -49,11 +58,27 @@ describe('what the panel says about a hole before anything is chosen', () => {
     expect(screen.queryByRole('button', { name: /M6×1/ })).not.toBeInTheDocument()
   })
 
-  /** A hole drawn a little over the tap drill says by how much, and which way. */
-  it('says how far the model is from the size the reading expects', () => {
+  /**
+   * **The list ranks; it does not argue** (Paul, 2026-09-02: "we don't need to
+   * defend our match on the thread spec in the drop down"). A hole drawn a
+   * little over the tap drill still reads as that thread, and the option says
+   * which diameter it matched — not how far off it is, which was a case being
+   * made for a guess in a list somebody is scanning.
+   */
+  it('names the diameter a thread was matched on, and no deviation', () => {
     show({ holeDiameter: 5.08 })
 
-    expect(screen.getByRole('option', { name: /M6×1 — its tap drill, \+0.08/ })).toBeInTheDocument()
+    expect(
+      within(closestMatches()).getByRole('option', { name: 'M6×1 — tap drill' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /\+0\.08/ })).not.toBeInTheDocument()
+  })
+
+  /** And the group says what the ranking is, rather than what it read. */
+  it('heads the matches by what they are closest to', () => {
+    show()
+
+    expect(closestMatches()).toBeInTheDocument()
   })
 
   /**
@@ -110,7 +135,7 @@ describe('what the panel says about a hole before anything is chosen', () => {
   it('claims nothing for a hole that reads as no thread', () => {
     show({ holeDiameter: 0.4 })
 
-    expect(screen.queryByRole('group', { name: /Suggested/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /Closest match/ })).not.toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /Thread/ })).toBeInTheDocument()
   })
 })
@@ -184,5 +209,88 @@ describe('picking a thread', () => {
     })
 
     expect(onChange).toHaveBeenCalledWith({ mode: 'plain', spec: null })
+  })
+})
+
+/**
+ * **The two figures said the same thing in the same colour** (Paul,
+ * 2026-09-02: "warning visualization is not right for form taps — this should
+ * follow the conventions you just said to me").
+ *
+ * On an M6×1 drawn at ⌀5.00 the cut tap is exactly on its predrill and the
+ * form tap half a millimetre under it — five times the shop's own drill
+ * deviation — and both printed in the same grey. The tool list's convention,
+ * in the list's colours: plain inside the band, red past it.
+ */
+describe('how far the model is from each predrill', () => {
+  const rows = () => {
+    show({ spec: threadNamed('M6×1'), mode: 'cut tap', holeDiameter: 5 })
+    return {
+      cut: screen.getByRole('button', { name: 'M6×1 cut tap' }),
+      form: screen.getByRole('button', { name: 'M6×1 form tap' }),
+    }
+  }
+
+  /** Both figures the refusal is about: the predrill, and how far off it is. */
+  it('paints a difference past the shop’s deviation red, and leaves the rest plain', () => {
+    const { cut, form } = rows()
+
+    // ⌀5.00 is the cut tap's own drill, and 0.50 under the form tap's.
+    expect(cut.querySelector('.text-danger')).toBeNull()
+    const red = [...form.querySelectorAll('.text-danger')].map((each) => each.textContent).join(' ')
+    expect(red).toContain('⌀5.50')
+    expect(red).toContain('−0.50')
+  })
+
+  /**
+   * **The third glyph** (Paul, 2026-09-02: "diameter number should be red and a
+   * red x icon to hover over to see info"). Exact and inside-the-band each hang
+   * their sentence on an icon; past the band had a bare red number, so the one
+   * state worth stopping on was the only one with nothing to hover.
+   */
+  it('hangs a red x carrying the refusal on a difference past the band', () => {
+    const { cut, form } = rows()
+
+    expect(within(form).getByLabelText(/Further from the modelled hole/)).toBeInTheDocument()
+    expect(within(cut).queryByLabelText(/Further from the modelled hole/)).not.toBeInTheDocument()
+  })
+
+  /**
+   * **The table's three states, not two** (Paul, 2026-09-02: "form taps are not
+   * following that, they are using the old convention"): a green tick where
+   * the model is exactly the predrill, a grey `i` where it is inside the shop's
+   * deviation, red past it.
+   */
+  it('ticks the predrill the model is exactly on', () => {
+    const { cut } = rows()
+
+    expect(within(cut).getByLabelText('exactly this predrill')).toBeInTheDocument()
+  })
+
+  it('hangs a grey glyph on a difference inside the band', () => {
+    show({
+      spec: threadNamed('M6×1'),
+      mode: 'cut tap',
+      holeDiameter: 5.05,
+      deviation: { over: 0.2, under: 0.2 },
+    })
+    const cut = screen.getByRole('button', { name: 'M6×1 cut tap' })
+
+    expect(cut.querySelector('.text-danger')).toBeNull()
+    expect(within(cut).getByLabelText(/inside the shop's max drill deviation/)).toBeInTheDocument()
+  })
+
+  /** Widen the band past it and the same figure is a difference like any other. */
+  it('reads the band rather than a number of its own', () => {
+    show({
+      spec: threadNamed('M6×1'),
+      mode: 'cut tap',
+      holeDiameter: 5,
+      deviation: { over: 1, under: 1 },
+    })
+
+    expect(
+      screen.getByRole('button', { name: 'M6×1 form tap' }).querySelector('.text-danger'),
+    ).toBeNull()
   })
 })

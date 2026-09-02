@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { CatalogTool } from '@toolpath/catalog-data'
 import type { PartFeature } from '@toolpath/part-contracts'
 import { judgeTools } from './judge'
-import { marksFor, testedCodes } from './tool-marks'
+import { marksFor, shortfallMarks, testedCodes } from './tool-marks'
 
 const tool = (
   catalogNumber: string,
@@ -137,18 +137,6 @@ describe('a bull nose on a floor the model draws sharp', () => {
   })
 
   /**
-   * And it says it **instead of** the value, because the value is the number
-   * it just said, in the column that holds it (Paul, 2026-08-31, seeing
-   * "leaves 0.010 in floor radius 0.010 in").
-   */
-  it('replaces the number rather than sitting beside it', () => {
-    const bull = tool('BULL', { DC: 9, RE: 0.5, LCF: 20, LD: 2 }, 'bull nose end mill')
-    const marks = marksFor(judgeTools([bull], sharp, [sharp])[0]!, testedCodes(sharp, [sharp]))
-
-    expect(marks.RE?.ok === false && marks.RE.instead).toBe(true)
-  })
-
-  /**
    * Turn the floor radius allowance up and the same tool passes — but it
    * still leaves that radius, so the tick is orange and says what it leaves
    * (Paul, 2026-08-31: "corner radius should be an orange check if it's
@@ -216,9 +204,18 @@ describe('a drill against the hole it is for', () => {
     expect(noteFor(tool('U', { DC: 11.95, LCF: 40, LD: 3, SIG: 140 }, 'drill'))).toBe(
       '−0.05 mm from the hole',
     )
-    expect(noteFor(tool('E', { DC: 12, LCF: 40, LD: 3, SIG: 140 }, 'drill'))).toBe(
-      '±0.00 mm from the hole',
-    )
+  })
+
+  /**
+   * **A drill on the size has nothing to say** (Paul, 2026-09-02: "exact match
+   * drills don't need anything"). It read "±0.00 mm from the hole", which is a
+   * deviation of none announced as one. Measured by what the column would
+   * print: a difference too small to show at this precision is not one
+   * somebody can act on.
+   */
+  it('says nothing at all about a drill that is exactly on the hole', () => {
+    expect(noteFor(tool('E', { DC: 12, LCF: 40, LD: 3, SIG: 140 }, 'drill'))).toBeUndefined()
+    expect(noteFor(tool('N', { DC: 12.001, LCF: 40, LD: 3, SIG: 140 }, 'drill'))).toBeUndefined()
   })
 
   it('names whatever the list was judged against', () => {
@@ -342,5 +339,43 @@ describe('a filleted floor', () => {
 
     expect(mark?.ok).toBe(false)
     expect(mark?.ok === false && mark.level).toBe('must')
+  })
+})
+
+/**
+ * **One way of saying what is wrong with a row** (Paul, 2026-09-02).
+ *
+ * The taps had a table of their own that painted the failing length red and
+ * wrote "0.14 mm short" beside it. The list is the one table now, and that
+ * table says what is wrong with a row through its marks — so the shortfall is
+ * translated into one rather than kept as a second way of saying the same
+ * thing.
+ */
+describe('what stops a tap reaching', () => {
+  const format = (value: number) => `${value.toFixed(2)} mm`
+  const tap = (geometry: Record<string, number>) =>
+    tool('KTAP', { NOF: 3, ...geometry }, 'tap right hand')
+
+  it('marks the threaded length that does not reach the bottom', () => {
+    const mark = shortfallMarks(
+      tap({ DC: 6, LCF: 8, LBH: 40 }),
+      { depth: 12, below: 12 },
+      format,
+    ).LCF
+
+    expect(mark?.ok).toBe(false)
+    expect(mark?.ok === false && mark.level).toBe('must')
+    expect(mark?.ok === false && mark.why).toBe('4.00 mm short')
+  })
+
+  /** No mark at all where it reaches: the row reads plainly, like any other. */
+  it('says nothing about a tap that reaches', () => {
+    expect(
+      shortfallMarks(tap({ DC: 6, LCF: 20, LBH: 40 }), { depth: 12, below: 12 }, format),
+    ).toEqual({})
+  })
+
+  it('says nothing where there is no depth to reach', () => {
+    expect(shortfallMarks(tap({ DC: 6, LCF: 2 }), null, format)).toEqual({})
   })
 })

@@ -6,11 +6,12 @@ import {
   type Unit,
 } from '@toolpath/domain/units'
 import { classNames } from '@toolpath/domain/class-names'
+import { CheckIcon, InfoIcon, XCircleIcon } from '@phosphor-icons/react'
 import {
   HOLE_MODES,
   THREADS,
-  diameterAt,
   drillFor,
+  readLabel,
   threadNamed,
   threadOptions,
   threadsFor,
@@ -45,6 +46,12 @@ export interface ThreadPickerProps {
   /** The thread it is for; null while the hole is plain. */
   readonly spec: ThreadSpec | null
   readonly onChange: (choice: { mode: HoleMode; spec: ThreadSpec | null }) => void
+  /**
+   * How far a drill may be from the hole, over and under, in millimetres: the
+   * shop's own `max drill deviation`, which is what decides whether the model
+   * can be read as this predrill at all.
+   */
+  readonly deviation: { readonly over: number; readonly under: number }
   readonly unit: Unit
 }
 
@@ -58,7 +65,14 @@ const MAKING: ReadonlyArray<{ mode: HoleMode; label: string }> = HOLE_MODES.filt
   (mode) => mode !== 'plain',
 ).map((mode) => ({ mode, label: mode === 'form tap' ? 'Form tap' : 'Cut tap' }))
 
-export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: ThreadPickerProps) => {
+export const ThreadPicker = ({
+  holeDiameter,
+  mode,
+  spec,
+  onChange,
+  deviation: band,
+  unit,
+}: ThreadPickerProps) => {
   /**
    * How far the model is from the size that reading expects, signed: `+` is a
    * hole drawn over it. Exactly on it says so rather than showing a zero.
@@ -68,6 +82,27 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
     const shown = off.toFixed(decimalsFor(unit))
     return Number(shown) === 0 ? 'exactly' : `${off > 0 ? '+' : '−'}${shown.replace('-', '')}`
   }
+  /**
+   * **Whether the model can be read as this predrill at all.**
+   *
+   * The two figures were the same grey whatever they said (Paul, 2026-09-02:
+   * "warning visualization is not right for form taps — this should follow the
+   * conventions you just said to me"). On an M3×0.5 drawn at ⌀2.60 the cut tap
+   * is +0.10 away and the form tap −0.20, and one of those is inside the
+   * shop's own drill deviation and the other is twice outside it — printed
+   * identically.
+   *
+   * The table's convention, in the table's colours: plain where the difference
+   * is inside the band, red where it is past it. `millimetres` is the hole less
+   * the predrill, so a predrill **over** the hole is measured against `over`.
+   */
+  const past = (millimetres: number): boolean =>
+    millimetres < -band.over - 1e-9 || millimetres > band.under + 1e-9
+  /** What the red says, for the glyph that carries it. */
+  const refusal = `Further from the modelled hole than the shop's max drill deviation allows (+${formatLength(band.over, unit)} / \u2212${formatLength(band.under, unit)}): no standard drill makes both`
+  /** On the size, by what this column would print — the tick's own test. */
+  const exact = (millimetres: number): boolean =>
+    Number(convertLength(millimetres, MODEL_UNIT, unit).toFixed(decimalsFor(unit))) === 0
   const offered = threadOptions(holeDiameter, 2)
   const guesses = threadsFor(holeDiameter)
 
@@ -127,11 +162,20 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
         >
           <option value="">No thread — a plain hole</option>
           {offered.length === 0 ? null : (
-            <optgroup label="Suggested — what this hole reads as">
+            /*
+              **The list ranks; it does not argue** (Paul, 2026-09-02: "we
+              don't need to defend our match on the thread spec in the drop
+              down — we should just float the closest matches to the top and
+              call the section 'Closest Match to Modeled Diameter'"). Every
+              option carried what it read as *and* how far the model was off
+              it, which is a case being made for a guess in a list somebody is
+              scanning. The order already says which is closest; the words say
+              only which diameter it is closest to.
+            */
+            <optgroup label="Closest match to modeled diameter">
               {offered.map((each) => (
                 <option key={each.spec.name} value={each.spec.name}>
-                  {each.spec.name} — its {each.read},{' '}
-                  {deviation(holeDiameter - diameterAt(each.spec, each.read))}
+                  {each.spec.name} — {readLabel(each.read)}
                 </option>
               ))}
             </optgroup>
@@ -142,7 +186,7 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
               return (
                 <option key={each.name} value={each.name}>
                   {each.name}
-                  {guess ? ` — its ${guess.read}` : ''}
+                  {guess ? ` — ${readLabel(guess.read)}` : ''}
                 </option>
               )
             })}
@@ -205,12 +249,73 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
                 <span className="text-2xs min-w-0 flex-1 truncate">{way.label}</span>
                 {drill === null ? null : (
                   <>
-                    <span className="w-16 text-right font-mono text-[11px] whitespace-nowrap">
+                    {/*
+                      **The number the mark is about wears its colour** (Paul,
+                      2026-09-02: "diameter number should be red and a red x
+                      icon to hover over to see info"). The predrill stayed the
+                      plain colour of a figure nobody had anything to say about
+                      while the deviation beside it was red — which is the table's
+                      rule read backwards, since the number in question is the
+                      hole this way of making the thread starts from.
+                    */}
+                    <span
+                      className={classNames(
+                        'w-16 text-right font-mono text-[11px] whitespace-nowrap',
+                        past(holeDiameter - drill) ? 'text-danger' : '',
+                      )}
+                    >
                       ⌀{formatLength(drill, unit)}
                     </span>
-                    {/* How far the hole as modelled is from that drill. */}
-                    <span className="w-20 shrink-0 text-right font-mono text-[10px] text-zinc-500">
+                    {/*
+                      **The tool list's convention, in the tool list's
+                      colours** (Paul, 2026-09-02: "warning visualization is not
+                      right for form taps — they are using the old convention").
+                      These two figures were the same grey whatever they said,
+                      while the table beside them had settled on three states:
+                      a green tick where a number is exactly right, the figure
+                      in its ordinary colour under a grey `i` where it is inside
+                      the shop's own deviation, and red where it is past it. On
+                      an M3×0.5 drawn at ⌀2.60 the cut tap is +0.10 away and the
+                      form tap −0.20 — one inside the band and one twice outside
+                      — printed identically.
+                    */}
+                    <span
+                      className={classNames(
+                        'flex w-20 shrink-0 items-center justify-end gap-1 text-right font-mono text-[10px]',
+                        past(holeDiameter - drill) ? 'text-danger' : 'text-zinc-500',
+                      )}
+                    >
                       {deviation(holeDiameter - drill)}
+                      {past(holeDiameter - drill) ? (
+                        /*
+                          **A refusal has a glyph too** (Paul, 2026-09-02). The
+                          exact and inside-the-band states each hang their
+                          sentence on an icon somebody hovers; past the band —
+                          the one state worth stopping on — had a bare red
+                          number and the explanation on the whole cell, so the
+                          row read as two figures where one happened to be red.
+                          The `x` is the third of the three the table uses, and
+                          it carries the words.
+                        */
+                        <span className="text-danger shrink-0" title={refusal}>
+                          <XCircleIcon aria-label={refusal} className="size-3" />
+                        </span>
+                      ) : exact(holeDiameter - drill) ? (
+                        <CheckIcon
+                          aria-label="exactly this predrill"
+                          className="size-3 shrink-0 text-emerald-400"
+                        />
+                      ) : (
+                        <span
+                          className="shrink-0 text-zinc-400"
+                          title={`Inside the shop's max drill deviation, +${formatLength(band.over, unit)} / −${formatLength(band.under, unit)}`}
+                        >
+                          <InfoIcon
+                            aria-label={`inside the shop's max drill deviation for a ⌀${formatLength(drill, unit)} predrill`}
+                            className="size-3"
+                          />
+                        </span>
+                      )}
                     </span>
                   </>
                 )}

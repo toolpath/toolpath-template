@@ -35,6 +35,8 @@ export const holeDepthOf = (feature: PartFeature): number | null => {
 export const holeAt = (feature: PartFeature, diameter: number): PartFeature => {
   const sheet = (feature.datasheet ?? {}) as Record<string, unknown>
   const facts = asRecord(sheet.facts) ?? {}
+  const bore = asNumber(facts.diameter)
+  const endMillCap = asNumber(facts.maxEndmillDiameter)
   return {
     ...feature,
     datasheet: {
@@ -55,6 +57,26 @@ export const holeAt = (feature: PartFeature, diameter: number): PartFeature => {
          * bore came back "too large".
          */
         ...(facts.maxDrillDiameter === undefined ? {} : { maxDrillDiameter: diameter }),
+        /**
+         * **And so is the end mill limit** (Paul, 2026-09-02, asking for an
+         * end mill to be usable in place of a drill).
+         *
+         * The kernel states `maxEndmillDiameter` for the bore it was given —
+         * short of the bore itself, because an end mill has to helix down
+         * inside it — and it is the number `largest end mill diameter` reads.
+         * Standing the hole in at the predrill without it would judge a mill
+         * against the modelled bore while every drill beside it was judged
+         * against the predrill, which is the defect the line above fixes for
+         * drills.
+         *
+         * Rescaled rather than recomputed: the kernel's own allowance is a
+         * proportion of the bore, and this repository does not know how it
+         * was arrived at. What it can say is that the same proportion of a
+         * different bore is the same claim about a different hole.
+         */
+        ...(bore === null || bore === 0 || endMillCap === null
+          ? {}
+          : { maxEndmillDiameter: (endMillCap * diameter) / bore }),
       },
     },
   } as PartFeature
@@ -87,6 +109,77 @@ const isTap = (form: string): boolean => form.startsWith('tap ')
 export const THREADED_FORMS: ReadonlyArray<string> = [
   'drill',
   ...TOOL_FORMS.filter((form) => isTap(form.value)).map((form) => form.value),
+]
+
+/**
+ * The end mills that can make a hole in place of a drill.
+ *
+ * **A predrill is a hole, and a hole can be interpolated** (Paul, 2026-09-02:
+ * "I need to be able to use an end mill on a threaded hole in place of a
+ * drill"). The rules sheet already says so — `*Hole` ranks `drill; flat end
+ * mill; bull nose end mill; ball end mill` and caps a mill at the largest end
+ * mill diameter, which is short of the bore because it has to helix down
+ * inside it. What kept them off a threaded hole's list was this application:
+ * choosing a thread writes {@link THREADED_FORMS} into the filters, and the
+ * list is drills-only besides.
+ *
+ * The two flat-bottomed forms and no more: a ball nose leaves a round bottom
+ * in a hole meant to be tapped, and it is the last of the four the sheet ranks.
+ */
+export const PREDRILL_MILL_FORMS: ReadonlyArray<string> = ['flat end mill', 'bull nose end mill']
+
+/**
+ * The form filter with the predrilling mills added or taken away.
+ *
+ * The button is a **filter**, not a second list: the filters are the last word
+ * on what a list holds, so a shop that turns the mills on can see them in the
+ * rail and turn them off there too (Paul, 2026-08-31, on why a threaded hole
+ * writes its forms into the filters rather than hiding the rest).
+ */
+export const millsShown = (forms: ReadonlyArray<string>): Array<string> =>
+  PREDRILL_MILL_FORMS.filter((form) => forms.includes(form))
+
+/**
+ * What the button says, which is what the filter says.
+ *
+ * **The filter is the switch** (Paul, 2026-09-02: "end mills should also show
+ * if I enable them in the top level filter, and the button should highlight —
+ * if only one type is shown, it should say 'showing <flat, or whatever type>
+ * end mills'"). Ticking one form on the rail is the same act as pressing this,
+ * so the button reads its state off the same place and names what is actually
+ * on rather than claiming both.
+ */
+export const millsLabel = (forms: ReadonlyArray<string>): string => {
+  const on = millsShown(forms)
+  if (on.length === 0) {
+    return 'Show compatible endmills'
+  }
+  if (on.length === PREDRILL_MILL_FORMS.length) {
+    return 'Showing end mills'
+  }
+  return `Showing ${on[0] ?? ''}s`
+}
+
+export const formsWithMills = (forms: ReadonlyArray<string>, on: boolean): Array<string> =>
+  on
+    ? [...forms, ...PREDRILL_MILL_FORMS.filter((form) => !forms.includes(form))]
+    : forms.filter((form) => !PREDRILL_MILL_FORMS.includes(form))
+
+/**
+ * The forms the drill half of a threaded hole's list shows, drills first.
+ *
+ * **Drills lead, always** (Paul, 2026-09-02: "it should always show drills
+ * first by default"). A mill that lands exactly on the predrill would outrank
+ * every drill on the sheet's own "closest to the hole diameter" row, and the
+ * shop rule is that a hole up to an inch is drilled — the sheet says so as a
+ * `prefer`. So the mills follow the drills rather than being ranked among
+ * them, each half in the order the rules put it.
+ */
+export const drillsFirst = <T extends { readonly form: string }>(
+  tools: ReadonlyArray<T>,
+): Array<T> => [
+  ...tools.filter((each) => each.form === 'drill'),
+  ...tools.filter((each) => each.form !== 'drill'),
 ]
 
 /** How far a tap's own diameter may be from the thread's, in millimetres. */

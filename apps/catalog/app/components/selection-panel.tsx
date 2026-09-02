@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CaretDownIcon, CursorClickIcon, InfoIcon } from '@phosphor-icons/react'
+import { CaretDownIcon, InfoIcon } from '@phosphor-icons/react'
 import type { PartFeature } from '@toolpath/part-contracts'
 import {
   STRIP_LABELS,
@@ -50,6 +50,12 @@ export interface SelectionPanelProps {
     readonly mode: HoleMode
     readonly spec: ThreadSpec | null
     readonly onChange: (choice: { mode: HoleMode; spec: ThreadSpec | null }) => void
+    /**
+     * How far a drill may be from the hole, over and under, in millimetres —
+     * the shop's own `max drill deviation`. What the panel needs it for is
+     * saying whether the model can be predrilled to a standard size at all.
+     */
+    readonly deviation: { readonly over: number; readonly under: number }
   }
 }
 
@@ -153,14 +159,7 @@ export const SelectionPanel = ({
   }
 
   return (
-    <div className="flex flex-col gap-1.5 p-2">
-      <h4 className="text-2xs flex items-center gap-1.5 font-semibold tracking-wide text-zinc-500 uppercase">
-        <span className="text-zinc-600">
-          <CursorClickIcon />
-        </span>
-        Features
-      </h4>
-
+    <div className="flex flex-col gap-1.5">
       {/* **The field is drawn before it has an answer.** An empty panel that
           fills in later makes the page jump the first time somebody clicks the
           part, and — worse — gives no sign that a click on the part is what it
@@ -314,6 +313,7 @@ export const SelectionPanel = ({
           mode={thread.mode}
           spec={thread.spec}
           onChange={thread.onChange}
+          deviation={thread.deviation}
           unit={unit}
         />
       ) : null}

@@ -1,6 +1,8 @@
 import type { PartFeature } from '@toolpath/part-contracts'
+import type { CatalogTool } from '@toolpath/catalog-data'
 import { plainFormat, type Format, type Verdict } from './judge'
 import { RULES, rulesFor, type Rule } from './rules'
+import { shortfallOf, type ThreadReach } from './hole-mode'
 
 /**
  * What the matching says about a tool, **column by column**.
@@ -58,6 +60,11 @@ export type Mark =
    * Why it did not, in two words, with the rule's own sentence behind it —
    * and **which kind of rule said so**.
    *
+   * Neither is written into the row: the table hangs both on one glyph beside
+   * the number, in the mark's own colour, and shows them on hover (Paul,
+   * 2026-09-02: "it is writing out too large — it should be red text, red x
+   * icon with hover over to show that").
+   *
    * A `must` is a fact about the geometry and the tool is not shown; a
    * `should` is a caution and the tool is. Painting them the same made a tool
    * of exactly the right size read as rejected: it passes "no wider than the
@@ -70,14 +77,6 @@ export type Mark =
       readonly level: 'must' | 'should'
       readonly why: string
       readonly detail: string
-      /**
-       * The words go **in place of** the number, not beside it.
-       *
-       * "leaves 0.010 in floor radius" already says the corner radius, and the
-       * cell it sits in is the corner radius column — printed beside the value
-       * it read as the same number twice (Paul, 2026-08-31).
-       */
-      readonly instead?: boolean
     }
 
 /**
@@ -167,7 +166,8 @@ const shortly = (rule: Rule | null, text: string): string => {
  * The one caution that says something the geometry does not is the corner
  * radius: a bull nose standing in for a flat end leaves its own radius on a
  * floor the model draws sharp, and that is a number somebody decides on. So
- * that one speaks, and speaks in place of the value.
+ * that one speaks — on the glyph beside the value, which is where every mark's
+ * words go since 2026-09-02.
  */
 const cautionSays = (
   rule: Rule | null,
@@ -177,13 +177,12 @@ const cautionSays = (
     readonly bottom: number | null
   },
   format: Format,
-): { readonly why: string; readonly instead: boolean } | null => {
+): string | null => {
   if (rule?.test.kind !== 'bound') {
     return null
   }
   if (rule.test.field === 'corner radius' && said.leaves !== null && said.leaves > 0) {
-    // The words go in place of the value: the column is the corner radius.
-    return { why: `leaves ${format(said.leaves, 'mm')} floor radius`, instead: true }
+    return `leaves ${format(said.leaves, 'mm')} floor radius`
   }
   /**
    * A drill's point against the bottom it is cutting.
@@ -198,10 +197,7 @@ const cautionSays = (
     if (Math.abs(off) < 0.05) {
       return null
     }
-    return {
-      why: `${format(Math.abs(off), 'deg')} ${off > 0 ? 'shallower' : 'sharper'} than the bottom`,
-      instead: false,
-    }
+    return `${format(Math.abs(off), 'deg')} ${off > 0 ? 'shallower' : 'sharper'} than the bottom`
   }
   return null
 }
@@ -282,8 +278,17 @@ export const marksFor = (
     verdict.tool.form === 'drill'
   ) {
     const off = bore - holeDiameter
-    const by = `${off > 0 ? '+' : off < 0 ? '−' : '±'}${format(Math.abs(off), 'mm')}`
-    marks.DC = { ok: true, note: `${by} from ${measuredFrom}` }
+    const shown = format(Math.abs(off), 'mm')
+    /*
+      **A drill on the size has nothing to say** (Paul, 2026-09-02: "exact
+      match drills don't need anything"). It read "±0.000 in from the tap
+      drill", which is a deviation of none announced as a deviation. Measured
+      by what the column would *print*: a difference too small to show at this
+      precision is not one somebody can act on, so the tick stands alone.
+    */
+    if (Number.parseFloat(shown) !== 0) {
+      marks.DC = { ok: true, note: `${off > 0 ? '+' : '−'}${shown} from ${measuredFrom}` }
+    }
   }
   /**
    * A drill point that differs from the bottom it cuts, **within tolerance**.
@@ -358,13 +363,7 @@ export const marksFor = (
     if (code === undefined || says === null) {
       continue
     }
-    marks[code] = {
-      ok: false,
-      level: 'should',
-      why: says.why,
-      detail: reason.text,
-      instead: says.instead,
-    }
+    marks[code] = { ok: false, level: 'should', why: says, detail: reason.text }
   }
   for (const reason of verdict.removed) {
     const field = reason.rule?.test.kind === 'bound' ? reason.rule.test.field : null
@@ -380,4 +379,46 @@ export const marksFor = (
     }
   }
   return marks
+}
+
+/**
+ * What stops a tap reaching, in the column it is about.
+ *
+ * The taps had a table of their own, which painted the failing length red and
+ * wrote "0.14 in short" beside it. The list is the one table now (Paul,
+ * 2026-09-02), and the one table says what is wrong with a row through its
+ * marks — so the shortfall is translated into one rather than kept as a second
+ * way of saying the same thing.
+ *
+ * A `must`: nothing that fails to reach the bottom of the hole is a tool for
+ * it. Where the tap reaches, there is no mark and the row reads plainly.
+ */
+export const shortfallMarks = (
+  tool: CatalogTool,
+  reach: ThreadReach | null,
+  format: Format,
+): Record<string, Mark> => {
+  const missed = shortfallOf(tool, reach)
+  if (missed === null) {
+    return {}
+  }
+  return {
+    [missed.code]:
+      missed.by === null
+        ? {
+            ok: false,
+            level: 'must',
+            why: 'fouls the part',
+            detail: 'At the stickout this hole needs, the tool runs into the part on the way in.',
+          }
+        : {
+            ok: false,
+            level: 'must',
+            why: `${format(missed.by, 'mm')} short`,
+            detail:
+              missed.code === 'LCF'
+                ? 'Its threaded length does not reach the bottom of the hole.'
+                : 'It does not stand far enough out of the holder to reach the bottom of the hole.',
+          },
+  }
 }

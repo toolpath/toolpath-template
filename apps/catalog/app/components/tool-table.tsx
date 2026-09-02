@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import type { CatalogTool, Holder } from '@toolpath/catalog-data'
 import { GEOMETRY_FIELDS } from '@toolpath/catalog-data'
 import { Link } from 'react-router'
@@ -9,11 +9,13 @@ import {
   CaretDownIcon,
   CaretUpIcon,
   CheckIcon,
+  InfoIcon,
   MagnifyingGlassIcon,
   PencilSimpleIcon,
   PlusIcon,
   TrashIcon,
   WarningIcon,
+  XCircleIcon,
 } from '@phosphor-icons/react'
 import { classNames } from '@toolpath/domain/class-names'
 import type { Mark } from 'shared/tool-marks'
@@ -30,10 +32,17 @@ import { ToolTypeIcon, toolTypeLabel, formLabel } from './tool-icons'
  * catalog knows it, but a table that shows every field it holds is a table
  * nobody can read a row of.
  */
-export const TOOL_COLUMNS = [
+export interface ToolColumn {
+  readonly code: string
+  readonly label: string
+  /** Whether a list opens with it, before anybody edits the columns. */
+  readonly default: boolean
+}
+
+export const TOOL_COLUMNS: ReadonlyArray<ToolColumn> = [
   { code: 'DC', label: 'Diameter', default: true },
-  { code: 'holder', label: 'Holder', default: false, holding: true },
-  { code: 'collet', label: 'Collet', default: false, holding: true },
+  { code: 'holder', label: 'Holder', default: false },
+  { code: 'collet', label: 'Collet', default: false },
   { code: 'LCF', label: 'Flute length', default: true },
   { code: 'LBH', label: 'Length below holder', default: true },
   { code: 'LD', label: 'L/D', default: true },
@@ -42,20 +51,47 @@ export const TOOL_COLUMNS = [
   { code: 'NOF', label: 'Flutes', default: true },
   { code: 'SFDM', label: 'Shank', default: true },
   { code: 'SIG', label: 'Tip angle', default: false },
-] as const
+]
 
 /**
- * Which columns are drawn, in the order they are drawn in.
+ * The columns a **threading** list offers, and what it opens with.
  *
- * Exported because the tap section under the list mirrors it: two tables in
- * one panel with different columns read as two different things, and Paul
- * asked for them aligned (2026-08-31).
+ * The taps had a table of their own until 2026-09-02, mirroring the drill
+ * table's columns and printing a dash under the two a tap does not have
+ * (Paul: "why do these all look a little different?"). It is one table now,
+ * and what changes between a drill list and a tap list is this: the columns
+ * on offer.
+ *
+ * A tap in this catalog states seven numbers — `DC`, `SFDM`, `OAL`, `LCF`,
+ * `NOF`, and the two derived from them — so those seven are the whole list,
+ * with no corner radius and no point angle to tick and find empty (`RE` and
+ * `SIG` are the two the old table dashed). Two of them mean something else
+ * here than they do on a mill, and say so: `DC` is the thread's nominal
+ * diameter rather than a width of cut, and `LCF` is the threaded length.
  */
-export const shownColumns = (
+export const TAP_COLUMNS: ReadonlyArray<ToolColumn> = [
+  { code: 'DC', label: 'Thread diameter', default: true },
+  { code: 'holder', label: 'Holder', default: false },
+  { code: 'collet', label: 'Collet', default: false },
+  { code: 'LCF', label: 'Thread length', default: true },
+  { code: 'LBH', label: 'Below holder', default: true },
+  { code: 'LD', label: 'L/D', default: true },
+  { code: 'OAL', label: 'Overall length', default: true },
+  { code: 'NOF', label: 'Flutes', default: true },
+  { code: 'SFDM', label: 'Shank', default: true },
+]
+
+/** The codes a list of this kind hides until somebody asks for them. */
+export const hiddenByDefault = (columns: ReadonlyArray<ToolColumn>): Array<string> =>
+  columns.filter((column) => !column.default).map((column) => column.code)
+
+/** Which columns are drawn, in the order they are drawn in. */
+const shownColumns = (
   hidden: ReadonlyArray<string>,
   order?: ReadonlyArray<string>,
-): ReadonlyArray<(typeof TOOL_COLUMNS)[number]> => {
-  const kept = TOOL_COLUMNS.filter((column) => !hidden.includes(column.code))
+  columns: ReadonlyArray<ToolColumn> = TOOL_COLUMNS,
+): ReadonlyArray<ToolColumn> => {
+  const kept = columns.filter((column) => !hidden.includes(column.code))
   if (order === undefined) {
     return kept
   }
@@ -226,21 +262,21 @@ export interface ToolTableProps {
    */
   readonly columnOrder?: ReadonlyArray<string>
   /**
+   * Which columns this kind of list offers at all.
+   *
+   * {@link TOOL_COLUMNS} unless said otherwise; a threading list passes
+   * {@link TAP_COLUMNS}, which is the only difference between the two lists
+   * (Paul, 2026-09-02: "taps should use their overall format, but show
+   * different information, specific to the taps").
+   */
+  readonly columns?: ReadonlyArray<ToolColumn>
+  /** What to say where nothing is listed. The catalog's own sentence unless given. */
+  readonly empty?: ReactNode
+  /**
    * What the matching says about each tool, column by column: a tick on what
    * the rules read and passed, the field that failed in red.
    */
   readonly marks?: (tool: CatalogTool) => Record<string, Mark>
-  /**
-   * The list is the **nearest misses**: nothing in the crib fits this feature,
-   * so what is shown is what came closest and what stopped each.
-   *
-   * Marked on every row rather than only in the line above the table (Paul,
-   * 2026-09-01: "isn't that tool just incompatible and shouldn't be shown?").
-   * It is shown on purpose — an empty list answers nothing, and "this one is
-   * 0.1 mm too wide" is worth reading — but a row nobody can use has to say so
-   * where somebody looks.
-   */
-  readonly nearest?: boolean
   /**
    * The rail asks this question too, so the header hands it over.
    *
@@ -457,6 +493,8 @@ export const ToolTable = ({
   onTerm,
   hiddenColumns,
   columnOrder,
+  columns = TOOL_COLUMNS,
+  empty,
   marks,
   sort = null,
   onSort,
@@ -468,7 +506,6 @@ export const ToolTable = ({
   holding,
   search = '',
   onSearch,
-  nearest = false,
   onRailFilter,
   railKeys = {},
 }: ToolTableProps) => {
@@ -493,13 +530,11 @@ export const ToolTable = ({
       .map(([value, count]) => ({ value, label: toolTypeLabel(value), count }))
       .sort((a, b) => a.label.localeCompare(b.label))
   }, [tools, terms.form])
-  const hidden = useMemo(
-    () =>
-      hiddenColumns ??
-      TOOL_COLUMNS.filter((column) => !column.default).map((column) => column.code),
-    [hiddenColumns],
+  const hidden = useMemo(() => hiddenColumns ?? hiddenByDefault(columns), [hiddenColumns, columns])
+  const shown = useMemo(
+    () => shownColumns(hidden, columnOrder, columns),
+    [hidden, columnOrder, columns],
   )
-  const shown = useMemo(() => shownColumns(hidden, columnOrder), [hidden, columnOrder])
   /**
    * **A page of rows, not the whole catalog.**
    *
@@ -515,7 +550,7 @@ export const ToolTable = ({
   if (tools.length === 0) {
     return (
       <p className="p-6 text-sm text-zinc-400">
-        No tool in the catalog matches every part of this selection.
+        {empty ?? 'No tool in the catalog matches every part of this selection.'}
       </p>
     )
   }
@@ -654,17 +689,17 @@ export const ToolTable = ({
                   className={classNames(
                     'overflow-hidden whitespace-nowrap',
                     'px-3 py-2 text-left font-normal',
-                    nearest ? 'opacity-80' : '',
                   )}
                 >
-                  {nearest ? (
-                    <span
-                      className="text-2xs mr-1.5 rounded border border-amber-500/40 px-1 py-0.5 align-middle text-amber-300"
-                      title="Nothing in the crib fits this feature; this is one of the closest, and the columns say what stops it"
-                    >
-                      near miss
-                    </span>
-                  ) : null}
+                  {/*
+                    **No badge on the row** (Paul, 2026-09-02: "get rid of
+                    'near miss' there"). Every row of a nearest-miss list wore
+                    one, under a heading already saying "nothing in the crib
+                    fits — the closest are shown, with what stops each" and
+                    beside a column already saying "too large" in red. Three
+                    ways of saying one thing, and the one on the row cost the
+                    catalog number its width.
+                  */}
                   {/* Where the page has somewhere to put a tool, the number
                     chooses it rather than navigating: leaving the part to read
                     a tool loses the selection that produced the list. */}
@@ -752,7 +787,15 @@ export const ToolTable = ({
                   </span>
                 </td>
                 {shown.map((column) => {
-                  if (isStack(column.code)) {
+                  const mark = rowMarks[column.code]
+                  /*
+                    **A rule that failed on this column has the last word.**
+                    The stack cell is about a holder somebody chose, and a tap
+                    that cannot be got to the bottom of the hole failed on this
+                    length before any holder was picked — said in the column it
+                    is about, or not said at all.
+                  */
+                  if (isStack(column.code) && (mark === undefined || mark.ok)) {
                     /**
                      * **The tool's own length below the holder, until a holder
                      * says otherwise** (Paul, 2026-09-01).
@@ -794,10 +837,12 @@ export const ToolTable = ({
                           <span className="flex items-baseline justify-end gap-1.5 whitespace-nowrap">
                             {changed ? (
                               <span
-                                className={classNames(
-                                  'text-2xs font-sans',
-                                  over ? 'text-amber-300' : 'text-info',
-                                )}
+                                // Yellow either way: a stack that needs a
+                                // different stickout from the tool's own is
+                                // worth reading whichever way it went (Paul,
+                                // 2026-09-02: "colors should only be green,
+                                // yellow, red").
+                                className="text-2xs font-sans text-amber-300"
                                 title={
                                   own === undefined
                                     ? 'What this holder needs to clear the part'
@@ -837,7 +882,6 @@ export const ToolTable = ({
                     )
                   }
                   const value = tool.geometry[column.code]
-                  const mark = marks?.(tool)[column.code]
                   return (
                     <td
                       key={column.code}
@@ -848,79 +892,131 @@ export const ToolTable = ({
                         // stopped it. It truncates inside its own cell now,
                         // with the whole of it on the title.
                         'overflow-hidden px-3 py-2 text-right font-mono',
-                        // A caution is not a refusal: amber for a `should`,
-                        // red only for the rule that took the tool off the list.
-                        mark && !mark.ok
-                          ? mark.level === 'must'
-                            ? 'text-danger'
-                            : 'text-amber-300'
-                          : 'text-zinc-300',
+                        /*
+                          **The number wears the mark's own colour** (Paul,
+                          2026-09-02: "show the tool's tip angle in orange and
+                          have an icon to show"). The glyph beside it said
+                          amber while the figure it was about stayed the plain
+                          colour of a number nobody had anything to say about,
+                          so a 140° drill in a 118° hole read as unremarkable
+                          until somebody found the 12 px triangle.
+
+                          A caution is not a refusal: amber for a `should`, red
+                          only for the rule that took the tool off the list, and
+                          and nothing at all for a difference **inside** the
+                          shop's own tolerance: in range is in range, so the
+                          number is read like any other and the grey `i` beside
+                          it is where the figure lives (Paul, 2026-09-02:
+                          "normal text, light grey icon for within tolerance").
+
+                          **Three colours** (Paul, same day: "colors should
+                          only be green, yellow, red"). A number the rules
+                          simply passed is read in the plain colour of a
+                          number, and the green is the tick beside it.
+                        */
+                        mark === undefined
+                          ? 'text-zinc-300'
+                          : !mark.ok
+                            ? mark.level === 'must'
+                              ? 'text-danger'
+                              : 'text-amber-300'
+                            : mark.caution !== undefined
+                              ? 'text-amber-300'
+                              : 'text-zinc-300',
                       )}
                     >
                       {/*
-                        **The number on its own line, what the rules said under
-                        it** (Paul, 2026-09-01: "no space is given to taps, drill
-                        table has wildly different row height and still
-                        overlapping text. Tighten it up"). Beside the figure, a
-                        note wrapped a word at a time and grew the row to eight
-                        lines; truncated inline it collided with the value. A
-                        second line, clipped to one, keeps every row of a list
-                        the same height — and the whole sentence is on the
-                        title.
+                        **The reason is on a glyph, not written out** (Paul,
+                        2026-09-02: "it is writing out too large — it should be
+                        red text, red x icon with hover over to show that"). The
+                        rule's two words sat on a second line under the number:
+                        a line only failing rows carry, so a list of near misses
+                        had rows of two heights, and the words themselves
+                        ("too large" beside 12.70 mm) repeated what the red
+                        already said.
+
+                        One line per row, and every state says itself the same
+                        way — the number in its mark's colour, and one glyph
+                        beside it carrying the sentence on hover. A red `x` for
+                        the rule that took the tool off the list, amber for a
+                        caution, grey `i` for a figure worth reading, a green
+                        tick for a number the rules read and passed.
                       */}
-                      <span className="flex flex-col items-end leading-tight">
-                        <span className="flex items-baseline justify-end gap-1.5 whitespace-nowrap">
-                          {/* A dash where the vendor states nothing, rather than
-                            a zero that reads as a measured value of zero — and
-                            nothing at all where the words already said the
-                            number this column holds. */}
-                          {mark && !mark.ok && mark.instead ? null : (
-                            <span>
-                              {value === undefined ? '—' : formatGeometry(column.code, value, unit)}
-                            </span>
-                          )}
-                          {/*
+                      <span className="flex items-baseline justify-end gap-1.5 whitespace-nowrap">
+                        {/* A dash where the vendor states nothing, rather than a
+                          zero that reads as a measured value of zero. */}
+                        <span>
+                          {value === undefined ? '—' : formatGeometry(column.code, value, unit)}
+                        </span>
+                        {mark === undefined ? null : !mark.ok ? (
+                          <span
+                            className={classNames(
+                              'shrink-0',
+                              mark.level === 'must' ? 'text-danger' : 'text-amber-300',
+                            )}
+                            title={`${mark.why} — ${mark.detail}`}
+                          >
+                            {/*
+                              A refusal and a caution are not the same glyph: the
+                              `x` is the rule that took the tool off the list,
+                              and the warning is the one that would let it
+                              through with a second look.
+                            */}
+                            {mark.level === 'must' ? (
+                              <XCircleIcon
+                                aria-label={`${mark.why} — ${mark.detail}`}
+                                className="size-3.5"
+                              />
+                            ) : (
+                              <WarningIcon
+                                weight="fill"
+                                aria-label={`${mark.why} — ${mark.detail}`}
+                                className="size-3.5"
+                              />
+                            )}
+                          </span>
+                        ) : /*
                             A tick means "the rules read this and it passed". A
                             caution is not that, so it is not a tick: an amber
                             check read as a green one at a glance and as a smudge
                             at 12 px (Paul, 2026-08-31). A warning glyph says at
                             a glance that this one wants a second look.
-                          */}
-                          {mark?.ok ? (
-                            mark.caution === undefined ? (
-                              <CheckIcon
-                                aria-label="within the rules"
-                                className="size-3 shrink-0 text-emerald-400"
-                              />
-                            ) : (
-                              <span className="shrink-0 text-amber-300" title={mark.caution}>
-                                <WarningIcon
-                                  weight="fill"
-                                  aria-label={mark.caution}
-                                  className="size-3.5"
-                                />
-                              </span>
-                            )
-                          ) : null}
-                        </span>
-                        {/* Three words for what is wrong, or how far a drill is
-                          off the hole it is for: one line either way, and the
-                          rule's own sentence behind it. */}
-                        {mark && !mark.ok ? (
-                          <span
-                            className="text-2xs max-w-full truncate font-sans"
-                            title={mark.detail}
-                          >
-                            {mark.why}
+                          */
+                        mark.caution !== undefined ? (
+                          <span className="shrink-0 text-amber-300" title={mark.caution}>
+                            <WarningIcon
+                              weight="fill"
+                              aria-label={mark.caution}
+                              className="size-3.5"
+                            />
                           </span>
-                        ) : mark?.ok && mark.note ? (
-                          <span
-                            className="text-2xs line-clamp-2 max-w-full font-sans text-zinc-400"
-                            title={mark.note}
-                          >
-                            {mark.note}
+                        ) : mark.note !== undefined ? (
+                          /*
+                            **A number worth reading, on hover** (Paul,
+                            2026-09-02: "I don't like how the drill deviation is
+                            changing the row height — let's do an i that you
+                            hover over to see the deviation"). It was a second
+                            line under the figure, which is a line every drill in
+                            a list carries and a line no tap or mill does.
+
+                            Grey, beside a figure in its ordinary colour: the
+                            deviation is inside the shop's own tolerance, so the
+                            glyph says "there is a number here" and not "look
+                            out" (Paul, same day).
+                          */
+                          <span className="shrink-0 text-zinc-400" title={mark.note}>
+                            {/* Outline, not solid: a circle with an i in it
+                                (Paul, 2026-09-02). A filled disc reads as a
+                                status light beside a number that has no status
+                                to report. */}
+                            <InfoIcon aria-label={mark.note} className="size-3.5" />
                           </span>
-                        ) : null}
+                        ) : (
+                          <CheckIcon
+                            aria-label="within the rules"
+                            className="size-3 shrink-0 text-emerald-400"
+                          />
+                        )}
                       </span>
                     </td>
                   )

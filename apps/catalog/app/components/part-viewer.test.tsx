@@ -158,3 +158,76 @@ describe('how the part is projected', () => {
     expect(screen.getByTestId('viewer')).toHaveAttribute('data-projection', 'orthographic')
   })
 })
+
+/**
+ * **The record starts past the questions** (Paul, 2026-09-02: "feature info
+ * needs fixed — it should start to the right of the feature box").
+ *
+ * It started at a fixed `21rem`, which was the width of the two boxes over the
+ * top-left corner on the day it was written. The feature box grows — a threaded
+ * hole adds a thread picker and two rows of predrills — and past 21rem the
+ * record opened over the box it was opened from. Measured now, so it tracks
+ * whatever the corner holds.
+ */
+describe('where the feature record opens', () => {
+  /** A `ResizeObserver` that measures once, like the real one on observe. */
+  class StubResizeObserver {
+    constructor(private readonly callback: ResizeObserverCallback) {}
+    observe() {
+      this.callback([], this as unknown as ResizeObserver)
+    }
+    unobserve() {}
+    disconnect() {}
+  }
+
+  const widthOf = (pixels: number) => {
+    vi.stubGlobal('ResizeObserver', StubResizeObserver)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: pixels,
+      height: 400,
+    } as DOMRect)
+    show({
+      overlay: <div>the questions</div>,
+      details: <p>everything Toolpath measured</p>,
+    })
+    return screen.getByText('everything Toolpath measured').closest('div')?.parentElement
+  }
+
+  it('begins past the corner it was opened from, whatever that corner is wide', () => {
+    // 12px of margin plus the gap between the columns, past the measured box.
+    expect(widthOf(520)).toHaveStyle({ left: '540px' })
+  })
+
+  it('falls back to the class until something has been measured', () => {
+    vi.stubGlobal('ResizeObserver', undefined)
+    show({ overlay: <div>the questions</div>, details: <p>the record</p> })
+
+    const panel = screen.getByText('the record').closest('div')?.parentElement
+    expect(panel?.className).toContain('left-[21rem]')
+    expect(panel?.getAttribute('style')).toBeNull()
+  })
+})
+
+/**
+ * **A form has to be finishable** (Paul, 2026-09-02: "make the selection dialog
+ * go over the table — the table is blocking me from confirming long lists right
+ * now"). The viewer clips its overlay, which is right for a box read at a
+ * glance and wrong for one with a confirm button under a list somebody is still
+ * adding to.
+ */
+describe('an overlay taller than the viewer', () => {
+  const section = () => screen.getByText('the questions').closest('section')
+
+  it('is clipped to the viewer by default', () => {
+    show({ overlay: <div>the questions</div> })
+
+    expect(section()?.className).toContain('overflow-hidden')
+  })
+
+  it('is let out, and above the panel below it, while it says it needs to be', () => {
+    show({ overlay: <div>the questions</div>, overlaySpills: true })
+
+    expect(section()?.className).not.toContain('overflow-hidden')
+    expect(section()?.className).toContain('z-50')
+  })
+})

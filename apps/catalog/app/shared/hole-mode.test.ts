@@ -2,7 +2,19 @@ import { describe, expect, it } from 'vitest'
 import type { PartFeature } from '@toolpath/part-contracts'
 import type { CatalogTool } from '@toolpath/catalog-data'
 import { asRecord } from '@toolpath/part-contracts/datasheet'
-import { THREADED_FORMS, holeAt, makersFor, reaches, shortfallOf, tapsFor } from './hole-mode'
+import {
+  PREDRILL_MILL_FORMS,
+  THREADED_FORMS,
+  drillsFirst,
+  formsWithMills,
+  millsLabel,
+  millsShown,
+  holeAt,
+  makersFor,
+  reaches,
+  shortfallOf,
+  tapsFor,
+} from './hole-mode'
 import { threadNamed } from './threads'
 
 /**
@@ -76,6 +88,115 @@ describe('a hole stood in at another diameter', () => {
     const drilled = holeAt(hole('a', 4.918, 12), 5)
 
     expect(asRecord(drilled.datasheet?.facts)?.maxDrillDiameter).toBeUndefined()
+  })
+
+  /**
+   * **And the end mill limit with it** (Paul, 2026-09-02, asking for an end
+   * mill to be usable in place of a drill).
+   *
+   * The kernel states `maxEndmillDiameter` short of the bore, because a mill
+   * has to helix down inside it, and `largest end mill diameter` reads it.
+   * Left at the modelled size, a mill would be judged against the hole as
+   * drawn while every drill beside it was judged against the predrill — the
+   * same defect the drill limit above exists to fix. Rescaled rather than
+   * recomputed: the kernel's allowance is a proportion of the bore, and the
+   * same proportion of a different bore is the same claim about it.
+   */
+  it('rescales the end mill limit in proportion to the bore it stands in', () => {
+    const drawn = {
+      ...hole('a', 6, 12),
+      datasheet: {
+        zMin: -12,
+        zMax: 0,
+        // 10/11 of a ⌀6 bore, which is what the sheet's note describes.
+        facts: { kind: 'Hole', diameter: 6, maxEndmillDiameter: 5.4545 },
+      },
+    } as unknown as PartFeature
+
+    const bored = holeAt(drawn, 6.6)
+
+    expect(asRecord(bored.datasheet?.facts)?.maxEndmillDiameter).toBeCloseTo(6, 3)
+  })
+
+  it('adds no end mill limit to a hole that states none', () => {
+    const drilled = holeAt(hole('a', 4.918, 12), 5)
+
+    expect(asRecord(drilled.datasheet?.facts)?.maxEndmillDiameter).toBeUndefined()
+  })
+})
+
+/**
+ * **A predrill is a hole, and a hole can be interpolated** (Paul, 2026-09-02:
+ * "I need to be able to use an end mill on a threaded hole in place of a
+ * drill… it should always show drills first by default").
+ */
+describe('the mills that can make a predrill', () => {
+  const tool = (form: string, guid: string) => ({ form, guid })
+
+  it('adds the two flat-bottomed forms to the filter, and takes them off again', () => {
+    expect(formsWithMills(['drill', 'tap right hand'], true)).toEqual([
+      'drill',
+      'tap right hand',
+      'flat end mill',
+      'bull nose end mill',
+    ])
+    expect(
+      formsWithMills(['drill', 'flat end mill', 'bull nose end mill', 'tap right hand'], false),
+    ).toEqual(['drill', 'tap right hand'])
+  })
+
+  /** A ball nose leaves a round bottom in a hole meant to be tapped. */
+  it('offers no ball nose', () => {
+    expect(PREDRILL_MILL_FORMS).not.toContain('ball end mill')
+  })
+
+  /**
+   * **The filter is the switch** (Paul, 2026-09-02: "end mills should also show
+   * if I enable them in the top level filter, and the button should highlight —
+   * if only one type is shown, it should say 'showing <flat, or whatever type>
+   * end mills'"). Ticking one form on the rail is the same act as pressing the
+   * button, so the button reads its state off the filter and names what is
+   * actually on rather than claiming both.
+   */
+  it('names the mills the filter is actually showing', () => {
+    expect(millsLabel(['drill', 'tap right hand'])).toBe('Show compatible endmills')
+    expect(millsLabel(['drill', 'flat end mill'])).toBe('Showing flat end mills')
+    expect(millsLabel(['drill', 'bull nose end mill'])).toBe('Showing bull nose end mills')
+    expect(millsLabel(['drill', 'flat end mill', 'bull nose end mill'])).toBe('Showing end mills')
+  })
+
+  it('shows the mills the filter names, and only those', () => {
+    expect(millsShown(['drill', 'flat end mill'])).toEqual(['flat end mill'])
+    expect(millsShown(['drill'])).toEqual([])
+    // In the list's own order, whatever order the filter holds them in.
+    expect(millsShown(['bull nose end mill', 'flat end mill'])).toEqual([
+      'flat end mill',
+      'bull nose end mill',
+    ])
+  })
+
+  it('adds a form the filter already holds only once', () => {
+    expect(formsWithMills(['drill', 'flat end mill'], true)).toEqual([
+      'drill',
+      'flat end mill',
+      'bull nose end mill',
+    ])
+  })
+
+  /**
+   * A mill that lands exactly on the predrill would outrank every drill on the
+   * sheet's own "closest to the hole diameter" row, and the shop rule is that
+   * a hole up to an inch is drilled.
+   */
+  it('keeps the drills ahead of them, each half in the order it arrived', () => {
+    const listed = [
+      tool('flat end mill', 'm1'),
+      tool('drill', 'd1'),
+      tool('bull nose end mill', 'm2'),
+      tool('drill', 'd2'),
+    ]
+
+    expect(drillsFirst(listed).map((each) => each.guid)).toEqual(['d1', 'd2', 'm1', 'm2'])
   })
 })
 
