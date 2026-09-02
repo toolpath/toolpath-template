@@ -95,6 +95,7 @@ until it appears in [Phases](#phases).
 | An assembly is drawn from stated dimensions, dashed where derived; vendor CAD is not needed for that                                | 2026-08-29 |
 | REGO-FIX's `A2`, `B1`, `B2`, `B3_WOA` are pinned by cross-series variation and read as the holder body                              | 2026-08-29 |
 | Assemblies are built the way the DFM catalog builds them: holder, then collet, selection in the URL or on the feature's setup sheet | 2026-08-29 |
+| A filter value stays on the panel when pressing it could return something, and goes when it could not                               | 2026-09-01 |
 
 **The application is static about tools and served about parts, and the split is
 deliberate.** Tool data is public, small and the same for every viewer, so it is
@@ -508,6 +509,56 @@ repositories, and there should not be one for twenty numbers.
 - **No editing tool data.** Corrections belong upstream in the scraper and flow
   forward. The application may write a person's own state — a mapping, a
   preference, an assembly — and never a diameter.
+
+## The filter panel
+
+Which values a picker offers is one rule, and it is the rule two of Paul's
+complaints on 2026-09-01 landed on from opposite directions. It lives in
+`narrowed` in `components/filter-panel.tsx`, and it is this:
+
+> **A value stays on the panel if pressing it could return something, and goes
+> if it could not.**
+
+That single test settles both cases, which is why they are not a contradiction:
+
+- **An empty value stays.** "I can't get filters back after removing them! …
+  All of the filter dialogs should ALWAYS show everything that is available so
+  I could activate them." Values used to be dropped at a count of zero, which
+  is fine until the count reaches zero _because of what you just chose_: with
+  ball end mills the only type left, the bull noses were not on the panel to
+  put back, and the way out was the browser's back button. A zero is drawn
+  greyed and stays pressable, because pressing it is how the question widens.
+  Counts are measured against every filter but the axis's own
+  (`countsByAxis` / `withoutTerm`), so an axis never narrows itself.
+- **Another vendor's value goes.** "I filtered for just kennametal. But the
+  family list still shows me lots of non kennametal family options." A family
+  and a product line are one vendor's own words; with a different vendor
+  chosen they are not empty answers but questions this shop is not asking.
+  Pressing a Kennametal family the flute length has emptied widens the search
+  and brings tools back. Pressing a WIDIA family while WIDIA is not a chosen
+  vendor cannot, because the vendor filter still stands in front of it. Sixty-
+  nine families with eleven of them askable is a list nobody reads to the end
+  of.
+
+Three things follow, and each has a test in `components/filter-panel.test.tsx`:
+
+- **Only vendor-owned axes narrow this way**, declared as `vendorsOf` on the
+  filter. `familyId` and `productLine` have one; a form, a shank, a flute
+  count and an ISO material group do not, because those are the trade's words
+  and not a vendor's. `brandsOfFamily` and `brandsOfProductLine` in
+  `shared/catalog.ts` are the index — a family carries its brand on its
+  record, a product line is read off the tools once at import.
+- **A value no vendor claims stays.** An empty owner list means "not a
+  vendor's to hide", never "hide it from everybody".
+- **A chosen value stays whatever its vendor.** Picking a family and then a
+  different vendor would otherwise leave a filter narrowing the list with no
+  chip on the panel to lift it — the first complaint wearing a second hat.
+
+Ordering follows from the same thought. Within what a picker offers, the
+answers the rest of the query left come first, then the empty ones, each band
+alphabetical (`ChipPicker`). Before that the front twelve were simply the
+twelve earliest in the alphabet, so filtering to one vendor led with families
+that vendor does not have.
 
 ## Shared code
 

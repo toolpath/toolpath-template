@@ -68,6 +68,9 @@ importers:
       '@toolpath/part-server':
         specifier: workspace:*
         version: link:../../packages/part-server
+      '@toolpath/tool-drawing':
+        specifier: 0.1.0
+        version: 0.1.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@toolpath/ui':
         specifier: 0.1.1
         version: 0.1.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)
@@ -268,6 +271,9 @@ importers:
       '@toolpath/part-contracts':
         specifier: workspace:*
         version: link:../part-contracts
+      '@toolpath/tool-scraper':
+        specifier: 2.1.0
+        version: 2.1.0
     devDependencies:
       '@types/node':
         specifier: 24.10.1
@@ -1301,6 +1307,18 @@ packages:
     resolution: {integrity: sha512-WHJI84cFpEOaUls5fHOS2BJXk9Prj/nM5sRSy8JCGodLeJcRIH/eYUe+klD6Y39odLfaWShDPbUGg1oTaNvBcg==}
     engines: {node: '>=20'}
 
+  '@toolpath/tool-drawing@0.1.0':
+    resolution: {integrity: sha512-lK1Is+x9DqBERVqn5wS8dfsdPzqRK3hplc5w71Jd5vwdfwKZapccp4UZiyrAhZp2IhT3kSrk3LRoTgEdsYhqLA==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      react: ^19.0.0
+      react-dom: ^19.0.0
+
+  '@toolpath/tool-scraper@2.1.0':
+    resolution: {integrity: sha512-CJ/kvRopzbGIIajDZ/SrBiRevy9K26vgs5u725hVOSgg7guuzbm7ymal5s9e8ikVli8sskAFfiSnCa3oF48yDw==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   '@toolpath/ui@0.1.1':
     resolution: {integrity: sha512-cVbQ1O5+At76BevWLJGS2i8oyLeneaFTlzM23dfkfIFr+xOkN7tat/WRx81ECCICLln6JDrlhIKhQfwP4EccMA==}
     peerDependencies:
@@ -1850,6 +1868,22 @@ packages:
   dom-accessibility-api@0.6.3:
     resolution: {integrity: sha512-7ZgogeTnjuHbo+ct10G9Ffp0mif17idi0IyWNVA/wcwcm7NPOD/WEHVP3n7n3MhXqxoIYm8d6MuZohYWIZ4T3w==}
 
+  dom-serializer@3.1.1:
+    resolution: {integrity: sha512-4MEa38/QexBob6gFNwu+EGdWvhJ1OKuNwdYY3Y3NyeWDQfnGeDYQUDfIRzWu5B5gsv03so2Uxd28YC6zrsx3Lw==}
+    engines: {node: '>=20.19.0'}
+
+  domelementtype@3.0.0:
+    resolution: {integrity: sha512-umCQid3jKbDmVjx8jGaW7uUykm4DEUeyV21hPxNMo2nV955DhUThwqyOIDtreepP31hl84X7G5U9ZfsWvIB3Pg==}
+    engines: {node: '>=20.19.0'}
+
+  domhandler@6.0.1:
+    resolution: {integrity: sha512-gYzvtM72ZtxQO0T048kd6HWSbbGCNOUwcnfQ01cqIJ4X2IYKFFHZ5mKvrQETcFXxsRObZulDaKmy//R7TPtsBg==}
+    engines: {node: '>=20.19.0'}
+
+  domutils@4.0.2:
+    resolution: {integrity: sha512-qI4JLRKnSzqFqr7hAlS5xQDusBCjKSEG4t4+7aNrIQMHBcsC2TGEhuyABJdYkgSewL57PNLYEiibY2iPKhKpaA==}
+    engines: {node: '>=20.19.0'}
+
   draco3d@1.5.7:
     resolution: {integrity: sha512-m6WCKt/erDXcw+70IJXnG7M3awwQPAsZvJGX5zY7beBqpELw6RDGkYVU0W43AFxye4pDZ5i2Lbyc/NNGqwjUVQ==}
 
@@ -2113,6 +2147,10 @@ packages:
   html-encoding-sniffer@6.0.0:
     resolution: {integrity: sha512-CV9TW3Y3f8/wT0BRFc1/KAVQ3TUHiXmaAb6VW9vtiMFf7SLoMd1PdAc4W3KFOFETBJUb90KatHqlsZMWV+R9Gg==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
+
+  htmlparser2@12.0.0:
+    resolution: {integrity: sha512-Tz7u1i95/g2x2jz81+x0FBVhBhY5aRTvD3tXXdFaljuNdzDLJ8UGNRrTcj2cgQvAg3iW/h77Fz15nLW0L0CrZw==}
+    engines: {node: '>=20.19.0'}
 
   husky@9.1.7:
     resolution: {integrity: sha512-5gs5ytaNjBrh5Ow3zrvdUUY+0VxIuWVL4i9irt6friV+BqdCfmV11CQTWMiBYWHbXhco+J1kHfTOUkePhCDvMA==}
@@ -3925,6 +3963,15 @@ snapshots:
 
   '@toolpath/api@0.2.3': {}
 
+  '@toolpath/tool-drawing@0.1.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+    dependencies:
+      react: 19.2.0
+      react-dom: 19.2.0(react@19.2.0)
+
+  '@toolpath/tool-scraper@2.1.0':
+    dependencies:
+      htmlparser2: 12.0.0
+
   '@toolpath/ui@0.1.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)':
     dependencies:
       '@base-ui/react': 1.2.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -4455,6 +4502,24 @@ snapshots:
 
   dom-accessibility-api@0.6.3: {}
 
+  dom-serializer@3.1.1:
+    dependencies:
+      domelementtype: 3.0.0
+      domhandler: 6.0.1
+      entities: 8.0.0
+
+  domelementtype@3.0.0: {}
+
+  domhandler@6.0.1:
+    dependencies:
+      domelementtype: 3.0.0
+
+  domutils@4.0.2:
+    dependencies:
+      dom-serializer: 3.1.1
+      domelementtype: 3.0.0
+      domhandler: 6.0.1
+
   draco3d@1.5.7: {}
 
   electron-to-chromium@1.5.411: {}
@@ -4744,6 +4809,13 @@ snapshots:
       '@exodus/bytes': 1.15.1
     transitivePeerDependencies:
       - '@noble/hashes'
+
+  htmlparser2@12.0.0:
+    dependencies:
+      domelementtype: 3.0.0
+      domhandler: 6.0.1
+      domutils: 4.0.2
+      entities: 8.0.0
 
   husky@9.1.7: {}
 

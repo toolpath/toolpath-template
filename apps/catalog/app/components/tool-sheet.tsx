@@ -29,6 +29,31 @@ const KEY_LABELS: Record<(typeof KEY_CODES)[number], string> = {
   NOF: 'flutes',
 }
 
+/**
+ * What the vendor said about workpiece material — including when it said nothing.
+ *
+ * Three states, because two of them are silences that mean different things and
+ * a shop acts differently on each. `[]` is the vendor's own index rating this
+ * part for nothing, which is a statement; `null` is no index this scrape could
+ * reach, which is not. Every Harvey tool is the second — Harvey publishes its
+ * index per part rather than in the variant table — and before catalog version
+ * 5 both read as "no material index", which put words in the vendor's mouth on
+ * 12,773 tools.
+ *
+ * Neither is shown as a gap and neither is shown under every material: a tool
+ * offered for a material nobody rated it for is how a shop ends up trusting a
+ * recommendation nobody made.
+ */
+const MaterialIndex = ({ groups }: { groups: ReadonlyArray<string> | null }) => {
+  if (groups === null) {
+    return <span className="text-zinc-500">material not stated</span>
+  }
+  if (groups.length === 0) {
+    return <span className="text-zinc-500">rated for no material</span>
+  }
+  return <span className="font-mono text-zinc-300">ISO {groups.join(' ')}</span>
+}
+
 export interface ToolSheetProps {
   readonly tool: CatalogTool
   readonly unit: Unit
@@ -56,15 +81,11 @@ export const ToolSheet = ({ tool, unit }: ToolSheetProps) => {
         <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-zinc-400">
           {tool.brand}
           <Badge variant="secondary">{formLabel(tool)}</Badge>
+          {/* The vendor's own name for the line, ahead of the family: it is
+              what a shop calls the tool, and the family title repeats it. */}
+          {tool.productLine === null ? null : <span>{tool.productLine}</span>}
           {family ? <span>{family.name}</span> : null}
-          {tool.materialGroups.length > 0 ? (
-            <span className="font-mono text-zinc-300">ISO {tool.materialGroups.join(' ')}</span>
-          ) : (
-            // Not a gap: the vendor indexes this tool under no workpiece
-            // material, and showing it under all of them would be a claim
-            // nobody made.
-            <span className="text-zinc-500">no material index</span>
-          )}
+          <MaterialIndex groups={tool.materialGroups} />
         </p>
       </div>
 

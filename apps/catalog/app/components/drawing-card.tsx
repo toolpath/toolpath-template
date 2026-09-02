@@ -17,7 +17,7 @@ import { classNames } from '@toolpath/domain/class-names'
 import { collets as allCollets, holders as allHolders } from 'shared/catalog'
 import { thresholdsFrom } from 'shared/holder-choice'
 import { drawnAssembly } from 'shared/drawn-assembly'
-import { AssemblyDrawing } from './assembly-drawing'
+import { CatalogDrawing } from './catalog-drawing'
 import { LengthBox } from './length-box'
 
 /**
@@ -163,7 +163,7 @@ export const DrawingCard = ({
         </div>
       ) : null}
       <div className="min-h-0 flex-1">
-        <AssemblyDrawing
+        <CatalogDrawing
           tool={tool}
           assembly={view === 'assembly' ? assembly : null}
           unit={unit}

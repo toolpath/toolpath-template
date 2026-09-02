@@ -57,6 +57,63 @@ const may = (from, to) => ({
   allow: { to: { element: { type: to } } },
 })
 
+/** A relative import inside a package carries its `.js` — AGENTS.md § Shared Code. */
+const RELATIVE_JS = {
+  regex: '^\\.{1,2}/(?!.*\\.js$).*$',
+  message:
+    'A relative import inside a package carries its .js extension, so the emitted JavaScript runs under Node without a bundler.',
+}
+
+/**
+ * AGENTS.md: the one package that handles an API key is `@toolpath/part-server`,
+ * and no other package constructs a client.
+ */
+const NO_SDK = {
+  group: ['@toolpath/api'],
+  allowTypeImports: true,
+  message:
+    'Only @toolpath/part-server may construct a Toolpath client. Import a type if a type is all you need.',
+}
+
+/**
+ * The scrape is a command somebody runs, not something the product does.
+ *
+ * `@toolpath/tool-scraper` fetches vendors' catalogs. One module drives it —
+ * `packages/catalog-data/src/scrape.ts` — and everything else may name its
+ * types, which are erased, and never its values. Without this the distinction
+ * is a sentence in a document: a route handler could import `scrapeFamily` and
+ * the catalog would quietly become a live proxy onto five vendors' websites,
+ * one request per page view.
+ *
+ * The same shape as the SDK rule above, for the same reason.
+ */
+const NO_SCRAPER = {
+  group: ['@toolpath/tool-scraper', '@toolpath/tool-scraper/*'],
+  allowTypeImports: true,
+  message:
+    'Only packages/catalog-data/src/scrape.ts may run the scraper. A scrape is a command somebody runs; import a type if a type is all you need.',
+}
+
+/**
+ * The drawing is a renderer; the verdict is not.
+ *
+ * `@toolpath/tool-drawing` draws a tool and, optionally, the clearance around
+ * it. What decides that clearance — `clearance()` in `catalog-data` — has a
+ * dozen callers that draw nothing at all: the filters, the rules sheet, the
+ * holder choice, the tool-fit sort. Letting a package import the drawing is how
+ * that engine ends up behind a dependency on React, and the split between
+ * `clearance.ts` here and `/clearance` there exists precisely to stop it.
+ *
+ * An application may import it; that is what an application is for. A package
+ * may name its types, which are erased, and never its values.
+ */
+const NO_DRAWING = {
+  group: ['@toolpath/tool-drawing', '@toolpath/tool-drawing/*'],
+  allowTypeImports: true,
+  message:
+    'A package may not import @toolpath/tool-drawing. Drawing belongs to an application; a package that needs one takes the picture as data. Import a type if a type is all you need.',
+}
+
 const POLICIES = [
   may('server', ['server', 'shared', 'package']),
   may('route', ['route', 'component', 'client', 'shared', 'app-root', 'package']),
@@ -159,23 +216,18 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
-        {
-          patterns: [
-            {
-              regex: '^\\.{1,2}/(?!.*\\.js$).*$',
-              message:
-                'A relative import inside a package carries its .js extension, so the emitted JavaScript runs under Node without a bundler.',
-            },
-            {
-              // AGENTS.md: the one package that handles an API key is
-              // @toolpath/part-server, and no other package constructs a client.
-              group: ['@toolpath/api'],
-              allowTypeImports: true,
-              message:
-                'Only @toolpath/part-server may construct a Toolpath client. Import a type if a type is all you need.',
-            },
-          ],
-        },
+        { patterns: [RELATIVE_JS, NO_SDK, NO_SCRAPER, NO_DRAWING] },
+      ],
+    },
+  },
+  {
+    // The one module that runs the scraper. Everything else in the package may
+    // name its types and nothing else — see NO_SCRAPER.
+    files: ['packages/catalog-data/src/scrape.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        { patterns: [RELATIVE_JS, NO_SDK, NO_DRAWING] },
       ],
     },
   },

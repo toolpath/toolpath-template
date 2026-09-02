@@ -33,6 +33,7 @@ const tool = (shank = 6): CatalogTool => ({
   unitSystem: 'metric',
   geometry: { DC: shank, LCF: 13, OAL: 57, SFDM: shank, LBH: 19 },
   materialGroups: ['P'],
+  productLine: null,
   productLink: null,
   provenance: {},
 })

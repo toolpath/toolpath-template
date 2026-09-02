@@ -1,3 +1,5 @@
+import type { ToolRecord, UnitSystem } from '@toolpath/tool-scraper'
+
 import { MODEL_UNIT, convertLength } from '@toolpath/domain/units'
 import {
   GEOMETRY_FIELDS,
@@ -23,29 +25,53 @@ import type { Catalog } from './types.js'
  * than obviously broken. The scraper draws its seam at `ToolRecord`, and this
  * package takes the handoff at exactly that seam.
  *
- * Until the scraper is published to npm this arrives as a JSON document with
- * the shape below, written by whoever runs the scrape. When it is published,
- * the producer imports it directly and this reader stops needing a file — the
- * types on either side of the seam do not change either way.
+ * The producer is `src/scrape.ts`, which imports the scraper directly. This
+ * still reads a **file** rather than taking the records in memory, and that is
+ * deliberate rather than left over: a scrape is an afternoon of paced requests
+ * against five vendors, and an ingest is a second. Keeping the store between
+ * them is what lets the contract move without going back to the vendors' sites,
+ * which is the same reason `scripts/rebuild.mjs` exists.
+ *
+ * So the file is a boundary, and it is validated like one. The types below say
+ * what a well-formed store holds; the guards below them say what to do about a
+ * store written by an older scraper, or edited by hand.
  */
 
 /** The scraper's unit vocabulary, which is not the catalog's. */
-export type ScrapedUnit = 'millimeters' | 'inches'
+export type ScrapedUnit = UnitSystem
 
-/** One tool as `@toolpath/tool-scraper` hands it over. */
-export interface ScrapedTool {
-  /**
-   * Minted by the scraper, under its brand namespace.
-   *
-   * **Not derived here, deliberately.** A guid is `uuid5` of the brand's home
-   * page, and a mistake in that seed is not a wrong string — it is every one of
-   * that vendor's guids, permanently, and the guid is the join key everything
-   * downstream holds. That rule stays in the one package that owns it.
-   */
-  readonly guid: string
-  readonly catalogNumber: string
+/**
+ * One tool as `@toolpath/tool-scraper` hands it over.
+ *
+ * **The shared fields are `ToolRecord`'s own, not a restatement of them.** They
+ * were written out here — `geometry: Record<string, unknown>`, `kind: string` —
+ * for as long as the scraper could not be imported, and `ingest.test.ts` then
+ * built its fixtures from *this* declaration, so the suite proved the ingest
+ * agreed with itself and nothing checked it against the producer. Picking the
+ * fields off the record instead means a shape that moves upstream fails
+ * `check-types` here rather than at the far end of a scrape.
+ *
+ * The three fields that are not picked are the ones this handoff adds:
+ * {@link ScrapedTool.form}, which the scraper has no kind for; `productLink`,
+ * which is `identity.productLink` applied rather than carried on a record; and
+ * `provenance`, which the catalog states per value.
+ *
+ * `guid` is picked and never minted here. A guid is `uuid5` of the brand's home
+ * page, and a mistake in that seed is not a wrong string — it is every one of
+ * that vendor's guids, permanently, and the guid is the join key everything
+ * downstream holds. That rule stays in the one package that owns it.
+ */
+export interface ScrapedTool
+  extends Pick<ToolRecord, 'guid' | 'catalogNumber' | 'kind' | 'geometry' | 'materialGroups'>,
+    /**
+     * `productLine` is the record's own field and its own type, and optional
+     * only here: a store written before `@toolpath/tool-scraper` recorded one
+     * has no such key, and a required field would make every file on disk
+     * unreadable to say something a `?? null` already says. Picked rather than
+     * restated so that the day the record's type moves, this fails to compile.
+     */
+    Partial<Pick<ToolRecord, 'productLine'>> {
   readonly materialNumber?: string | null
-  readonly kind: string
   /**
    * What the tool is, where the vendor's own page says it outright.
    *
@@ -58,8 +84,6 @@ export interface ScrapedTool {
    * knows.
    */
   readonly form?: string
-  readonly geometry: Readonly<Record<string, unknown>>
-  readonly materialGroups?: ReadonlyArray<string>
   readonly productLink?: string | null
   readonly provenance?: Readonly<Record<string, Provenance>>
 }
@@ -201,7 +225,9 @@ const isLength = (code: string): boolean => GEOMETRY_FIELDS[code]?.unit === 'mm'
  * convention is confirmed against a real tap table, carrying it is worse than
  * not carrying it.
  */
-const DROPPED = new Map([['TP', 'thread pitch: the inch unit convention is unconfirmed']])
+export const DROPPED: ReadonlyMap<string, string> = new Map([
+  ['TP', 'thread pitch: the inch unit convention is unconfirmed'],
+])
 
 const toolFrom = (
   family: ScrapedFamily,
@@ -241,12 +267,24 @@ const toolFrom = (
       isLength(code) && family.unit === 'inches' ? convertLength(raw, 'in', MODEL_UNIT) : raw
   }
 
-  const groups = (scraped.materialGroups ?? []).filter((group) =>
-    (MATERIAL_GROUPS as ReadonlyArray<string>).includes(group),
-  )
-  // Reordered onto ISO 513's sequence: a facet rendered from one order and a
-  // tool's own list from another cannot notice when the two disagree.
-  const materialGroups = MATERIAL_GROUPS.filter((group) => groups.includes(group))
+  /*
+   * Silence is carried through, not turned into an empty rating.
+   *
+   * This read `scraped.materialGroups ?? []`, which made the two states one:
+   * a vendor that rates a part for nothing and a vendor that publishes no index
+   * at all both arrived as `[]`. Every Harvey record is the second — its index
+   * is per part, where a scrape cannot reach it — so 12,773 tools would have
+   * claimed a rating nobody made.
+   *
+   * A stated list is still filtered to the groups ISO 513 defines and reordered
+   * onto its sequence: a facet rendered from one order and a tool's own list
+   * from another cannot notice when the two disagree.
+   */
+  const rated = scraped.materialGroups
+  const materialGroups =
+    rated === null || rated === undefined
+      ? null
+      : MATERIAL_GROUPS.filter((group) => rated.includes(group))
 
   // A form the handoff states is the vendor's own word and is kept as one;
   // anything else is left for `withDerived` to work out from the geometry.
@@ -273,6 +311,10 @@ const toolFrom = (
     unitSystem: UNIT_SYSTEM[family.unit],
     geometry,
     materialGroups,
+    // The vendor's own word, carried through and never invented: a store
+    // written before the scraper recorded one says `undefined`, and that is
+    // the same silence as a vendor who names no line.
+    productLine: scraped.productLine ?? null,
     productLink: scraped.productLink ?? null,
     provenance:
       stated === null
@@ -352,6 +394,90 @@ const colletFrom = (scraped: ScrapedCollet): Collet => {
   }
 }
 
+/**
+ * One part the vendor published under two of its own facets, collapsed to one.
+ *
+ * EMUGE splits its end mill category by a unit facet, and 750 of its parts
+ * carry **both** values: the same material number, the same guid, its
+ * dimensions stated once in inches and once in millimetres. That is not a
+ * corrupt scrape — it is a vendor publishing one part two ways — but it
+ * arrives here as two catalog tools sharing a join key, which `buildCatalog`
+ * refuses outright and is right to.
+ *
+ * **The millimetre listing wins**, because it is the one that is not a
+ * conversion: this catalog stores millimetres, and a figure the vendor stated
+ * in millimetres reaches it untouched where an inch figure is multiplied by
+ * 25.4 first. Nothing else about the two entries differs — `unitSystem` is the
+ * only field that records which facet it came from, and it is a fact about how
+ * the vendor published a family rather than about the tool.
+ *
+ * **Only a genuine same-part pair is collapsed.** Two tools sharing a guid and
+ * disagreeing about their catalog or material number are not one part
+ * published twice; they are the minting fault `buildCatalog`'s refusal exists
+ * to catch, and they are left in place for it to throw on. A guid is `uuid5`
+ * under the brand's namespace, so a wrong seed is every one of that vendor's
+ * guids, permanently — that check must not be weakened to make room for this.
+ *
+ * **A stopgap, and named as one.** The fact that two facet values overlap is
+ * knowledge about EMUGE's storefront, and it belongs beside the family table
+ * that declares the split — `families/emuge.ts` in `@toolpath/tool-scraper`,
+ * whose own citation still claims the two are a partition of 1,832 and 5,189
+ * variants. The day that table stops handing over the same part twice, every
+ * note below stops being written and this can come out.
+ */
+const collapseUnitDuplicates = (
+  families: ReadonlyArray<FamilyInput>,
+  notes: Array<IngestNote>,
+): Array<FamilyInput> => {
+  const seen = new Map<string, { tool: ToolInput; unitSystem: FamilyInput['unitSystem'] }>()
+  /** Guids two *different* parts share: nothing here may touch them. */
+  const conflicting = new Set<string>()
+
+  for (const family of families) {
+    for (const tool of family.tools) {
+      const previous = seen.get(tool.guid)
+      if (
+        previous !== undefined &&
+        (previous.tool.catalogNumber !== tool.catalogNumber ||
+          previous.tool.materialNumber !== tool.materialNumber)
+      ) {
+        // Not one part twice. Both are left in place for `buildCatalog` to
+        // refuse by name — recording the conflict rather than skipping it,
+        // because dropping the second copy is exactly what would hide it.
+        conflicting.add(tool.guid)
+        continue
+      }
+      if (previous === undefined || previous.unitSystem !== 'metric') {
+        seen.set(tool.guid, { tool, unitSystem: family.unitSystem })
+      }
+    }
+  }
+
+  const dropped = new Set<string>()
+  const kept = families.map((family) => ({
+    ...family,
+    tools: family.tools.filter((tool) => {
+      const winner = seen.get(tool.guid)
+      if (conflicting.has(tool.guid) || winner === undefined || winner.tool === tool) {
+        return true
+      }
+      // One note per part, not one per copy: the pair is the fact.
+      if (!dropped.has(tool.guid)) {
+        dropped.add(tool.guid)
+        notes.push({
+          familyId: family.id,
+          guid: tool.guid,
+          code: 'guid',
+          reason: `the vendor publishes this part in more than one family; kept the ${winner.unitSystem} listing`,
+        })
+      }
+      return false
+    }),
+  }))
+
+  return kept
+}
+
 export const ingest = (scrape: Scrape): Ingested => {
   if (scrape.families.length === 0) {
     throw new IngestError('A scrape with no families would build an empty catalog.')
@@ -375,7 +501,7 @@ export const ingest = (scrape: Scrape): Ingested => {
 
   const input: CatalogInput = {
     builtAt: scrape.builtAt,
-    families,
+    families: collapseUnitDuplicates(families, notes),
     holders: (scrape.holders ?? []).map(holderFrom),
     collets: (scrape.collets ?? []).map(colletFrom),
   }

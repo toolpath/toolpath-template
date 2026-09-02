@@ -9,6 +9,7 @@ import {
   HashIcon,
   DotsThreeIcon,
   MagnifyingGlassIcon,
+  StackSimpleIcon,
   TagIcon,
   WrenchIcon,
   XIcon,
@@ -17,6 +18,7 @@ import type { Facets } from '@toolpath/catalog-data'
 import { MATERIAL_GROUPS, TOOL_FORMS } from '@toolpath/catalog-data'
 import { classNames } from '@toolpath/domain/class-names'
 import type { Unit } from '@toolpath/domain/units'
+import { brandsOfFamily, brandsOfProductLine, getFamily } from 'shared/catalog'
 import { toggleTerm, type ToolQuery } from 'shared/filter'
 import type { SavedFilter } from 'shared/saved-filters'
 import { Chip, ChipGroup } from './chip'
@@ -111,12 +113,34 @@ interface QuickFilter {
   readonly kind?: Kind
   /** Values for an axis the catalog does not enumerate, or the crib's. */
   readonly values?: 'holders' | 'collets' | ReadonlyArray<TileOption & { title?: string }>
+  /**
+   * What a value is called, where the value is an id and not a name.
+   *
+   * The default is the value itself, which is right for a brand, a form or a
+   * flute count — they *are* words. It is wrong for `familyId`, whose values
+   * are the scrape's own keys: the picker read `godrill_3xd_metric` where the
+   * vendor calls that family `GOdrill™ • 3xD • Metric`. Only the label
+   * changes; the value stays the id the URL and the query are keyed by, and
+   * {@link matching} searches both, so typing either finds it.
+   */
+  readonly labelOf?: (value: string) => string
   /** For tiles: how one is drawn. */
   readonly tile?: (value: string) => ReactNode
   /** For tiles: which values stand in front. The rest go behind `…`. */
   readonly front?: 'held' | 'counted'
   /** For tiles: a search box in the popover, for a list that will grow. */
   readonly search?: boolean
+  /**
+   * Which vendors a value belongs to, where a value is a vendor's own.
+   *
+   * A family and a product line are printed on one vendor's pages and mean
+   * nothing on anybody else's. Naming that here is what lets the panel take
+   * them off the list while another vendor is chosen — see {@link narrowed}
+   * for why that is not the same as taking an empty value away. Absent on
+   * every axis whose values are the trade's rather than a vendor's: a form,
+   * a shank, a flute count, an ISO material group.
+   */
+  readonly vendorsOf?: (value: string) => ReadonlyArray<string>
 }
 
 /** A brand's mark, until there is a real one: its own initials, set as a tile. */
@@ -153,6 +177,7 @@ const Monogram = ({ brand }: { brand: string }) => (
 export const FACET_AXES: ReadonlyArray<string> = [
   'brand',
   'familyId',
+  'productLine',
   'form',
   'materialGroups',
   'shank',
@@ -194,6 +219,25 @@ export const QUICK_FILTERS: ReadonlyArray<QuickFilter> = [
     mode: 'multi',
     span: 2,
     search: true,
+    // The vendor's own title for it, where the scrape carried one. Falls back
+    // to the id, which is what every family read as before the AEM family page
+    // was fetched.
+    labelOf: (value) => getFamily(value)?.name ?? value,
+    vendorsOf: brandsOfFamily,
+  },
+  {
+    // One line above the families: `KenCut™ FF` is square and ball nose,
+    // metric and inch, and a shop that has settled on a line wants all of it.
+    // A tool whose vendor names none is under no value here, so this narrows
+    // and never silently drops the unnamed into a bucket.
+    key: 'productLine',
+    label: 'Product line',
+    icon: <StackSimpleIcon />,
+    shape: 'chips',
+    mode: 'multi',
+    span: 2,
+    search: true,
+    vendorsOf: brandsOfProductLine,
   },
   {
     // `form`, not `toolType`: the catalog's own coarse type says `endmill`
@@ -487,15 +531,36 @@ const ChipPicker = ({
   const [find, setFind] = useState('')
   const single = filter.mode === 'single' || filter.mode === 'single-term'
   const found = matching(options, find)
+  /**
+   * **The answers that are still live come first** (Paul, 2026-09-01: filtered
+   * to Kennametal, "the family list still shows me lots of non kennametal
+   * family options").
+   *
+   * Every value stays on the panel — that rule is the one above, and pressing
+   * an empty one is how the question widens. But the order was the label's
+   * alone, so with one vendor chosen the twelve in front were the twelve whose
+   * names begin earliest in the alphabet, and every family that vendor
+   * actually has sat behind the `…`. A hundred families is a list nobody
+   * reads to the end of, so what stands at the top has to be what the rest of
+   * the query left.
+   *
+   * A stable sort, so within each band the label order is untouched: the live
+   * ones read alphabetically, then the empty ones do.
+   */
+  const ranked = useMemo(() => {
+    const empty = (option: TileOption) =>
+      (counted.get(option.value) ?? 0) === 0 && !chosen.includes(option.value) ? 1 : 0
+    return [...found].sort((a, b) => empty(a) - empty(b))
+  }, [found, counted, chosen])
   // "Any" is an answer too, so it counts against the four.
   const room = FRONT_TILES - (single ? 1 : 0)
   // Anything already pressed stays in front whatever the room, or the only
   // way to unpress it would be to know where it went.
   const front =
     all || find.trim() !== ''
-      ? found
-      : found.filter((each, index) => index < room || chosen.includes(each.value))
-  const rest = found.length - front.length
+      ? ranked
+      : ranked.filter((each, index) => index < room || chosen.includes(each.value))
+  const rest = ranked.length - front.length
 
   return (
     <>
@@ -862,26 +927,58 @@ export const FilterPanel = ({
   }
 
   /**
-   * **Every value, always — the count says what is left** (Paul, 2026-09-01:
-   * "I can't get filters back after removing them! … All of the filter dialogs
-   * should ALWAYS show everything that is available so I could activate them
-   * (the additional options show as disabled to begin with but can be clicked
-   * to activate them)").
+   * **An empty value stays; another vendor's value does not.**
    *
-   * They used to be dropped at a count of zero, which is fine until the count
-   * reaches zero *because of what you just chose*: with ball end mills the only
-   * type left, the bull noses were not on the panel to put back, and the way
-   * out was the browser's back button.
+   * Two rules, and the difference between them is whether pressing the thing
+   * could ever do anything.
    *
-   * So a zero is drawn rather than removed — greyed, and still pressable,
-   * because pressing it is how somebody widens the question. The counts
-   * themselves are measured against every filter but this axis's own, so an
-   * axis never narrows itself.
+   * *Empty stays* (Paul, 2026-09-01: "I can't get filters back after removing
+   * them! … All of the filter dialogs should ALWAYS show everything that is
+   * available so I could activate them"). Values used to be dropped at a count
+   * of zero, which is fine until the count reaches zero *because of what you
+   * just chose*: with ball end mills the only type left, the bull noses were
+   * not on the panel to put back, and the way out was the browser's back
+   * button. So a zero is drawn rather than removed — greyed, and still
+   * pressable, because pressing it is how somebody widens the question. The
+   * counts themselves are measured against every filter but this axis's own,
+   * so an axis never narrows itself.
+   *
+   * *Another vendor's goes* (Paul, 2026-09-01: "I filtered for just
+   * kennametal. But the family list still shows me lots of non kennametal
+   * family options"). A family or a product line is one vendor's word, and
+   * with a different vendor chosen it is not a question with an empty answer —
+   * it is not this shop's question at all. Pressing a Kennametal family that
+   * the flute length has emptied widens the search and brings tools back;
+   * pressing a WIDIA family while WIDIA is not a chosen vendor cannot, because
+   * the vendor filter still stands in front of it. That is the whole test: a
+   * value stays if pressing it could return something, and goes if it could
+   * not. Sixty-nine families with eleven of them askable is a list nobody
+   * reads to the end of.
+   *
+   * Anything already chosen is kept whatever its vendor, or picking a family
+   * and then a vendor would leave a filter narrowing the list with no chip on
+   * the panel to lift it — the same trap under a different name.
    */
   const narrowed = (
-    _filter: QuickFilter,
+    filter: QuickFilter,
     options: ReadonlyArray<TileOption & { title?: string }>,
-  ): ReadonlyArray<TileOption & { title?: string }> => options
+  ): ReadonlyArray<TileOption & { title?: string }> => {
+    const vendorsOf = filter.vendorsOf
+    const vendors = query.terms.brand ?? []
+    if (vendorsOf === undefined || vendors.length === 0) {
+      return options
+    }
+    const chosen = chosenFor(filter)
+    return options.filter((option) => {
+      if (chosen.includes(option.value)) {
+        return true
+      }
+      // A value nobody owns is not a vendor's to hide — it is the trade's, and
+      // it stays on the panel under the rule above.
+      const owners = vendorsOf(option.value)
+      return owners.length === 0 || owners.some((owner) => vendors.includes(owner))
+    })
+  }
 
   const optionsFor = (filter: QuickFilter): ReadonlyArray<TileOption & { title?: string }> => {
     if (filter.values === 'holders') {
@@ -894,10 +991,21 @@ export const FilterPanel = ({
       return narrowed(filter, filter.values)
     }
     const known = facets.terms.find((axis) => axis.key === filter.key)
-    return narrowed(
-      filter,
-      (known?.values ?? []).map((each) => ({ value: each.value, label: each.value })),
-    )
+    const named = (known?.values ?? []).map((each) => ({
+      value: each.value,
+      label: filter.labelOf?.(each.value) ?? each.value,
+    }))
+    // `facetsFor` sorts an axis by its **value**, which is the same thing as
+    // its label everywhere but here. With a `labelOf` the two part company,
+    // and the four chips standing in front then read as an arbitrary handful:
+    // the family picker led with `destinytool end mills inch` and
+    // `emuge taps` — ids beginning with d and e — while every named family
+    // sat behind the `…`. Sorted by what is on the chip, so the order a
+    // reader sees is the order they can predict.
+    if (filter.labelOf) {
+      named.sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true }))
+    }
+    return narrowed(filter, named)
   }
 
   const shownFilters = only

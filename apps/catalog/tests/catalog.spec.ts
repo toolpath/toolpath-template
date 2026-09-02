@@ -19,6 +19,34 @@ test('browses, filters, and keeps the selection in the URL', async ({ page }) =>
   await expect(rows).not.toHaveCount(0)
 })
 
+/**
+ * The two questions above the tool list, and the reason both exist.
+ *
+ * A family is one page in a vendor's catalogue; a product line spans several
+ * of them. Before the scraper recorded either name, the family chip read
+ * `sample-vhm-endmills` — a scrape's own key — and there was no line to ask
+ * about at all.
+ */
+test('narrows by the vendor’s product line, and names a family by the vendor’s name', async ({
+  page,
+}) => {
+  await page.goto('/catalog')
+
+  // The chip's label is the family's name; its value is still the id, which is
+  // what the URL carries and what a shared link has to keep working.
+  const families = page.getByRole('group', { name: 'Family' })
+  await expect(
+    families.getByRole('button', { name: 'Sample solid carbide end mills' }),
+  ).toBeVisible()
+
+  const lines = page.getByRole('group', { name: 'Product line' })
+  await lines.getByRole('button', { name: 'Sample HP Series' }).click()
+
+  await expect(page).toHaveURL(/productLine=Sample\+HP\+Series/)
+  // The four end mills carry that line; the drills and taps do not.
+  await expect(page.getByRole('table').getByRole('row')).toHaveCount(5)
+})
+
 test('opens a tool and explains the vendor’s codes', async ({ page }) => {
   await page.goto('/catalog')
 

@@ -19,6 +19,11 @@ const TERM_AXES: ReadonlyArray<{
   { key: 'brand', label: 'Brand', of: (tool) => tool.brand },
   { key: 'unitSystem', label: 'Published in', of: (tool) => tool.unitSystem },
   { key: 'familyId', label: 'Family', of: (tool) => tool.familyId },
+  // A line spans families — the same `KenCut™ FF` is square and ball nose,
+  // metric and inch — so it is the axis a shop asks "the rest of that line"
+  // on, which `familyId` cannot. A tool whose vendor names none carries no
+  // value and counts under nothing, the `materialGroups` rule.
+  { key: 'productLine', label: 'Product line', of: (tool) => tool.productLine ?? null },
   {
     key: 'NOF',
     label: 'Flutes',
@@ -49,7 +54,17 @@ const LIST_AXES: ReadonlyArray<{
   key: string
   label: string
   of: (tool: CatalogTool) => ReadonlyArray<string>
-}> = [{ key: 'materialGroups', label: 'Workpiece material', of: (tool) => tool.materialGroups }]
+}> = [
+  {
+    key: 'materialGroups',
+    label: 'Workpiece material',
+    // A tool nobody rated contributes to no value, exactly as one the vendor
+    // rates for nothing does. The two are told apart where a person reads a
+    // tool — `tool-sheet.tsx` — and not in a count, because a facet counts
+    // tools *under a value* and neither of them is under one.
+    of: (tool) => tool.materialGroups ?? [],
+  },
+]
 
 const countLists = (
   tools: ReadonlyArray<CatalogTool>,

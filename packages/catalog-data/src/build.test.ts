@@ -14,6 +14,7 @@ const tool = (
   unitSystem: 'metric',
   geometry: { DC: 5, OAL: 50, LCF: 12, NOF: 4, RE: 0.5, SFDM: 6 },
   materialGroups: ['P'],
+  productLine: null,
   productLink: null,
   provenance: { DC: 'vendor-stated' },
   ...over,
@@ -86,7 +87,7 @@ describe('buildCatalog', () => {
 
     expect(catalog.builtAt).toBe('2026-08-27')
     // Literal on purpose: moving it is a decision, and this is where it is made.
-    expect(catalog.version).toBe(4)
+    expect(catalog.version).toBe(6)
     expect(catalog.tools).toEqual([])
   })
 })

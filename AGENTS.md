@@ -160,7 +160,12 @@ application unless that application says otherwise.
   space the viewer fills, and the catalog browser and family list are still
   served at `/catalog` and `/families` with nothing linking to them.
   See `docs/TOOL-CATALOG-PLAN.md`, including _Taken out on 2026-09-01_ for what
-  is parked and where to restore it from.
+  is parked and where to restore it from, and _The filter panel_ for the one
+  rule saying which values a picker offers — an empty answer stays and is
+  greyed, another vendor's family or product line comes off the list.
+  **The 2D tool drawing is not this application's** — it is
+  `@toolpath/tool-drawing`, and `app/components/catalog-drawing.tsx` is the one
+  file that wires it up. See `docs/TOOL-DRAWING-PLAN.md`.
 - `packages/domain/` (`@toolpath/domain`) is pure helpers more than one
   application needs — unit conversion and formatting, class composition,
   keyboard movement through a list.
@@ -174,9 +179,19 @@ application unless that application says otherwise.
   the only place any application's API key is handled.**
 - `packages/part-client/` (`@toolpath/part-client`) is the browser half of that
   API: typed fetches and the session and analysis-event hooks.
+- **`@toolpath/tool-drawing` is not in this repository.** It is developed in
+  `toolpath-ui-packages` and consumed here, like `@toolpath/ui`,
+  `@toolpath/viewer` and `@toolpath/tool-scraper`. It draws a cutting tool and
+  its holder in 2D from an input contract of its own: `/geometry` is pure and
+  server-safe, `/clearance` is the optional overlay. Do not write a second
+  drawing here — `app/components/catalog-drawing.tsx` is the whole seam, and
+  `app/shared/tool-drawing-input.ts` the whole adapter.
 - `packages/catalog-data/` (`@toolpath/catalog-data`) is the tool catalog's data
   contract, its pure record-to-catalog transform, the tool-fit calculation, and
-  the committed sample dataset.
+  the committed sample dataset. It also answers **whether an assembly clears a
+  feature** — `clearance.ts` — which is a tool-selection question with a dozen
+  callers that draw nothing, so it stays here while the picture of it lives in
+  the drawing package.
 - `docs/` holds planning documents that outlive a single change.
   `docs/FEATURE-DEFAULTS.md` is the guide to the catalog's feature datasheet,
   `apps/catalog/app/shared/feature-defaults.csv`, and `docs/RULES.md` the
@@ -217,6 +232,19 @@ reaching across into it.
   The one package that handles an API key is `@toolpath/part-server`, which
   exists precisely so that handling happens in exactly one place; no other
   package may read `APP_SESSION_SECRET` or construct a Toolpath client.
+- **A rendering package takes the verdict as data.** `@toolpath/tool-drawing`
+  draws the clearance around a tool; `clearance()` in `@toolpath/catalog-data`
+  decides it, for twelve callers that draw nothing at all. Nothing in
+  `packages/` may import the drawing package's values — `NO_DRAWING` in
+  `eslint.config.js`, the same shape as the SDK and scraper rules — because that
+  is how a selection engine ends up behind a dependency on React.
+- **Two helpers are duplicated on purpose, and say so.** `hasNeck`
+  (`catalog-data/src/forms.ts`) and `heightAt` (`catalog-data/src/clearance.ts`)
+  each have a twin inside `@toolpath/tool-drawing`. The package may not depend
+  on this catalog's data package — its input contract is its own so that it does
+  not — and both copies still have non-drawing callers here. Each carries a
+  comment naming its twin. Change one and change the other, or the picture and
+  the verdict disagree about the same tool.
 - **Watch what a barrel export drags in.** `@toolpath/part-contracts` is split
   into subpaths because its report readers import `@toolpath/viewer`, which
   installs camera controls against a DOM at import time — enough to break a Hono
@@ -230,8 +258,29 @@ reaching across into it.
 ## Vendor Tool Data
 
 - **The scraper is not developed in this repository.** `@toolpath/tool-scraper`
-  lives in the `ui_packages` repository. Do not add scraping code here, and do
-  not copy an older scraper in from elsewhere.
+  lives in the `ui_packages` repository and is an ordinary dependency of
+  `@toolpath/catalog-data`. Do not write a vendor adapter here, and do not copy
+  an older scraper in from elsewhere: a vendor's transport, its column
+  vocabulary and its dimension codes all belong upstream, beside the tests that
+  check them.
+- **One module runs it, and `pnpm lint` says so.**
+  `packages/catalog-data/src/scrape.ts` drives the vendors' scrapers; everything
+  else may name the scraper's **types**, which are erased, and never its values.
+  A scrape is a command somebody runs, not something the product does — without
+  the rule, a route handler importing `scrapeFamily` would quietly turn the
+  catalog into a live proxy onto five vendors' websites, one request per page
+  view. `NO_SCRAPER` in `eslint.config.js`, the same shape as the SDK rule.
+- **A scrape is resumable, and a store is not a cache.**
+  `pnpm --filter @toolpath/catalog-data scrape` writes one file per family under
+  `scrape-out/records/` as each finishes, so a vendor failing costs that family
+  and nothing else; `--refresh` re-scrapes everything and `--only <family.csv>`
+  re-scrapes one. `scrape-out/receipt.json` records the scraper's version and
+  everything the run left out. Re-ingesting the store touches no network.
+- **Toolholding has no record seam yet.** The scraper mints records for cutting
+  tools only — drills, taps and end mills — so holders and collets are still
+  mapped from the vendors' own column labels in `src/vendors/`, one file per
+  vendor, each citing its evidence. That is a stopgap by construction; its exit
+  is a toolholding mapper upstream. See `docs/TOOL-SCRAPER-REFACTOR.md` § step 6.
 - Ingestion consumes the scraper's **records** (`ToolRecord`), never its vendor
   CSVs. A scraped CSV keeps that vendor's own column labels, and those collide
   with ISO 13399 while meaning something else — Kennametal's `D1` is a cutting
@@ -239,6 +288,13 @@ reaching across into it.
   read that vendor's CSV; this repository takes the handoff at the record seam,
   which is also what lets an updated scraper be plugged in without anything
   downstream of `buildCatalog` changing.
+- **A tool carries the vendor's own `productLine`**, and an AEM family its own
+  title. Both are the vendor's words, read off a page rather than derived, and
+  `null` where a vendor names none — the silence, not an unnamed line. The
+  product line is a filter axis of its own because a line spans families, which
+  is the question `familyId` cannot ask. Catalog version 6; re-ingest a store
+  rather than rebuild it, since neither name can be derived from a version-5
+  document.
 - **Geometry keeps the scraper's field names** (`DC`, `SFDM`, `OAL`, `LCF`,
   `RE`, `NOF`, `SIG`, …), with the ISO code recorded alongside. Renaming one
   here would put a translation table between the two vocabularies, which is
@@ -279,6 +335,17 @@ original. For the catalog:
 - **Component tests work**, including for components importing `@toolpath/ui`
   and, with the viewer package mocked, `@toolpath/viewer` —
   `components/part-viewer.test.tsx` pins the props that reach it.
+- **A test that reads the dataset says which dataset.** `vitest.config.ts` pins
+  `catalog-dataset` to the committed sample so a suite gives the same answer on
+  every machine; `shared/drawable-forms.test.ts` adds a second layer that reads
+  the gitignored scrape where a machine has one, and skips out loud where it
+  does not. That layer is the only place a newly scraped family with no drawing
+  generator turns red.
+- **A duplicate across a package boundary gets a lockstep test, not a comment.**
+  `shared/drawing-frame.ts` recomputes the frame `<ToolDrawing>` settled on,
+  because the package hands its children none;
+  `components/catalog-drawing.test.tsx` renders the real component and requires
+  the two `viewBox` strings to be identical. A copy nobody checks drifts.
 - **Anything that begins with a click on the part goes in
   `tests/on-the-part.spec.ts`**, against `tests/cube-fixture.ts` — the only
   fixture that mounts geometry. Nothing else can reach that stack.

@@ -55,14 +55,27 @@ export const togglePreferred = (
  */
 export type MaterialStanding = 'excluded' | 'stated' | 'unstated'
 
+/**
+ * `null` and `[]` both land on `unstated`, and that is deliberate.
+ *
+ * They are different facts about the *vendor* — one published no index, the
+ * other rates this part for nothing — and catalog version 5 keeps them apart so
+ * a person reading a tool can see which. But this function answers a different
+ * question: *should this tool be recommended for the material in front of me?*
+ * Neither state is evidence that it should, and neither is evidence that it
+ * should not. The paragraph above already says so for `[]` — a tap Kennametal
+ * indexes under nothing is not thereby unsuitable for every material — and the
+ * reasoning is the same, or stronger, for a tool nobody rated at all.
+ */
 export const materialStanding = (
   tool: CatalogTool,
   materialGroup: string | null,
 ): MaterialStanding => {
-  if (materialGroup === null || tool.materialGroups.length === 0) {
+  const rated = tool.materialGroups
+  if (materialGroup === null || rated === null || rated.length === 0) {
     return 'unstated'
   }
-  return tool.materialGroups.includes(materialGroup) ? 'stated' : 'excluded'
+  return rated.includes(materialGroup) ? 'stated' : 'excluded'
 }
 
 /** A tool, ranked for one pass against one material. */

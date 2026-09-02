@@ -14,6 +14,7 @@ const tool = (over: Partial<CatalogTool> & Pick<CatalogTool, 'guid'>): CatalogTo
   unitSystem: 'metric',
   geometry: { DC: 5, LCF: 15, RE: 0, NOF: 4 },
   materialGroups: ['P'],
+  productLine: null,
   productLink: null,
   provenance: {},
   ...over,

@@ -49,6 +49,42 @@ export const MILLING_FORMS: ReadonlySet<ToolForm> = new Set(
 export const isToolForm = (value: string): value is ToolForm =>
   value === 'other' || TOOL_FORMS.some((form) => form.value === value)
 
+/**
+ * The families whose form the vendor states and the scraper's `kind` does not.
+ *
+ * `ToolKind` has three values — `drill`, `tap`, `endmill` — and Harvey files
+ * its twelve keyseat-cutter families under `endmill`, because a keyseat cutter
+ * maps onto the endmill contract exactly: a cutting diameter, a width of cut,
+ * a shank, an overall length. What that loses is what the vendor's own page
+ * title says outright, *"Keyseat Cutters - Square - Reduced Shank"*.
+ *
+ * Derived from the kind alone they come out as flat end mills with a corner
+ * radius of zero, which is how a 22 mm cutter with 1.6 mm of flute and twelve
+ * teeth ends up offered to finish a pocket floor (Paul, 2026-09-01: "are you
+ * sure this is a flat endmill?").
+ *
+ * Matched on the scraper's **own family id**, not on a page title this
+ * repository would have to keep a copy of. `slot mill` is what a CAM library
+ * calls the tool — Fusion's own type for a keyseat or woodruff cutter — and it
+ * is the vocabulary {@link TOOL_FORMS} speaks.
+ *
+ * **This belongs upstream.** A kind of its own in the scraper's family table
+ * would state it once for every consumer; `FamilyFacts.profile` is not it —
+ * that is the *end* profile (`Ball`, `Square`, `Corner Radius`), which a
+ * keyseat cutter has as well. Until the scraper has one, it is stated here,
+ * from the vendor's own words, in one place, with `forms.test.ts` failing when
+ * a keyseat family arrives that this does not match.
+ */
+const STATED_FORMS: ReadonlyArray<{
+  readonly brand: string
+  readonly id: RegExp
+  readonly form: ToolForm
+}> = [{ brand: 'harvey', id: /^keyseat-/, form: 'slot mill' }]
+
+/** What a family's tools are where the vendor said and the kind cannot. */
+export const statedForm = (brand: string, familyId: string): ToolForm | null =>
+  STATED_FORMS.find((stated) => stated.brand === brand && stated.id.test(familyId))?.form ?? null
+
 export type Shank = 'reduced' | 'full'
 
 /**
@@ -83,6 +119,19 @@ export const shankOf = (tool: {
  * the sweep meets the wall with it at its own radius. Wider than the cut it
  * is still a relief the drawing shows, but not a *reduced* shank by Paul's
  * definition: 860 end mills have such a relief, 245 of them under the cut.
+ */
+/**
+ * **A twin of this lives in `@toolpath/tool-drawing`**, and that is deliberate.
+ *
+ * `assemblyOutline` needs it to tell a neck from plain shank, and a package
+ * that draws tools may not depend on this catalog's data package — the input
+ * contract is the package's own precisely so that it does not. Copying eight
+ * lines of a stated-shoulder test was the cheaper of the two wrongs. This copy
+ * stays because `clearance.ts` and `toolholding.ts` still call it, neither of
+ * which draws anything.
+ *
+ * If the rule ever changes, it changes in both places or the picture and the
+ * verdict disagree about the same tool.
  */
 export const hasNeck = (tool: { readonly geometry: Readonly<Record<string, number>> }): boolean => {
   const { LCF, SFDM, DC } = tool.geometry
