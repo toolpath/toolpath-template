@@ -20,6 +20,7 @@ const pick = (region: number, ranked: Array<string>, holding = false): PartPick 
   point: [0, 0, 0],
   normal: [0, 0, 1],
   modifiers: { alt: false, ctrl: false, meta: holding, shift: false, secondary: false },
+  doubled: false,
 })
 
 const wallA = pick(1, ['pocket', 'wall-a', 'profile'])

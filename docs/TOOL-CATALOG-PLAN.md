@@ -90,7 +90,7 @@ until it appears in [Phases](#phases).
 | Every styling and layering rule has a sensor, or is marked judgment                                                                 | 2026-08-28 |
 | The part page's interaction is a pure reducer the route only dispatches to                                                          | 2026-08-28 |
 | Holder collision is swept from the Engine's `reachCurve` against the catalog's silhouette                                           | 2026-08-29 |
-| `reachCurve` is read raw in `part-server` until the SDK declares it; a test retires the shim                                        | 2026-08-29 |
+| `reachCurve` is read typed; the shim its own test retired went on 2026-09-03                                                        | 2026-09-03 |
 | Stickout is a decision: it defaults to length below holder, capped by the grip where known                                          | 2026-08-29 |
 | An assembly is drawn from stated dimensions, dashed where derived; vendor CAD is not needed for that                                | 2026-08-29 |
 | REGO-FIX's `A2`, `B1`, `B2`, `B3_WOA` are pinned by cross-series variation and read as the holder body                              | 2026-08-29 |
@@ -124,7 +124,6 @@ Two consequences are load-bearing:
 ## What exists now
 
 ```
-packages/domain           @toolpath/domain          units, class names, list keys — pure, shared
 packages/part-contracts   @toolpath/part-contracts  the part report shape, datasheet readers, feature selection
 packages/part-server      @toolpath/part-server     the Hono part API: BYOK session, upload, events, mesh
 packages/part-client      @toolpath/part-client     the browser half: typed fetches, session and event hooks
@@ -612,11 +611,13 @@ that vendor does not have.
 The rule is in `AGENTS.md`: the second application to need something triggers
 extraction, and what gets extracted is the pure part.
 
-**`@toolpath/domain`** — unit conversion and formatting, class composition,
-keyboard movement through a list. `loadUnit`/`saveUnit` changed on the way out:
-they take the storage key from the caller instead of naming one, so two
-applications on one origin do not silently share a preference. The DFM app
-passes `part-viewer.unit`, unchanged, so nobody's stored preference reset.
+**`@toolpath/domain`** — retired. Unit conversion and formatting went to
+`@toolpath/tool-support`, which already owned `UnitSystem`; `classNames` and
+`loadUnit`/`saveUnit` went to `@toolpath/ui`. `loadUnit`/`saveUnit` had already
+changed once on the way out of the applications — they take the storage key from
+the caller instead of naming one, so two applications on one origin do not
+silently share a preference — and `loadUnit` still reads the older `'in'`/`'mm'`
+spellings, so nobody's stored preference reset.
 
 **`@toolpath/part-contracts`** — the redacted report the browser is allowed to
 see, the analysis event, which CAD files are accepted, the datasheet readers,
@@ -788,13 +789,22 @@ panel shows each stack's verdict against the selected feature, and
 
 Two things to keep in view:
 
-- **The SDK drops the field.** `@toolpath/api` 0.2.3 and 0.2.4 were generated
-  before 1.0.4, and their `FeatureDatasheetFromJSONTyped` copies thirteen
-  named fields. `part-server/src/reach-curve.ts` reads the raw response and
-  grafts the curve back by feature tag. `reach-curve.test.ts` reads the
-  installed SDK's declaration and **fails the day it names `reachCurve`** —
-  that failure is the instruction to delete the shim, read the field typed,
-  and re-export the SDK's type from `@toolpath/part-contracts`.
+- **The SDK declares the field, since `@toolpath/api` 0.4.0** (2026-09-03).
+  It did not in 0.2.x: `FeatureDatasheetFromJSONTyped` copied thirteen named
+  fields and dropped the rest, so `part-server/src/reach-curve.ts` read every
+  datasheet batch a second time raw and grafted the curve back by feature tag.
+  `reach-curve.test.ts` watched the installed SDK's own declaration and failed
+  the day it named `reachCurve`; that failure was the instruction, and it has
+  been taken — the shim, its test and the second read are gone, and
+  `getWholePartReport` makes one typed call per batch.
+
+  `ReachCurve` in `@toolpath/part-contracts` stayed a declaration rather than
+  becoming a re-export of the SDK's, which is the one part of that instruction
+  that no longer held. Two packages name the shape now, and their arrays differ:
+  the SDK's are `Array<number>`, `@toolpath/tool-support`'s are
+  `readonly number[]`, and the catalog passes the latter into the former's
+  parameters. Read-only is the supertype that takes both.
+
 - **The silhouette is the catalog's, not a holder's CAD.** Nose diameter,
   shank, and a neck where stated. A collet nut or a tapered body is finer than
   that, and a pass is a pass for exactly what `Clearance.checked` lists. The
@@ -866,5 +876,6 @@ the day, now adopted:
 - How is an assembly visualised — a drawing from stated dimensions, or vendor
   CAD? (Phase 3.) The reach curve is drawable too, and an assembly silhouette
   laid over it is the picture of _why_ a holding fails.
-- When `@toolpath/api` ships a build from Engine API 1.0.4, retire
-  `part-server/src/reach-curve.ts` — its own test says how.
+- ~~When `@toolpath/api` ships a build from Engine API 1.0.4, retire
+  `part-server/src/reach-curve.ts`~~ — done on 2026-09-03 with `@toolpath/api`
+  0.4.0. See _Holder collision_ above.

@@ -228,5 +228,8 @@ export const pickForRegion = (region: number, owners: ReadonlyArray<string>): Pa
     point: [0, 0, 0],
     normal: [0, 0, 0],
     modifiers: NO_MODIFIERS,
+    // A row press is one press: there is no pointer here to pair a second
+    // one with.
+    doubled: false,
   }
 }

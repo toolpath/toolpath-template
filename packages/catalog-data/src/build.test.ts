@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CatalogBuildError, buildCatalog, undefinedGeometryCodes, withDerived } from './build.js'
+import { CATALOG_VERSION } from './types.js'
 import type { CatalogTool, FamilyInput } from './index.js'
 
 const tool = (
@@ -11,7 +12,7 @@ const tool = (
   materialNumber: '1234567',
   toolType: 'endmill',
   form: 'flat end mill',
-  unitSystem: 'metric',
+  unitSystem: 'millimeters',
   geometry: { DC: 5, OAL: 50, LCF: 12, NOF: 4, RE: 0.5, SFDM: 6 },
   materialGroups: ['P'],
   productLine: null,
@@ -24,7 +25,7 @@ const family = (over: Partial<FamilyInput> & Pick<FamilyInput, 'id' | 'tools'>):
   name: 'Test family',
   brand: 'WIDIA',
   vendor: 'Kennametal',
-  unitSystem: 'metric',
+  unitSystem: 'millimeters',
   source: null,
   ...over,
 })
@@ -82,12 +83,72 @@ describe('buildCatalog', () => {
     ).toThrow(CatalogBuildError)
   })
 
+  /*
+   * The version-8 spelling, refused at the boundary rather than carried.
+   *
+   * `StickoutPolicy.step` is keyed on the unit system, so `metric` reaches it
+   * as `undefined`, `steppedTo` divides by it, and every derived `LBH` comes
+   * out `NaN` — which `JSON.stringify` writes as `null`. The document was
+   * stamped version 9 either way, so the application's version check passed it
+   * and the whole "below holder" column was quietly empty. `rebuild.mjs`
+   * migrates the rename; this is what catches a caller that forgets to.
+   */
+  it('refuses a family whose unit system predates version 9', () => {
+    expect(() =>
+      buildCatalog({
+        builtAt: '2026-08-27',
+        families: [
+          family({
+            id: 'endmills',
+            unitSystem: 'metric' as FamilyInput['unitSystem'],
+            tools: [tool({ guid: 'a', familyId: 'endmills' })],
+          }),
+        ],
+      }),
+    ).toThrow(CatalogBuildError)
+  })
+
+  it('refuses a tool whose unit system predates version 9', () => {
+    expect(() =>
+      buildCatalog({
+        builtAt: '2026-08-27',
+        families: [
+          family({
+            id: 'endmills',
+            tools: [
+              tool({
+                guid: 'a',
+                familyId: 'endmills',
+                unitSystem: 'inch' as CatalogTool['unitSystem'],
+              }),
+            ],
+          }),
+        ],
+      }),
+    ).toThrow(CatalogBuildError)
+  })
+
+  /*
+   * The failure the refusal above replaces, pinned so it cannot come back: a
+   * unit system this package knows produces a real `LBH`, not `NaN`.
+   */
+  it('derives a real length below the holder, never NaN', () => {
+    const catalog = buildCatalog({
+      builtAt: '2026-08-27',
+      families: [family({ id: 'endmills', tools: [tool({ guid: 'a', familyId: 'endmills' })] })],
+    })
+
+    const { LBH } = catalog.tools[0]!.geometry
+    expect(LBH).toBeTypeOf('number')
+    expect(Number.isNaN(LBH)).toBe(false)
+  })
+
   it('stamps the version and the caller’s build date rather than reading a clock', () => {
     const catalog = buildCatalog({ builtAt: '2026-08-27', families: [] })
 
     expect(catalog.builtAt).toBe('2026-08-27')
     // Literal on purpose: moving it is a decision, and this is where it is made.
-    expect(catalog.version).toBe(8)
+    expect(catalog.version).toBe(CATALOG_VERSION)
     expect(catalog.tools).toEqual([])
   })
 })

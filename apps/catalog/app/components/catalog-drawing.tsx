@@ -7,7 +7,7 @@ import {
   type Margins,
 } from '@toolpath/catalog-data'
 import type { ReachCurve } from '@toolpath/part-contracts'
-import { formatLength, type Unit } from '@toolpath/domain/units'
+import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import {
   SHEETS,
   ToolDrawing,
@@ -59,7 +59,7 @@ export interface CatalogDrawingProps {
   readonly tool: CatalogTool
   /** The stack around the tool, or null to draw the tool alone. */
   readonly assembly?: Assembly | null
-  readonly unit: Unit
+  readonly unit: UnitSystem
   /** The material around the feature: swept to paint what collides, and drawn beside the stack. */
   readonly curve?: ReachCurve | null
   /** Room the shop wants kept between the stack and the part. */

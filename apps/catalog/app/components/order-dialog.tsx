@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Button, Card } from '@toolpath/ui'
 import { colletsFor, isOnSize, type CatalogTool, type Collet } from '@toolpath/catalog-data'
-import { formatLength, type Unit } from '@toolpath/domain/units'
+import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { collets as allCollets } from 'shared/catalog'
 import { describeGrade, type HolderOption } from 'shared/holder-choice'
 import { ToolTypeIcon, formLabel } from './tool-icons'
@@ -32,7 +32,7 @@ export interface OrderDialogProps {
   readonly options: ReadonlyArray<HolderOption>
   /** What it is being kept for, in the words the panel uses. */
   readonly feature: string | null
-  readonly unit: Unit
+  readonly unit: UnitSystem
   /**
    * The button it came from. The box grows **up and to the left** of it
    * (Paul, 2026-08-31): the rows it is about are below and to the left, and a

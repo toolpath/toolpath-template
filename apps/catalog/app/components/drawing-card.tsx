@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Card } from '@toolpath/ui'
+import { Card, cn } from '@toolpath/ui'
 import {
   clearance,
   colletsFor,
@@ -12,8 +12,7 @@ import {
   type Margins,
 } from '@toolpath/catalog-data'
 import type { ReachCurve } from '@toolpath/part-contracts'
-import { formatLength, type Unit } from '@toolpath/domain/units'
-import { classNames } from '@toolpath/domain/class-names'
+import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { collets as allCollets, holders as allHolders } from 'shared/catalog'
 import { thresholdsFrom } from 'shared/holder-choice'
 import { drawnAssembly } from 'shared/drawn-assembly'
@@ -52,7 +51,7 @@ const CEILING_SAYS: Record<'clamp' | 'hold' | 'collet' | 'none', string> = {
  */
 export interface DrawingCardProps {
   readonly tool: CatalogTool
-  readonly unit: Unit
+  readonly unit: UnitSystem
   readonly selection: BuildSelection
   readonly onChange: (next: BuildSelection) => void
   /** The material around the selected feature, for the sweep — never drawn. */
@@ -102,7 +101,7 @@ export const DrawingCard = ({
                 type="button"
                 aria-pressed={view === value}
                 onClick={() => setView(value)}
-                className={classNames(
+                className={cn(
                   'text-2xs focus-visible:ring-info/60 rounded border px-2 py-0.5 transition focus-visible:ring-1 focus-visible:outline-none',
                   view === value
                     ? 'border-info/60 bg-info/15 text-info'

@@ -1,6 +1,6 @@
+import { formatArea, formatLength, type UnitSystem } from '@toolpath/tool-support'
 import type { PartFeature } from './contracts'
 import { asNumber, facts } from './report'
-import { formatArea, formatLength, type Unit } from './units'
 
 /**
  * What a feature amounts to, in the order somebody asks it.
@@ -97,11 +97,11 @@ export const measurements = ({
   feature: PartFeature
   features: ReadonlyArray<PartFeature>
   regions: ReadonlyArray<{ idx: number; shapeKind: string }>
-  unit: Unit
+  unit: UnitSystem
 }): Array<Measurement> => {
   // Both readings, so a row carries its conversion rather than the caller
   // working it out again from a string it would have to parse first.
-  const other: Unit = unit === 'mm' ? 'in' : 'mm'
+  const other: UnitSystem = unit === 'millimeters' ? 'inches' : 'millimeters'
   const length = (value: number) => ({
     value: formatLength(value, unit),
     alt: formatLength(value, other),

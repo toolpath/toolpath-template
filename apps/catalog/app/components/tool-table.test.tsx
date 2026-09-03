@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { UnitSystem } from '@toolpath/tool-support'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import type { CatalogTool } from '@toolpath/catalog-data'
@@ -14,14 +15,14 @@ const tool: CatalogTool = {
   toolType: 'endmill',
   productLine: null,
   form: 'flat end mill',
-  unitSystem: 'metric',
+  unitSystem: 'millimeters',
   geometry: { DC: 12.7, NOF: 4 },
   materialGroups: ['P'],
   productLink: null,
   provenance: {},
 }
 
-const show = (tools: ReadonlyArray<CatalogTool>, unit: 'in' | 'mm' = 'mm') =>
+const show = (tools: ReadonlyArray<CatalogTool>, unit: UnitSystem = 'millimeters') =>
   render(
     <MemoryRouter>
       <ToolTable tools={tools} unit={unit} />
@@ -40,7 +41,7 @@ describe('a column that the rail also asks about', () => {
       <MemoryRouter>
         <ToolTable
           tools={[tool]}
-          unit="mm"
+          unit="millimeters"
           onRange={() => {}}
           onRailFilter={onRailFilter}
           railKeys={{ DC: 'DC' }}
@@ -58,7 +59,7 @@ describe('a column that the rail also asks about', () => {
   it('keeps its own control for a column the rail does not ask about', () => {
     render(
       <MemoryRouter>
-        <ToolTable tools={[tool]} unit="mm" onRange={() => {}} onRailFilter={() => {}} />
+        <ToolTable tools={[tool]} unit="millimeters" onRange={() => {}} onRailFilter={() => {}} />
       </MemoryRouter>,
     )
 
@@ -80,7 +81,7 @@ describe('a list of near misses', () => {
       <MemoryRouter>
         <ToolTable
           tools={[tool]}
-          unit="mm"
+          unit="millimeters"
           marks={() => ({
             DC: { ok: false, level: 'must', why: 'too large', detail: 'Wider than the hole.' },
           })}
@@ -103,7 +104,7 @@ describe('a list of near misses', () => {
       <MemoryRouter>
         <ToolTable
           tools={[tool]}
-          unit="mm"
+          unit="millimeters"
           marks={() => ({
             DC: { ok: false, level: 'must', why: 'too large', detail: 'Wider than the hole.' },
           })}
@@ -129,7 +130,7 @@ describe('the colour a marked number is read in', () => {
   const cellFor = (marks: Parameters<typeof ToolTable>[0]['marks']) => {
     render(
       <MemoryRouter>
-        <ToolTable tools={[tool]} unit="mm" marks={marks} />
+        <ToolTable tools={[tool]} unit="millimeters" marks={marks} />
       </MemoryRouter>,
     )
     return screen.getByText('12.70 mm').closest('td')
@@ -187,7 +188,7 @@ describe('what a tool stands out', () => {
       <MemoryRouter>
         <ToolTable
           tools={[held]}
-          unit="mm"
+          unit="millimeters"
           holding={{
             holdersFor: () => [],
             colletsFor: () => [],
@@ -216,7 +217,7 @@ describe('ToolTable', () => {
   })
 
   it('shows every dimension in the unit being read in', () => {
-    show([tool], 'in')
+    show([tool], 'inches')
 
     expect(screen.getByText('0.500 in')).toBeInTheDocument()
   })
@@ -247,7 +248,7 @@ describe('where the page has somewhere to put a tool', () => {
     const chosen: Array<string> = []
     render(
       <MemoryRouter>
-        <ToolTable tools={[tool]} unit="mm" onChoose={(each) => chosen.push(each.guid)} />
+        <ToolTable tools={[tool]} unit="millimeters" onChoose={(each) => chosen.push(each.guid)} />
       </MemoryRouter>,
     )
 
@@ -263,7 +264,7 @@ describe('where the page has somewhere to put a tool', () => {
     const chosen: Array<string> = []
     render(
       <MemoryRouter>
-        <ToolTable tools={[tool]} unit="mm" onChoose={(each) => chosen.push(each.guid)} />
+        <ToolTable tools={[tool]} unit="millimeters" onChoose={(each) => chosen.push(each.guid)} />
       </MemoryRouter>,
     )
 
@@ -275,7 +276,7 @@ describe('where the page has somewhere to put a tool', () => {
   it('still links to the tool page where nothing else can show it', () => {
     render(
       <MemoryRouter>
-        <ToolTable tools={[tool]} unit="mm" />
+        <ToolTable tools={[tool]} unit="millimeters" />
       </MemoryRouter>,
     )
 
@@ -298,7 +299,7 @@ describe('the L/D column', () => {
   it('can be hidden like any other column', () => {
     render(
       <MemoryRouter>
-        <ToolTable tools={[tool]} unit="mm" hiddenColumns={['LD']} />
+        <ToolTable tools={[tool]} unit="millimeters" hiddenColumns={['LD']} />
       </MemoryRouter>,
     )
 
@@ -314,7 +315,7 @@ describe('the order of the columns', () => {
   it('draws them in the order it is given', () => {
     render(
       <MemoryRouter>
-        <ToolTable tools={[tool]} unit="mm" columnOrder={['RE', 'DC', 'LCF']} />
+        <ToolTable tools={[tool]} unit="millimeters" columnOrder={['RE', 'DC', 'LCF']} />
       </MemoryRouter>,
     )
     const headers = screen.getAllByRole('columnheader').map((each) => each.textContent)
@@ -326,7 +327,7 @@ describe('the order of the columns', () => {
   it('keeps a column the order does not mention', () => {
     render(
       <MemoryRouter>
-        <ToolTable tools={[tool]} unit="mm" columnOrder={['RE']} />
+        <ToolTable tools={[tool]} unit="millimeters" columnOrder={['RE']} />
       </MemoryRouter>,
     )
 
@@ -359,7 +360,7 @@ describe('the holder and collet columns', () => {
   it('are a dropdown per row when they are shown', () => {
     render(
       <MemoryRouter>
-        <ToolTable tools={[tool]} unit="mm" hiddenColumns={[]} holding={holding} />
+        <ToolTable tools={[tool]} unit="millimeters" hiddenColumns={[]} holding={holding} />
       </MemoryRouter>,
     )
 
@@ -377,7 +378,7 @@ describe('the order list button', () => {
     const on = kept()
     render(
       <MemoryRouter>
-        <ToolTable tools={[tool]} unit="mm" {...on} />
+        <ToolTable tools={[tool]} unit="millimeters" {...on} />
       </MemoryRouter>,
     )
     fireEvent.click(screen.getByRole('button', { name: /^Add TDMX0500/ }))
@@ -391,7 +392,7 @@ describe('the order list button', () => {
     const on = kept()
     render(
       <MemoryRouter>
-        <ToolTable tools={[tool]} unit="mm" inBom={() => true} {...on} />
+        <ToolTable tools={[tool]} unit="millimeters" inBom={() => true} {...on} />
       </MemoryRouter>,
     )
     fireEvent.click(screen.getByRole('button', { name: /^Remove TDMX0500/ }))
@@ -408,7 +409,7 @@ describe('the order list button', () => {
     const on = kept()
     render(
       <MemoryRouter>
-        <ToolTable tools={[tool]} unit="mm" keptElsewhere={() => true} {...on} />
+        <ToolTable tools={[tool]} unit="millimeters" keptElsewhere={() => true} {...on} />
       </MemoryRouter>,
     )
     fireEvent.click(screen.getByRole('button', { name: /^Also cut this feature/ }))
@@ -431,7 +432,7 @@ describe('a note that says what it is measured from', () => {
   const withNote = (note: string) =>
     render(
       <MemoryRouter>
-        <ToolTable tools={[tool]} unit="mm" marks={() => ({ DC: { ok: true, note } })} />
+        <ToolTable tools={[tool]} unit="millimeters" marks={() => ({ DC: { ok: true, note } })} />
       </MemoryRouter>,
     )
 
@@ -452,7 +453,7 @@ describe('a note that says what it is measured from', () => {
   it('leaves the tick alone where the rules had nothing to add', () => {
     render(
       <MemoryRouter>
-        <ToolTable tools={[tool]} unit="mm" marks={() => ({ DC: { ok: true } })} />
+        <ToolTable tools={[tool]} unit="millimeters" marks={() => ({ DC: { ok: true } })} />
       </MemoryRouter>,
     )
 
@@ -484,7 +485,7 @@ const tap: CatalogTool = {
 const showTaps = (props: Partial<Parameters<typeof ToolTable>[0]> = {}) =>
   render(
     <MemoryRouter>
-      <ToolTable tools={[tap]} unit="mm" columns={TAP_COLUMNS} {...props} />
+      <ToolTable tools={[tap]} unit="millimeters" columns={TAP_COLUMNS} {...props} />
     </MemoryRouter>,
   )
 

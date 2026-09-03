@@ -30,6 +30,25 @@ if (typeof old.version !== 'number' || old.version < 3) {
   process.exit(1)
 }
 
+/**
+ * Version 9 renamed the two unit systems.
+ *
+ * Up to version 8 this package spelled them `metric` and `inch`; version 9
+ * takes `@toolpath/tool-support`'s `millimeters` and `inches`, which is the
+ * same axis under the name the rest of the stack already used. It is a pure
+ * rename, so unlike the version-6 move it *can* be derived from an older file
+ * — which is the difference between a rebuild and a re-scrape.
+ *
+ * It has to happen here rather than be left to `buildCatalog`, because
+ * `StickoutPolicy.step` is keyed on the unit system: an unmigrated `metric`
+ * reaches it as `undefined` and every derived `LBH` comes out `NaN`, which
+ * `JSON.stringify` writes as `null`. `buildCatalog` now refuses the old
+ * spelling outright, so a missed one is a stopped script rather than a
+ * silently gutted dataset.
+ */
+const UNIT_SYSTEM_SINCE_9 = { metric: 'millimeters', inch: 'inches' }
+const unitSystemOf = (stated) => UNIT_SYSTEM_SINCE_9[stated] ?? stated
+
 const byFamily = new Map(
   old.families.map((family) => [
     family.id,
@@ -38,7 +57,7 @@ const byFamily = new Map(
       name: family.name,
       brand: family.brand,
       vendor: family.vendor,
-      unitSystem: family.unitSystem,
+      unitSystem: unitSystemOf(family.unitSystem),
       source: family.source ?? null,
       tools: [],
     },
@@ -52,7 +71,7 @@ for (const tool of old.tools) {
     )
     process.exit(1)
   }
-  family.tools.push(tool)
+  family.tools.push({ ...tool, unitSystem: unitSystemOf(tool.unitSystem) })
 }
 
 const catalog = buildCatalog({

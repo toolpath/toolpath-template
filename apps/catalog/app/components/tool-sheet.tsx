@@ -1,6 +1,6 @@
 import { Badge, Card } from '@toolpath/ui'
 import type { CatalogTool } from '@toolpath/catalog-data'
-import { formatLength, type Unit } from '@toolpath/domain/units'
+import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { getFamily } from 'shared/catalog'
 import { formatGeometry, geometryRows } from 'shared/geometry'
 import { ToolTypeIcon, formLabel } from './tool-icons'
@@ -56,7 +56,7 @@ const MaterialIndex = ({ groups }: { groups: ReadonlyArray<string> | null }) => 
 
 export interface ToolSheetProps {
   readonly tool: CatalogTool
-  readonly unit: Unit
+  readonly unit: UnitSystem
   /** The strip and the header only — for a panel beside the part. */
 }
 

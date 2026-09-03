@@ -1,3 +1,4 @@
+import { formatArea, type UnitSystem } from '@toolpath/tool-support'
 import { Fragment, memo, useState, type ReactNode } from 'react'
 import type { Vec3 } from '@toolpath/api'
 
@@ -22,7 +23,6 @@ import type { FeatureScore } from 'shared/feature-score'
 import type { PartFaces, Pass, SetupPlan } from 'shared/setups'
 import { PASSES, cutState, cutsFrom, faceCounts } from 'shared/setups'
 import { type FacePart, facesOf } from 'shared/faces'
-import { formatArea, type Unit } from 'shared/units'
 import { rowAttributes } from 'shared/row-nav'
 import { usePartView } from './part-view'
 
@@ -98,7 +98,7 @@ const FaceLines = ({
   report: FacePart
   plan: SetupPlan
   showingPass: Pass
-  unit: Unit
+  unit: UnitSystem
   onHover: (tags: Array<string>) => void
 }) => (
   <ul className="ml-5 flex flex-col border-l border-edge">

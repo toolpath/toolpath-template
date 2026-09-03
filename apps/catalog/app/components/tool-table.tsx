@@ -1,8 +1,9 @@
+import { cn } from '@toolpath/ui'
 import { useMemo, type ReactNode } from 'react'
 import type { CatalogTool, Holder } from '@toolpath/catalog-data'
 import { GEOMETRY_FIELDS } from '@toolpath/catalog-data'
 import { Link } from 'react-router'
-import type { Unit } from '@toolpath/domain/units'
+import type { UnitSystem } from '@toolpath/tool-support'
 import { formatGeometry } from 'shared/geometry'
 import {
   ArrowSquareOutIcon,
@@ -17,7 +18,6 @@ import {
   WarningIcon,
   XCircleIcon,
 } from '@phosphor-icons/react'
-import { classNames } from '@toolpath/domain/class-names'
 import type { Mark } from 'shared/tool-marks'
 import { orderedCodes } from 'shared/column-order'
 import { FunnelIcon, FunnelSimpleIcon } from '@phosphor-icons/react'
@@ -208,7 +208,7 @@ const SortButton = ({
       aria-label={`Sort by ${label.toLowerCase()}`}
       aria-pressed={on}
       onClick={() => onSort(nextSort(sort, code))}
-      className={classNames(
+      className={cn(
         'focus-visible:ring-info/60 shrink-0 rounded p-0.5 transition focus-visible:ring-1 focus-visible:outline-none',
         on ? 'text-info' : 'text-zinc-600 hover:text-zinc-300',
       )}
@@ -229,7 +229,7 @@ const kindOf = (code: string): Kind => {
 
 export interface ToolTableProps {
   readonly tools: ReadonlyArray<CatalogTool>
-  readonly unit: Unit
+  readonly unit: UnitSystem
   /** The chosen row's guid, when a page shows one tool's details beside the list. */
   readonly chosen?: string | null
   readonly onChoose?: (tool: CatalogTool) => void
@@ -423,7 +423,7 @@ const HoldingCell = ({
           colletGuid: event.target.value === '' ? null : event.target.value,
         })
       }}
-      className={classNames(HOLDING_SELECT, collets.length === 0 && 'text-zinc-600')}
+      className={cn(HOLDING_SELECT, collets.length === 0 && 'text-zinc-600')}
     >
       <option value="">No collet</option>
       {collets.map((each) => (
@@ -561,7 +561,7 @@ export const ToolTable = ({
         <caption className="sr-only">Tools matching the current selection</caption>
         <thead data-list-chrome>
           <tr className="text-2xs border-b border-zinc-800 text-left tracking-wide text-zinc-400 uppercase">
-            <th scope="col" className={classNames(COLUMN_WIDTH.name, 'px-3 py-2 font-semibold')}>
+            <th scope="col" className={cn(COLUMN_WIDTH.name, 'px-3 py-2 font-semibold')}>
               {onSearch ? (
                 <span className="flex items-center gap-1">
                   <MagnifyingGlassIcon aria-hidden="true" className="shrink-0 text-zinc-600" />
@@ -578,7 +578,7 @@ export const ToolTable = ({
                 'Catalog number'
               )}
             </th>
-            <th scope="col" className={classNames(COLUMN_WIDTH.vendor, 'px-3 py-2 font-semibold')}>
+            <th scope="col" className={cn(COLUMN_WIDTH.vendor, 'px-3 py-2 font-semibold')}>
               {onRailFilter && railKeys.brand !== undefined ? (
                 <RailHandover
                   label="Vendor"
@@ -589,7 +589,7 @@ export const ToolTable = ({
                 'Vendor'
               )}
             </th>
-            <th scope="col" className={classNames(COLUMN_WIDTH.type, 'px-3 py-2 font-semibold')}>
+            <th scope="col" className={cn(COLUMN_WIDTH.type, 'px-3 py-2 font-semibold')}>
               {onRailFilter && railKeys.form !== undefined ? (
                 <RailHandover
                   label="Type"
@@ -611,7 +611,7 @@ export const ToolTable = ({
               <th
                 key={column.code}
                 scope="col"
-                className={classNames(
+                className={cn(
                   COLUMN_WIDTH.value,
                   'px-3 py-2 font-semibold',
                   isHolding(column.code) ? 'text-left' : 'text-right',
@@ -653,7 +653,7 @@ export const ToolTable = ({
               </th>
             ))}
             {onBom ? (
-              <th scope="col" className={classNames(COLUMN_WIDTH.bom, 'px-3 py-2 font-semibold')}>
+              <th scope="col" className={cn(COLUMN_WIDTH.bom, 'px-3 py-2 font-semibold')}>
                 <span className="sr-only">Order list</span>
               </th>
             ) : null}
@@ -686,7 +686,7 @@ export const ToolTable = ({
               >
                 <th
                   scope="row"
-                  className={classNames(
+                  className={cn(
                     'overflow-hidden whitespace-nowrap',
                     'px-3 py-2 text-left font-normal',
                   )}
@@ -732,7 +732,7 @@ export const ToolTable = ({
                   */}
                   {here || elsewhere ? (
                     <span
-                      className={classNames(
+                      className={cn(
                         'text-2xs ml-2 rounded border px-1 align-middle',
                         here
                           ? 'border-emerald-500/40 text-emerald-300'
@@ -898,7 +898,7 @@ export const ToolTable = ({
                   return (
                     <td
                       key={column.code}
-                      className={classNames(
+                      className={cn(
                         // **Clipped, not spilled.** A note longer than its
                         // column used to paint straight across the next two
                         // (Paul, 2026-09-01): the row is `nowrap`, so nothing
@@ -963,7 +963,7 @@ export const ToolTable = ({
                         </span>
                         {mark === undefined ? null : !mark.ok ? (
                           <span
-                            className={classNames(
+                            className={cn(
                               'shrink-0',
                               mark.level === 'must' ? 'text-danger' : 'text-amber-300',
                             )}
@@ -1069,7 +1069,7 @@ export const ToolTable = ({
                           }
                           onBom(tool, event.currentTarget.getBoundingClientRect())
                         }}
-                        className={classNames(
+                        className={cn(
                           'text-2xs focus-visible:ring-info/60 rounded border px-1.5 py-1 whitespace-nowrap transition focus-visible:ring-1 focus-visible:outline-none',
                           here
                             ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300'

@@ -1,7 +1,8 @@
+import { type UnitSystem } from '@toolpath/tool-support'
 import { directionIndexOf, type PartPick } from '@toolpath/viewer'
+import { useUnit } from 'shared/use-unit'
 import { type Arrows, arrowsFor, arrowsVisible, nextArrows, shownArrow } from 'shared/arrows'
 import { type PaintMode, loadPaintMode, savePaintMode } from 'shared/paint'
-import { type Unit, loadUnit, saveUnit } from 'shared/units'
 import { Panels, Tabs } from '@toolpath/ui'
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
@@ -616,20 +617,8 @@ export const PartInspector = ({
     [focusedTag, part.features],
   )
 
-  const [unit, setUnit] = useState<Unit>('mm')
+  const [unit, chooseUnit] = useUnit()
   const features = useMemo(() => filterFeatures(part.features, query), [query, part.features])
-
-  // Read after mount, like the paint mode: the server has no localStorage, and
-  // a unit that differed between the two would hydrate as a flash of the wrong
-  // numbers.
-  useEffect(() => {
-    setUnit(loadUnit(globalThis.localStorage ?? null))
-  }, [])
-
-  const chooseUnit = (next: Unit) => {
-    setUnit(next)
-    saveUnit(globalThis.localStorage ?? null, next)
-  }
   /**
    * Once a feature is being read, its own way up is the only one worth drawing.
    * An explicit direction still wins: choosing one is a question about that

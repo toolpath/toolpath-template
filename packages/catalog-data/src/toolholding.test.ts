@@ -17,7 +17,7 @@ import {
 } from './toolholding.js'
 import { assembliesForFeatures, assemblyAgainst, unholdableTools } from './assembly-fit.js'
 /** The bounds alone: no floor, no step — so a case about the caps is only about the caps. */
-const BARE = { heldShare: 1 / 3, least: 0, step: { inch: 0, metric: 0 } }
+const BARE = { heldShare: 1 / 3, least: 0, step: { inches: 0, millimeters: 0 } }
 import type { FeatureDemand } from './fit.js'
 import type { CatalogTool } from './types.js'
 
@@ -29,7 +29,7 @@ const tool = (over: Partial<CatalogTool> & Pick<CatalogTool, 'guid'>): CatalogTo
   materialNumber: null,
   toolType: 'endmill',
   form: 'flat end mill',
-  unitSystem: 'metric',
+  unitSystem: 'millimeters',
   geometry: { DC: 6, LCF: 20, OAL: 60, SFDM: 6, RE: 0 },
   materialGroups: ['P'],
   productLine: null,
@@ -458,7 +458,11 @@ describe('how far a tool may stand out of a holder', () => {
    */
   it('takes the tighter of the sheet’s two knobs, and names it', () => {
     const t = tool({ guid: 't', geometry: { DC: 6, OAL: 60, SFDM: 6, LCF: 19 } })
-    const share = (heldShare: number) => ({ heldShare, least: 0, step: { inch: 0, metric: 0 } })
+    const share = (heldShare: number) => ({
+      heldShare,
+      least: 0,
+      step: { inches: 0, millimeters: 0 },
+    })
     expect(stickoutLimits(t, unpublished, null, share(1 / 3))).toMatchObject({
       max: 40,
       limitedBy: 'hold',
@@ -499,15 +503,15 @@ describe('how far a tool may stand out of a holder', () => {
 describe('the setup stickout, by the sheet', () => {
   const unpublished = collet({ guid: 'c', clampLength: null })
   /** Paul's numbers: half an inch at least, on an eighth of an inch for inch tools and 3 mm for metric ones. */
-  const policy = { heldShare: 1 / 3, least: 12.7, step: { inch: 3.175, metric: 3 } }
+  const policy = { heldShare: 1 / 3, least: 12.7, step: { inches: 3.175, millimeters: 3 } }
   const inch = tool({
     guid: 'i',
-    unitSystem: 'inch',
+    unitSystem: 'inches',
     geometry: { DC: 6.35, OAL: 76.2, SFDM: 6.35, LCF: 19.05 },
   })
   const metric = tool({
     guid: 'm',
-    unitSystem: 'metric',
+    unitSystem: 'millimeters',
     geometry: { DC: 6, OAL: 60, SFDM: 6, LCF: 8 },
   })
 
@@ -533,7 +537,7 @@ describe('the setup stickout, by the sheet', () => {
   it('goes no further than the tool allows', () => {
     const stubby = tool({
       guid: 's',
-      unitSystem: 'inch',
+      unitSystem: 'inches',
       geometry: { DC: 3, OAL: 15, SFDM: 3, LCF: 6 },
     })
     expect(stickoutLimits(stubby, unpublished, null, policy)).toMatchObject({

@@ -44,7 +44,7 @@ const show = (chosen: ReadonlyArray<string>, counts: Readonly<Record<string, num
       query={{ ...EMPTY_QUERY, terms: chosen.length > 0 ? { form: chosen } : {} }}
       onQuery={onQuery}
       counts={() => new Map(Object.entries(counts))}
-      unit="mm"
+      unit="millimeters"
       only={['form']}
       materialGroup={null}
       onMaterial={() => {}}
@@ -130,7 +130,7 @@ const showFamilies = () => {
       query={EMPTY_QUERY}
       onQuery={vi.fn()}
       counts={() => counts}
-      unit="mm"
+      unit="millimeters"
       only={['familyId']}
       materialGroup={null}
       onMaterial={() => {}}
@@ -209,7 +209,7 @@ describe('a family list scoped to the chosen vendor', () => {
         }}
         onQuery={onQuery}
         counts={() => new Map()}
-        unit="mm"
+        unit="millimeters"
         only={['familyId']}
         materialGroup={null}
         onMaterial={() => {}}

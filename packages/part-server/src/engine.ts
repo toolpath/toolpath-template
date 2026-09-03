@@ -4,7 +4,6 @@ import {
   type KeyValidationResponseStatusEnum,
 } from '@toolpath/api'
 import type { PartFeature, PartReport } from '@toolpath/part-contracts'
-import { curvesByTag, withReachCurve } from './reach-curve.js'
 
 const DATASHEET_BATCH_SIZE = 50
 
@@ -223,28 +222,20 @@ export const getWholePartReport = async (
    * geometry…" for nothing. A shared cursor hands each worker the next batch as
    * it frees up, so one slow batch does not stall the rest. The workers share
    * `datasheetsByTag`, which is safe because a feature tag belongs to exactly
-   * one batch — no two workers write the same key. (Justin Gray, ported with
-   * the reach-curve grafting this package added.)
+   * one batch — no two workers write the same key. (Justin Gray.)
    */
   let nextBatch = 0
   const drainBatches = async () => {
     while (nextBatch < batches.length) {
       const ids = batches[nextBatch]
       nextBatch += 1
-      // Raw as well as typed: the SDK's deserialiser drops `reachCurve`, and the
-      // raw body is the only place it survives. `reach-curve.ts` says when this
-      // goes back to a plain `getPartFeatures`.
-      const response = await requireData(
-        engine.features.getPartFeaturesRaw({ id: partId, ids: ids ?? '' }),
+      const datasheets = await requireData(
+        engine.features.getPartFeatures({ id: partId, ids: ids ?? '' }),
         'get feature datasheets',
       )
-      const body: unknown = await response.raw.clone().json()
-      const datasheets = await requireData(response.value(), 'get feature datasheets')
-      const curves = curvesByTag(body)
       for (const entry of datasheets.datasheets) {
-        const grafted = withReachCurve(entry, curves)
-        if (grafted.datasheet) {
-          datasheetsByTag.set(grafted.featureTag, grafted.datasheet)
+        if (entry.datasheet) {
+          datasheetsByTag.set(entry.featureTag, entry.datasheet)
         }
       }
     }

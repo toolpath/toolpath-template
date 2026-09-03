@@ -1,11 +1,5 @@
-import {
-  MODEL_UNIT,
-  convertLength,
-  decimalsFor,
-  formatLength,
-  type Unit,
-} from '@toolpath/domain/units'
-import { classNames } from '@toolpath/domain/class-names'
+import { cn } from '@toolpath/ui'
+import { convertLength, decimalsFor, formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { CheckIcon, InfoIcon, XCircleIcon } from '@phosphor-icons/react'
 import {
   HOLE_MODES,
@@ -52,7 +46,7 @@ export interface ThreadPickerProps {
    * can be read as this predrill at all.
    */
   readonly deviation: { readonly over: number; readonly under: number }
-  readonly unit: Unit
+  readonly unit: UnitSystem
 }
 
 /**
@@ -78,7 +72,7 @@ export const ThreadPicker = ({
    * hole drawn over it. Exactly on it says so rather than showing a zero.
    */
   const deviation = (millimetres: number): string => {
-    const off = convertLength(millimetres, MODEL_UNIT, unit)
+    const off = convertLength(millimetres, 'millimeters', unit)
     const shown = off.toFixed(decimalsFor(unit))
     return Number(shown) === 0 ? 'exactly' : `${off > 0 ? '+' : '−'}${shown.replace('-', '')}`
   }
@@ -102,7 +96,7 @@ export const ThreadPicker = ({
   const refusal = `Further from the modelled hole than the shop's max drill deviation allows (+${formatLength(band.over, unit)} / \u2212${formatLength(band.under, unit)}): no standard drill makes both`
   /** On the size, by what this column would print — the tick's own test. */
   const exact = (millimetres: number): boolean =>
-    Number(convertLength(millimetres, MODEL_UNIT, unit).toFixed(decimalsFor(unit))) === 0
+    Number(convertLength(millimetres, 'millimeters', unit).toFixed(decimalsFor(unit))) === 0
   const offered = threadOptions(holeDiameter, 2)
   const guesses = threadsFor(holeDiameter)
 
@@ -239,7 +233,7 @@ export const ThreadPicker = ({
                     : `${spec.name}, ${way.mode} — starts from a ⌀${formatLength(drill, unit)} hole`
                 }
                 onClick={() => onChange({ mode: way.mode, spec })}
-                className={classNames(
+                className={cn(
                   'focus-visible:ring-info/60 flex items-baseline gap-2 rounded border px-1.5 py-1 text-left transition focus-visible:ring-1 focus-visible:outline-none',
                   on
                     ? 'border-info/60 bg-info/15 text-info'
@@ -259,7 +253,7 @@ export const ThreadPicker = ({
                       hole this way of making the thread starts from.
                     */}
                     <span
-                      className={classNames(
+                      className={cn(
                         'w-16 text-right font-mono text-[11px] whitespace-nowrap',
                         past(holeDiameter - drill) ? 'text-danger' : '',
                       )}
@@ -280,7 +274,7 @@ export const ThreadPicker = ({
                       — printed identically.
                     */}
                     <span
-                      className={classNames(
+                      className={cn(
                         'flex w-20 shrink-0 items-center justify-end gap-1 text-right font-mono text-[10px]',
                         past(holeDiameter - drill) ? 'text-danger' : 'text-zinc-500',
                       )}

@@ -1,14 +1,13 @@
 import { NavLink, useNavigate } from 'react-router'
-import { Badge } from '@toolpath/ui'
+import { Badge, cn } from '@toolpath/ui'
 import { Chip, ChipGroup } from 'components/chip'
-import { UNITS, type Unit } from '@toolpath/domain/units'
-import { classNames } from '@toolpath/domain/class-names'
+import { UNIT_ABBREVIATION, UNIT_SYSTEMS, type UnitSystem } from '@toolpath/tool-support'
 import { MoonIcon, SunIcon, UploadSimpleIcon } from '@phosphor-icons/react'
 import { forgetPart, orderListHref, partHref, usePartSession } from 'shared/part-session'
 import { useTheme } from 'shared/use-theme'
 
 const tabClass = ({ isActive }: { isActive: boolean }) =>
-  classNames(
+  cn(
     'px-3 py-2 text-sm font-semibold border-b-2 -mb-px',
     isActive
       ? 'border-primary text-zinc-100'
@@ -16,8 +15,8 @@ const tabClass = ({ isActive }: { isActive: boolean }) =>
   )
 
 export interface AppHeaderProps {
-  readonly unit: Unit
-  readonly onUnit: (unit: Unit) => void
+  readonly unit: UnitSystem
+  readonly onUnit: (unit: UnitSystem) => void
   readonly toolCount: number
 }
 
@@ -61,9 +60,9 @@ export const AppHeader = ({ unit, onUnit, toolCount }: AppHeaderProps) => {
           {theme === 'dark' ? <SunIcon aria-hidden="true" /> : <MoonIcon aria-hidden="true" />}
         </button>
         <ChipGroup label="Units">
-          {UNITS.map((each) => (
+          {UNIT_SYSTEMS.map((each) => (
             <Chip key={each} pressed={each === unit} onClick={() => onUnit(each)}>
-              {each}
+              {UNIT_ABBREVIATION[each]}
             </Chip>
           ))}
         </ChipGroup>

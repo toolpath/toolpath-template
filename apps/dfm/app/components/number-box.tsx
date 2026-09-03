@@ -1,3 +1,4 @@
+import { type UnitSystem } from '@toolpath/tool-support'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Input } from '@toolpath/ui'
@@ -5,7 +6,6 @@ import { Input } from '@toolpath/ui'
 import { bandCss } from 'shared/bands'
 import type { Band, Rule } from 'shared/rules'
 import { fromDisplay, toDisplay, unitSuffix } from 'shared/rule-text'
-import type { Unit } from 'shared/units'
 
 /**
  * Typing a number into this app.
@@ -88,7 +88,7 @@ export const NumberBox = ({
   placeholder?: string | undefined
   value: number | undefined
   metric: Rule['metric']
-  unit: Unit
+  unit: UnitSystem
   /** Unitless — a weight or a count, which no conversion touches. */
   raw?: boolean
   width?: string
@@ -129,12 +129,12 @@ export const NumberBox = ({
    * empty or half-typed.
    */
   const typing = (draft ?? settled).trim()
-  const other: Unit = unit === 'mm' ? 'in' : 'mm'
+  const other: UnitSystem = unit === 'millimeters' ? 'inches' : 'millimeters'
   const converted =
     raw || typing === '' || !COMPLETE.test(typing)
       ? null
       : `${toDisplay(fromDisplay(Number(typing), shown, unit), shown, other).toFixed(
-          other === 'in' ? 4 : 3,
+          other === 'inches' ? 4 : 3,
         )} ${unitSuffix(metric, other)}`
 
   return (

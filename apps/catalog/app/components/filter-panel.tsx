@@ -1,3 +1,4 @@
+import { cn } from '@toolpath/ui'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   BookmarkSimpleIcon,
@@ -16,8 +17,7 @@ import {
 } from '@phosphor-icons/react'
 import type { Facets } from '@toolpath/catalog-data'
 import { MATERIAL_GROUPS, TOOL_FORMS } from '@toolpath/catalog-data'
-import { classNames } from '@toolpath/domain/class-names'
-import type { Unit } from '@toolpath/domain/units'
+import type { UnitSystem } from '@toolpath/tool-support'
 import { brandsOfFamily, brandsOfProductLine, getFamily } from 'shared/catalog'
 import { toggleTerm, type ToolQuery } from 'shared/filter'
 import type { SavedFilter } from 'shared/saved-filters'
@@ -326,7 +326,7 @@ export interface FilterPanelProps {
   readonly onQuery: (query: ToolQuery) => void
   /** Counts over the result set on screen, not over the whole catalog. */
   readonly counts: (key: string) => ReadonlyMap<string, number>
-  readonly unit: Unit
+  readonly unit: UnitSystem
   /**
    * What this crib can hold with, which is not a property of any tool.
    *
@@ -367,7 +367,7 @@ const Field = ({
   span: 1 | 2
   children: ReactNode
 }) => (
-  <section className={classNames('min-w-0', span === 2 && 'col-span-full')}>
+  <section className={cn('min-w-0', span === 2 && 'col-span-full')}>
     <h4 className="text-2xs mb-1 flex items-center gap-1.5 font-semibold tracking-wide text-zinc-500 uppercase">
       <span className="text-zinc-600">{icon}</span>
       {label}
@@ -418,7 +418,7 @@ const Tile = ({
         : `${option.label} — none in this list`
     }
     onClick={onToggle}
-    className={classNames(
+    className={cn(
       'relative flex min-w-0 flex-col items-center gap-1 rounded-md border px-1 py-1.5 transition',
       'focus-visible:ring-info/60 focus-visible:ring-1 focus-visible:outline-none',
       /*
@@ -1059,9 +1059,7 @@ export const FilterPanel = ({
         too narrow for three chips, so "Reduced" wrapped under "Any Full" for
         no reason (Paul, 2026-08-31: "should read horizontally").
       */}
-      <div
-        className={classNames(compact ? 'flex flex-col gap-3' : 'grid grid-cols-2 gap-x-4 gap-y-3')}
-      >
+      <div className={cn(compact ? 'flex flex-col gap-3' : 'grid grid-cols-2 gap-x-4 gap-y-3')}>
         {shownFilters.map((filter) => {
           const counted = counts(filter.key)
 
@@ -1110,7 +1108,7 @@ export const FilterPanel = ({
                                 : { min: each.value, max: each.value },
                             )
                           }
-                          className={classNames(
+                          className={cn(
                             'text-2xs rounded border px-1.5 py-0.5 transition',
                             exactly(each.value)
                               ? 'border-info/60 bg-info/15 text-info'

@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import type { UnitSystem } from '@toolpath/tool-support'
 import { LengthBox, clampTo } from './length-box'
 
 const Harness = ({
   onChange = () => {},
-  unit = 'mm' as const,
+  unit = 'millimeters' as const,
   max,
 }: {
   onChange?: (mm: number) => void
-  unit?: 'mm' | 'in'
+  unit?: UnitSystem
   max?: number
 }) => {
   const [value, setValue] = useState(26)
@@ -58,7 +59,7 @@ describe('typing a length', () => {
 
   it('reads in the unit being read in and writes millimetres', () => {
     const onChange = vi.fn()
-    render(<Harness onChange={onChange} unit="in" />)
+    render(<Harness onChange={onChange} unit="inches" />)
     fireEvent.focus(box())
     fireEvent.change(box(), { target: { value: '1.25' } })
 

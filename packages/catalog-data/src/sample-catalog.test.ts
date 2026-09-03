@@ -38,7 +38,7 @@ describe('the committed sample dataset', () => {
 
   it('exercises both unit systems and more than one tool type', () => {
     expect(new Set(committed.families.map((family) => family.unitSystem))).toEqual(
-      new Set(['metric', 'inch']),
+      new Set(['millimeters', 'inches']),
     )
     expect(new Set(committed.tools.map((tool) => tool.toolType)).size).toBeGreaterThan(1)
   })

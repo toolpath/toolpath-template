@@ -1,3 +1,13 @@
+import {
+  defaultStickout,
+  holderTakesTool,
+  maxStickout,
+  stickoutLimits,
+  type Clamping,
+  type Collet as SharedCollet,
+  type Holder as SharedHolder,
+} from '@toolpath/tool-support'
+
 import { DEFAULT_CLAMPING, type ClampingRule } from './clamping.js'
 import {
   DEFAULT_STICKOUT_POLICY,
@@ -46,7 +56,34 @@ import type { CatalogTool, Provenance } from './types.js'
  * categories classify parts as hydraulic outright, and folding them into `bore`
  * here would be this package re-classifying a family the vendor already named.
  */
-export type Clamping = 'bore' | 'collet' | 'shrink' | 'hydraulic'
+export type { Clamping } from '@toolpath/tool-support'
+
+/**
+ * The holding arithmetic, which is `@toolpath/tool-support`'s.
+ *
+ * Re-exported under the names this package has always published, so nothing in
+ * `apps/catalog` moved in lockstep. What stays below is what is genuinely this
+ * catalog's: the *records* — a holder and a collet with a guid, a brand and a
+ * catalog number on them — and the two functions that build an {@link Assembly}
+ * out of a crib, which is a catalog document rather than a domain shape.
+ */
+export {
+  canHold,
+  colletFitsHolder,
+  defaultStickout,
+  gripRanges,
+  gripsAnyShank,
+  gripsShank,
+  holdBand,
+  holderTakesTool,
+  maxStickout,
+  stickoutLimits,
+  type GripRanges,
+  type HoldBand,
+} from '@toolpath/tool-support'
+
+/** What {@link stickoutLimits} answers, under the name this package published it as. */
+export type StickoutLimits = StickoutRange
 
 /**
  * Which surfaces of the spindle interface touch: the taper alone, or the
@@ -55,128 +92,62 @@ export type Clamping = 'bore' | 'collet' | 'shrink' | 'hydraulic'
  */
 export type Contact = 'taper' | 'face'
 
-/** What goes in the spindle. */
-export interface Holder {
+/**
+ * What goes in the spindle, as this catalog holds one.
+ *
+ * **Extends `@toolpath/tool-support`'s `Holder`** rather than restating it: the
+ * silhouette a drawing reads and the three facts a fit check reads are the
+ * domain's, and what this adds is identity and commerce — a guid, a brand, a
+ * catalog number, the vendor's own CAD download. Three shapes in two
+ * repositories called themselves a holder and no two agreed on which fields
+ * exist; this is the one that carries the extra.
+ */
+export interface Holder extends SharedHolder {
   readonly guid: string
   readonly familyId: string
   readonly brand: string
   readonly vendor: string
   readonly catalogNumber: string
   readonly materialNumber: string | null
-  /** The spindle interface — `BT30`. A holder only fits the machine that takes it. */
-  readonly taper: string
-  /** Taper-only or face contact, where the vendor says; null where it does not. */
+  /**
+   * Taper-only or face contact, where the vendor says; null where it does not.
+   *
+   * This catalog's, not the domain's: it is a filter axis rather than
+   * something the arithmetic reads.
+   */
   readonly contact: Contact | null
+  /**
+   * The three the domain leaves optional, stated outright.
+   *
+   * A drawing can be handed a holder that says nothing about how it grips —
+   * `@toolpath/tool-support` allows that, and refuses to hold a tool when it
+   * happens. A *catalog* holder always knows, because a scrape that could not
+   * classify one would not have minted it.
+   */
+  readonly taper: string
   readonly clamping: Clamping
-  /**
-   * Spindle face to holder nose, in millimetres.
-   *
-   * Not the same as reach: what sticks out past the nose is the tool's, and
-   * that is the number a feature depth is measured against.
-   */
-  readonly gaugeLength: number | null
-  /** For a collet holder: which collet series it takes — `ER16`, `PG10`. */
-  readonly colletSeries: string | null
-  /** For a bore or shrink holder: the one shank diameter it takes, in mm. */
   readonly boreDiameter: number | null
-  /** The nose, where a holder fouls the part before the tool runs out of reach. */
-  readonly noseDiameter: number | null
-  /**
-   * The body behind the nose, step by step, where the vendor states it.
-   *
-   * REGO-FIX's DIN 4000 sheets give the nose's length, the body diameter and
-   * length behind it, and the projection from the flange face; the flange
-   * itself is the taper's (46 mm on a BT 30). With these a holder is a real
-   * silhouette rather than one cylinder — see `outline.ts` and
-   * `clearance.ts`. Each is `null` where unstated, and nothing is drawn or
-   * swept for it then.
-   */
-  readonly noseLength: number | null
-  readonly bodyDiameter: number | null
-  readonly bodyLength: number | null
-  /** Nose face to flange face, in millimetres. */
-  readonly projection: number | null
-  readonly flangeDiameter: number | null
-  /**
-   * How far the seated collet stands proud of the nose face, in millimetres.
-   *
-   * A powRgrip collet is pressed in and its front protrudes; the tool sees the
-   * collet's own diameter for that much before the nose. Derived from the
-   * holder's projection with and without it, where the vendor states both.
-   */
-  readonly colletProtrusion: number | null
   readonly productLink: string | null
   /** The vendor's own solid model, where one is published — a download, not a page. */
   readonly cadModelUrl: string | null
   readonly provenance: Readonly<Record<string, Provenance>>
 }
 
-/** What grips the shank inside a collet holder. */
-export interface Collet {
+/**
+ * What grips the shank inside a collet holder.
+ *
+ * Extends the domain's {@link SharedCollet} for the reason {@link Holder}
+ * does: the gripping is the domain's, the identity is this catalog's.
+ */
+export interface Collet extends SharedCollet {
   readonly guid: string
   readonly familyId: string
   readonly brand: string
   readonly vendor: string
   readonly catalogNumber: string
   readonly materialNumber: string | null
-  /** `ER16`, `PG10` — must equal the holder's series exactly. */
-  readonly series: string
-  /** The shank diameters it grips, in millimetres. */
-  readonly clampMin: number
-  readonly clampMax: number
-  /**
-   * How much shank the collet actually holds, in millimetres.
-   *
-   * `null` where the vendor does not publish it, and that absence is load
-   * bearing: without it there is no honest maximum stickout, so
-   * {@link maxStickout} answers `null` rather than inventing a grip rule.
-   */
-  readonly clampLength: number | null
   readonly productLink: string | null
   readonly provenance: Readonly<Record<string, Provenance>>
-}
-
-/** A collet fits a holder when the holder takes collets of exactly its series. */
-export const colletFitsHolder = (collet: Collet, holder: Holder): boolean =>
-  holder.clamping === 'collet' && holder.colletSeries === collet.series
-
-/** Whether a collet grips a given shank diameter, in millimetres. */
-/**
- * A hair of tolerance, because 3/8" is 9.525 in the collet's sheet and
- * 9.524999999999999 in the tool's after a conversion: strict, 350 tools had no
- * collet in the crib (2026-08-30).
- */
-const GRIP_TOLERANCE = 1e-6
-
-export const gripsShank = (collet: Collet, shank: number): boolean =>
-  shank >= collet.clampMin - GRIP_TOLERANCE && shank <= collet.clampMax + GRIP_TOLERANCE
-
-/**
- * Whether a holder takes this tool's shank, with the collet if it needs one.
- *
- * A bore or shrink holder takes **one** nominal diameter, not a range: a
- * shrink-fit holder bored for 12 mm does not hold a 10 mm shank at all, and
- * treating it as an upper bound would put a tool in a holder that drops it.
- *
- * A tool whose shank the vendor does not state cannot be checked, and is
- * refused rather than assumed to fit — the one place this module differs from
- * `fit.ts`'s "what is not stated is not checked", because here the unchecked
- * case is a tool falling out of a spindle.
- */
-export const holderTakesTool = (
-  holder: Holder,
-  collet: Collet | null,
-  tool: CatalogTool,
-): boolean => {
-  const shank = tool.geometry.SFDM
-  if (shank === undefined) {
-    return false
-  }
-
-  if (holder.clamping === 'collet') {
-    return collet !== null && colletFitsHolder(collet, holder) && gripsShank(collet, shank)
-  }
-  return collet === null && holder.boreDiameter === shank
 }
 
 /** A tool, what holds it, and how far it stands out of the holder. */
@@ -209,93 +180,6 @@ export interface Assembly {
    * assembly exists.
    */
   readonly maxStickout: number | null
-}
-
-/**
- * The furthest a tool can stand out of its holder, in millimetres.
- *
- * `overall length − the length that has to stay gripped`. Answers `null` when
- * either is unstated: a maximum stickout is exactly the number somebody would
- * use to decide a deep pocket is reachable, and a guessed one is worse than an
- * absent one.
- *
- * A bore or shrink holder's grip length is the holder's, not the collet's, and
- * this package does not carry it yet — so those answer `null` too, honestly,
- * until the contract gains it.
- */
-export const maxStickout = (tool: CatalogTool, collet: Collet | null): number | null => {
-  const overall = tool.geometry.OAL
-  if (overall === undefined || collet === null || collet.clampLength === null) {
-    return null
-  }
-  const stickout = overall - collet.clampLength
-  return stickout > 0 ? stickout : null
-}
-
-export type HoldBand = 'good' | 'medium' | 'bad'
-
-/**
- * How well the holder has hold of the tool at this stickout.
- *
- * By the share of the overall length left in the holder: at or above `good`
- * (a third, by the sheet) is good; between `least` (a quarter) and that is
- * possible but bad — "medium" in the list; below `least` is not compatible.
- * The thresholds are the catalog's knobs, handed in as fractions.
- */
-export const holdBand = (
-  tool: CatalogTool,
-  stickout: number,
-  thresholds: { readonly good: number; readonly least: number },
-): HoldBand | null => {
-  const { OAL } = tool.geometry
-  if (OAL === undefined || OAL <= 0) {
-    return null
-  }
-  const held = (OAL - stickout) / OAL
-  return held >= thresholds.good - 1e-9
-    ? 'good'
-    : held >= thresholds.least - 1e-9
-      ? 'medium'
-      : 'bad'
-}
-
-/**
- * How far this tool may stand out of this holder — the collet-shaped way into
- * {@link stickoutRange}.
- *
- * **The arithmetic is not here any more** (2026-09-03). It was one of four
- * places that worked out a stickout, and the one that capped at a share of the
- * overall length while `clamping.ts` capped at a length of shank and neither
- * knew about the other. `stickout.ts` owns the quantity and combines the
- * sheet's two knobs in one place; this maps a collet onto the grip length that
- * module asks for, which is all a collet was ever contributing.
- */
-export type StickoutLimits = StickoutRange
-
-export const stickoutLimits = (
-  tool: CatalogTool,
-  collet: Collet | null,
-  /** What the holder needs to clear the part, from the sweep: the setup stands out at least this far. */
-  required: number | null = null,
-  /** The sheet's hold share, least stickout and step. */
-  policy: StickoutPolicy = DEFAULT_STICKOUT_POLICY,
-  /** What the shop keeps clamped. The dataset's own by default. */
-  rule: ClampingRule = DEFAULT_CLAMPING,
-): StickoutLimits | null =>
-  stickoutRange(tool, { grip: collet?.clampLength ?? null, required, policy, rule })
-
-/**
- * The stickout an assembly starts at: the setup length for this tool, held
- * within what the grip allows. A tool whose setup outruns its grip is gripped
- * as short as the grip lets it and no shorter — rather than refused, because
- * the shop is the one who knows whether that is a problem.
- */
-export const defaultStickout = (tool: CatalogTool, collet: Collet | null): number | null => {
-  const limits = stickoutLimits(tool, collet)
-  if (limits !== null) {
-    return limits.setup
-  }
-  return maxStickout(tool, collet)
 }
 
 /**
@@ -384,78 +268,4 @@ export const assembliesFor = (
       (a.maxStickout ?? Number.POSITIVE_INFINITY) - (b.maxStickout ?? Number.POSITIVE_INFINITY)
     )
   })
-}
-
-/**
- * The shank diameters a crib can grip, given what it is asked to hold with.
- *
- * Every rule above reduces to one number — the shank — so the question "can
- * anything here hold this tool" is a question about a set of diameters. Working
- * that set out once and asking it per tool is what makes holding usable as a
- * filter: asked tool by tool it is holders × collets × tools, which on a real
- * catalog is tens of millions of comparisons per keystroke.
- *
- * `taper` narrows to one spindle interface, `colletSeries` to one collet
- * family; either left out means "any".
- */
-export interface GripRanges {
-  /** Closed intervals a collet grips, in millimetres. */
-  readonly spans: ReadonlyArray<readonly [number, number]>
-  /** Exact diameters a bore or shrink holder takes. */
-  readonly bores: ReadonlyArray<number>
-}
-
-export const gripRanges = (
-  holders: ReadonlyArray<Holder>,
-  collets: ReadonlyArray<Collet>,
-  want: { readonly taper?: string | null; readonly colletSeries?: string | null } = {},
-): GripRanges => {
-  const spans: Array<readonly [number, number]> = []
-  const bores: Array<number> = []
-
-  for (const holder of holders) {
-    if (want.taper && holder.taper !== want.taper) {
-      continue
-    }
-
-    if (holder.clamping === 'collet') {
-      for (const collet of collets) {
-        if (want.colletSeries && collet.series !== want.colletSeries) {
-          continue
-        }
-        if (!colletFitsHolder(collet, holder)) {
-          continue
-        }
-        spans.push([collet.clampMin, collet.clampMax])
-      }
-      continue
-    }
-
-    // A bore or shrink holder takes one nominal diameter, so it can never
-    // satisfy a request for a particular collet series.
-    if (want.colletSeries) {
-      continue
-    }
-    if (holder.boreDiameter !== null) {
-      bores.push(holder.boreDiameter)
-    }
-  }
-
-  return { spans, bores }
-}
-
-/** Whether anything in {@link gripRanges} holds this shank, in millimetres. */
-export const gripsAnyShank = (ranges: GripRanges, shank: number): boolean =>
-  ranges.spans.some(([min, max]) => shank >= min && shank <= max) || ranges.bores.includes(shank)
-
-/**
- * Whether the crib can hold this tool at all.
- *
- * A tool whose shank the vendor does not state is refused, for the same reason
- * {@link holderTakesTool} refuses it: the unchecked case here is a cutter
- * falling out of a spindle.
- */
-export const canHold = (ranges: GripRanges, tool: CatalogTool): boolean => {
-  const shank = tool.geometry.SFDM
-  return shank !== undefined && gripsAnyShank(ranges, shank)
 }

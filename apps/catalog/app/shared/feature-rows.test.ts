@@ -28,7 +28,7 @@ const chamfer = (angle: number): PartFeature =>
   }) as unknown as PartFeature
 
 const row = (feature: PartFeature, features: Array<PartFeature> = [feature]) =>
-  featureRow({ feature, features, regions: [], unit: 'mm' })
+  featureRow({ feature, features, regions: [], unit: 'millimeters' })
 
 describe('featureRow', () => {
   it('says what the feature is and which way up it is cut', () => {

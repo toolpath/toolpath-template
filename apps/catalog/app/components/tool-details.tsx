@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { ArrowSquareOutIcon } from '@phosphor-icons/react'
-import { Badge } from '@toolpath/ui'
-import { classNames } from '@toolpath/domain/class-names'
+import { Badge, cn } from '@toolpath/ui'
 import type { CatalogTool } from '@toolpath/catalog-data'
-import { formatLength, type Unit } from '@toolpath/domain/units'
+import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { formatGeometry } from 'shared/geometry'
 import { getFamily } from 'shared/catalog'
 import { ToolTypeIcon, formLabel } from './tool-icons'
@@ -70,7 +69,7 @@ const SELECT =
 
 export interface ToolDetailsProps {
   readonly tool: CatalogTool
-  readonly unit: Unit
+  readonly unit: UnitSystem
   /** The holder and collet for this tool, asked the same way the list asks. */
   readonly holding?: Holding | undefined
   /**
@@ -205,7 +204,7 @@ export const ToolDetails = ({
                   behind it was tinting them. The solid surface underneath is
                   what keeps them the colour they are.
                 */
-                className={classNames(
+                className={cn(
                   'text-2xs focus-visible:ring-info/60 inline-flex shrink-0 items-center gap-1 rounded border-2 bg-zinc-950 px-2 py-1 font-bold whitespace-nowrap transition focus-visible:ring-1 focus-visible:outline-none',
                   action.danger === true
                     ? 'border-danger/70 text-danger hover:border-danger hover:bg-danger/10'
@@ -317,7 +316,7 @@ export const ToolDetails = ({
                 type="button"
                 aria-pressed={view === value}
                 onClick={() => setView(value)}
-                className={classNames(
+                className={cn(
                   'text-2xs focus-visible:ring-info/60 rounded border px-2 py-0.5 transition focus-visible:ring-1 focus-visible:outline-none',
                   view === value
                     ? 'border-info/60 bg-info/15 text-info'
@@ -399,7 +398,7 @@ export const ToolDetails = ({
               */
               onMouseEnter={() => setPointed(code)}
               onMouseLeave={() => setPointed(null)}
-              className={classNames(
+              className={cn(
                 'flex items-baseline justify-between gap-2 rounded-sm border-b border-zinc-900 pb-1 transition',
                 // The same blue the panel lights the tool it is about in, so
                 // the sheet and the table agree about what is being pointed at.

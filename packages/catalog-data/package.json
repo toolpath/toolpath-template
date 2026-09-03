@@ -45,9 +45,9 @@
     "profiles": "pnpm build && node scripts/profiles.mjs"
   },
   "dependencies": {
-    "@toolpath/domain": "workspace:*",
     "@toolpath/part-contracts": "workspace:*",
-    "@toolpath/tool-scraper": "2.1.0"
+    "@toolpath/tool-scraper": "2.3.0",
+    "@toolpath/tool-support": "0.1.0"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

@@ -1,3 +1,4 @@
+import { cn } from '@toolpath/ui'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   CaretDownIcon,
@@ -6,9 +7,8 @@ import {
   FolderOpenIcon,
   PlusIcon,
 } from '@phosphor-icons/react'
-import { classNames } from '@toolpath/domain/class-names'
 import { formatGeometry } from 'shared/geometry'
-import type { Unit } from '@toolpath/domain/units'
+import type { UnitSystem } from '@toolpath/tool-support'
 import { labelOf, type ListItem } from 'shared/feature-list'
 import type { Pick, RecommendationRow } from 'shared/recommendations'
 import { ToolTypeIcon } from './tool-icons'
@@ -54,7 +54,7 @@ export interface FeatureListPanelProps {
    * than the panel having to know how a tool is chosen.
    */
   readonly answers?: ReadonlyArray<RecommendationRow>
-  readonly unit: Unit
+  readonly unit: UnitSystem
   /** The groups standing open. */
   readonly open: ReadonlyArray<string>
   readonly onOpen: (id: string) => void
@@ -149,7 +149,7 @@ const MenuItem = ({
     <button
       type="button"
       onClick={onClick}
-      className={classNames(
+      className={cn(
         'w-full px-2 py-1 text-left text-xs hover:bg-zinc-900',
         danger ? 'text-danger' : 'text-zinc-300',
       )}
@@ -175,7 +175,7 @@ const Answer = ({
   onOpen,
 }: {
   pick: Pick
-  unit: Unit
+  unit: UnitSystem
   here: boolean
   /** What the row is, for the press to name what it opens. */
   label: string
@@ -196,7 +196,7 @@ const Answer = ({
       aria-label={`${pick.tool.catalogNumber} for ${label}`}
       title={`${pick.tool.catalogNumber}${holding === '' ? '' : ` in ${holding}`} — every tool that fits ${label}`}
       onClick={onOpen}
-      className={classNames(
+      className={cn(
         'text-2xs flex w-full flex-col gap-0.5 rounded border px-1.5 py-0.5 text-left transition',
         here
           ? 'border-info/60 bg-info/15 text-info'
@@ -228,7 +228,7 @@ const Answers = ({
   onOpen,
 }: {
   row: RecommendationRow | undefined
-  unit: Unit
+  unit: UnitSystem
   /** The tool the panel is showing, so the row can mark which of its lines it is. */
   chosenTool: string | null
   here: boolean
@@ -311,7 +311,7 @@ export const FeatureListPanel = ({
             return (
               <li key={item.id} className="relative">
                 <div
-                  className={classNames(
+                  className={cn(
                     'flex items-center gap-1 rounded border px-1.5 py-1 text-left transition',
                     here
                       ? 'border-info/60 bg-info/15'
@@ -361,7 +361,7 @@ export const FeatureListPanel = ({
                       )}
                     </span>
                     <span
-                      className={classNames(
+                      className={cn(
                         'min-w-0 flex-1 truncate text-xs',
                         here ? 'text-zinc-100' : 'text-zinc-300',
                       )}
@@ -498,7 +498,7 @@ export const FeatureListPanel = ({
           aria-pressed={addingFeature}
           title="Add the feature being read"
           onClick={onAddFeature}
-          className={classNames(
+          className={cn(
             'focus-visible:ring-info/60 flex flex-1 items-center justify-center gap-1 rounded border border-dashed px-2 py-1 text-xs transition focus-visible:ring-1 focus-visible:outline-none',
             addingFeature
               ? 'border-info/60 bg-info/15 text-info'

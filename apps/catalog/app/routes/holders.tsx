@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Badge, Card } from '@toolpath/ui'
-import { formatLength } from '@toolpath/domain/units'
+import { formatLength } from '@toolpath/tool-support'
 import {
   HOLDER_AXES,
   applicableFilters,

@@ -56,9 +56,6 @@ importers:
       '@toolpath/catalog-data':
         specifier: workspace:*
         version: link:../../packages/catalog-data
-      '@toolpath/domain':
-        specifier: workspace:*
-        version: link:../../packages/domain
       '@toolpath/part-client':
         specifier: workspace:*
         version: link:../../packages/part-client
@@ -69,14 +66,17 @@ importers:
         specifier: workspace:*
         version: link:../../packages/part-server
       '@toolpath/tool-drawing':
+        specifier: 0.3.0
+        version: 0.3.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@toolpath/tool-support':
         specifier: 0.1.0
-        version: 0.1.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        version: 0.1.0
       '@toolpath/ui':
-        specifier: 0.1.1
-        version: 0.1.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)
+        specifier: 0.3.0
+        version: 0.3.0(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)
       '@toolpath/viewer':
-        specifier: 0.4.0
-        version: 0.4.0(@react-three/drei@10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.4)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)
+        specifier: 1.1.0
+        version: 1.1.0(@react-three/drei@10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.4)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)
       hono:
         specifier: 4.13.0
         version: 4.13.0
@@ -113,7 +113,7 @@ importers:
         version: 7.0.1(@testing-library/dom@10.4.1)(vitest@4.1.10(@types/node@24.10.1)(jsdom@30.0.1)(vite@7.3.6(@types/node@24.10.1)(jiti@2.7.0)(lightningcss@1.31.1)(tsx@4.23.12)(yaml@2.9.0)))
       '@testing-library/react':
         specifier: ^16.3.2
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@types/node':
         specifier: 24.10.1
         version: 24.10.1
@@ -122,7 +122,7 @@ importers:
         version: 19.2.18
       '@types/react-dom':
         specifier: ^19.0.0
-        version: 19.2.4(@types/react@19.2.18)
+        version: 19.2.7(@types/react@19.2.18)
       '@types/three':
         specifier: 0.185.4
         version: 0.185.4
@@ -172,14 +172,17 @@ importers:
         specifier: 9.7.0
         version: 9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)
       '@toolpath/api':
-        specifier: 0.2.3
-        version: 0.2.3
-      '@toolpath/ui':
-        specifier: 0.1.1
-        version: 0.1.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)
-      '@toolpath/viewer':
         specifier: 0.4.0
-        version: 0.4.0(@react-three/drei@10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.4)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)
+        version: 0.4.0
+      '@toolpath/tool-support':
+        specifier: 0.1.0
+        version: 0.1.0
+      '@toolpath/ui':
+        specifier: 0.3.0
+        version: 0.3.0(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)
+      '@toolpath/viewer':
+        specifier: 1.1.0
+        version: 1.1.0(@react-three/drei@10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.4)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)
       eventsource-parser:
         specifier: 4.0.0
         version: 4.0.0
@@ -225,7 +228,7 @@ importers:
         version: 7.0.1(@testing-library/dom@10.4.1)(vitest@4.1.10(@types/node@24.10.1)(jsdom@30.0.1)(vite@7.3.6(@types/node@24.10.1)(jiti@2.7.0)(lightningcss@1.31.1)(tsx@4.23.12)(yaml@2.9.0)))
       '@testing-library/react':
         specifier: ^16.3.2
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@types/node':
         specifier: 24.10.1
         version: 24.10.1
@@ -234,7 +237,7 @@ importers:
         version: 19.2.18
       '@types/react-dom':
         specifier: ^19.0.0
-        version: 19.2.4(@types/react@19.2.18)
+        version: 19.2.7(@types/react@19.2.18)
       '@types/three':
         specifier: 0.185.4
         version: 0.185.4
@@ -265,34 +268,19 @@ importers:
 
   packages/catalog-data:
     dependencies:
-      '@toolpath/domain':
-        specifier: workspace:*
-        version: link:../domain
       '@toolpath/part-contracts':
         specifier: workspace:*
         version: link:../part-contracts
       '@toolpath/tool-scraper':
-        specifier: 2.1.0
-        version: 2.1.0
+        specifier: 2.3.0
+        version: 2.3.0
+      '@toolpath/tool-support':
+        specifier: 0.1.0
+        version: 0.1.0
     devDependencies:
       '@types/node':
         specifier: 24.10.1
         version: 24.10.1
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: 4.1.10
-        version: 4.1.10(@types/node@24.10.1)(jsdom@30.0.1)(vite@7.3.6(@types/node@24.10.1)(jiti@2.7.0)(lightningcss@1.31.1)(tsx@4.23.12)(yaml@2.9.0))
-
-  packages/domain:
-    devDependencies:
-      '@types/node':
-        specifier: 24.10.1
-        version: 24.10.1
-      jsdom:
-        specifier: 30.0.1
-        version: 30.0.1
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -325,14 +313,14 @@ importers:
   packages/part-contracts:
     dependencies:
       '@toolpath/api':
-        specifier: 0.2.3
-        version: 0.2.3
-      '@toolpath/domain':
-        specifier: workspace:*
-        version: link:../domain
-      '@toolpath/viewer':
         specifier: 0.4.0
-        version: 0.4.0(@react-three/drei@10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.4)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)
+        version: 0.4.0
+      '@toolpath/tool-support':
+        specifier: 0.1.0
+        version: 0.1.0
+      '@toolpath/viewer':
+        specifier: 1.1.0
+        version: 1.1.0(@react-three/drei@10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.4)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)
     devDependencies:
       '@types/node':
         specifier: 24.10.1
@@ -353,8 +341,8 @@ importers:
         specifier: 0.9.0
         version: 0.9.0(hono@4.13.0)(zod@4.4.3)
       '@toolpath/api':
-        specifier: 0.2.3
-        version: 0.2.3
+        specifier: 0.4.0
+        version: 0.4.0
       '@toolpath/part-contracts':
         specifier: workspace:*
         version: link:../part-contracts
@@ -1303,31 +1291,37 @@ packages:
       '@types/react-dom':
         optional: true
 
-  '@toolpath/api@0.2.3':
-    resolution: {integrity: sha512-WHJI84cFpEOaUls5fHOS2BJXk9Prj/nM5sRSy8JCGodLeJcRIH/eYUe+klD6Y39odLfaWShDPbUGg1oTaNvBcg==}
+  '@toolpath/api@0.4.0':
+    resolution: {integrity: sha512-VYa6x8aX47POkzB8km4fNmlx+CZcN4TQy94WKQlU5ao2/NY/RvlZJMkGjh0WRNDORXAdJSpNiHQ4E+T8ooh7RA==}
     engines: {node: '>=20'}
 
-  '@toolpath/tool-drawing@0.1.0':
-    resolution: {integrity: sha512-lK1Is+x9DqBERVqn5wS8dfsdPzqRK3hplc5w71Jd5vwdfwKZapccp4UZiyrAhZp2IhT3kSrk3LRoTgEdsYhqLA==}
+  '@toolpath/tool-drawing@0.3.0':
+    resolution: {integrity: sha512-yfwHnjYQdJ1TNRZfC5/f+lnCQ63wLqDceL30qQcJcCMCtW9YKwP8PHCQ0ToQ6AMlySyJc00mnGptAAXJ7B4/eA==}
     engines: {node: '>=20'}
     peerDependencies:
       react: ^19.0.0
       react-dom: ^19.0.0
 
-  '@toolpath/tool-scraper@2.1.0':
-    resolution: {integrity: sha512-CJ/kvRopzbGIIajDZ/SrBiRevy9K26vgs5u725hVOSgg7guuzbm7ymal5s9e8ikVli8sskAFfiSnCa3oF48yDw==}
+  '@toolpath/tool-scraper@2.3.0':
+    resolution: {integrity: sha512-/+sZXHr93CIEegPMJTFeJXck0kN8yG/O1wjSjsh7aDL8N4UsXGXNsQj5W5AYasyeYepjxa6eFawG4oAQr8N0ag==}
     engines: {node: '>=20'}
     hasBin: true
 
-  '@toolpath/ui@0.1.1':
-    resolution: {integrity: sha512-cVbQ1O5+At76BevWLJGS2i8oyLeneaFTlzM23dfkfIFr+xOkN7tat/WRx81ECCICLln6JDrlhIKhQfwP4EccMA==}
+  '@toolpath/tool-support@0.1.0':
+    resolution: {integrity: sha512-m7bdAIHRRENSvdhPUJ7Rx5z8iYhY7q0UM45OOHBlkALMH7IxZSpK7RlX5s+RhZELkDYI0qOw9BQ2WbE40Hn+6Q==}
+    engines: {node: '>=20'}
+
+  '@toolpath/ui@0.3.0':
+    resolution: {integrity: sha512-geffkE9o/ElOAYnydSi2+eYIxVMpK1Uy1c+nakWBRU2n9Neq+soy/+m2yqeBUlS9W4tWY+DXPiBDp+HF01H5xw==}
+    engines: {node: '>=20'}
     peerDependencies:
       react: ^19.2.0
       react-dom: ^19.2.0
       tailwindcss: ^4.0.0
 
-  '@toolpath/viewer@0.4.0':
-    resolution: {integrity: sha512-BdPF4u9enq7/2J/7TOfvl7W+u4Go4wbdDYsBy3MPzIiQPq7snN7P5sE0jKrHRr7k0e+a2O1hJfigTLs6T6Wmnw==}
+  '@toolpath/viewer@1.1.0':
+    resolution: {integrity: sha512-pWwvsJelggl0gmZRG66nDJsqeQUAC/0W7yvUmOgTxkwCkKyTK3JA2piKwVTTT/H5RJakcB3mGxvxBnl7xJtaeQ==}
+    engines: {node: '>=20'}
     peerDependencies:
       '@react-three/drei': ^10.7.8
       '@react-three/fiber': ^9.7.0
@@ -1413,8 +1407,8 @@ packages:
   '@types/parse-json@4.0.2':
     resolution: {integrity: sha512-dISoDXWWQwUquiKsyZ4Ng+HX2KsPL7LyHKHQwgGFEA3IaKac4Obd+h2a/a6waisAoepJlBcx9paWqjA8/HVjCw==}
 
-  '@types/react-dom@19.2.4':
-    resolution: {integrity: sha512-Bsc+QHgp+P/F02XDzNCY9jnZNCUuLki36KT7VKrTXXLdHf+vHMNZnW1rVu5DNW/rCK+fya3DATySbLM4yhtKUw==}
+  '@types/react-dom@19.2.7':
+    resolution: {integrity: sha512-I8bPpDLcHBv1qiIiXDCy71Rt8eQDKJP0sMSWJphDdAcdqiJ1sGpZamavoEIRZmYzjia9LuEb2HlYdDpmoENpvQ==}
     peerDependencies:
       '@types/react': ^19.2.0
 
@@ -2128,8 +2122,8 @@ packages:
     resolution: {integrity: sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==}
     engines: {node: '>= 0.4'}
 
-  hls.js@1.7.1:
-    resolution: {integrity: sha512-DlzIkeBAS9IIQ432k3BUf3HlwbsR0+trB1i2lDdN2gUkNkrehFurh0/48M5c1/EjlDkdGng1gwZIpwyPxvdZ/g==}
+  hls.js@1.7.2:
+    resolution: {integrity: sha512-CW/pPvSOFIRsosbwxrYaE9ERmpTo5fbTqL7wCvuCFlqW1Bmb1K5fXsY7yiH95rmlr4rVuA7UXHbM/cIXQ6AXwg==}
 
   hoist-non-react-statics@3.3.2:
     resolution: {integrity: sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==}
@@ -2618,8 +2612,8 @@ packages:
     resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
     engines: {node: '>=0.10.0'}
 
-  reselect@5.2.0:
-    resolution: {integrity: sha512-AgZ3UOZm3YndfrJ4OYjgrT7bmCm/1iqkjvEfH/oYjzh6PD2qw4QuT3jjnXIrpdt4MTpMXclMT3lXbmRY+XRakw==}
+  reselect@5.3.0:
+    resolution: {integrity: sha512-XGoLeRAVzUTcJ1qkxPQhDJyIZ5d6zzZD9nT7AEZOaaU9UbWclhycElmhO+VD5bFeLuzhPBaOV2oXC8uG35ZSpg==}
 
   resolve-from@4.0.0:
     resolution: {integrity: sha512-pb/MYmXstAkysRFx8piNI1tGFNQIFA3vkE3Gq4EuA1dF6gHp/+vgZqsCGJapvy8N3Q+4o7FwvquPJcnZ7RYy4g==}
@@ -3323,7 +3317,7 @@ snapshots:
       '@floating-ui/utils': 0.2.12
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
-      reselect: 5.2.0
+      reselect: 5.3.0
       use-sync-external-store: 1.6.0(react@19.2.0)
     optionalDependencies:
       '@types/react': 19.2.18
@@ -3728,7 +3722,7 @@ snapshots:
       cross-env: 7.0.3
       detect-gpu: 5.0.70
       glsl-noise: 0.0.0
-      hls.js: 1.7.1
+      hls.js: 1.7.2
       maath: 0.10.8(@types/three@0.185.4)(three@0.185.1)
       meshline: 3.3.1(three@0.185.1)
       react: 19.2.0
@@ -3951,7 +3945,7 @@ snapshots:
     optionalDependencies:
       vitest: 4.1.10(@types/node@24.10.1)(jsdom@30.0.1)(vite@7.3.6(@types/node@24.10.1)(jiti@2.7.0)(lightningcss@1.31.1)(tsx@4.23.12)(yaml@2.9.0))
 
-  '@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+  '@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
       '@babel/runtime': 7.29.7
       '@testing-library/dom': 10.4.1
@@ -3959,20 +3953,24 @@ snapshots:
       react-dom: 19.2.0(react@19.2.0)
     optionalDependencies:
       '@types/react': 19.2.18
-      '@types/react-dom': 19.2.4(@types/react@19.2.18)
+      '@types/react-dom': 19.2.7(@types/react@19.2.18)
 
-  '@toolpath/api@0.2.3': {}
+  '@toolpath/api@0.4.0': {}
 
-  '@toolpath/tool-drawing@0.1.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+  '@toolpath/tool-drawing@0.3.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
+      '@toolpath/tool-support': 0.1.0
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
 
-  '@toolpath/tool-scraper@2.1.0':
+  '@toolpath/tool-scraper@2.3.0':
     dependencies:
+      '@toolpath/tool-support': 0.1.0
       htmlparser2: 12.0.0
 
-  '@toolpath/ui@0.1.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)':
+  '@toolpath/tool-support@0.1.0': {}
+
+  '@toolpath/ui@0.3.0(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)':
     dependencies:
       '@base-ui/react': 1.2.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@phosphor-icons/react': 2.1.10(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -3988,7 +3986,7 @@ snapshots:
       - '@emotion/react'
       - '@types/react'
 
-  '@toolpath/viewer@0.4.0(@react-three/drei@10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.4)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)':
+  '@toolpath/viewer@1.1.0(@react-three/drei@10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.4)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)':
     dependencies:
       '@react-three/drei': 10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.4)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)
       '@react-three/fiber': 9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)
@@ -4068,7 +4066,7 @@ snapshots:
 
   '@types/parse-json@4.0.2': {}
 
-  '@types/react-dom@19.2.4(@types/react@19.2.18)':
+  '@types/react-dom@19.2.7(@types/react@19.2.18)':
     dependencies:
       '@types/react': 19.2.18
 
@@ -4781,7 +4779,7 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
-  hls.js@1.7.1: {}
+  hls.js@1.7.2: {}
 
   hoist-non-react-statics@3.3.2:
     dependencies:
@@ -5201,7 +5199,7 @@ snapshots:
 
   require-from-string@2.0.2: {}
 
-  reselect@5.2.0: {}
+  reselect@5.3.0: {}
 
   resolve-from@4.0.0: {}
 

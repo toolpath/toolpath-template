@@ -11,7 +11,7 @@ const tool = (over: Partial<CatalogTool> & Pick<CatalogTool, 'guid'>): CatalogTo
   materialNumber: null,
   toolType: 'endmill',
   form: 'flat end mill',
-  unitSystem: 'metric',
+  unitSystem: 'millimeters',
   geometry: { DC: 5, LCF: 15, RE: 0, NOF: 4 },
   materialGroups: ['P'],
   productLine: null,
@@ -126,7 +126,11 @@ describe('fitAgainst', () => {
   })
 
   it('holds a drill to the bore and an endmill to what can helix in it', () => {
-    const drill = tool({ guid: 'd', toolType: 'drill', geometry: { DC: 9.5 } })
+    // The *form* is what decides how a tool goes into a hole now, and a
+    // catalog tool's form is derived from its type — so a fixture that set the
+    // type and left the base fixture's `flat end mill` form was describing a
+    // tool `buildCatalog` cannot produce.
+    const drill = tool({ guid: 'd', toolType: 'drill', form: 'drill', geometry: { DC: 9.5 } })
     const endmill = tool({ guid: 'e', toolType: 'endmill', geometry: { DC: 9.5 } })
     const demand = demandOf(hole({ drill: 10, endmill: 8, bore: 10 }))
 

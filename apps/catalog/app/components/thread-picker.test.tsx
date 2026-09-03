@@ -20,7 +20,7 @@ const show = (props: Partial<Parameters<typeof ThreadPicker>[0]> = {}) => {
       holeDiameter={TAP_DRILL_FOR_M6}
       mode="plain"
       spec={null}
-      unit="mm"
+      unit="millimeters"
       onChange={onChange}
       // The sheet's own: 0.004 in either way, in millimetres.
       deviation={{ over: 0.1016, under: 0.1016 }}

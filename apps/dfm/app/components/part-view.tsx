@@ -1,3 +1,4 @@
+import { type UnitSystem } from '@toolpath/tool-support'
 import { createContext, useContext, type ReactNode } from 'react'
 
 import type { Vec3 } from '@toolpath/api'
@@ -6,7 +7,6 @@ import type { PublicInspectionReport } from 'shared/contracts'
 import type { FeatureScore } from 'shared/feature-score'
 import type { FeatureVerdict } from 'shared/rules'
 import type { Pass, SetupPlan } from 'shared/setups'
-import type { Unit } from 'shared/units'
 
 /**
  * What every panel on the part page is looking at.
@@ -70,7 +70,7 @@ export interface PartView {
   /** What the rules made of each reading. */
   verdicts: ReadonlyArray<FeatureVerdict>
   /** Millimetres or inches — every measurement on the page reads in this. */
-  unit: Unit
+  unit: UnitSystem
   /** Which pass the part is coloured by, and which the lists report. */
   showingPass: Pass
 }

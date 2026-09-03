@@ -222,6 +222,9 @@ export const stepThrough = (
  * so `ranked` is the report's order rather than a ranking by what faces the
  * viewer. A list has no viewpoint to rank from, and inventing one here would be
  * a second answer to a question the part already answers.
+ *
+ * `doubled` is false for the same reason and not merely by default: a row press
+ * is one press, and there is no pointer here to pair a second one with.
  */
 export const pickForRegion = (region: number, owners: ReadonlyArray<string>): PartPick => {
   return {
@@ -233,5 +236,6 @@ export const pickForRegion = (region: number, owners: ReadonlyArray<string>): Pa
     point: [0, 0, 0],
     normal: [0, 0, 0],
     modifiers: NO_MODIFIERS,
+    doubled: false,
   }
 }

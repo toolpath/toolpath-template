@@ -1,9 +1,8 @@
 import { ArrowSquareOutIcon, DownloadSimpleIcon, TrashIcon } from '@phosphor-icons/react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useParams, useSearchParams } from 'react-router'
-import { Badge, Card } from '@toolpath/ui'
-import { classNames } from '@toolpath/domain/class-names'
-import { formatLength, type Unit } from '@toolpath/domain/units'
+import { Badge, Card, cn } from '@toolpath/ui'
+import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import type { CatalogTool, Collet, Holder } from '@toolpath/catalog-data'
 import { AppHeader } from 'components/app-header'
 import { ColletIcon, HolderIcon, ToolTypeIcon, formLabel } from './../components/tool-icons'
@@ -86,7 +85,7 @@ const KIND: Readonly<Record<Component, string>> = {
   collet: 'Collet',
 }
 
-const toolLine = (tool: CatalogTool, unit: Unit): Line => {
+const toolLine = (tool: CatalogTool, unit: UnitSystem): Line => {
   const say = (value: number) => formatLength(value, unit)
   return {
     component: 'tool',
@@ -107,7 +106,7 @@ const toolLine = (tool: CatalogTool, unit: Unit): Line => {
   }
 }
 
-const holderLine = (holder: Holder, unit: Unit): Line => {
+const holderLine = (holder: Holder, unit: UnitSystem): Line => {
   const say = (value: number) => formatLength(value, unit)
   return {
     component: 'holder',
@@ -124,7 +123,7 @@ const holderLine = (holder: Holder, unit: Unit): Line => {
   }
 }
 
-const colletLine = (collet: Collet, unit: Unit): Line => ({
+const colletLine = (collet: Collet, unit: UnitSystem): Line => ({
   component: 'collet',
   catalogNumber: collet.catalogNumber,
   brand: collet.brand,
@@ -241,12 +240,7 @@ const Row = ({
   /** How many of the whole assembly, so the row can say what that comes to. */
   total: number
 }) => (
-  <tr
-    className={classNames(
-      'align-top',
-      first ? 'border-t border-zinc-600' : 'border-t border-zinc-800',
-    )}
-  >
+  <tr className={cn('align-top', first ? 'border-t border-zinc-600' : 'border-t border-zinc-800')}>
     <th scope="row" className="w-64 min-w-56 px-3 py-1.5 text-left font-normal">
       {assembly === null ? null : <AssemblyHead {...assembly} />}
     </th>

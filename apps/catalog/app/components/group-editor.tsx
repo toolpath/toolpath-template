@@ -1,6 +1,5 @@
 import { XIcon } from '@phosphor-icons/react'
-import { Button } from '@toolpath/ui'
-import { classNames } from '@toolpath/domain/class-names'
+import { Button, cn } from '@toolpath/ui'
 import { Chip } from './chip'
 import type { Results } from 'shared/feature-list'
 
@@ -154,7 +153,7 @@ export const GroupEditor = ({
       {CHOICES.map((choice) => (
         <label
           key={choice.value}
-          className={classNames(
+          className={cn(
             'flex cursor-pointer items-start gap-2 rounded border px-1.5 py-1 transition',
             results === choice.value
               ? 'border-info/60 bg-info/15'
@@ -171,10 +170,7 @@ export const GroupEditor = ({
           />
           <span className="flex min-w-0 flex-col">
             <span
-              className={classNames(
-                'text-2xs',
-                results === choice.value ? 'text-info' : 'text-zinc-300',
-              )}
+              className={cn('text-2xs', results === choice.value ? 'text-info' : 'text-zinc-300')}
             >
               {choice.label}
             </span>

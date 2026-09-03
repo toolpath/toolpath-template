@@ -1,7 +1,7 @@
 import type { PartFeature } from '@toolpath/part-contracts'
 import { measurements } from '@toolpath/part-contracts/measurements'
 import { featureSummary } from '@toolpath/part-contracts/report'
-import type { Unit } from '@toolpath/domain/units'
+import type { UnitSystem } from '@toolpath/tool-support'
 
 /**
  * What a selected feature has to say in a table of them.
@@ -45,7 +45,7 @@ export const featureRow = ({
   readonly feature: PartFeature
   readonly features: ReadonlyArray<PartFeature>
   readonly regions: ReadonlyArray<{ idx: number; shapeKind: string }>
-  readonly unit: Unit
+  readonly unit: UnitSystem
 }): FeatureRow => {
   const rows = measurements({ feature, features, regions, unit })
   const summary = featureSummary(feature)

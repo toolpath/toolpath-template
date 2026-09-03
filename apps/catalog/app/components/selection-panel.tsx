@@ -1,3 +1,4 @@
+import { cn } from '@toolpath/ui'
 import { useState } from 'react'
 import { CaretDownIcon, InfoIcon } from '@phosphor-icons/react'
 import type { PartFeature } from '@toolpath/part-contracts'
@@ -6,10 +7,14 @@ import {
   measurements,
   stripMeasurements,
 } from '@toolpath/part-contracts/measurements'
-import { classNames } from '@toolpath/domain/class-names'
 import { ThreadPicker } from './thread-picker'
 import type { HoleMode, ThreadSpec } from 'shared/threads'
-import { convertLength, decimalsFor, MODEL_UNIT, type Unit } from '@toolpath/domain/units'
+import {
+  UNIT_ABBREVIATION,
+  type UnitSystem,
+  convertLength,
+  decimalsFor,
+} from '@toolpath/tool-support'
 import { defaultsFor, readingsFor, type Reading } from 'shared/feature-defaults'
 import { featureRow } from 'shared/feature-rows'
 import { KindIcon, MeasurementIcon } from './feature-icons'
@@ -20,7 +25,7 @@ export interface SelectionPanelProps {
   /** Every feature on the part, so depth can be measured from its top. */
   readonly features: ReadonlyArray<PartFeature>
   readonly regions: ReadonlyArray<{ idx: number; shapeKind: string }>
-  readonly unit: Unit
+  readonly unit: UnitSystem
   /** Identical holes this one stands for, so the field can say how many. */
   readonly siblings: number
   readonly onInfo: () => void
@@ -81,10 +86,7 @@ export interface SelectionPanelProps {
 const Swatch = ({ colour, hidden = false }: { colour: string | null; hidden?: boolean }) => (
   <span
     aria-hidden="true"
-    className={classNames(
-      'size-2 shrink-0 rounded-full border border-zinc-700',
-      hidden && 'opacity-0',
-    )}
+    className={cn('size-2 shrink-0 rounded-full border border-zinc-700', hidden && 'opacity-0')}
     style={colour === null ? undefined : { background: colour, borderColor: colour }}
   />
 )
@@ -148,7 +150,7 @@ export const SelectionPanel = ({
     }
     switch (reading.unit) {
       case 'mm':
-        return `${convertLength(reading.value, MODEL_UNIT, unit).toFixed(decimalsFor(unit))} ${unit}`
+        return `${convertLength(reading.value, 'millimeters', unit).toFixed(decimalsFor(unit))} ${UNIT_ABBREVIATION[unit]}`
       case 'deg':
         return `${reading.value.toFixed(1)}°`
       case 'ratio':
@@ -190,7 +192,7 @@ export const SelectionPanel = ({
                 >
                   <Swatch colour={colourOf?.(feature) ?? null} hidden={asking} />
                   <span
-                    className={classNames(
+                    className={cn(
                       'min-w-0 flex-1 truncate text-sm font-semibold',
                       asking ? 'text-info' : 'text-zinc-100',
                     )}
@@ -210,7 +212,7 @@ export const SelectionPanel = ({
                             onRead(each.featureTag)
                             setListing(false)
                           }}
-                          className={classNames(
+                          className={cn(
                             'flex w-full items-center gap-2 px-2 py-1 text-left text-xs',
                             each.featureTag === feature.featureTag && !asking
                               ? 'bg-info/15 text-zinc-100'

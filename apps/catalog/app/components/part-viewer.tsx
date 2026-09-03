@@ -1,3 +1,4 @@
+import { cn } from '@toolpath/ui'
 import { Component, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 import {
@@ -12,7 +13,6 @@ import {
 import { EnginePart } from '@toolpath/viewer/engine'
 import { GridFourIcon, MagnifyingGlassPlusIcon, SquareHalfIcon, XIcon } from '@phosphor-icons/react'
 import type { PartReport, PublicInspectionReport } from '@toolpath/part-contracts'
-import { classNames } from '@toolpath/domain/class-names'
 import { readingTheme } from 'shared/reading-colors'
 
 /**
@@ -67,7 +67,7 @@ const ToolButton = ({
     aria-label={label}
     aria-pressed={pressed}
     onClick={onClick}
-    className={classNames(
+    className={cn(
       'grid size-7 place-items-center rounded border transition',
       pressed
         ? 'border-info/60 bg-info/20 text-info'
@@ -251,7 +251,7 @@ export const PartViewer = ({
       // it made the canvas 77px taller than its panel at 720px, so the bottom of
       // the part was drawn under the tool list — and clicks there went to the
       // list, not the part. `tests/on-the-part.spec.ts` found it.
-      className={classNames(
+      className={cn(
         'relative size-full rounded-xl bg-zinc-950',
         overlaySpills ? 'z-50' : 'overflow-hidden',
       )}

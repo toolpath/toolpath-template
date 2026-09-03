@@ -33,7 +33,7 @@ const tool = (shank = 6): CatalogTool => ({
   materialNumber: null,
   toolType: 'endmill',
   form: 'flat end mill',
-  unitSystem: 'metric',
+  unitSystem: 'millimeters',
   geometry: { DC: shank, LCF: 13, OAL: 57, SFDM: shank, LBH: 19 },
   materialGroups: ['P'],
   productLine: null,

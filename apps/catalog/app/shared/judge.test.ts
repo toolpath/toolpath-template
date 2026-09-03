@@ -306,7 +306,7 @@ describe('the order a hole puts its drills in', () => {
       brand: 'Kennametal',
       form: 'drill',
       toolType: 'drill',
-      unitSystem: 'metric',
+      unitSystem: 'millimeters',
       geometry: { DC, LCF: 40, OAL: 80, SFDM: 6, LD: 3, SIG: 118 },
       materialGroups: [],
       productLink: null,

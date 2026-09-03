@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Badge, Button, Card } from '@toolpath/ui'
+import { Badge, Button, Card, cn } from '@toolpath/ui'
 import {
   HOLDER_AXES,
   axisApplies,
@@ -20,8 +20,7 @@ import {
   type Holder,
   type HolderAxis,
 } from '@toolpath/catalog-data'
-import { classNames } from '@toolpath/domain/class-names'
-import { formatLength, type Unit } from '@toolpath/domain/units'
+import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import {
   loadAssemblies,
   saveAssemblies,
@@ -58,7 +57,7 @@ import { formLabel } from './tool-icons'
 
 export interface AssemblyPickerProps {
   readonly tool: CatalogTool
-  readonly unit: Unit
+  readonly unit: UnitSystem
   readonly selection: BuildSelection
   readonly onChange: (next: BuildSelection) => void
   readonly title?: string
@@ -94,7 +93,7 @@ const Pane = ({
 }) => (
   <section aria-label={label} className="min-w-0">
     <h4
-      className={classNames(
+      className={cn(
         'text-2xs mb-2 font-semibold tracking-wide uppercase',
         muted ? 'text-zinc-600' : 'text-zinc-400',
       )}
@@ -106,7 +105,7 @@ const Pane = ({
 )
 
 const Hint = ({ children, className }: { children: ReactNode; className?: string }) => (
-  <p className={classNames('text-2xs text-zinc-500', className)}>{children}</p>
+  <p className={cn('text-2xs text-zinc-500', className)}>{children}</p>
 )
 
 const OPTION =
@@ -140,7 +139,7 @@ const HolderFilters = ({
         return (
           <fieldset key={axis} disabled={!applies}>
             <legend
-              className={classNames(
+              className={cn(
                 'text-2xs mb-1 font-semibold tracking-wide uppercase',
                 applies ? 'text-zinc-500' : 'text-zinc-700',
               )}
@@ -155,7 +154,7 @@ const HolderFilters = ({
                 return (
                   <label
                     key={value}
-                    className={classNames(
+                    className={cn(
                       'text-2xs flex items-center gap-1.5',
                       disabled
                         ? 'cursor-not-allowed text-zinc-600'
@@ -194,7 +193,7 @@ const HolderRow = ({
   unstocked = false,
 }: {
   holder: Holder
-  unit: Unit
+  unit: UnitSystem
   recommended: boolean
   selected: boolean
   onSelect: () => void
@@ -205,7 +204,7 @@ const HolderRow = ({
     <button
       type="button"
       aria-pressed={selected}
-      className={classNames(OPTION, 'min-w-0 flex-1')}
+      className={cn(OPTION, 'min-w-0 flex-1')}
       onClick={onSelect}
     >
       <span className="flex items-center gap-1.5 text-xs font-semibold text-zinc-100">
@@ -249,7 +248,7 @@ const ColletRow = ({
   onSelect,
 }: {
   collet: Collet
-  unit: Unit
+  unit: UnitSystem
   onSize: boolean
   selected: boolean
   onSelect: () => void

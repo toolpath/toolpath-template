@@ -1,4 +1,4 @@
-import { formatLength, type Unit } from '@toolpath/domain/units'
+import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { FloorRadiusIcon } from './tool-icons'
 import { RailBubble } from './filter-rail'
 import { LengthBox } from './length-box'
@@ -21,7 +21,7 @@ export interface FloorAllowanceProps {
   readonly onChange: (millimetres: number) => void
   /** The sheet's own number, to say what raising it is a departure from. */
   readonly sheetValue: number
-  readonly unit: Unit
+  readonly unit: UnitSystem
 }
 
 export const FloorAllowance = ({ value, onChange, sheetValue, unit }: FloorAllowanceProps) => (

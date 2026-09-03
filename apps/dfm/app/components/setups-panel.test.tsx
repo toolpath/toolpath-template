@@ -24,7 +24,7 @@ const view: PartView = {
   plan: EMPTY_PLAN,
   scores: new Map(),
   verdicts: [],
-  unit: 'mm',
+  unit: 'millimeters',
   showingPass: 'rough',
 }
 

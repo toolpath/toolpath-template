@@ -1,4 +1,5 @@
 import type { HolderProfile as MeasuredProfile, ProfilesDocument } from '@toolpath/tool-scraper'
+import type { ProfileDatum, ProfilePoint } from '@toolpath/tool-support'
 
 /**
  * A holder as its own CAD model measures it, keyed by the holder's guid.
@@ -31,19 +32,21 @@ import type { HolderProfile as MeasuredProfile, ProfilesDocument } from '@toolpa
 /** Bumped when {@link Profiles} changes shape in a way a consumer must handle. */
 export const PROFILES_VERSION = 1
 
-/** One vertex of a silhouette: `[z, r]`, both in millimetres. */
-export type ProfilePoint = readonly [z: number, r: number]
+/**
+ * One vertex of a silhouette: `[z, r]`, both in millimetres.
+ *
+ * `@toolpath/tool-support`'s, re-exported under this package's own name.
+ */
+export type { ProfilePoint } from '@toolpath/tool-support'
 
 /**
  * What `z = 0` means.
  *
- * `gage-line` is the spindle face, `z` increasing toward the cutting end, so
- * the taper is negative and the nose positive. `nose` is what a holder with no
- * cone to solve a gauge plane on is measured in — stated rather than silently
- * referenced to an arbitrary end, because there is no gauge length to read off
- * one and a UI must not print a number for it.
+ * `@toolpath/tool-support`'s. It was declared here, in the drawing package and
+ * in the scraper — three copies of two strings, one of which decides whether a
+ * consumer may print a gauge length at all.
  */
-export type ProfileDatum = 'gage-line' | 'nose'
+export type { ProfileDatum } from '@toolpath/tool-support'
 
 /** One holder's measured silhouette, and how far it agrees with the vendor. */
 export interface HolderProfile {
@@ -120,64 +123,12 @@ export const profileFor = (profiles: Profiles, guid: string): HolderProfile | nu
   profiles.holders[guid] ?? null
 
 /**
- * The silhouette from the gage line out, where the measurement knows where the
- * gage line is.
+ * The silhouette from the gage line out.
  *
- * A CAT40 model is measured whole, and about half of what comes back is the
- * 7:24 cone and the retention knob — the part that is inside the spindle when
- * the holder is in the machine. Drawing it says nothing a machinist is asking
- * this picture, and it costs the frame: the tool being drawn ends up a third of
- * the height it could be because the drawing is scaled to fit a taper nobody is
- * looking at.
- *
- * So a `gage-line` profile is cut at `z = 0`, which is the spindle face, and
- * where the polyline crosses it between two vertices the crossing point is
- * interpolated so the cut is the face rather than the nearest vertex to it.
- * **Nothing below the gage line is touched** — the vertices that survive are
- * the measurement, grooves and thread reliefs included.
- *
- * A `nose`-datumed profile is returned whole: with no gauge plane solved there
- * is no line to cut on, and guessing one would be inventing the very number the
- * datum exists to say is missing. A profile that would be left shorter than a
- * segment is also returned whole, because a holder measured entirely inside the
- * spindle is bad data and drawing a stub of it hides that.
- *
- * **The crossing has a twin in `@toolpath/tool-drawing`**, and that is
- * deliberate for now. `profileSegments` in its `model/outline.ts` finds the
- * same `z = 0` crossing and interpolates the same meeting point — it keeps both
- * halves and draws the upper one as a darker `flange`, which is the package's
- * own decision about what a spindle connection looks like. Cutting it is a
- * change to that decision, so it belongs upstream as an option rather than as a
- * silent trim here; until the package offers one, this is the cut, and the two
- * interpolations have to agree or a holder meets its gage line in two places.
- *
- * This copy stays regardless of when that lands, for the reason `hasNeck` gives
- * about its own twin: `clearance()` will want the same trim the day it sweeps a
- * `[z, r]` polyline, and a package that draws tools may not depend on this one.
+ * `@toolpath/tool-support`'s. The note that stood here said the crossing had a
+ * twin in `@toolpath/tool-drawing` and that the two interpolations *"have to
+ * agree or a holder meets its gage line in two places"* — which nothing was
+ * checking. The trim is shared now and the drawing's split is asserted against
+ * it by a test in that package.
  */
-export const belowGageLine = (profile: HolderProfile): ReadonlyArray<ProfilePoint> => {
-  if (profile.datum !== 'gage-line') {
-    return profile.points
-  }
-
-  const cut = profile.points.findIndex(([z]) => z >= 0)
-  const inside = profile.points[cut - 1]
-  const outside = profile.points[cut]
-  if (cut <= 0 || inside === undefined || outside === undefined) {
-    return profile.points
-  }
-
-  const kept = profile.points.slice(cut)
-  if (kept.length < 2) {
-    return profile.points
-  }
-  if (outside[0] === 0) {
-    return kept
-  }
-
-  const meet: ProfilePoint = [
-    0,
-    inside[1] + (-inside[0] / (outside[0] - inside[0])) * (outside[1] - inside[1]),
-  ]
-  return [meet, ...kept]
-}
+export { belowGageLine } from '@toolpath/tool-support'

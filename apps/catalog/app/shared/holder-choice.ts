@@ -78,8 +78,14 @@ export interface HoldThresholds {
   readonly least: number
   /** The shortest stickout worth setting up, mm. */
   readonly leastStickout: number
-  /** The increment the default stickout lands on, mm, by the tool's unit system. */
-  readonly step: { readonly inch: number; readonly metric: number }
+  /**
+   * The increment the default stickout lands on, mm, by the tool's unit system.
+   *
+   * Keyed by `@toolpath/tool-support`'s `UnitSystem`, which is what
+   * `StickoutPolicy` takes — so the sheet's knobs reach the policy without a
+   * second spelling of the same axis in between.
+   */
+  readonly step: StickoutPolicy['step']
 }
 
 /** The knobs the holder stage reads by name — settings, not rule rows — and which knob each is. */
@@ -97,8 +103,8 @@ export const thresholdsFrom = (knobs: ReadonlyArray<Knob> = KNOBS.knobs): HoldTh
   least: (knobValue(SETTING_KNOBS.least, knobs) ?? 25) / 100,
   leastStickout: knobValue(SETTING_KNOBS.leastStickout, knobs) ?? 0,
   step: {
-    inch: knobValue(SETTING_KNOBS.inchStep, knobs) ?? 0,
-    metric: knobValue(SETTING_KNOBS.metricStep, knobs) ?? 0,
+    inches: knobValue(SETTING_KNOBS.inchStep, knobs) ?? 0,
+    millimeters: knobValue(SETTING_KNOBS.metricStep, knobs) ?? 0,
   },
 })
 
@@ -131,9 +137,7 @@ const optionFor = (
 ): HolderOption => {
   const collet = colletsFor(tool, holder, collets)[0] ?? null
   const probe =
-    curve === null
-      ? null
-      : clearance({ tool, holder, collet, stickout: 0, maxStickout: null }, curve, margins)
+    curve === null ? null : clearance({ tool, holder, collet, stickout: 0 }, curve, margins)
   const required = probe?.requiredStickout ?? null
   const limits = stickoutLimits(tool, collet, required, policyOf(thresholds))
   const stickout = limits?.setup ?? null
@@ -141,7 +145,7 @@ const optionFor = (
   const check =
     curve === null || stickout === null
       ? null
-      : clearance({ tool, holder, collet, stickout, maxStickout: null }, curve, margins)
+      : clearance({ tool, holder, collet, stickout }, curve, margins)
   const clears = check === null ? null : check.clears
   const grade: Grade = clears === false ? 'bad' : (band ?? 'medium')
   return {

@@ -1,5 +1,5 @@
 import { TargetIcon } from '@phosphor-icons/react'
-import { formatLength, type Unit } from '@toolpath/domain/units'
+import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { RailBubble } from './filter-rail'
 import { LengthBox } from './length-box'
 
@@ -22,7 +22,7 @@ export interface DrillDeviationProps {
   readonly onChange: (change: { readonly over: number; readonly under: number }) => void
   /** The sheet's own numbers, to say what changing them is a departure from. */
   readonly sheet: { readonly over: number; readonly under: number }
-  readonly unit: Unit
+  readonly unit: UnitSystem
 }
 
 export const DrillDeviation = ({ over, under, onChange, sheet, unit }: DrillDeviationProps) => {

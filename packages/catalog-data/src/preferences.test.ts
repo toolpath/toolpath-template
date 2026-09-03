@@ -19,7 +19,7 @@ const tool = (guid: string, materialGroups: ReadonlyArray<string> = []): Catalog
     materialNumber: null,
     toolType: 'endmill',
     form: 'flat end mill',
-    unitSystem: 'metric',
+    unitSystem: 'millimeters',
     geometry: { DC: 6 },
     materialGroups,
     productLine: null,

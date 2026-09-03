@@ -12,7 +12,7 @@ const tool = {
   materialNumber: null,
   toolType: 'drill',
   form: 'drill',
-  unitSystem: 'metric',
+  unitSystem: 'millimeters',
   geometry: { DC: 1, LCF: 7, OAL: 58, SFDM: 4, LBH: 46, LD: 46 },
   materialGroups: ['P'],
   productLink: null,
@@ -29,7 +29,7 @@ const tool = {
  */
 describe('what the panel says about where a number came from', () => {
   it('marks a derived figure with a footnote rather than a degree sign', () => {
-    render(<ToolDetails tool={tool} unit="mm" />)
+    render(<ToolDetails tool={tool} unit="millimeters" />)
 
     const derived = screen.getAllByLabelText('derived')
     expect(derived.length).toBeGreaterThan(0)
@@ -41,7 +41,7 @@ describe('what the panel says about where a number came from', () => {
 
   /** And says nothing at all about the vendor's own figures. */
   it('leaves a vendor-stated figure unmarked', () => {
-    render(<ToolDetails tool={tool} unit="mm" />)
+    render(<ToolDetails tool={tool} unit="millimeters" />)
 
     expect(screen.getByText('Diameter').closest('div')?.textContent).toBe('DiameterDC1.00 mm')
   })
@@ -52,7 +52,7 @@ describe('what the panel says about where a number came from', () => {
    * visualization alongside the name in the table"), and an icon on each row.
    */
   it('letters each row with the code the drawing uses, and draws what it measures', () => {
-    const { container } = render(<ToolDetails tool={tool} unit="mm" />)
+    const { container } = render(<ToolDetails tool={tool} unit="millimeters" />)
 
     for (const [name, code] of [
       ['Diameter', 'DC'],
@@ -119,7 +119,7 @@ describe('pointing at a number', () => {
 
   const panel = () => {
     vi.stubGlobal('ResizeObserver', StubResizeObserver)
-    const drawn = render(<ToolDetails tool={tool} unit="mm" />)
+    const drawn = render(<ToolDetails tool={tool} unit="millimeters" />)
     StubResizeObserver.measure()
     return drawn
   }
@@ -178,7 +178,7 @@ describe('choosing a holder and a collet', () => {
   }
 
   it('offers the collets that grip the shank with no holder chosen', () => {
-    render(<ToolDetails tool={tool} unit="mm" holding={holding().holding} />)
+    render(<ToolDetails tool={tool} unit="millimeters" holding={holding().holding} />)
 
     const collet = screen.getByLabelText('Collet')
     expect(collet).toBeEnabled()
@@ -201,7 +201,7 @@ describe('choosing a holder and a collet', () => {
       chosen: () => ({ holderGuid: 'h-er16', colletGuid: null }),
       stickoutFor: () => 19,
     })
-    render(<ToolDetails tool={tool} unit="mm" holding={held} />)
+    render(<ToolDetails tool={tool} unit="millimeters" holding={held} />)
 
     // Not the 46 mm the tool carries on its own.
     expect(screen.getByText('Below holder').closest('div')?.textContent).toBe(
@@ -219,7 +219,7 @@ describe('choosing a holder and a collet', () => {
     const { onChoose, holding: takes } = holding({
       chosen: () => ({ holderGuid: null, colletGuid: 'c-er16' }),
     })
-    render(<ToolDetails tool={tool} unit="mm" holding={takes} />)
+    render(<ToolDetails tool={tool} unit="millimeters" holding={takes} />)
 
     fireEvent.change(screen.getByLabelText('Holder'), { target: { value: 'h-er16' } })
     expect(onChoose).toHaveBeenLastCalledWith(tool, {

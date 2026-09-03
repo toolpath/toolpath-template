@@ -37,7 +37,7 @@ const Families = () => {
                 </div>
                 <p className="text-sm text-zinc-400">
                   {family.brand} · published in{' '}
-                  {family.unitSystem === 'inch' ? 'inches' : 'millimetres'}
+                  {family.unitSystem === 'inches' ? 'inches' : 'millimetres'}
                 </p>
                 <p className="text-xs text-zinc-500">{family.toolTypes.join(', ')}</p>
                 <Link

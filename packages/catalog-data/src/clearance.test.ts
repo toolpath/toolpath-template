@@ -26,7 +26,7 @@ const tool = (over: Partial<CatalogTool['geometry']> = {}): CatalogTool => ({
   materialNumber: null,
   toolType: 'endmill',
   form: 'flat end mill',
-  unitSystem: 'metric',
+  unitSystem: 'millimeters',
   geometry: { DC: 6, LCF: 13, OAL: 57, SFDM: 6, ...over },
   materialGroups: ['P'],
   productLine: null,
@@ -256,13 +256,13 @@ describe('a stack stood out to exactly what it needs', () => {
     const curve = { horizontalOffset: [0, 1.76, 6.86], verticalOffset: [3.81, 3.22, 7.07] }
     const room = { radial: 0.508, axial: 0.508 }
     const required = clearance(
-      { tool: long, holder: chuck, collet: null, stickout: 0, maxStickout: null },
+      { tool: long, holder: chuck, collet: null, stickout: 0 },
       curve,
       room,
     ).requiredStickout!
     expect(required).toBeCloseTo(11.578, 3)
     const at = clearance(
-      { tool: long, holder: chuck, collet: null, stickout: required, maxStickout: null },
+      { tool: long, holder: chuck, collet: null, stickout: required },
       curve,
       room,
     )

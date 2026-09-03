@@ -56,13 +56,13 @@ describe('the three sides of a part', () => {
 
 describe('reading those sides in a unit', () => {
   it('reads the Engine’s millimetres as millimetres', () => {
-    expect(formatSides([50.8, 50.8, 25.4], 'mm')).toBe('50.80 × 50.80 × 25.40 mm')
+    expect(formatSides([50.8, 50.8, 25.4], 'millimeters')).toBe('50.80 × 50.80 × 25.40 mm')
   })
 
   it('reads them as inches on the press of the same button', () => {
     // 50.8 mm is two inches exactly, which is the point of the fixture: a
     // conversion the wrong way round reads 1290.32 and looks like a unit label.
-    expect(formatSides([50.8, 50.8, 25.4], 'in')).toBe('2.000 × 2.000 × 1.000 in')
+    expect(formatSides([50.8, 50.8, 25.4], 'inches')).toBe('2.000 × 2.000 × 1.000 in')
   })
 
   /*
@@ -71,13 +71,13 @@ describe('reading those sides in a unit', () => {
    * decimals are not cosmetic and are not the same in both.
    */
   it('gives each unit the precision the rest of the app gives it', () => {
-    expect(formatSides([1.23456], 'mm')).toBe('1.23 mm')
-    expect(formatSides([25.4], 'in')).toBe('1.000 in')
+    expect(formatSides([1.23456], 'millimeters')).toBe('1.23 mm')
+    expect(formatSides([25.4], 'inches')).toBe('1.000 in')
   })
 
   it('joins with the multiplication sign rather than an x', () => {
     // A machinist reads `2 × 2 × 1`; `2 x 2 x 1` is a variable name.
-    expect(formatSides([1, 2], 'mm')).toContain(' × ')
-    expect(formatSides([1, 2], 'mm')).not.toContain(' x ')
+    expect(formatSides([1, 2], 'millimeters')).toContain(' × ')
+    expect(formatSides([1, 2], 'millimeters')).not.toContain(' x ')
   })
 })

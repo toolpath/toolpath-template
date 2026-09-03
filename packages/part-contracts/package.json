@@ -47,9 +47,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@toolpath/api": "0.2.3",
-    "@toolpath/domain": "workspace:*",
-    "@toolpath/viewer": "0.4.0"
+    "@toolpath/api": "0.4.0",
+    "@toolpath/tool-support": "0.1.0",
+    "@toolpath/viewer": "1.1.0"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

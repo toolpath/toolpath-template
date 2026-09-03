@@ -1,5 +1,5 @@
+import { cn } from '@toolpath/ui'
 import type { CSSProperties, ReactNode } from 'react'
-import { classNames } from '@toolpath/domain/class-names'
 
 /**
  * The small pressed-or-not control this application is made of.
@@ -52,7 +52,7 @@ export const Chip = ({
       disabled={disabled}
       onClick={onClick}
       style={style}
-      className={classNames(
+      className={cn(
         'text-2xs inline-flex items-center gap-1 rounded border px-1.5 py-0.5 transition',
         'focus-visible:ring-info/60 focus-visible:ring-1 focus-visible:outline-none',
         disabled && 'cursor-not-allowed opacity-40',
@@ -78,7 +78,7 @@ export const ChipGroup = ({
   className?: string
 }) => (
   <span
-    className={classNames('flex flex-wrap items-center gap-1', className)}
+    className={cn('flex flex-wrap items-center gap-1', className)}
     role="group"
     aria-label={label}
   >

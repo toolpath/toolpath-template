@@ -1,8 +1,12 @@
+import {
+  convertLength,
+  decimalsFor,
+  UNIT_ABBREVIATION,
+  type UnitSystem,
+} from '@toolpath/tool-support'
 import { useContentBox } from '@toolpath/viewer'
 import { useEffect } from 'react'
 import { Vector3, type Box3 } from 'three'
-
-import { convertLength, decimalsFor, MODEL_UNIT, type Unit } from 'shared/units'
 
 /**
  * The part's own size, measured off the mesh and handed out.
@@ -40,7 +44,7 @@ export const sidesOf = (box: Box3): [number, number, number] => {
 }
 
 /** `50.8 × 50.8 × 25.4 mm`, in whichever unit is being read. */
-export const formatSides = (sides: ReadonlyArray<number>, unit: Unit): string =>
+export const formatSides = (sides: ReadonlyArray<number>, unit: UnitSystem): string =>
   `${sides
-    .map((side) => convertLength(side, MODEL_UNIT, unit).toFixed(decimalsFor(unit)))
-    .join(' × ')} ${unit}`
+    .map((side) => convertLength(side, 'millimeters', unit).toFixed(decimalsFor(unit)))
+    .join(' × ')} ${UNIT_ABBREVIATION[unit]}`

@@ -15,11 +15,13 @@ import type { Catalog, CatalogTool } from './types.js'
 
 const catalog = sample as unknown as Catalog
 
-const tool = (geometry: Record<string, number>, unitSystem: 'inch' | 'metric' = 'metric') =>
-  ({ geometry, unitSystem }) as StickoutTool
+const tool = (
+  geometry: Record<string, number>,
+  unitSystem: 'inches' | 'millimeters' = 'millimeters',
+) => ({ geometry, unitSystem }) as StickoutTool
 
 /** The bounds alone, so a case about the caps is not also a case about rounding. */
-const BARE = { heldShare: 1 / 3, least: 0, step: { inch: 0, metric: 0 } }
+const BARE = { heldShare: 1 / 3, least: 0, step: { inches: 0, millimeters: 0 } }
 
 describe('the least a tool can stand out', () => {
   it('is the flutes on a plain tool', () => {
@@ -54,7 +56,7 @@ describe('the ceiling, and which of the three caps set it', () => {
    * `stickoutLimits().max` answered 3.333 for the same tool.
    */
   it('takes the tightest cap and names it', () => {
-    const inch = tool({ DC: 25.4, SFDM: 25.4, LCF: 31.75, OAL: 127 }, 'inch')
+    const inch = tool({ DC: 25.4, SFDM: 25.4, LCF: 31.75, OAL: 127 }, 'inches')
     const range = stickoutRange(inch, { policy: BARE })
 
     expect(range?.max).toBeCloseTo(50.8, 6)
@@ -109,7 +111,7 @@ describe('the setup length', () => {
    * dataset was built with carried no floor and no step.
    */
   it('takes the flutes up to the sheet’s floor and onto its step', () => {
-    const drill = tool({ DC: 2.4384, SFDM: 3.9878, LCF: 16.9926, OAL: 57.9882 }, 'inch')
+    const drill = tool({ DC: 2.4384, SFDM: 3.9878, LCF: 16.9926, OAL: 57.9882 }, 'inches')
 
     expect(minStickout(drill)).toBeCloseTo(16.9926, 4)
     // 0.750 in, from 0.669 in of flute.
@@ -129,7 +131,7 @@ describe('the setup length', () => {
 
   /** Out to what the feature needs, where that is more than the flutes. */
   it('stands out to what the holder needs to clear the part', () => {
-    const inch = tool({ DC: 6.35, SFDM: 6.35, LCF: 19, OAL: 76.2 }, 'inch')
+    const inch = tool({ DC: 6.35, SFDM: 6.35, LCF: 19, OAL: 76.2 }, 'inches')
 
     // 22.225 mm — the range rounds to a hundredth, as `LBH` always has.
     expect(stickoutRange(inch, { required: 20.3 })?.setup).toBe(22.23)
@@ -221,7 +223,7 @@ describe('the policy the dataset is built with', () => {
    */
   it('carries the sheet’s floor and step', () => {
     expect(DEFAULT_STICKOUT_POLICY.least).toBe(12.7)
-    expect(DEFAULT_STICKOUT_POLICY.step).toEqual({ inch: 3.175, metric: 3 })
+    expect(DEFAULT_STICKOUT_POLICY.step).toEqual({ inches: 3.175, millimeters: 3 })
     expect(DEFAULT_STICKOUT_POLICY.heldShare).toBeCloseTo(1 / 3, 6)
   })
 })

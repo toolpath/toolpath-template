@@ -61,8 +61,7 @@ export const drawnAssembly = (
   const collet = picked ?? (holder === null ? null : (colletsFor(tool, holder, collets)[0] ?? null))
   const required =
     holder !== null && curve !== null
-      ? clearance({ tool, holder, collet, stickout: 0, maxStickout: null }, curve, margins)
-          .requiredStickout
+      ? clearance({ tool, holder, collet, stickout: 0 }, curve, margins).requiredStickout
       : null
   const limits = stickoutLimits(tool, picked, required, policyOf(thresholds))
   const least = limits === null ? null : Math.max(limits.min, required ?? limits.min)

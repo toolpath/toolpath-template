@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+
+import { CATALOG_VERSION } from './types.js'
 import { IngestError, ingest, type Scrape, type ScrapedFamily, type ScrapedTool } from './ingest.js'
 
 const GUID = '11111111-1111-5111-8111-111111111101'
@@ -43,7 +45,7 @@ describe('ingest', () => {
       LD: 3,
     })
     expect(catalog.tools[0]?.provenance.LD).toBe('derived')
-    expect(catalog.tools[0]?.unitSystem).toBe('metric')
+    expect(catalog.tools[0]?.unitSystem).toBe('millimeters')
   })
 
   /**
@@ -64,7 +66,7 @@ describe('ingest', () => {
 
     expect(catalog.tools[0]?.geometry.DC).toBeCloseTo(12.7, 9)
     expect(catalog.tools[0]?.geometry.LCF).toBeCloseTo(25.4, 9)
-    expect(catalog.tools[0]?.unitSystem).toBe('inch')
+    expect(catalog.tools[0]?.unitSystem).toBe('inches')
   })
 
   it('never converts a count or an angle', () => {
@@ -199,7 +201,7 @@ describe('ingest', () => {
 
     expect(catalog.builtAt).toBe('2026-09-01')
     expect(catalog.families[0]?.toolCount).toBe(1)
-    expect(catalog.version).toBe(8)
+    expect(catalog.version).toBe(CATALOG_VERSION)
   })
 })
 
@@ -394,7 +396,7 @@ describe('one part the vendor published under two of its own facets', () => {
 
     expect(catalog.tools).toHaveLength(1)
     expect(catalog.tools[0]?.familyId).toBe('end-mills-mm')
-    expect(catalog.tools[0]?.unitSystem).toBe('metric')
+    expect(catalog.tools[0]?.unitSystem).toBe('millimeters')
   })
 
   /** Reported, never silent: the pair is a fact about the vendor's table. */

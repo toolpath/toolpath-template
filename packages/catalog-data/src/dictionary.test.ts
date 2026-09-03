@@ -87,13 +87,13 @@ describe('the codes this package adds to the scraper’s', () => {
     expect(added.sort()).toEqual(['LBH', 'LD', 'LSCN'])
   })
 
-  it('keys every entry by its own code', () => {
-    const mismatched = Object.entries(GEOMETRY_FIELDS)
-      .filter(([key, field]) => field.code !== key)
-      .map(([key]) => key)
-
-    expect(mismatched).toEqual([])
-  })
+  /*
+   * "Keys every entry by its own code" used to be a test here. The dictionary
+   * carried a `code` beside its key and the two could disagree; it comes from
+   * `@toolpath/tool-support` now, which keys on the code and stores no copy of
+   * it, so the disagreement has no way to be written down. An unrepresentable
+   * state needs no check.
+   */
 })
 
 describe('the workpiece-material groups', () => {

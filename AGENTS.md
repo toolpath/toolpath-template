@@ -180,9 +180,6 @@ application unless that application says otherwise.
   `components/feature-list-panel.tsx` the list on screen;
   `docs/FEATURE-LIST.md` is the spec, including _Where the rules live_ for
   which file owns which rule and _Not built_ for what is deliberately absent.
-- `packages/domain/` (`@toolpath/domain`) is pure helpers more than one
-  application needs — unit conversion and formatting, class composition,
-  keyboard movement through a list.
 - `packages/part-contracts/` (`@toolpath/part-contracts`) is the app-owned shape
   of a part report, the datasheet readers, and the feature-selection model. Its
   root export is server-safe; `/report`, `/picks` and `/selection` reach

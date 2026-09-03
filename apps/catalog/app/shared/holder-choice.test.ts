@@ -19,7 +19,7 @@ const tool: CatalogTool = {
   toolType: 'endmill',
   productLine: null,
   form: 'flat end mill',
-  unitSystem: 'metric',
+  unitSystem: 'millimeters',
   geometry: { DC: 6, LCF: 13, OAL: 57, SFDM: 6 },
   materialGroups: ['P'],
   productLink: null,
@@ -69,7 +69,12 @@ const collet: Collet = {
 
 /** A pocket 12 deep at the cut; a boss 8 mm out standing 30 above the floor. */
 const curve = { horizontalOffset: [0, 2, 8, 15], verticalOffset: [12, 12, 30, 30] }
-const thresholds = { good: 1 / 3, least: 1 / 4, leastStickout: 0, step: { inch: 0, metric: 0 } }
+const thresholds = {
+  good: 1 / 3,
+  least: 1 / 4,
+  leastStickout: 0,
+  step: { inches: 0, millimeters: 0 },
+}
 const room = { radial: 0.5, axial: 0.5 }
 
 describe('the holders that work, pulled out to what the feature needs', () => {
@@ -217,12 +222,12 @@ describe('the sheet’s thresholds', () => {
       good: 0.33,
       least: 0.25,
       leastStickout: 12.7,
-      step: { inch: 3.175, metric: 3 },
+      step: { inches: 3.175, millimeters: 3 },
     })
     expect(policyOf(sheet)).toEqual({
       heldShare: 0.33,
       least: 12.7,
-      step: { inch: 3.175, metric: 3 },
+      step: { inches: 3.175, millimeters: 3 },
     })
   })
 

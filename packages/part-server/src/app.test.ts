@@ -46,6 +46,10 @@ const report = (meshGlbUrl: string | null = null) => ({
 const analysisJob = (status: JobDetail['status'], error: string | null = null): JobDetail => ({
   partUuid: 'part-1',
   jobUuid: 'job-1',
+  // Engine API 1.3.1 states both, nullable. This job holds no tool and came
+  // from no import.
+  holderUuid: null,
+  importId: null,
   productType: 'analyze-part',
   status,
   progress: status === 'queued' ? null : 100,
@@ -369,10 +373,16 @@ describe('DFM Hono API', () => {
 
   /**
    * Every datasheet arrives through the batch endpoint — the SDK's `PartFeature`
-   * carries none — and the SDK drops the curve on the way through, so the
-   * server grafts it back (`reach-curve.ts`). Two features, two curves.
+   * carries none — so this is what proves the curve survives that trip. Two
+   * features, two curves.
+   *
+   * It was written when `@toolpath/api` 0.2.x dropped `reachCurve` on the way
+   * through and the server read every batch a second time raw to graft it back.
+   * The SDK declares the field since 0.4.0 and the graft is gone; the assertion
+   * is unchanged, because what it pins is the curve reaching the browser rather
+   * than the way it got there.
    */
-  test('keeps the reach curve the SDK would drop', async () => {
+  test('keeps the reach curve through the datasheet batch', async () => {
     const curve = { horizontalOffset: [0, 8], verticalOffset: [12, 30] }
     const feature = (id: string, tag: string, type: string, region: number) => ({
       featureId: id,

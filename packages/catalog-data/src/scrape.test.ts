@@ -69,8 +69,8 @@ describe('a tap family states its thread system in its id', () => {
   })
 
   it('reads the system the id names', () => {
-    expect(threadSystemOf('khsst-hand-metric-plug')).toBe('metric')
-    expect(threadSystemOf('khsst-spiral-point-plug-inch')).toBe('inch')
+    expect(threadSystemOf('khsst-hand-metric-plug')).toBe('millimeters')
+    expect(threadSystemOf('khsst-spiral-point-plug-inch')).toBe('inches')
   })
 
   it('refuses an id that names both or neither, rather than guessing one', () => {

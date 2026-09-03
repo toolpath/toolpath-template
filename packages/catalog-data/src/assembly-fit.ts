@@ -1,6 +1,7 @@
+import { assemblyAgainst, type AssemblyFit as SharedAssemblyFit } from '@toolpath/tool-support'
+
 import type { FeatureDemand, FitFailure } from './fit.js'
 import { fitAgainst } from './fit.js'
-import { clearance, describeCollision } from './clearance.js'
 import {
   assembliesFor,
   withStickout,
@@ -9,6 +10,15 @@ import {
   type Holder,
 } from './toolholding.js'
 import type { CatalogTool } from './types.js'
+
+/**
+ * Whether one assembly clears one feature.
+ *
+ * `@toolpath/tool-support`'s. What stays below is the pair that builds a crib
+ * out of holder and collet lists and orders the result, which is catalog
+ * composition rather than domain arithmetic.
+ */
+export { assemblyAgainst, NOT_MODELLED } from '@toolpath/tool-support'
 
 /**
  * Whether the whole stack reaches, not just the cutter.
@@ -23,70 +33,7 @@ import type { CatalogTool } from './types.js'
  * {@link NOT_MODELLED} rather than left for somebody to discover.
  */
 
-export interface AssemblyFit {
-  readonly assembly: Assembly
-  readonly fits: boolean
-  readonly failures: ReadonlyArray<FitFailure>
-}
-
-/**
- * What an assembly check does **not** answer yet, stated so nobody reads a
- * pass as more than it is.
- *
- * - **Holder collision, on a report without a reach curve.** From Engine API
- *   1.0.4 every datasheet carries one and `clearance.ts` sweeps the nose and
- *   the shank over it; an older report is not checked rather than guessed. The
- *   silhouette swept is the catalog's — nose diameter, shank, neck — not a
- *   holder's CAD.
- * - **Deflection.** Reach is geometry; whether a stack at that reach can take
- *   a cut is rigidity, and this package has no force model.
- * - **A bore holder's grip length**, which is why those assemblies use the
- *   whole tool as their stickout and are an upper bound rather than a fact.
- * - **Reach, on an assembly whose collet publishes no grip length.** REGO-FIX's
- *   powRgrip collets do not, so those assemblies carry no stickout and their
- *   reach goes unchecked rather than guessed.
- */
-export const NOT_MODELLED = [
-  'holder collision without a reach curve',
-  'deflection',
-  'bore holder grip',
-] as const
-
-/**
- * Whether one assembly clears one feature.
- *
- * The cutter's own checks run first and unchanged — an assembly cannot rescue a
- * tool that is too wide. What it adds is reach: the stickout has to clear the
- * whole distance from the part top to the bottom of the feature, because the
- * holder nose cannot go below the top of the part.
- */
-export const assemblyAgainst = (assembly: Assembly, demand: FeatureDemand): Array<FitFailure> => {
-  const failures = [...fitAgainst(assembly.tool, demand)]
-
-  // An unstated stickout is not checked, the same rule the cutter checks
-  // follow: what nobody has said is not a limit anybody can be held to.
-  if (
-    assembly.stickout !== null &&
-    demand.reachBelowTop !== undefined &&
-    assembly.stickout < demand.reachBelowTop
-  ) {
-    failures.push({
-      featureTag: demand.featureTag,
-      reason: `${assembly.stickout.toFixed(1)} mm of stickout does not clear ${demand.reachBelowTop.toFixed(1)} mm below the part top`,
-    })
-  }
-
-  // The material around the feature, where the report states it: the holder
-  // nose and the shank are swept over the reach curve, and each thing they
-  // meet is its own reason.
-  if (demand.reachCurve) {
-    for (const collision of clearance(assembly, demand.reachCurve).collisions) {
-      failures.push({ featureTag: demand.featureTag, reason: describeCollision(collision) })
-    }
-  }
-
-  return failures
-}
+export type AssemblyFit = SharedAssemblyFit<Assembly>
 
 /**
  * Every assembly that cuts every selected feature, shortest stickout first.

@@ -39,7 +39,7 @@ const tool = (
         : form.includes('tap')
           ? 'tap'
           : 'endmill',
-    unitSystem: 'metric',
+    unitSystem: 'millimeters',
     geometry: {
       SFDM: geometry.DC ?? 6,
       OAL: 90,

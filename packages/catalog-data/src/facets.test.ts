@@ -10,7 +10,7 @@ const tool = (over: Partial<CatalogTool> & Pick<CatalogTool, 'guid'>): CatalogTo
   materialNumber: null,
   toolType: 'endmill',
   form: 'flat end mill',
-  unitSystem: 'metric',
+  unitSystem: 'millimeters',
   geometry: { DC: 5, NOF: 4 },
   materialGroups: ['P'],
   productLine: null,

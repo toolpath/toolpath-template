@@ -8,7 +8,7 @@ const tool = (geometry: Record<string, number>): CatalogTool =>
     guid: 't',
     catalogNumber: 'T',
     form: 'flat end mill',
-    unitSystem: 'metric',
+    unitSystem: 'millimeters',
     geometry,
     provenance: {},
   }) as unknown as CatalogTool

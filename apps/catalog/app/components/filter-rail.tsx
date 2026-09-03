@@ -1,7 +1,7 @@
+import { cn } from '@toolpath/ui'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { CaretRightIcon, XIcon } from '@phosphor-icons/react'
-import { classNames } from '@toolpath/domain/class-names'
-import { formatLength, type Unit } from '@toolpath/domain/units'
+import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import type { ToolQuery } from 'shared/filter'
 import { FilterPanel, QUICK_FILTERS, type FilterPanelProps } from './filter-panel'
 
@@ -26,7 +26,7 @@ const SHOWN = 3
 const describeBound = (
   bound: { readonly min?: number; readonly max?: number } | undefined,
   kind: 'length' | 'count',
-  unit: Unit,
+  unit: UnitSystem,
 ): Array<string> => {
   if (!bound || (bound.min === undefined && bound.max === undefined)) {
     return []
@@ -45,7 +45,7 @@ const answersFor = (
   filter: (typeof QUICK_FILTERS)[number],
   query: ToolQuery,
   materialGroup: string | null,
-  unit: Unit,
+  unit: UnitSystem,
 ): Array<string> => {
   if (filter.shape === 'range') {
     return describeBound(
@@ -168,7 +168,7 @@ export const RailBubble = ({
           })
           setOpen((was) => !was)
         }}
-        className={classNames(
+        className={cn(
           'flex w-52 items-start gap-2 rounded-md border px-2.5 py-1.5 text-left transition',
           'focus-visible:ring-info/60 focus-visible:ring-1 focus-visible:outline-none',
           set
@@ -188,7 +188,7 @@ export const RailBubble = ({
         </span>
         <CaretRightIcon
           aria-hidden="true"
-          className={classNames('mt-0.5 shrink-0 transition', open && 'rotate-90')}
+          className={cn('mt-0.5 shrink-0 transition', open && 'rotate-90')}
         />
       </button>
       {/*

@@ -11,7 +11,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  */
 /**
  * How deep a tool must reach, by how far outboard of the cut the material
- * stands — Engine API 1.0.4's `FeatureDatasheet.reachCurve`.
+ * stands — the Engine's `FeatureDatasheet.reachCurve`.
  *
  * Material within `horizontalOffset[i]` of the feature rises to
  * `verticalOffset[i]` above its bottom, so anything on the tool standing that
@@ -20,10 +20,22 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  * non-decreasing step function, and offsets beyond its last knot clamp to it.
  * Offsets are from the wall of the cut, never the tool's axis.
  *
- * **Declared here, not taken from the SDK**, because `@toolpath/api` 0.2.x
- * predates the field and its deserialiser drops it. `@toolpath/part-server`
- * grafts it back from the raw response; when the SDK catches up this becomes
- * a re-export of its type and the graft goes.
+ * **Structurally the SDK's, with the arrays read-only.** It was declared here
+ * because `@toolpath/api` 0.2.x predated the field and its deserialiser dropped
+ * it, so `@toolpath/part-server` read every datasheet batch a second time raw
+ * to graft the curve back on. The SDK declares the field since 0.4.0 and that
+ * graft is gone — but this stayed a declaration rather than becoming
+ * `export type { ReachCurve } from '@toolpath/api'`, because two packages now
+ * name this shape and only one of them can be re-exported:
+ *
+ * - the SDK's arrays are `Array<number>`, being generated from OpenAPI;
+ * - `@toolpath/tool-support`'s are `readonly number[]`, and the catalog's
+ *   holder choice, drawn assembly and clearance all pass curves typed by it.
+ *
+ * A `readonly number[]` is not assignable to an `Array<number>`, so re-exporting
+ * the SDK's put six errors through `apps/catalog/app/routes/part.tsx` alone.
+ * Read-only is the supertype: a value from either package satisfies this, and
+ * nothing downstream mutates a curve it was handed.
  */
 export interface ReachCurve {
   readonly horizontalOffset: ReadonlyArray<number>
@@ -55,7 +67,7 @@ export const isReachCurve = (value: unknown): value is ReachCurve => {
 
 export type PartFeature = Omit<ApiPartFeature, 'featureId'> & {
   featureId?: string
-  datasheet?: (FeatureDatasheet & { reachCurve?: ReachCurve }) | null
+  datasheet?: FeatureDatasheet | null
 }
 
 export type PartReport = Omit<PartResponse, 'features'> & {

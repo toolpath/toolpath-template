@@ -16,10 +16,22 @@ import { openCube } from './cube-fixture'
  * **The click points are found, not chosen.** They were scanned off the rendered
  * canvas; the comment beside each says what it hits under the default camera.
  * Nothing here orbits, so they stay put.
+ *
+ * **Re-scanned for the orthographic camera** (2026-09-03). `@toolpath/viewer`
+ * 1.0.0 made `projection` default to `"orthographic"` where it had defaulted to
+ * `"perspective"`, and this application takes the default. Nothing at the call
+ * site changed, so nothing but these three points could notice — and all three
+ * of the old ones landed on the top face together, which is why thirteen tests
+ * here failed at once while the one that only needs *a* face still passed.
+ *
+ * The cube now draws as a plain isometric: the top face is the diamond in the
+ * middle, and the two walls are the quadrilaterals below its left and right
+ * edges. Each point below sits well inside its face rather than near an edge,
+ * because an edge is where a projection change moves a pick first.
  */
-const FACE = { x: 0.5, y: 0.5 } // region 0, a floor
-const WALL = { x: 0.5, y: 0.32 } // region 3, a wall the floor's readings do not cover
-const OTHER = { x: 0.6, y: 0.45 } // region 2, a second wall
+const FACE = { x: 0.5, y: 0.39 } // the top face, a floor
+const WALL = { x: 0.725, y: 0.59 } // the right wall
+const OTHER = { x: 0.375, y: 0.6 } // the left wall, whose readings the floor's do not cover
 
 /** One of the face editor's three claim buttons. */
 const cut = (page: Page, option: string) =>

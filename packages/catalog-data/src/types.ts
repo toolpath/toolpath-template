@@ -1,3 +1,10 @@
+import {
+  GEOMETRY_FIELDS as SHARED,
+  type GeometryField as SharedGeometryField,
+  type Provenance,
+  type UnitSystem,
+} from '@toolpath/tool-support'
+
 import type { ToolForm } from './forms.js'
 
 /**
@@ -13,13 +20,20 @@ import type { ToolForm } from './forms.js'
  * comparable without the reader knowing which is which. `unitSystem` records
  * how the vendor published a tool — it is a fact about the tool, not the unit
  * a number is stored in. Converting for display is
- * `@toolpath/domain/units`' job.
+ * `@toolpath/tool-support`'s job.
  */
 
 import type { Collet, Holder } from './toolholding.js'
 
-/** How a vendor publishes a family: not the unit its dimensions are stored in. */
-export type UnitSystem = 'metric' | 'inch'
+/**
+ * How a vendor publishes a family: not the unit its dimensions are stored in.
+ *
+ * `@toolpath/tool-support`'s. It was `'millimeters' | 'inches'` here, the scraper said
+ * `'millimeters' | 'inches'`, and `ingest.ts` kept a lookup table between them —
+ * which is where a metric family quietly becomes an inch one. The scraper's
+ * spelling wins because a scrape originates the fact.
+ */
+export type { UnitSystem } from '@toolpath/tool-support'
 
 /**
  * What a tool is for, coarse enough that a shop picks one without reading a
@@ -33,8 +47,11 @@ export type ToolType = 'chamfer' | 'drill' | 'endmill' | 'reamer' | 'tap' | 'oth
  * The scraper carries this per constant and it survives into the catalog for
  * one reason: a number a shop cannot trace is a number they have to take on
  * faith. A derived or assumed value must be visibly not the vendor's.
+ *
+ * `@toolpath/tool-support`'s, which is the one declaration of three that used
+ * to stand — this, the drawing package's, and the scraper's `FactSource`.
  */
-export type Provenance = 'vendor-stated' | 'derived' | 'assumed'
+export type { Provenance } from '@toolpath/tool-support'
 
 /**
  * A geometry field, under the name `@toolpath/tool-scraper` hands it over in.
@@ -50,14 +67,11 @@ export type Provenance = 'vendor-stated' | 'derived' | 'assumed'
  * a field here would mean translating on ingest, and a translation table is
  * where a `SFDM` becomes a `DC` in one direction and nobody notices.
  */
-export interface GeometryField {
-  readonly code: string
+export interface GeometryField extends SharedGeometryField {
+  /** What a column header and a detail row call this field, in this app's words. */
   readonly label: string
-  /** `mm`, `deg`, or `count`. Stored in this unit; converted only for display. */
-  readonly unit: 'count' | 'deg' | 'mm' | 'ratio'
+  /** A sentence a reader can hover, in this app's words. */
   readonly description: string
-  /** The ISO 13399 code, or null where the standard's counterpart is unpinned. */
-  readonly iso: string | null
 }
 
 /**
@@ -69,115 +83,67 @@ export interface GeometryField {
  */
 export const GEOMETRY_FIELDS: Readonly<Record<string, GeometryField>> = {
   DC: {
-    code: 'DC',
+    ...SHARED['DC'],
     label: 'Cutting diameter',
-    unit: 'mm',
     description: 'The diameter of the cutting portion — what the tool actually removes.',
-    iso: 'DC',
   },
   OAL: {
-    code: 'OAL',
+    ...SHARED['OAL'],
     label: 'Overall length',
-    unit: 'mm',
     description: 'Tip to the end of the shank. Sets how far the tool has to stick out.',
-    iso: 'OAL',
   },
   LCF: {
-    code: 'LCF',
+    ...SHARED['LCF'],
     label: 'Flute length',
-    unit: 'mm',
     description: 'The usable cutting length, which bounds the depth reachable in one pass.',
-    iso: 'LCF',
   },
-  /**
-   * Not a vendor's column. Worked out by `stickout.ts` and written in
-   * `build.ts`: **the length a machinist would set this tool up at** — the
-   * flutes (or the neck) out to the sheet's floor and onto its step, held
-   * under the clamping rule, the hold share and any collet grip.
-   *
-   * It stated the *ceiling* until 2026-09-03 — `OAL` less the shank the shop
-   * keeps clamped — which is a different question and was answered in four
-   * different places. The ceiling is `stickoutCeiling`; this is the setup, and
-   * it is the same number the drawing beside it draws.
-   */
   LBH: {
-    code: 'LBH',
+    ...SHARED['LBH'],
     label: 'Length below holder',
-    unit: 'mm',
     description:
       'How far the tool is set out of the holder: its flutes, out to the shop’s shortest stickout and onto its step, within the shank the shop keeps clamped.',
-    iso: null,
   },
-  /**
-   * Length below holder over cutting diameter — the "×D" a shop reads reach
-   * in. Derived from LBH and DC; no vendor states it.
-   */
   LD: {
-    code: 'LD',
+    ...SHARED['LD'],
     label: 'L/D',
-    unit: 'ratio',
     description:
       'Length below holder over cutting diameter — the ×D a shop reads reach in. Derived from LBH and DC; no vendor states it.',
-    iso: null,
   },
   RE: {
-    code: 'RE',
+    ...SHARED['RE'],
     label: 'Corner radius',
-    unit: 'mm',
     description: 'The radius at the corner of the cutting edge. Zero for a square end.',
-    iso: 'RE',
   },
   NOF: {
-    code: 'NOF',
+    ...SHARED['NOF'],
     label: 'Flute count',
-    unit: 'count',
     description: 'Cutting edges. More edges means more feed and less chip room.',
-    iso: 'NOF',
   },
   SIG: {
-    code: 'SIG',
+    ...SHARED['SIG'],
     label: 'Point angle',
-    unit: 'deg',
     description: 'The included angle at a drill point.',
-    iso: 'SIG',
   },
-  // Autodesk's name for the measurement ISO codes as `DMM`. Kept under the
-  // scraper's name because that is the name a consumer recognises.
   SFDM: {
-    code: 'SFDM',
+    ...SHARED['SFDM'],
     label: 'Shank diameter',
-    unit: 'mm',
     description: 'What the holder grips. Decides which collet a tool can be held in.',
-    iso: 'DMM',
   },
-  /**
-   * ISO 13399's clamping length minimum: the shank a manufacturer wants held.
-   *
-   * No vendor in this catalog publishes it yet — the scraper carries no such
-   * column — and the day one does, this is where it lands: the application
-   * reads it in preference to any rule of thumb (Paul, 2026-09-01).
-   */
   LSCN: {
-    code: 'LSCN',
+    ...SHARED['LSCN'],
     label: 'Clamping length, least',
-    unit: 'mm',
     description:
       'The least of the shank the manufacturer wants clamped. What is left of the tool below the holder is the overall length less this.',
-    iso: 'LSCN',
   },
   'shoulder-length': {
-    code: 'shoulder-length',
+    ...SHARED['shoulder-length'],
     label: 'Shoulder length',
-    unit: 'mm',
     description: 'Usable length below the full shank, which is what reach is measured against.',
-    iso: null,
   },
   'shoulder-diameter': {
-    code: 'shoulder-diameter',
+    ...SHARED['shoulder-diameter'],
     label: 'Shoulder diameter',
-    unit: 'mm',
     description: 'Diameter at the shoulder — the neck, where the tool is necked.',
-    iso: null,
   },
 }
 
@@ -363,4 +329,13 @@ export interface Catalog {
  * flute length now carries neither field, where a version-7 document gave it
  * both from `OAL` and `SFDM` alone.
  */
-export const CATALOG_VERSION = 8
+/**
+ * Bumped when the catalog document changes shape in a way a reader must handle.
+ *
+ * 9 renamed `unitSystem`'s two values from `metric`/`inch` to
+ * `@toolpath/tool-support`'s `millimeters`/`inches`. A version-8 document
+ * carries the old spelling in `families[].unitSystem`, `tools[].unitSystem` and
+ * the `unitSystem` facet, and reading one as a 9 would silently give every tool
+ * a unit system this vocabulary has no word for.
+ */
+export const CATALOG_VERSION = 9

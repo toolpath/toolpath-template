@@ -122,9 +122,26 @@ describe('the report handed to the browser', () => {
      * Anything else appearing here is a decision, not a merge: say which of the
      * two it is, and either add it to the strip in `contracts.ts` or add it here
      * with the reason it may be sent.
+     *
+     * **The four `Holder*` URLs are the Engine's toolholder API, which nothing
+     * in this repository calls** (`@toolpath/api` 0.4.0, 2026-09-03). The server
+     * reaches `parts`, `features` and `keys` and nothing else, so no holder
+     * response is ever fetched, let alone redacted — and the catalog's own
+     * `/holders` route is its tool rack out of `@toolpath/catalog-data`, not
+     * this API. They are listed rather than stripped because `toPublicInspectionReport`
+     * takes a `PartReport`: a `HolderResponse` would not pass through it at all,
+     * so adding them to that destructure would assert a safety it does not give.
+     *
+     * If an application here ever fetches a holder, that is the moment to give
+     * `HolderResponse` a redaction of its own — this list is not permission,
+     * only a record that nobody is handling these yet.
      */
     expect(declared.sort()).toEqual([
+      'CreateHolderResponse.uploadUrl',
       'CreatePartResponse.uploadUrl',
+      'HolderResponse.meshGlbUrl',
+      'HolderResponse.meshStlUrl',
+      'HolderResponse.thumbnailUrl',
       'PartResponse.meshGlbUrl',
       'PartResponse.meshStlUrl',
       'PartResponse.thumbnailUrl',

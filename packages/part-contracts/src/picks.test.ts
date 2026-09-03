@@ -16,6 +16,7 @@ const pick = (region: number, ranked: Array<string>): PartPick => ({
   point: [0, 0, 0],
   normal: [0, 0, 1],
   modifiers: { alt: false, ctrl: false, meta: false, shift: false, secondary: false },
+  doubled: false,
 })
 
 describe('holdFace', () => {

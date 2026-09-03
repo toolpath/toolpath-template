@@ -9,7 +9,7 @@ import {
   stripMeasurements,
 } from '@toolpath/part-contracts/measurements'
 import { featureSummary, kindOf, rawDatasheet } from '@toolpath/part-contracts/report'
-import type { Unit } from '@toolpath/domain/units'
+import type { UnitSystem } from '@toolpath/tool-support'
 import { KindIcon, MeasurementIcon } from './feature-icons'
 
 /**
@@ -106,7 +106,7 @@ export const FeatureDetails = ({
   /** The whole part, so depth can be measured from its top. */
   readonly allFeatures: ReadonlyArray<PartFeature>
   readonly regions: ReadonlyArray<{ idx: number; shapeKind: string }>
-  readonly unit: Unit
+  readonly unit: UnitSystem
   /** Identical holes this one stands for, so the heading can say how many. */
   readonly siblings?: number
 }) => {

@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
-import { Badge, Button, Card, Panels } from '@toolpath/ui'
+import { Badge, Button, Card, cn, Panels } from '@toolpath/ui'
 import {
   colletsFor,
   colletsForShank,
@@ -22,8 +22,7 @@ import { heldRegions } from '@toolpath/part-contracts/selection'
 import { asNumber, asRecord } from '@toolpath/part-contracts/datasheet'
 import { partTop } from '@toolpath/part-contracts/measurements'
 import { directionColor, directionIndexOf } from '@toolpath/viewer'
-import { classNames } from '@toolpath/domain/class-names'
-import { formatLength } from '@toolpath/domain/units'
+import { formatLength } from '@toolpath/tool-support'
 import { AppHeader } from 'components/app-header'
 import { FeatureDetails } from 'components/feature-details'
 import { KindIcon } from 'components/feature-icons'
@@ -2216,7 +2215,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           does the rest.
         */}
         <Panels.Panel
-          className={classNames('min-h-0', draft === null ? 'overflow-hidden' : 'overflow-visible')}
+          className={cn('min-h-0', draft === null ? 'overflow-hidden' : 'overflow-visible')}
           defaultSize="72%"
           minSize={520}
         >
@@ -2229,7 +2228,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                 half: unclipped, the box would still be painted over by the
                 panel that comes after it in the document.
               */
-              className={classNames(
+              className={cn(
                 'min-h-0',
                 draft === null ? 'overflow-hidden' : 'relative z-50 overflow-visible!',
               )}
@@ -2458,7 +2457,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                     */}
                       {draft?.kind === 'group' || reading !== null ? (
                         <Card
-                          className={classNames(
+                          className={cn(
                             'filter-off pointer-events-auto max-h-full shrink-0 self-start overflow-y-auto',
                             draft?.kind === 'group' ? 'w-[26rem]' : 'w-80',
                           )}
@@ -2693,7 +2692,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                             type="button"
                             aria-pressed={pane === key}
                             onClick={() => setPane(key)}
-                            className={classNames(
+                            className={cn(
                               'focus-visible:ring-info/60 flex items-center gap-1.5 rounded border px-2 py-0.5 text-sm transition focus-visible:ring-1 focus-visible:outline-none',
                               pane === key
                                 ? 'border-info/60 bg-info/15 text-info'
@@ -2740,7 +2739,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                 ),
                               )
                             }}
-                            className={classNames(
+                            className={cn(
                               'focus-visible:ring-info/60 text-2xs ml-1 rounded border px-2 py-1 transition focus-visible:ring-1 focus-visible:outline-none',
                               predrillMills.length > 0
                                 ? 'border-info/60 bg-info/15 text-info'

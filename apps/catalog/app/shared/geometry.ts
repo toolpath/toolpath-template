@@ -1,5 +1,10 @@
 import { GEOMETRY_FIELDS, type CatalogTool, type GeometryField } from '@toolpath/catalog-data'
-import { convertLength, decimalsFor, MODEL_UNIT, type Unit } from '@toolpath/domain/units'
+import {
+  UNIT_ABBREVIATION,
+  type UnitSystem,
+  convertLength,
+  decimalsFor,
+} from '@toolpath/tool-support'
 
 /** One geometry value, ready to read: its label, its number, and where it came from. */
 export interface GeometryRow {
@@ -18,7 +23,7 @@ export interface GeometryRow {
  * endmill has four flutes in every unit system, and a 140° point angle is 140°
  * in both.
  */
-export const formatGeometry = (code: string, value: number, unit: Unit): string => {
+export const formatGeometry = (code: string, value: number, unit: UnitSystem): string => {
   const field: GeometryField | undefined = GEOMETRY_FIELDS[code]
   if (field?.unit === 'count') {
     return String(value)
@@ -31,7 +36,7 @@ export const formatGeometry = (code: string, value: number, unit: Unit): string 
   if (field?.unit === 'ratio') {
     return value.toFixed(1)
   }
-  return `${convertLength(value, MODEL_UNIT, unit).toFixed(decimalsFor(unit))} ${unit}`
+  return `${convertLength(value, 'millimeters', unit).toFixed(decimalsFor(unit))} ${UNIT_ABBREVIATION[unit]}`
 }
 
 /**
@@ -41,7 +46,7 @@ export const formatGeometry = (code: string, value: number, unit: Unit): string 
  * code, with no invented label. Hiding it would lose data the vendor published;
  * labelling it would assert a meaning nobody in this repository has checked.
  */
-export const geometryRows = (tool: CatalogTool, unit: Unit): Array<GeometryRow> => {
+export const geometryRows = (tool: CatalogTool, unit: UnitSystem): Array<GeometryRow> => {
   const entries = Object.entries(tool.geometry)
   const known = entries.filter(([code]) => code in GEOMETRY_FIELDS)
   const unknown = entries.filter(([code]) => !(code in GEOMETRY_FIELDS))

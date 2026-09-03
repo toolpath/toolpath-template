@@ -9,6 +9,7 @@ import {
   type ToolType,
   type UnitSystem,
 } from './types.js'
+import { UNIT_SYSTEMS } from '@toolpath/tool-support'
 import type { ToolForm } from './forms.js'
 import { facetsFor } from './facets.js'
 import { type Collet, type Holder } from './toolholding.js'
@@ -177,11 +178,26 @@ export const withDerived = (tool: ToolInput): CatalogTool => {
 /**
  * Flatten families into the catalog document the application reads.
  *
- * Pure, and total except for one refusal: a duplicate guid is thrown on rather
+ * Pure, and total except for its refusals: a duplicate guid is thrown on rather
  * than resolved. The guid is the join key a cart line, a URL and a saved order
  * all hold, so two tools sharing one is not a display bug to be tidied — it is
  * a corrupt dataset, and it has to fail where it is built rather than where it
  * is read.
+ *
+ * A unit system this package does not know is refused for the same reason, and
+ * it is the same kind of bug. `CATALOG_VERSION` 9 renamed the two systems from
+ * `metric`/`inch` to `@toolpath/tool-support`'s `millimeters`/`inches`, and
+ * `step` in a {@link StickoutPolicy} is keyed on them: an unknown spelling
+ * reaches `policy.step[tool.unitSystem]` as `undefined`, and `steppedTo`
+ * divides by it and returns `NaN`. `JSON.stringify` writes `NaN` as `null`, so
+ * a version-8 dataset run through `rebuild.mjs` used to come out stamped
+ * version 9, with every `LBH` null and its provenance still claiming the value
+ * was derived — past the version check in the application, because the version
+ * it claimed was the current one.
+ *
+ * `ingest` validates the same thing at its own boundary. This one is here
+ * because `rebuild.mjs` does not go through `ingest`, and neither need the
+ * next caller.
  */
 export const buildCatalog = (input: CatalogInput): Catalog => {
   const tools: Array<CatalogTool> = []
@@ -189,7 +205,21 @@ export const buildCatalog = (input: CatalogInput): Catalog => {
   const seen = new Map<string, string>()
 
   for (const family of input.families) {
+    if (!UNIT_SYSTEMS.includes(family.unitSystem)) {
+      throw new CatalogBuildError(
+        `Family ${family.id} declares unit system "${String(family.unitSystem)}". ` +
+          `Catalog version ${CATALOG_VERSION} knows ${UNIT_SYSTEMS.join(' and ')}; ` +
+          `a dataset built before version 9 spells these "metric" and "inch". ` +
+          `Run scripts/rebuild.mjs over it, which migrates the rename.`,
+      )
+    }
     for (const tool of family.tools) {
+      if (!UNIT_SYSTEMS.includes(tool.unitSystem)) {
+        throw new CatalogBuildError(
+          `Tool ${tool.catalogNumber} declares unit system "${String(tool.unitSystem)}". ` +
+            `Catalog version ${CATALOG_VERSION} knows ${UNIT_SYSTEMS.join(' and ')}.`,
+        )
+      }
       const previous = seen.get(tool.guid)
       if (previous !== undefined) {
         throw new CatalogBuildError(

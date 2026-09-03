@@ -1,3 +1,4 @@
+import { cn } from '@toolpath/ui'
 import { useEffect, useRef, useState } from 'react'
 import {
   DotsSixVerticalIcon,
@@ -5,8 +6,12 @@ import {
   FunnelSimpleIcon,
   PencilSimpleIcon,
 } from '@phosphor-icons/react'
-import { convertLength, decimalsFor, MODEL_UNIT, type Unit } from '@toolpath/domain/units'
-import { classNames } from '@toolpath/domain/class-names'
+import {
+  UNIT_ABBREVIATION,
+  type UnitSystem,
+  convertLength,
+  decimalsFor,
+} from '@toolpath/tool-support'
 import { movedBy, movedTo } from 'shared/column-order'
 
 /**
@@ -55,18 +60,18 @@ const COMPARES: ReadonlyArray<{ value: Compare; label: string }> = [
 ]
 
 /** A stored value as text in the unit being read in, for a box that has none yet. */
-const toDraft = (value: number | undefined, unit: Unit, kind: Kind): string => {
+const toDraft = (value: number | undefined, unit: UnitSystem, kind: Kind): string => {
   if (value === undefined) {
     return ''
   }
   if (kind === 'length') {
-    return convertLength(value, MODEL_UNIT, unit).toFixed(decimalsFor(unit))
+    return convertLength(value, 'millimeters', unit).toFixed(decimalsFor(unit))
   }
   return String(value)
 }
 
 /** What a box's text means in the dataset's own unit, or nothing while it is not a number. */
-const parse = (raw: string, unit: Unit, kind: Kind): number | undefined => {
+const parse = (raw: string, unit: UnitSystem, kind: Kind): number | undefined => {
   if (raw.trim() === '') {
     return undefined
   }
@@ -74,11 +79,11 @@ const parse = (raw: string, unit: Unit, kind: Kind): number | undefined => {
   if (!Number.isFinite(parsed)) {
     return undefined
   }
-  return kind === 'length' ? convertLength(parsed, unit, MODEL_UNIT) : parsed
+  return kind === 'length' ? convertLength(parsed, unit, 'millimeters') : parsed
 }
 
 /** Whether a box already says this value, so its text is left alone. */
-const says = (draft: string, value: number | undefined, unit: Unit, kind: Kind): boolean => {
+const says = (draft: string, value: number | undefined, unit: UnitSystem, kind: Kind): boolean => {
   const meant = parse(draft, unit, kind)
   if (meant === undefined || value === undefined) {
     return meant === value
@@ -121,7 +126,7 @@ export interface RangeFilterProps {
   readonly label: string
   readonly bound: Bound | undefined
   readonly onBound: (bound: Bound | undefined) => void
-  readonly unit: Unit
+  readonly unit: UnitSystem
   readonly kind: Kind
 }
 
@@ -222,7 +227,9 @@ export const RangeFilter = ({ label, bound, onBound, unit, kind }: RangeFilterPr
               {box('to', other, (raw) => commit(compare, one, raw))}
             </>
           ) : null}
-          {kind === 'length' ? <span className="text-2xs text-zinc-600">{unit}</span> : null}
+          {kind === 'length' ? (
+            <span className="text-2xs text-zinc-600">{UNIT_ABBREVIATION[unit]}</span>
+          ) : null}
         </>
       )}
     </div>
@@ -460,7 +467,7 @@ export const ColumnPicker = ({
                   setHeld(null)
                 }
               }}
-              className={classNames(
+              className={cn(
                 'text-2xs flex items-center gap-1.5 px-2 py-1 whitespace-nowrap hover:bg-zinc-900',
                 held === column.code && 'opacity-50',
               )}

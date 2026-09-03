@@ -15,7 +15,7 @@ const tool: CatalogTool = {
   materialNumber: null,
   toolType: 'endmill',
   form: 'flat end mill',
-  unitSystem: 'metric',
+  unitSystem: 'millimeters',
   geometry: { DC: 3, LCF: 8, OAL: 50, RE: 0, NOF: 4, SFDM: 6 },
   materialGroups: ['P'],
   productLine: null,
@@ -114,11 +114,11 @@ afterEach(() => {
 
 describe('the catalog drawing', () => {
   it('captions a bare tool with what a shop orders, and an assembly with the stack', () => {
-    const alone = drawn(<CatalogDrawing tool={tool} unit="mm" />)
+    const alone = drawn(<CatalogDrawing tool={tool} unit="millimeters" />)
     expect(alone.querySelector('figcaption')?.textContent).toContain('TDMX0300')
 
     StubResizeObserver.all = []
-    const stacked = drawn(<CatalogDrawing tool={tool} assembly={assembly} unit="mm" />)
+    const stacked = drawn(<CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" />)
     expect(stacked.querySelector('figcaption')?.textContent).toContain(
       'BT 30 / PG 10 x 060 + PG 10 / 6 + TDMX0300',
     )
@@ -133,7 +133,7 @@ describe('the catalog drawing', () => {
    */
   it('writes the clearance in the unit the page is set to, because the package owns no unit', () => {
     const container = drawn(
-      <CatalogDrawing tool={tool} assembly={assembly} unit="in" curve={curve} dimensions />,
+      <CatalogDrawing tool={tool} assembly={assembly} unit="inches" curve={curve} dimensions />,
     )
 
     expect(container.textContent).toMatch(/0\.276 in/)
@@ -148,18 +148,24 @@ describe('the catalog drawing', () => {
    * which is what `RE` and the two derived figures do.
    */
   it('lights the line the panel is pointing at, and nothing for a code it does not draw', () => {
-    const lit = drawn(<CatalogDrawing tool={tool} unit="mm" dimensions highlight="LCF" />)
+    const lit = drawn(<CatalogDrawing tool={tool} unit="millimeters" dimensions highlight="LCF" />)
     expect(lit.querySelector('[data-dimension="LCF"]')?.getAttribute('data-lit')).toBe('true')
     expect(lit.querySelectorAll('[data-lit="true"]')).toHaveLength(1)
 
-    const none = drawn(<CatalogDrawing tool={tool} unit="mm" dimensions highlight="RE" />)
+    const none = drawn(<CatalogDrawing tool={tool} unit="millimeters" dimensions highlight="RE" />)
     expect(none.querySelector('[data-dimensions]')).not.toBeNull()
     expect(none.querySelectorAll('[data-lit="true"]')).toHaveLength(0)
   })
 
   it('draws the material and the verdict this application reached, not one of its own', () => {
     const container = drawn(
-      <CatalogDrawing tool={tool} assembly={assembly} unit="mm" curve={curve} dimensions />,
+      <CatalogDrawing
+        tool={tool}
+        assembly={assembly}
+        unit="millimeters"
+        curve={curve}
+        dimensions
+      />,
     )
 
     expect(container.querySelector('[data-clearance]')).not.toBeNull()
@@ -169,7 +175,7 @@ describe('the catalog drawing', () => {
 
   it('says an undrawable form in words rather than drawing a plausible cylinder', () => {
     const container = drawn(
-      <CatalogDrawing tool={{ ...tool, form: 'thread mill' }} unit="mm" dimensions />,
+      <CatalogDrawing tool={{ ...tool, form: 'thread mill' }} unit="millimeters" dimensions />,
     )
 
     expect(container.querySelector('[data-undrawable]')?.getAttribute('data-undrawable')).toBe(
@@ -204,7 +210,13 @@ const holderVertices = (container: Element): number =>
 describe('the overlay this application draws', () => {
   it('is drawn inside the tool drawing, in its frame', () => {
     const container = drawn(
-      <CatalogDrawing tool={tool} assembly={assembly} unit="mm" curve={curve} dimensions />,
+      <CatalogDrawing
+        tool={tool}
+        assembly={assembly}
+        unit="millimeters"
+        curve={curve}
+        dimensions
+      />,
     )
     const svg = container.querySelector('svg')
 
@@ -214,7 +226,9 @@ describe('the overlay this application draws', () => {
   })
 
   it('draws the tool alone when there is no feature to clear', () => {
-    const container = drawn(<CatalogDrawing tool={tool} assembly={assembly} unit="mm" dimensions />)
+    const container = drawn(
+      <CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" dimensions />,
+    )
 
     expect(container.querySelector('svg')).not.toBeNull()
     expect(container.querySelector('[data-clearance]')).toBeNull()
@@ -234,12 +248,12 @@ describe('the overlay this application draws', () => {
     const measuredHolder: Holder = { ...holder, guid: MEASURED_GUID }
     const stack: Assembly = { ...assembly, holder: measuredHolder }
 
-    const measured = drawn(<CatalogDrawing tool={tool} assembly={stack} unit="mm" />)
+    const measured = drawn(<CatalogDrawing tool={tool} assembly={stack} unit="millimeters" />)
     const measuredVertices = holderVertices(measured)
 
     StubResizeObserver.all = []
     const parametric = drawn(
-      <CatalogDrawing tool={tool} assembly={stack} unit="mm" measured={false} />,
+      <CatalogDrawing tool={tool} assembly={stack} unit="millimeters" measured={false} />,
     )
 
     expect(measuredVertices).toBeGreaterThan(holderVertices(parametric))
@@ -258,23 +272,25 @@ describe('the overlay this application draws', () => {
     const measuredHolder: Holder = { ...holder, guid: MEASURED_GUID }
     const stack: Assembly = { ...assembly, holder: measuredHolder }
 
-    const measured = drawn(<CatalogDrawing tool={tool} assembly={stack} unit="mm" />)
+    const measured = drawn(<CatalogDrawing tool={tool} assembly={stack} unit="millimeters" />)
 
     expect(measured.querySelector('[data-part="flange"]')).toBeNull()
 
     StubResizeObserver.all = []
     const parametric = drawn(
-      <CatalogDrawing tool={tool} assembly={stack} unit="mm" measured={false} />,
+      <CatalogDrawing tool={tool} assembly={stack} unit="millimeters" measured={false} />,
     )
 
     expect(parametric.querySelector('[data-part="flange"]')).not.toBeNull()
   })
 
   it('falls back to the parametric holder for one nothing has measured', () => {
-    const unmeasured = drawn(<CatalogDrawing tool={tool} assembly={assembly} unit="mm" />)
+    const unmeasured = drawn(<CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" />)
     const forced = (() => {
       StubResizeObserver.all = []
-      return drawn(<CatalogDrawing tool={tool} assembly={assembly} unit="mm" measured={false} />)
+      return drawn(
+        <CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" measured={false} />,
+      )
     })()
 
     expect(unmeasured.querySelector('svg')?.getAttribute('viewBox')).toBe(

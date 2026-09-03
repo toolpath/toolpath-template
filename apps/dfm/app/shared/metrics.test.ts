@@ -122,7 +122,7 @@ describe('the two readers of the datasheet agree', () => {
       feature,
       features: report.features,
       regions: report.regions as never,
-      unit: 'mm',
+      unit: 'millimeters',
     }).find((each) => each.key === key)
     return row ? Number.parseFloat(row.value) : null
   }

@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { convertLength, decimalsFor, MODEL_UNIT, type Unit } from '@toolpath/domain/units'
+import {
+  UNIT_ABBREVIATION,
+  type UnitSystem,
+  convertLength,
+  decimalsFor,
+} from '@toolpath/tool-support'
 
 /**
  * Typing a length into this app.
@@ -29,15 +34,15 @@ export interface LengthBoxProps {
   readonly label: string
   /** In millimetres. */
   readonly value: number
-  readonly unit: Unit
+  readonly unit: UnitSystem
   readonly min?: number
   readonly max?: number
   readonly onChange: (millimetres: number) => void
   readonly className?: string
 }
 
-const shown = (value: number, unit: Unit): string =>
-  convertLength(value, MODEL_UNIT, unit).toFixed(decimalsFor(unit))
+const shown = (value: number, unit: UnitSystem): string =>
+  convertLength(value, 'millimeters', unit).toFixed(decimalsFor(unit))
 
 export const clampTo = (value: number, min?: number, max?: number): number =>
   Math.min(Math.max(value, min ?? Number.NEGATIVE_INFINITY), max ?? Number.POSITIVE_INFINITY)
@@ -70,7 +75,7 @@ export const LengthBox = ({
     if (trimmed === '' || !COMPLETE.test(trimmed)) {
       return false
     }
-    const millimetres = convertLength(Number(trimmed), unit, MODEL_UNIT)
+    const millimetres = convertLength(Number(trimmed), unit, 'millimeters')
     onChange(clampTo(millimetres, min, max))
     return true
   }
@@ -107,7 +112,7 @@ export const LengthBox = ({
         }}
         className="text-2xs w-16 rounded border border-zinc-800 bg-zinc-950 px-1.5 py-0.5 text-right font-mono text-zinc-100 outline-none focus-visible:border-zinc-600"
       />
-      <span className="text-2xs ml-1 text-zinc-600">{unit}</span>
+      <span className="text-2xs ml-1 text-zinc-600">{UNIT_ABBREVIATION[unit]}</span>
     </label>
   )
 }

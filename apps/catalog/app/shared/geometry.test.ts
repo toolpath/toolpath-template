@@ -12,7 +12,7 @@ const tool: CatalogTool = {
   toolType: 'endmill',
   productLine: null,
   form: 'flat end mill',
-  unitSystem: 'metric',
+  unitSystem: 'millimeters',
   geometry: { DC: 12.7, NOF: 4, SIG: 140, ZEFP: 2 },
   materialGroups: ['P'],
   productLink: null,
@@ -21,27 +21,27 @@ const tool: CatalogTool = {
 
 describe('formatGeometry', () => {
   it('converts a length into the unit being read in', () => {
-    expect(formatGeometry('DC', 12.7, 'in')).toBe('0.500 in')
-    expect(formatGeometry('DC', 12.7, 'mm')).toBe('12.70 mm')
+    expect(formatGeometry('DC', 12.7, 'inches')).toBe('0.500 in')
+    expect(formatGeometry('DC', 12.7, 'millimeters')).toBe('12.70 mm')
   })
 
   /** Four flutes are four flutes in every unit system. */
   it('never converts a count', () => {
-    expect(formatGeometry('NOF', 4, 'in')).toBe('4')
+    expect(formatGeometry('NOF', 4, 'inches')).toBe('4')
   })
 
   it('never converts an angle', () => {
-    expect(formatGeometry('SIG', 140, 'in')).toBe('140.0°')
+    expect(formatGeometry('SIG', 140, 'inches')).toBe('140.0°')
   })
 
   it('falls back to a length for a code it does not know', () => {
-    expect(formatGeometry('ZEFP', 25.4, 'in')).toBe('1.000 in')
+    expect(formatGeometry('ZEFP', 25.4, 'inches')).toBe('1.000 in')
   })
 })
 
 describe('geometryRows', () => {
   it('labels and explains the codes the catalog defines', () => {
-    const rows = geometryRows(tool, 'mm')
+    const rows = geometryRows(tool, 'millimeters')
     const diameter = rows.find((row) => row.code === 'DC')
 
     expect(diameter?.label).toBe('Cutting diameter')
@@ -55,7 +55,7 @@ describe('geometryRows', () => {
    * repository has checked what it means.
    */
   it('shows an undefined code under the vendor’s own name and invents no label', () => {
-    const rows = geometryRows(tool, 'mm')
+    const rows = geometryRows(tool, 'millimeters')
     const unknown = rows.find((row) => row.code === 'ZEFP')
 
     expect(unknown?.label).toBe('ZEFP')
@@ -63,14 +63,14 @@ describe('geometryRows', () => {
   })
 
   it('puts the codes it can explain first', () => {
-    expect(geometryRows(tool, 'mm').at(-1)?.code).toBe('ZEFP')
+    expect(geometryRows(tool, 'millimeters').at(-1)?.code).toBe('ZEFP')
   })
 })
 
 describe('a ratio', () => {
   /** "2.6 diameters" is the same in every unit system, and is not a length. */
   it('is a bare figure whichever unit is being read in', () => {
-    expect(formatGeometry('LD', 2.6, 'in')).toBe('2.6')
-    expect(formatGeometry('LD', 2.6, 'mm')).toBe('2.6')
+    expect(formatGeometry('LD', 2.6, 'inches')).toBe('2.6')
+    expect(formatGeometry('LD', 2.6, 'millimeters')).toBe('2.6')
   })
 })

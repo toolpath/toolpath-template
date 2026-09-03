@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PartFeature } from './contracts'
+import type { UnitSystem } from '@toolpath/tool-support'
 import { measurements, partTop, stripMeasurements } from './measurements'
 import { METRIC_BY_ID, partContext, readMetrics, sharpCorner } from './metrics'
 import { evaluateFeature, scoreFeature } from './rules'
@@ -76,8 +77,11 @@ const regions = [
   { idx: 3, shapeKind: 'Cylinder' },
 ]
 
-const rowsFor = (subject: PartFeature, others: Array<PartFeature> = [], unit: 'mm' | 'in' = 'mm') =>
-  measurements({ feature: subject, features: [subject, ...others], regions, unit })
+const rowsFor = (
+  subject: PartFeature,
+  others: Array<PartFeature> = [],
+  unit: UnitSystem = 'millimeters',
+) => measurements({ feature: subject, features: [subject, ...others], regions, unit })
 
 const valueOf = (subject: PartFeature, key: string, others: Array<PartFeature> = []) =>
   rowsFor(subject, others).find((row) => row.key === key)?.value
@@ -187,7 +191,7 @@ describe('measurements', () => {
 describe('the unit it is read in', () => {
   it('converts every length and area, and keeps the arithmetic in millimetres', () => {
     const subject = feature({ datasheet: { zMax: 8.89, zMin: 0, wallishArea: 806.45 } })
-    const inches = rowsFor(subject, [], 'in')
+    const inches = rowsFor(subject, [], 'inches')
 
     // The Engine reports millimetres; the conversion happens where it is shown.
     expect(inches.find((row) => row.key === 'featureDepth')?.value).toBe('0.350 in')
@@ -227,7 +231,7 @@ describe('the tools a feature admits', () => {
 
   const rows = (facts: Record<string, unknown>) => {
     const one = feature(facts)
-    return measurements({ feature: one, features: [one], regions: [], unit: 'mm' })
+    return measurements({ feature: one, features: [one], regions: [], unit: 'millimeters' })
   }
 
   it('states the drill and the endmill separately, as the Engine does', () => {
@@ -268,7 +272,12 @@ describe('a chamfer says what angle it is', () => {
     }) as never
 
   const angleOf = (subject: never) => {
-    const rows = measurements({ feature: subject, features: [subject], regions: [], unit: 'in' })
+    const rows = measurements({
+      feature: subject,
+      features: [subject],
+      regions: [],
+      unit: 'inches',
+    })
     return rows.find((row) => row.key === 'bevelAngle')
   }
 
@@ -489,11 +498,11 @@ describe('a measurement carries the other unit too', () => {
    */
   // 25.4 deep, which is 1.000 in exactly.
   const pocket = feature({ datasheet: { zMax: 0, zMin: -25.4 } })
-  const rows = (unit: 'mm' | 'in') => rowsFor(pocket, [], unit)
+  const rows = (unit: UnitSystem) => rowsFor(pocket, [], unit)
 
   it('reads a length both ways round', () => {
-    const inMm = rows('mm').find((row) => row.key === 'featureDepth')
-    const inInches = rows('in').find((row) => row.key === 'featureDepth')
+    const inMm = rows('millimeters').find((row) => row.key === 'featureDepth')
+    const inInches = rows('inches').find((row) => row.key === 'featureDepth')
 
     expect(inMm?.value).toBe('25.40 mm')
     expect(inMm?.alt).toBe('1.000 in')
@@ -505,7 +514,7 @@ describe('a measurement carries the other unit too', () => {
   it('says nothing on a row that does not convert', () => {
     // A ratio and a count of faces are the same number in either unit, and a
     // second reading of them would be noise dressed as precision.
-    const faces = rows('mm').find((row) => row.key === 'faces')
+    const faces = rows('millimeters').find((row) => row.key === 'faces')
 
     expect(faces?.alt).toBeUndefined()
   })

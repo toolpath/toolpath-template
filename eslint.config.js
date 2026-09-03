@@ -133,11 +133,33 @@ const NO_DRAWING = {
  *
  * The same shape as the SDK, scraper and drawing rules above.
  */
+const CLAMP_MATH_MESSAGE =
+  'Only stickout.ts may turn a clamping length into a stickout. Ask stickoutRange, setupStickout or stickoutCeiling for the number instead.'
+
 const NO_CLAMP_MATH = {
   name: '@toolpath/catalog-data',
   importNames: ['clampWanted'],
-  message:
-    'Only stickout.ts may turn a clamping length into a stickout. Ask stickoutRange, setupStickout or stickoutCeiling for the number instead.',
+  message: CLAMP_MATH_MESSAGE,
+}
+
+/**
+ * The same term, under the name it answers to since the extraction.
+ *
+ * `clampWanted` was declared in `packages/catalog-data/src/clamping.ts` when
+ * this rule was written, so naming that module and the package that re-exported
+ * it was naming every way to reach the term. It lives in `@toolpath/tool-support`
+ * now and `clamping.ts` re-exports it, which left a third way in that no
+ * restriction covered: `import { clampWanted } from '@toolpath/tool-support'`
+ * passed `pnpm lint` from anywhere in either application.
+ *
+ * A rule that stops proving itself is worse than one that never existed, since
+ * AGENTS.md lists this one under what a command proves. Moving a guarded symbol
+ * into a new package means naming the new package here, in the same commit.
+ */
+const NO_CLAMP_MATH_UPSTREAM = {
+  name: '@toolpath/tool-support',
+  importNames: ['clampWanted'],
+  message: CLAMP_MATH_MESSAGE,
 }
 
 const POLICIES = [
@@ -231,6 +253,7 @@ export default tseslint.config(
                 'Only @toolpath/part-server may use the Toolpath SDK at runtime. Types are fine; values ship the SDK to the browser.',
             },
             NO_CLAMP_MATH,
+            NO_CLAMP_MATH_UPSTREAM,
           ],
         },
       ],
@@ -245,8 +268,21 @@ export default tseslint.config(
         'error',
         {
           patterns: [RELATIVE_JS, NO_SDK, NO_SCRAPER, NO_DRAWING],
-          paths: [{ ...NO_CLAMP_MATH, name: './clamping.js' }],
+          paths: [{ ...NO_CLAMP_MATH, name: './clamping.js' }, NO_CLAMP_MATH_UPSTREAM],
         },
+      ],
+    },
+  },
+  {
+    // Where the term enters this package. `clamping.ts` re-exports `clampWanted`
+    // from @toolpath/tool-support, which is what it used to declare outright —
+    // so it is exempt from NO_CLAMP_MATH_UPSTREAM for the same reason it was
+    // never subject to NO_CLAMP_MATH.
+    files: ['packages/catalog-data/src/clamping.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        { patterns: [RELATIVE_JS, NO_SDK, NO_SCRAPER, NO_DRAWING] },
       ],
     },
   },

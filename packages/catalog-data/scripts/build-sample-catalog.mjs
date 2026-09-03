@@ -31,7 +31,7 @@ const endmill = (guid, catalogNumber, dc, lcf, oal, re, nof, dmm) => ({
   catalogNumber,
   materialNumber: null,
   toolType: 'endmill',
-  unitSystem: 'metric',
+  unitSystem: 'millimeters',
   geometry: { DC: dc, LCF: lcf, OAL: oal, RE: re, NOF: nof, SFDM: dmm },
   // ISO 513 groups, in the standard's order. An end mill family indexed for
   // steel and stainless; the drills add cast iron; the taps carry none, which
@@ -60,7 +60,7 @@ const drill = (guid, catalogNumber, dc, lcf, oal, sig, dmm) => ({
   catalogNumber,
   materialNumber: null,
   toolType: 'drill',
-  unitSystem: 'metric',
+  unitSystem: 'millimeters',
   geometry: { DC: dc, LCF: lcf, OAL: oal, SIG: sig, SFDM: dmm },
   materialGroups: ['P', 'M', 'K'],
   productLine: 'Sample Deep-Hole Series',
@@ -84,7 +84,7 @@ const tap = (guid, catalogNumber, dc, lcf, oal, nof, dmm, materialGroups) => ({
   catalogNumber,
   materialNumber: null,
   toolType: 'tap',
-  unitSystem: 'inch',
+  unitSystem: 'inches',
   // ZEFP is a real vendor column the dictionary deliberately does not define:
   // the detail page has to show it under the vendor's own code.
   geometry: { DC: dc, LCF: lcf, OAL: oal, NOF: nof, SFDM: dmm, ZEFP: 3 },
@@ -173,7 +173,7 @@ const catalog = buildCatalog({
       name: 'Sample solid carbide end mills',
       brand: 'WIDIA',
       vendor: 'Kennametal',
-      unitSystem: 'metric',
+      unitSystem: 'millimeters',
       source: null,
       tools: [
         endmill('11111111-1111-5111-8111-111111111101', 'TDMX0300', 3, 8, 50, 0, 4, 6),
@@ -187,7 +187,7 @@ const catalog = buildCatalog({
       name: 'Sample solid carbide drills, 3×D',
       brand: 'Kennametal',
       vendor: 'Kennametal',
-      unitSystem: 'metric',
+      unitSystem: 'millimeters',
       source: null,
       tools: [
         drill('22222222-2222-5222-8222-222222222201', 'B041A03000', 3, 12, 62, 140, 6),
@@ -200,7 +200,7 @@ const catalog = buildCatalog({
       name: 'Sample inch spiral-flute taps',
       brand: 'WIDIA',
       vendor: 'Kennametal',
-      unitSystem: 'inch',
+      unitSystem: 'inches',
       source: null,
       tools: [
         tap('33333333-3333-5333-8333-333333333301', 'VTSFT0250', 6.35, 15.875, 63.5, 3, 6.35, []),

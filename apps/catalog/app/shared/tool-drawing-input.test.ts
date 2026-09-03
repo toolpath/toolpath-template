@@ -21,7 +21,7 @@ const tool = (over: Partial<CatalogTool> = {}): CatalogTool => ({
   materialNumber: null,
   toolType: 'endmill',
   form: 'flat end mill',
-  unitSystem: 'metric',
+  unitSystem: 'millimeters',
   geometry: { DC: 6, LCF: 13, OAL: 57, SFDM: 6, RE: 1, SIG: 118 },
   materialGroups: ['P'],
   productLine: 'KenCut™ FF',

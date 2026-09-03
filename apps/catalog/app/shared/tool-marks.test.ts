@@ -16,7 +16,7 @@ const tool = (
     vendor: 'Kennametal',
     form,
     toolType: 'endmill',
-    unitSystem: 'metric',
+    unitSystem: 'millimeters',
     geometry: { SFDM: geometry.DC ?? 6, OAL: 80, ...geometry },
     materialGroups: [],
     productLink: null,

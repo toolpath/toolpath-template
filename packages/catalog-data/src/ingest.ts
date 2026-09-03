@@ -1,6 +1,6 @@
 import type { ToolRecord, UnitSystem } from '@toolpath/tool-scraper'
+import { UNIT_SYSTEMS, convertLength } from '@toolpath/tool-support'
 
-import { MODEL_UNIT, convertLength } from '@toolpath/domain/units'
 import {
   GEOMETRY_FIELDS,
   MATERIAL_GROUPS,
@@ -172,11 +172,6 @@ export interface Ingested {
   readonly notes: ReadonlyArray<IngestNote>
 }
 
-const UNIT_SYSTEM: Record<ScrapedUnit, 'inch' | 'metric'> = {
-  millimeters: 'metric',
-  inches: 'inch',
-}
-
 const TOOL_TYPES: Readonly<Record<string, ToolType>> = {
   drill: 'drill',
   endmill: 'endmill',
@@ -203,7 +198,7 @@ const mm = (value: number | null | undefined, unit: ScrapedUnit): number | null 
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return null
   }
-  return unit === 'inches' ? convertLength(value, 'in', MODEL_UNIT) : value
+  return unit === 'inches' ? convertLength(value, 'inches', 'millimeters') : value
 }
 
 /**
@@ -214,6 +209,19 @@ const mm = (value: number | null | undefined, unit: ScrapedUnit): number | null 
  * instead would be a second list to forget.
  */
 const isLength = (code: string): boolean => GEOMETRY_FIELDS[code]?.unit === 'mm'
+
+/**
+ * What a note calls a unit system when a person reads it.
+ *
+ * Not the lookup table this package used to keep — that one mapped the
+ * scraper's spelling onto a second *type*, and losing a family between them was
+ * the risk. This maps the one type onto the word a machinist says, which is
+ * presentational and belongs wherever the sentence is written.
+ */
+const LISTING: Readonly<Record<UnitSystem, string>> = {
+  millimeters: 'metric',
+  inches: 'inch',
+}
 
 /**
  * `TP` is dropped, and this is the reason.
@@ -264,7 +272,7 @@ const toolFrom = (
       continue
     }
     geometry[code] =
-      isLength(code) && family.unit === 'inches' ? convertLength(raw, 'in', MODEL_UNIT) : raw
+      isLength(code) && family.unit === 'inches' ? convertLength(raw, 'inches', 'millimeters') : raw
   }
 
   /*
@@ -308,7 +316,7 @@ const toolFrom = (
     materialNumber: scraped.materialNumber ?? null,
     toolType,
     ...(stated === null ? {} : { form: stated }),
-    unitSystem: UNIT_SYSTEM[family.unit],
+    unitSystem: family.unit,
     geometry,
     materialGroups,
     // The vendor's own word, carried through and never invented: a store
@@ -447,7 +455,7 @@ const collapseUnitDuplicates = (
         conflicting.add(tool.guid)
         continue
       }
-      if (previous === undefined || previous.unitSystem !== 'metric') {
+      if (previous === undefined || previous.unitSystem !== 'millimeters') {
         seen.set(tool.guid, { tool, unitSystem: family.unitSystem })
       }
     }
@@ -468,7 +476,9 @@ const collapseUnitDuplicates = (
           familyId: family.id,
           guid: tool.guid,
           code: 'guid',
-          reason: `the vendor publishes this part in more than one family; kept the ${winner.unitSystem} listing`,
+          reason:
+            `the vendor publishes this part in more than one family; ` +
+            `kept the ${LISTING[winner.unitSystem]} listing`,
         })
       }
       return false
@@ -485,7 +495,7 @@ export const ingest = (scrape: Scrape): Ingested => {
 
   const notes: Array<IngestNote> = []
   const families: Array<FamilyInput> = scrape.families.map((family) => {
-    if (!(family.unit in UNIT_SYSTEM)) {
+    if (!UNIT_SYSTEMS.includes(family.unit)) {
       throw new IngestError(`Family ${family.id} declares unit "${family.unit}".`)
     }
     return {
@@ -493,7 +503,7 @@ export const ingest = (scrape: Scrape): Ingested => {
       name: family.name,
       brand: family.brand,
       vendor: family.vendor,
-      unitSystem: UNIT_SYSTEM[family.unit],
+      unitSystem: family.unit,
       source: family.source ?? null,
       tools: family.tools.map((tool) => toolFrom(family, tool, notes)),
     }

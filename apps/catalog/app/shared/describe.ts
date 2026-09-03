@@ -1,5 +1,5 @@
 import type { Collet, Holder } from '@toolpath/catalog-data'
-import { formatLength, type Unit } from '@toolpath/domain/units'
+import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 
 /**
  * A part in words, not just a number.
@@ -64,7 +64,7 @@ const colletStyleLabel = (collet: Pick<Collet, 'familyId'>): string | null => {
 const join = (parts: ReadonlyArray<string | null>): string =>
   parts.filter((part): part is string => part !== null && part !== '').join(' · ')
 
-export const describeHolder = (holder: Holder, unit: Unit): string =>
+export const describeHolder = (holder: Holder, unit: UnitSystem): string =>
   join([
     taperLabel(holder),
     holder.clamping === 'collet'
@@ -76,7 +76,7 @@ export const describeHolder = (holder: Holder, unit: Unit): string =>
     holder.gaugeLength === null ? null : `${formatLength(holder.gaugeLength, unit)} gauge`,
   ])
 
-export const describeCollet = (collet: Collet, unit: Unit): string =>
+export const describeCollet = (collet: Collet, unit: UnitSystem): string =>
   join([
     collet.series,
     // A powRgrip collet takes one exact size and nothing else, so a "range" of

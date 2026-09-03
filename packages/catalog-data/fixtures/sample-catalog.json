@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "builtAt": "2026-08-27",
   "families": [
     {
@@ -7,7 +7,7 @@
       "name": "Sample solid carbide end mills",
       "brand": "WIDIA",
       "vendor": "Kennametal",
-      "unitSystem": "metric",
+      "unitSystem": "millimeters",
       "toolTypes": [
         "endmill"
       ],
@@ -19,7 +19,7 @@
       "name": "Sample solid carbide drills, 3×D",
       "brand": "Kennametal",
       "vendor": "Kennametal",
-      "unitSystem": "metric",
+      "unitSystem": "millimeters",
       "toolTypes": [
         "drill"
       ],
@@ -31,7 +31,7 @@
       "name": "Sample inch spiral-flute taps",
       "brand": "WIDIA",
       "vendor": "Kennametal",
-      "unitSystem": "inch",
+      "unitSystem": "inches",
       "toolTypes": [
         "tap"
       ],
@@ -48,7 +48,7 @@
       "catalogNumber": "TDMX0300",
       "materialNumber": null,
       "toolType": "endmill",
-      "unitSystem": "metric",
+      "unitSystem": "millimeters",
       "geometry": {
         "DC": 3,
         "LCF": 8,
@@ -86,7 +86,7 @@
       "catalogNumber": "TDMX0500",
       "materialNumber": null,
       "toolType": "endmill",
-      "unitSystem": "metric",
+      "unitSystem": "millimeters",
       "geometry": {
         "DC": 5,
         "LCF": 13,
@@ -124,7 +124,7 @@
       "catalogNumber": "TDMX0800",
       "materialNumber": null,
       "toolType": "endmill",
-      "unitSystem": "metric",
+      "unitSystem": "millimeters",
       "geometry": {
         "DC": 8,
         "LCF": 19,
@@ -162,7 +162,7 @@
       "catalogNumber": "TDMX1200",
       "materialNumber": null,
       "toolType": "endmill",
-      "unitSystem": "metric",
+      "unitSystem": "millimeters",
       "geometry": {
         "DC": 12,
         "LCF": 26,
@@ -200,7 +200,7 @@
       "catalogNumber": "B041A03000",
       "materialNumber": null,
       "toolType": "drill",
-      "unitSystem": "metric",
+      "unitSystem": "millimeters",
       "geometry": {
         "DC": 3,
         "LCF": 12,
@@ -237,7 +237,7 @@
       "catalogNumber": "B041A06000",
       "materialNumber": null,
       "toolType": "drill",
-      "unitSystem": "metric",
+      "unitSystem": "millimeters",
       "geometry": {
         "DC": 6,
         "LCF": 24,
@@ -274,7 +274,7 @@
       "catalogNumber": "B041A10000",
       "materialNumber": null,
       "toolType": "drill",
-      "unitSystem": "metric",
+      "unitSystem": "millimeters",
       "geometry": {
         "DC": 10,
         "LCF": 40,
@@ -311,7 +311,7 @@
       "catalogNumber": "VTSFT0250",
       "materialNumber": null,
       "toolType": "tap",
-      "unitSystem": "inch",
+      "unitSystem": "inches",
       "geometry": {
         "DC": 6.35,
         "LCF": 15.875,
@@ -345,7 +345,7 @@
       "catalogNumber": "VTSFT0375",
       "materialNumber": null,
       "toolType": "tap",
-      "unitSystem": "inch",
+      "unitSystem": "inches",
       "geometry": {
         "DC": 9.525,
         "LCF": 19.05,
@@ -626,11 +626,11 @@
         "label": "Published in",
         "values": [
           {
-            "value": "inch",
+            "value": "inches",
             "count": 2
           },
           {
-            "value": "metric",
+            "value": "millimeters",
             "count": 7
           }
         ]

@@ -1,3 +1,4 @@
+import { formatArea, formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { useEffect, memo, useMemo, useState, type ReactNode } from 'react'
 import type { Vec3 } from '@toolpath/api'
 
@@ -28,7 +29,6 @@ import { CreateFeature } from './create-feature'
 import { EMPTY_DRAFT, type Draft, type Touching } from 'shared/make-feature'
 import { INFER_SCOPES, type Infer } from 'shared/infer'
 import type { Proposal } from 'shared/proposal'
-import { formatArea, formatLength, type Unit } from 'shared/units'
 import { KEYNAV, ROW, keynavAttributes, rowAttributes } from 'shared/row-nav'
 import { usePartView } from './part-view'
 
@@ -497,7 +497,7 @@ const ElsewhereFlag = ({
  * this is what anything taking it a word at a time gets. Written once so they
  * cannot come to say different things.
  */
-const faceSaid = (face: UncutFace, unit: Unit): string => {
+const faceSaid = (face: UncutFace, unit: UnitSystem): string => {
   const reach =
     face.from.length === 0
       ? 'no way up reaches it — a gap in the analysis, not in the plan'
@@ -549,7 +549,7 @@ const Reading = ({
   open?: boolean
   /** Opens or closes it, by the row's own name. Absent means it cannot open. */
   onToggle?: (key: string) => void
-  unit: Unit
+  unit: UnitSystem
   label: string
   inOffer?: boolean
   /** Anything that acts on this row from outside — the offer's prune, so far. */

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { Unit } from '@toolpath/domain/units'
+import type { UnitSystem } from '@toolpath/tool-support'
 import { RangeFilter, boundFor, compareOf, type Bound, type Kind } from './column-filter'
 
 /**
@@ -14,12 +14,12 @@ import { RangeFilter, boundFor, compareOf, type Bound, type Kind } from './colum
  */
 const Harness = ({
   initial,
-  unit = 'mm',
+  unit = 'millimeters',
   kind = 'length',
   onBound = () => {},
 }: {
   initial: Bound | undefined
-  unit?: Unit
+  unit?: UnitSystem
   kind?: Kind
   onBound?: (bound: Bound | undefined) => void
 }) => {
@@ -62,7 +62,7 @@ describe('asking about one number', () => {
 
   it('writes the number in millimetres, whatever unit it was typed in', () => {
     const onBound = vi.fn()
-    render(<Harness initial={undefined} unit="in" onBound={onBound} />)
+    render(<Harness initial={undefined} unit="inches" onBound={onBound} />)
 
     choose('under')
     type('1.25')
@@ -76,7 +76,7 @@ describe('asking about one number', () => {
    * millimetres on every keystroke turned "1." into "1.000" under the cursor.
    */
   it('keeps what was typed, half-typed numbers included', () => {
-    render(<Harness initial={undefined} unit="in" />)
+    render(<Harness initial={undefined} unit="inches" />)
     choose('over')
 
     type('1.')
@@ -110,7 +110,13 @@ describe('asking about one number', () => {
   /** A suggestion, a saved filter, Clear: the stored bound moves, and the boxes follow. */
   it('starts from a bound set elsewhere, and follows one that changes', () => {
     const shown = (bound: Bound | undefined) => (
-      <RangeFilter label="Diameter" bound={bound} onBound={vi.fn()} unit="mm" kind="length" />
+      <RangeFilter
+        label="Diameter"
+        bound={bound}
+        onBound={vi.fn()}
+        unit="millimeters"
+        kind="length"
+      />
     )
     const { rerender } = render(shown({ max: 6 }))
     expect(operator()).toHaveValue('under')
@@ -147,7 +153,7 @@ describe('asking about one number', () => {
 
   it('never converts a count, and gives it no unit', () => {
     const onBound = vi.fn()
-    render(<Harness initial={undefined} unit="in" kind="count" onBound={onBound} />)
+    render(<Harness initial={undefined} unit="inches" kind="count" onBound={onBound} />)
 
     choose('over')
     type('4')

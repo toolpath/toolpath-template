@@ -81,7 +81,7 @@ const show = (props: Partial<Parameters<typeof FeatureListPanel>[0]> = {}) => {
       nameOf={nameOf}
       directionOf={() => '+Z'}
       addingFeature={false}
-      unit="mm"
+      unit="millimeters"
       {...handlers}
       {...props}
     />,

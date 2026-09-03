@@ -143,13 +143,13 @@ export class ScrapeError extends Error {}
  * from an id: EMUGE's `emuge_taps` is a tap whose id states neither, and it is
  * scraped by category and never asks this.
  */
-export const threadSystemOf = (familyId: string): 'metric' | 'inch' | null => {
+export const threadSystemOf = (familyId: string): 'millimeters' | 'inches' | null => {
   const metric = /(^|-)metric(-|$)/.test(familyId)
   const inch = /(^|-)inch(-|$)/.test(familyId)
   if (metric === inch) {
     return null
   }
-  return metric ? 'metric' : 'inch'
+  return metric ? 'millimeters' : 'inches'
 }
 
 /**
