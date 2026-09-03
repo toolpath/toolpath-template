@@ -188,7 +188,7 @@ has twelve non-drawing consumers:
 app/shared/judge.ts          app/shared/rules.ts         app/shared/hole-mode.ts
 app/shared/holder-choice.ts  app/shared/tool-fit.ts      app/shared/drawn-assembly.ts
 app/shared/feature-defaults.ts
-app/routes/part.tsx          app/routes/tool.tsx
+app/routes/part.tsx
 packages/catalog-data/src/assembly-picking.ts
 packages/catalog-data/src/assembly-fit.ts
 packages/catalog-data/src/fit.ts
@@ -370,7 +370,7 @@ Tests that travel with their code:
   outline exists and an assembly record is the consumer's vocabulary.
 - **`materialProfile`** in `packages/catalog-data/src/outline.ts` — two drawing
   consumers, one of which is the feature-section drawing.
-- **`drawn-assembly.ts`**, **`drawing-card.tsx`**, **`assembly-picker.tsx`** —
+- **`drawn-assembly.ts`** and the active part-screen drawing/assembly controls —
   stickout policy, holder choice and page composition, not drawing.
 - **`tool-icons.tsx`** — a set of 14-pixel type glyphs. A different thing
   entirely, and currently correct. Do not touch it.
@@ -554,9 +554,8 @@ either dataset is red until a human puts it there.
 
 A dev server may already be running on port **5174**, bound to IPv6 loopback
 only — `http://127.0.0.1:5174` fails, `http://localhost:5174` works. Tool pages
-are at `/tools/:guid` (note the plural; `routes.ts` maps
-`route('tools/:guid', 'routes/tool.tsx')`). The guids in § 2 are from the local
-scrape and will not resolve against the committed sample.
+were previously shown on the standalone tool route. The guids in § 2 are from
+the local scrape and will not resolve against the committed sample.
 
 Playwright is installed under `apps/catalog`; a screenshot script must live
 inside that directory to resolve `@playwright/test`. Never diagnose a blank
@@ -885,10 +884,10 @@ split.
       by reference so no name is translated. It also holds `DRAWABLE_FORMS` /
       `UNDRAWABLE_FORMS` / `canDraw`, because this is the file the plan already
       designates as the one that fails loudly when either side moves, and
-      `drawing-card.tsx` needs `canDraw` to say "we cannot draw this" in words.
+      the active drawing integration needs `canDraw` to say "we cannot draw this" in words.
       A local `DrawableAssembly` type stands in for catalog-data's `Outlined` so
       it survives the deletion of the moved half of `outline.ts`.
-- [x] Rewire `drawing-card.tsx` onto the package.
+- [x] Rewire the active drawing integration onto the package.
 - [x] Delete `assembly-drawing.tsx`, `assembly-drawing.test.tsx`,
       `dimension-lines.tsx`, `tool-dimensions.ts`, `tool-dimensions.test.ts`,
       and the moved half of `catalog-data/src/outline.ts` + `gaps.ts`.
@@ -950,8 +949,8 @@ regression.
 
 ### Three things phase 6 found that § 6 did not predict
 
-1. **`tool-details.tsx` was a second consumer** of `AssemblyDrawing` — the tool
-   page's details panel. § 6 named only `drawing-card.tsx`. Both are rewired
+1. **`tool-details.tsx` was a second consumer** of `AssemblyDrawing` — the part
+   page's details panel. § 6 named only the drawing card. Both are rewired
    onto `CatalogDrawing`.
 2. **Two Reacts.** Every component test touching the drawing died with
    `Cannot read properties of null (reading 'useRef')`: the `link:` package

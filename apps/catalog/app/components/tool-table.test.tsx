@@ -206,13 +206,10 @@ describe('what a tool stands out', () => {
 })
 
 describe('ToolTable', () => {
-  it('links a tool by the number a shop orders it with', () => {
+  it('shows a tool by the number a shop orders it with', () => {
     show([tool])
 
-    expect(screen.getByRole('link', { name: 'TDMX0500' })).toHaveAttribute(
-      'href',
-      '/tools/aaaa-1111',
-    )
+    expect(screen.getByText('TDMX0500')).toBeInTheDocument()
   })
 
   it('shows every dimension in the unit being read in', () => {
@@ -272,17 +269,15 @@ describe('where the page has somewhere to put a tool', () => {
     expect(chosen).toHaveLength(1)
   })
 
-  it('still links to the tool page where nothing else can show it', () => {
+  it('does not link to a removed standalone tool page', () => {
     render(
       <MemoryRouter>
         <ToolTable tools={[tool]} unit="mm" />
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole('link', { name: 'TDMX0500' })).toHaveAttribute(
-      'href',
-      '/tools/aaaa-1111',
-    )
+    expect(screen.queryByRole('link', { name: 'TDMX0500' })).not.toBeInTheDocument()
+    expect(screen.getByText('TDMX0500')).toBeInTheDocument()
   })
 })
 

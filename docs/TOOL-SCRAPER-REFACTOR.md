@@ -75,7 +75,7 @@ Two things this uncovered:
    had the three-answer vocabulary (`stated` / `excluded` / `unstated`) and
    keeps its semantics deliberately — both silences stay `unstated`, because
    neither is evidence for or against a recommendation. The distinction is
-   shown where a person reads a tool: `tool-sheet.tsx` now says _material not
+   shown where a person reads a tool: the tool details panel now says _material not
    stated_ against _rated for no material_. The sample dataset carries one tap
    of each. **Re-ingest rather than rebuild** to migrate a store: the two states
    are already merged in a version-4 file, so `rebuild.mjs` would carry the

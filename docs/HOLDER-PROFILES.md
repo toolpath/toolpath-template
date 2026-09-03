@@ -104,9 +104,8 @@ not have produced cannot be committed by accident.
 drawing and the verdict under it are answering from different geometry. Deferred
 on purpose (Justin, 2026-09-02): teaching `clearance.ts` to sweep a `[z, r]`
 polyline touches a dozen callers that draw nothing at all, and it is a change
-worth making on its own. `/holders` says so on the page; `catalog-drawing.tsx`
-takes a `measured` prop so the two pictures can be put side by side, which is
-how a disagreement gets noticed at all.
+worth making on its own. `catalog-drawing.tsx` takes a `measured` prop so a
+consumer can compare the two pictures when investigating a disagreement.
 
 **The record seam is not taken yet.** `@toolpath/tool-scraper` 2.1.0 mints
 `HolderRecord` and `ColletRecord` and binds mappers for Kennametal, WIDIA,
@@ -141,11 +140,12 @@ that measured before stopped measuring. Zero reversed across all 374 holders in
 the five families. The taper solve improved far more than the orientation did,
 which was not how the change was described.
 
-`flipProfile` and the **flip holder** chip on `/holders` were the response to
-this while it stood — a viewing aid over bad data — and both are deleted, along
-with the `flipped` prop on `<CatalogDrawing>`. Nothing in this repository flips
-anything: `ingestProfiles` maps points one for one and `toViewerHolderProfile`
-only cuts the spindle end off the near one, which is now the whole story.
+`flipProfile` and the former holder browser's **flip holder** chip were the
+response to this while it stood — a viewing aid over bad data — and both are
+deleted, along with the `flipped` prop on `<CatalogDrawing>`. Nothing in this
+repository flips anything: `ingestProfiles` maps points one for one and
+`toViewerHolderProfile` only cuts the spindle end off the near one, which is now
+the whole story.
 
 **What the re-measure left open.** Twenty-two holders, all ER collet chucks,
 report a _negative_ shortfall — the model measures longer than the vendor
@@ -165,5 +165,5 @@ with no gauge plane there is nothing to compare against. So a _rising_ solve
 rate _lowers_ the complete count, and CAT40 going from 167 to 148 complete was
 the metric becoming meaningful, not a regression.
 
-**Nothing links to `/holders`.** Same footing as `/catalog` and `/families` —
-the part is the way in, and this is a page you go to on purpose.
+**The standalone holder browser was removed on 2026-09-03.** The active part
+workflow still draws measured holder profiles where an assembly is selected.

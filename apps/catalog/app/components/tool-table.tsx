@@ -1,7 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 import type { CatalogTool, Holder } from '@toolpath/catalog-data'
 import { GEOMETRY_FIELDS } from '@toolpath/catalog-data'
-import { Link } from 'react-router'
 import type { Unit } from '@toolpath/domain/units'
 import { formatGeometry } from 'shared/geometry'
 import {
@@ -717,12 +716,7 @@ export const ToolTable = ({
                       {tool.catalogNumber}
                     </button>
                   ) : (
-                    <Link
-                      to={`/tools/${tool.guid}`}
-                      className="font-mono text-zinc-100 underline-offset-2 hover:underline"
-                    >
-                      {tool.catalogNumber}
-                    </Link>
+                    <span className="font-mono text-zinc-100">{tool.catalogNumber}</span>
                   )}
                   {/*
                     **The list still says what is kept** (Paul, 2026-09-01).

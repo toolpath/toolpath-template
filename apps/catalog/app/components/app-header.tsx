@@ -82,7 +82,7 @@ export const AppHeader = ({ unit, onUnit, toolCount, onUploadPart }: AppHeaderPr
         {/*
           No Catalog or Families tab (Paul, 2026-09-01): the way in is a part,
           and the pages that browse the whole catalog on its own are hidden.
-          They still answer on `/catalog` and `/families`.
+          The family list remains available as a separate reference route.
         */}
         {/* `end`, or the part's own tab stays lit on the order list
             underneath it and two tabs read as current at once. */}
