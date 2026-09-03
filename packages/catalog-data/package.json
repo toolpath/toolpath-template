@@ -47,7 +47,7 @@
   "dependencies": {
     "@toolpath/domain": "workspace:*",
     "@toolpath/part-contracts": "workspace:*",
-    "@toolpath/tool-scraper": "2.1.0"
+    "@toolpath/tool-scraper": "2.2.0"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

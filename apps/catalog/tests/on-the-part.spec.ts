@@ -290,7 +290,7 @@ test('a tool is read in the panel and reaches the bill with its feature', async 
   await page.getByRole('link', { name: 'Order list' }).click()
 
   const bill = page.getByRole('table')
-  await expect(bill.getByText(number.trim())).toBeVisible()
+  await expect(bill.getByText(number.trim()).first()).toBeVisible()
   await expect(page.getByRole('columnheader', { name: 'Product' })).toHaveCount(0)
   await expect(page.getByRole('columnheader', { name: 'Model' })).toHaveCount(0)
   // One grouping: the assembly (Paul, 2026-09-01: "we can remove by feature").

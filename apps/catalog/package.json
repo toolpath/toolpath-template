@@ -22,16 +22,16 @@
     "@toolpath/part-client": "workspace:*",
     "@toolpath/part-contracts": "workspace:*",
     "@toolpath/part-server": "workspace:*",
-    "@toolpath/tool-drawing": "0.1.0",
+    "@toolpath/tool-drawing": "0.2.0",
     "@toolpath/ui": "0.1.1",
     "@toolpath/viewer": "0.4.0",
+    "hono": "4.13.0",
+    "isbot": "^5",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "hono": "4.13.0",
     "react-router": "^7.6.0",
     "three": "0.185.1",
-    "tsx": "^4.19.2",
-    "isbot": "^5"
+    "tsx": "^4.19.2"
   },
   "devDependencies": {
     "@playwright/test": "1.59.1",

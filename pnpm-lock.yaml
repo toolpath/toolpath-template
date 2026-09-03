@@ -69,8 +69,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/part-server
       '@toolpath/tool-drawing':
-        specifier: 0.1.0
-        version: 0.1.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        specifier: 0.2.0
+        version: 0.2.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@toolpath/ui':
         specifier: 0.1.1
         version: 0.1.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)
@@ -272,8 +272,8 @@ importers:
         specifier: workspace:*
         version: link:../part-contracts
       '@toolpath/tool-scraper':
-        specifier: 2.1.0
-        version: 2.1.0
+        specifier: 2.2.0
+        version: 2.2.0
     devDependencies:
       '@types/node':
         specifier: 24.10.1
@@ -1307,15 +1307,15 @@ packages:
     resolution: {integrity: sha512-WHJI84cFpEOaUls5fHOS2BJXk9Prj/nM5sRSy8JCGodLeJcRIH/eYUe+klD6Y39odLfaWShDPbUGg1oTaNvBcg==}
     engines: {node: '>=20'}
 
-  '@toolpath/tool-drawing@0.1.0':
-    resolution: {integrity: sha512-lK1Is+x9DqBERVqn5wS8dfsdPzqRK3hplc5w71Jd5vwdfwKZapccp4UZiyrAhZp2IhT3kSrk3LRoTgEdsYhqLA==}
+  '@toolpath/tool-drawing@0.2.0':
+    resolution: {integrity: sha512-jeVLhe2BXRoWucG+YBTWy+7vygDElrNjvc7KoQ/xnmvpgdP7Qkpg/Zhm5HiKKyyPc5WewK/Rr1hzQ2qD3uRyaA==}
     engines: {node: '>=20'}
     peerDependencies:
       react: ^19.0.0
       react-dom: ^19.0.0
 
-  '@toolpath/tool-scraper@2.1.0':
-    resolution: {integrity: sha512-CJ/kvRopzbGIIajDZ/SrBiRevy9K26vgs5u725hVOSgg7guuzbm7ymal5s9e8ikVli8sskAFfiSnCa3oF48yDw==}
+  '@toolpath/tool-scraper@2.2.0':
+    resolution: {integrity: sha512-8mlqYFXyo4jpzTx9gklWQjS+jJGGYUkWEjJnqa2BbP1eCpdlLGFlKcMM1Sagi/+XF2V7/bIBEg/Z56OPTA5rXw==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -3963,12 +3963,12 @@ snapshots:
 
   '@toolpath/api@0.2.3': {}
 
-  '@toolpath/tool-drawing@0.1.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+  '@toolpath/tool-drawing@0.2.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
 
-  '@toolpath/tool-scraper@2.1.0':
+  '@toolpath/tool-scraper@2.2.0':
     dependencies:
       htmlparser2: 12.0.0
 
