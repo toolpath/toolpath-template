@@ -49,11 +49,6 @@ const show = (chosen: ReadonlyArray<string>, counts: Readonly<Record<string, num
       materialGroup={null}
       onMaterial={() => {}}
       holding={{ tapers: [], series: [] }}
-      saved={[]}
-      onApply={() => {}}
-      onForget={() => {}}
-      onSave={() => {}}
-      onClear={() => {}}
     />,
   )
   return onQuery
@@ -135,11 +130,6 @@ const showFamilies = () => {
       materialGroup={null}
       onMaterial={() => {}}
       holding={{ tapers: [], series: [] }}
-      saved={[]}
-      onApply={() => {}}
-      onForget={() => {}}
-      onSave={() => {}}
-      onClear={() => {}}
     />,
   )
 }
@@ -214,11 +204,6 @@ describe('a family list scoped to the chosen vendor', () => {
         materialGroup={null}
         onMaterial={() => {}}
         holding={{ tapers: [], series: [] }}
-        saved={[]}
-        onApply={() => {}}
-        onForget={() => {}}
-        onSave={() => {}}
-        onClear={() => {}}
       />,
     )
     return onQuery

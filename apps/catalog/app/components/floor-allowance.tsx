@@ -24,14 +24,14 @@ export interface FloorAllowanceProps {
   readonly unit: Unit
 }
 
-export const FloorAllowance = ({ value, onChange, sheetValue, unit }: FloorAllowanceProps) => (
-  <RailBubble
-    icon={<FloorRadiusIcon />}
-    label="Floor radius allowed"
-    value={value > sheetValue ? [formatLength(value, unit)] : []}
-    onClear={value > sheetValue ? () => onChange(sheetValue) : undefined}
-  >
-    <p className="text-2xs mb-2 text-zinc-400">
+export const FloorAllowanceFields = ({
+  value,
+  onChange,
+  sheetValue,
+  unit,
+}: FloorAllowanceProps) => (
+  <>
+    <p className="text-2xs text-zinc-400">
       A bull nose leaves its own radius on a floor the model draws sharp. Tools up to this radius
       are offered without a caution.
     </p>
@@ -43,6 +43,19 @@ export const FloorAllowance = ({ value, onChange, sheetValue, unit }: FloorAllow
       min={0}
       onChange={onChange}
     />
-    <p className="text-2xs mt-2 text-zinc-600">The sheet says {formatLength(sheetValue, unit)}.</p>
+    <p className="text-2xs text-zinc-600">The sheet says {formatLength(sheetValue, unit)}.</p>
+  </>
+)
+
+export const FloorAllowance = (props: FloorAllowanceProps) => (
+  <RailBubble
+    icon={<FloorRadiusIcon />}
+    label="Floor radius allowed"
+    value={props.value > props.sheetValue ? [formatLength(props.value, props.unit)] : []}
+    onClear={props.value > props.sheetValue ? () => props.onChange(props.sheetValue) : undefined}
+  >
+    <div className="flex flex-col gap-2">
+      <FloorAllowanceFields {...props} />
+    </div>
   </RailBubble>
 )

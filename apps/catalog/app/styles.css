@@ -150,4 +150,20 @@ html:not(.dark) body {
   .filter-off {
     background-color: var(--color-zinc-950);
   }
+
+  /* The UI table hides its scrollbar by default; the part table needs its full width reachable. */
+  [data-part-tool-table] .hide-scrollbar {
+    overflow-x: auto !important;
+    scrollbar-gutter: stable;
+    scrollbar-width: auto;
+  }
+  [data-part-tool-table] .hide-scrollbar::-webkit-scrollbar {
+    display: block;
+    height: 0.75rem;
+  }
+
+  /* The UI table's fixed tracks must be wider than the viewport, not clipped to it. */
+  [data-part-tool-table] [data-table-library_table] {
+    min-width: max-content;
+  }
 }

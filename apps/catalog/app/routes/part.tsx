@@ -29,7 +29,7 @@ import { PartUploadOverlay, type ReplacementAnalysis } from 'components/part-upl
 import { FeatureDetails } from 'components/feature-details'
 import { KindIcon } from 'components/feature-icons'
 import { CursorClickIcon } from '@phosphor-icons/react'
-import { FilterRail } from 'components/filter-rail'
+import { FilterPanel } from 'components/filter-panel'
 import { ToolDetails } from 'components/tool-details'
 import {
   addChoice,
@@ -62,12 +62,11 @@ import { featureRow } from 'shared/feature-rows'
 import {
   TAP_COLUMNS,
   TOOL_COLUMNS,
-  ToolTable,
+  PartToolTable,
+  ToolTableToolbar,
   hiddenByDefault,
-  sortedBy,
   type Holding,
-  type Sort,
-} from 'components/tool-table'
+} from 'components/part-tool-table'
 import { ColumnPicker } from 'components/column-filter'
 import { FACET_AXES } from 'components/filter-panel'
 import { orderedCodes } from 'shared/column-order'
@@ -87,7 +86,6 @@ import {
   queryFromSearch,
   searchWithQuery,
 } from 'shared/filter'
-import { useSavedFilters } from 'shared/saved-filters'
 import { applySuggestions, suggestionsFor } from 'shared/suggest-filters'
 import {
   DERIVED_AXES,
@@ -102,9 +100,6 @@ import { holdable, holderOptions, thresholdsFrom, type HolderOption } from 'shar
 import { closestMisses, type Format } from 'shared/judge'
 import { cautionedTypes, marksFor, shortfallMarks, testedCodes } from 'shared/tool-marks'
 import { knobValue, knobsWith } from 'shared/rules'
-import { FloorAllowance } from 'components/floor-allowance'
-import { DrillDeviation } from 'components/drill-deviation'
-import { ClampingLength } from 'components/clamping-length'
 import { OrderDialog } from 'components/order-dialog'
 import { closeCandidates, fittingTools, tightestRule } from 'shared/tool-fit'
 import { useUnit } from 'shared/use-unit'
@@ -301,8 +296,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * of its own, which cost every row real width and left an empty cell under it
    * on every line.
    */
-  /** The column the list is read in, and which way. Null is the sheet's own order. */
-  const [sort, setSort] = useState<Sort | null>(null)
   /**
    * The tool being added to the order list, while the questions that
    * finish an assembly are being asked. Null when nothing is being added.
@@ -352,7 +345,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const [numberSearch, setNumberSearch] = useState('')
 
   const { preferences } = usePreferences()
-  const { saved, save, forget } = useSavedFilters()
   const { materialGroup, choose } = usePartMaterial(report.partId)
 
   // Remembered after render rather than during it: this is a side effect, and a
@@ -377,7 +369,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       const target = event.target as HTMLElement | null
       const typing =
         target?.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(target?.tagName ?? '')
-      if (typing) {
+      if (typing || target?.closest('[data-part-tool-table]')) {
         return
       }
 
@@ -753,6 +745,14 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     perDiameter: sheetClamping,
   })
   const allTools = useMemo(() => withClampingLength(catalogTools, clamping), [clamping])
+  /** Material is held with the part preferences, but it is still a tool filter. */
+  const effectiveQuery = useMemo(
+    () =>
+      materialGroup === null
+        ? query
+        : { ...query, terms: { ...query.terms, materialGroups: [materialGroup] } },
+    [query, materialGroup],
+  )
   /** The sheet's knobs with what the page sets, so the judge reads the same numbers. */
   const knobs = useMemo(
     () =>
@@ -800,14 +800,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   }
   const threadSpec = holeChoice.spec
 
-  /**
-   * A filter a column header asked for, until the rail has opened it.
-   *
-   * The rail's bubbles own their own open state; this is the ask, not the
-   * state — cleared as soon as it is answered, so asking twice asks twice
-   * (Paul, 2026-09-01).
-   */
-  const [askedFilter, setAskedFilter] = useState<string | null>(null)
   /**
    * The hole the part is zoomed to, and how far through each group's holes the
    * zoom has walked.
@@ -958,7 +950,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * field, so it cannot go through `filterTools`.
    */
   const narrowed = useMemo(() => {
-    const { tools: toolQuery, holding } = splitHolding(query)
+    const { tools: toolQuery, holding } = splitHolding(effectiveQuery)
     const kept = new Set(
       holdableTools(
         filterTools(
@@ -969,7 +961,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       ).map((each) => each.guid),
     )
     return fitting.filter((verdict) => kept.has(verdict.tool.guid))
-  }, [fitting, query])
+  }, [fitting, effectiveQuery])
   /** The reach curve the holders are swept over, read off the feature. */
   const curve = useMemo(
     () => (reading ? (sectionOf(reading, report.features)?.curve ?? null) : null),
@@ -1072,9 +1064,9 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * space and a sentence (Paul, 2026-08-30).
    */
   const catalogList = useMemo(() => {
-    const { tools: toolQuery, holding } = splitHolding(query)
+    const { tools: toolQuery, holding } = splitHolding(effectiveQuery)
     return holdableTools(filterTools(allTools, toolQuery), holding)
-  }, [query, allTools])
+  }, [effectiveQuery, allTools])
   /**
    * Nothing fits, so the nearest misses stand in.
    *
@@ -1127,8 +1119,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * (Paul, 2026-09-01).
    */
   const axisCounts = useMemo(
-    () => countsByAxis(asking ? tools : allTools, query, FACET_AXES),
-    [asking, allTools, tools, query],
+    () => countsByAxis(asking ? tools : allTools, effectiveQuery, FACET_AXES),
+    [asking, allTools, tools, effectiveQuery],
   )
 
   const listed = useMemo(() => {
@@ -1273,10 +1265,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * filtered catalog, and drawn inline they did it on every render — every
    * keystroke in the search box, every hover.
    */
-  const shownRows = useMemo(
-    () => keptFirst(sortedBy(searched, sort), keptHere),
-    [searched, sort, keptHere],
-  )
+  const shownRows = useMemo(() => keptFirst(searched, keptHere), [searched, keptHere])
 
   /**
    * Holder, collet and stickout picked on a row, per tool, for the feature
@@ -1529,8 +1518,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         : makers.made.filter((each) =>
             `${each.catalogNumber} ${each.brand}`.toLowerCase().includes(wanted),
           )
-    return sortedBy(narrowedTaps, sort)
-  }, [makers.made, numberSearch, sort])
+    return narrowedTaps
+  }, [makers.made, numberSearch])
 
   /**
    * What is wrong with a tap, in the column it is about — the red the tap
@@ -1727,7 +1716,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
        * rules, so applying them first is the same answer for a fraction of the
        * work: a threaded hole's list is drills, which is a few hundred.
        */
-      const { tools: toolQuery, holding: crib } = splitHolding(query)
+      const { tools: toolQuery, holding: crib } = splitHolding(effectiveQuery)
       const admitted = holdableTools(filterTools(allTools, toolQuery), crib)
       const { fitting: ranked } = fittingTools(stood, report.features, admitted, format, knobs)
       const first = features[0]
@@ -1751,7 +1740,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       allTools,
       format,
       knobs,
-      query,
+      effectiveQuery,
       holderFilters,
       margins,
       thresholds,
@@ -2363,53 +2352,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                 overlay={
                   <>
                     {/*
-                      The rail stays floored to the viewer, and clips itself
-                      to do it. Unclipping the viewer so the feature box can
-                      reach its own confirm button unclipped this column too,
-                      and a stack of filter bubbles painted over the tool list
-                      is not what that was for.
-                    */}
-                    <div className="flex max-h-full w-fit flex-col gap-1 overflow-hidden">
-                      <FilterRail
-                        open={askedFilter}
-                        onOpened={() => setAskedFilter(null)}
-                        facets={facets}
-                        query={query}
-                        onQuery={apply}
-                        counts={(key) => axisCounts.get(key) ?? countBy(listed, key)}
-                        unit={unit}
-                        holding={{ tapers, series: colletSeries }}
-                        materialGroup={materialGroup}
-                        onMaterial={chooseMaterial}
-                        saved={saved}
-                        onSave={(name) => save(name, query)}
-                        onApply={apply}
-                        onForget={forget}
-                        onClear={() => apply(EMPTY_QUERY)}
-                      />
-                      <FloorAllowance
-                        value={floorRadius}
-                        onChange={setFloorRadius}
-                        sheetValue={sheetFloorRadius}
-                        unit={unit}
-                      />
-                      <ClampingLength
-                        rule={clamping}
-                        onChange={setClamping}
-                        sheet={sheetClamping}
-                      />
-                      {/* Only where there is a hole to be off by. */}
-                      {holeDiameter === null ? null : (
-                        <DrillDeviation
-                          over={drillDeviation.over}
-                          under={drillDeviation.under}
-                          onChange={setDrillDeviation}
-                          sheet={sheetDrillDeviation}
-                          unit={unit}
-                        />
-                      )}
-                    </div>
-                    {/*
                       Outlined while nothing is read, because an empty box
                       says nothing about whose turn it is. The border is the
                       prompt: click the part (Paul, 2026-08-31).
@@ -2734,11 +2676,12 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               <Card className="relative flex size-full min-h-0 flex-col overflow-hidden">
                 {/* The panel measures itself here: `Card` takes no ref. */}
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                  <p
+                  <div
                     data-list-chrome
-                    className="flex items-center gap-2 border-b border-zinc-900 px-3 py-2 text-sm"
+                    className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 gap-y-1 border-b border-zinc-900 px-3 py-2 text-sm"
                   >
-                    {/*
+                    <div className="flex min-w-0 min-h-8 flex-wrap items-center gap-2">
+                      {/*
                       **Two tabs on the list, taps first** (Paul, 2026-09-02:
                       "I'd like to have the tabs in the tool table, showing taps
                       first by default, then the drill tab to the right to
@@ -2749,37 +2692,37 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                       whichever tool is clicked, in either tab, is the one the
                       panel on the right assembles.
                     */}
-                    {/*
+                      {/*
                       The tabs are two lists of tools for one hole; the list's
                       own answers are neither, so they take the plain heading.
                     */}
-                    {threadSpec === null || perFeature ? (
-                      <span className="text-zinc-200">{listTitle}</span>
-                    ) : (
-                      <span className="flex items-center gap-1">
-                        {(
-                          [
-                            ['tap', `Taps for ${threadSpec.name}`, makers.made.length],
-                            ['drill', 'Drills', listed.length],
-                          ] as const
-                        ).map(([key, label, many]) => (
-                          <button
-                            key={key}
-                            type="button"
-                            aria-pressed={pane === key}
-                            onClick={() => setPane(key)}
-                            className={classNames(
-                              'focus-visible:ring-info/60 flex items-center gap-1.5 rounded border px-2 py-0.5 text-sm transition focus-visible:ring-1 focus-visible:outline-none',
-                              pane === key
-                                ? 'border-info/60 bg-info/15 text-info'
-                                : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
-                            )}
-                          >
-                            {label}
-                            <span className="text-2xs text-zinc-500">{many}</span>
-                          </button>
-                        ))}
-                        {/*
+                      {threadSpec === null || perFeature ? (
+                        <span className="text-zinc-200">{listTitle}</span>
+                      ) : (
+                        <span className="flex items-center gap-1">
+                          {(
+                            [
+                              ['tap', `Taps for ${threadSpec.name}`, makers.made.length],
+                              ['drill', 'Drills', listed.length],
+                            ] as const
+                          ).map(([key, label, many]) => (
+                            <button
+                              key={key}
+                              type="button"
+                              aria-pressed={pane === key}
+                              onClick={() => setPane(key)}
+                              className={classNames(
+                                'focus-visible:ring-info/60 flex items-center gap-1.5 rounded border px-2 py-0.5 text-sm transition focus-visible:ring-1 focus-visible:outline-none',
+                                pane === key
+                                  ? 'border-info/60 bg-info/15 text-info'
+                                  : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
+                              )}
+                            >
+                              {label}
+                              <span className="text-2xs text-zinc-500">{many}</span>
+                            </button>
+                          ))}
+                          {/*
                           **A hole can be interpolated** (Paul, 2026-09-02: "I
                           need to be able to use an end mill on a threaded hole
                           in place of a drill… a quick option in the drills
@@ -2793,166 +2736,206 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           them off again — the same reason choosing a thread
                           writes its own forms there (Paul, 2026-08-31).
                         */}
-                        {pane === 'drill' ? (
-                          <button
-                            type="button"
-                            aria-pressed={predrillMills.length > 0}
-                            title={
-                              predrillMills.length > 0
-                                ? 'Showing the end mills that can interpolate this predrill, after the drills — press to take them off'
-                                : 'Also show the flat and bull nose end mills that can interpolate this predrill'
-                            }
-                            onClick={() => {
-                              const forms = query.terms.form ?? []
-                              applyTerm(
-                                'form',
-                                // Nothing ticked means every form, so turning
-                                // the mills on has to name the drills and taps
-                                // as well or the press would hide them.
-                                formsWithMills(
-                                  forms.length === 0 ? THREADED_FORMS : forms,
-                                  predrillMills.length === 0,
-                                ),
-                              )
-                            }}
-                            className={classNames(
-                              'focus-visible:ring-info/60 text-2xs ml-1 rounded border px-2 py-1 transition focus-visible:ring-1 focus-visible:outline-none',
-                              predrillMills.length > 0
-                                ? 'border-info/60 bg-info/15 text-info'
-                                : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
-                            )}
-                          >
-                            {millsLabel(query.terms.form ?? [])}
-                          </button>
-                        ) : null}
-                      </span>
-                    )}
-                    {/* Nothing to count where nothing has been asked of this
+                          {pane === 'drill' ? (
+                            <button
+                              type="button"
+                              aria-pressed={predrillMills.length > 0}
+                              title={
+                                predrillMills.length > 0
+                                  ? 'Showing the end mills that can interpolate this predrill, after the drills — press to take them off'
+                                  : 'Also show the flat and bull nose end mills that can interpolate this predrill'
+                              }
+                              onClick={() => {
+                                const forms = query.terms.form ?? []
+                                applyTerm(
+                                  'form',
+                                  // Nothing ticked means every form, so turning
+                                  // the mills on has to name the drills and taps
+                                  // as well or the press would hide them.
+                                  formsWithMills(
+                                    forms.length === 0 ? THREADED_FORMS : forms,
+                                    predrillMills.length === 0,
+                                  ),
+                                )
+                              }}
+                              className={classNames(
+                                'focus-visible:ring-info/60 text-2xs ml-1 rounded border px-2 py-1 transition focus-visible:ring-1 focus-visible:outline-none',
+                                predrillMills.length > 0
+                                  ? 'border-info/60 bg-info/15 text-info'
+                                  : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
+                              )}
+                            >
+                              {millsLabel(query.terms.form ?? [])}
+                            </button>
+                          ) : null}
+                        </span>
+                      )}
+                      {/* Nothing to count where nothing has been asked of this
                         panel: a number beside "nothing selected" reads as a
                         count of tools that are not there. */}
-                    {threadSpec !== null || perFeature ? null : (
-                      <Badge variant={listed.length === 0 ? 'danger' : 'secondary'}>
-                        {listed.length}
-                      </Badge>
-                    )}
-                    {/*
+                      {threadSpec !== null || perFeature ? null : (
+                        <Badge variant={listed.length === 0 ? 'danger' : 'secondary'}>
+                          {listed.length}
+                        </Badge>
+                      )}
+                      {/*
                       **The notes are about the list on show** (Paul,
                       2026-09-02). What the rules took off the drill list is
                       true of the drills and says nothing about the taps, and
                       it was printed over both. The tap tab says what its own
                       list was matched on, and what is wrong with it.
                     */}
-                    {/* None of them are about a panel that is waiting to be
+                      {/* None of them are about a panel that is waiting to be
                         asked: they describe a list that is not on screen. */}
-                    {perFeature ? null : tapping && threadSpec !== null ? (
-                      <>
-                        <span className="text-2xs text-zinc-500">
-                          {holeChoice.mode === 'thread mill'
-                            ? `inside the ⌀${formatLength(minorOf(threadSpec), unit)} minor diameter`
-                            : `matched on ⌀${formatLength(threadSpec.major, unit)} — this catalog holds no pitch, so check it`}
-                        </span>
-                        {makers.short ? (
-                          <span className="text-2xs text-amber-300">
-                            none reach the bottom — the closest are shown
-                          </span>
-                        ) : null}
-                        {makers.unheld ? (
-                          <span className="text-2xs text-amber-300">
-                            nothing in the crib holds one at the stickout this needs
-                          </span>
-                        ) : null}
-                      </>
-                    ) : (
-                      <>
-                        {reading === null ? (
+                      {perFeature ? null : tapping && threadSpec !== null ? (
+                        <>
                           <span className="text-2xs text-zinc-500">
-                            click a feature on the part for the ones that cut it
+                            {holeChoice.mode === 'thread mill'
+                              ? `inside the ⌀${formatLength(minorOf(threadSpec), unit)} minor diameter`
+                              : `matched on ⌀${formatLength(threadSpec.major, unit)} — this catalog holds no pitch, so check it`}
                           </span>
-                        ) : null}
-                        {/*
+                          {makers.short ? (
+                            <span className="text-2xs text-amber-300">
+                              none reach the bottom — the closest are shown
+                            </span>
+                          ) : null}
+                          {makers.unheld ? (
+                            <span className="text-2xs text-amber-300">
+                              nothing in the crib holds one at the stickout this needs
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <>
+                          {reading === null ? (
+                            <span className="text-2xs text-zinc-500">
+                              click a feature on the part for the ones that cut it
+                            </span>
+                          ) : null}
+                          {/*
                           **A corner no mill can leave** (Paul, 2026-09-01): the
                           model draws it sharp, and every cutter leaves its own
                           radius. Said once, plainly, rather than left for somebody
                           to work out from a list of tools that all miss it.
                         */}
-                        {reading !== null && hasSharpCorner(reading) ? (
-                          <span className="text-2xs text-amber-300">
-                            this feature has a sharp corner, and no milling tool can cut the
-                            geometry
-                          </span>
-                        ) : null}
-                        {closest.length > 0 ? (
-                          <span className="text-2xs text-amber-300">
-                            nothing in the crib fits — the closest are shown, with what stops each
-                          </span>
-                        ) : null}
-                        {excluded.length > 0 && reading !== null ? (
-                          <span className="text-2xs text-zinc-500" title={tightest ?? undefined}>
-                            {excluded.length} removed by the rules
-                            {tightest ? ` — most by ${tightest}` : ''}
-                          </span>
-                        ) : null}
-                        {fitting.length > narrowed.length ? (
-                          <span className="text-2xs text-amber-300/80">
-                            {fitting.length - narrowed.length} that fit are hidden by the filters
-                          </span>
-                        ) : null}
-                        {unheld > 0 ? (
-                          <span
-                            className="text-2xs text-zinc-500"
-                            title="A tool with no holder in the crib that grips it, clears the part and keeps hold is not offered"
-                          >
-                            {unheld} with no holder that clears
-                          </span>
-                        ) : null}
-                      </>
-                    )}
-                    {/*
+                          {reading !== null && hasSharpCorner(reading) ? (
+                            <span className="text-2xs text-amber-300">
+                              this feature has a sharp corner, and no milling tool can cut the
+                              geometry
+                            </span>
+                          ) : null}
+                          {closest.length > 0 ? (
+                            <span className="text-2xs text-amber-300">
+                              nothing in the crib fits — the closest are shown, with what stops each
+                            </span>
+                          ) : null}
+                          {excluded.length > 0 && reading !== null ? (
+                            <span className="text-2xs text-zinc-500" title={tightest ?? undefined}>
+                              {excluded.length} removed by the rules
+                              {tightest ? ` — most by ${tightest}` : ''}
+                            </span>
+                          ) : null}
+                          {fitting.length > narrowed.length ? (
+                            <span className="text-2xs text-amber-300/80">
+                              {fitting.length - narrowed.length} that fit are hidden by the filters
+                            </span>
+                          ) : null}
+                          {unheld > 0 ? (
+                            <span
+                              className="text-2xs text-zinc-500"
+                              title="A tool with no holder in the crib that grips it, clears the part and keeps hold is not offered"
+                            >
+                              {unheld} with no holder that clears
+                            </span>
+                          ) : null}
+                        </>
+                      )}
+                      {/*
                       **The picker edits the list that is open** (Paul,
                       2026-09-02: "allow me to use those columns if I edit the
                       tap table"). A tap offers the seven numbers it states and
                       the tool list offers its own, so which set is on offer —
                       and which hidden set a tick lands in — follows the tab.
                     */}
-                    <span className="ml-auto flex items-center gap-1">
-                      <ColumnPicker
-                        columns={orderedCodes(
-                          (tapping ? TAP_COLUMNS : TOOL_COLUMNS).map((column) => column.code),
-                          tapping ? tapColumnOrder : columnOrder,
-                        ).flatMap((code) =>
-                          (tapping ? TAP_COLUMNS : TOOL_COLUMNS)
-                            .filter((column) => column.code === code)
-                            .map((column) => ({ code: column.code, label: column.label })),
-                        )}
-                        shown={(tapping ? TAP_COLUMNS : TOOL_COLUMNS)
-                          .filter(
-                            (column) =>
-                              !(tapping ? hiddenTapColumns : hiddenColumns).includes(column.code),
-                          )
-                          .map((column) => column.code)}
-                        onToggle={(code) => {
-                          if (tapping) {
-                            setHiddenTapColumns((current) =>
+                    </div>
+                    <ToolTableToolbar
+                      onClear={() => apply(EMPTY_QUERY)}
+                      filters={
+                        <FilterPanel
+                          facets={facets}
+                          query={query}
+                          onQuery={apply}
+                          counts={(key) => axisCounts.get(key) ?? countBy(listed, key)}
+                          unit={unit}
+                          holding={{ tapers, series: colletSeries }}
+                          materialGroup={materialGroup}
+                          onMaterial={chooseMaterial}
+                          catalogNumberSearch={{ value: numberSearch, onChange: setNumberSearch }}
+                          matching={{
+                            floor: {
+                              value: floorRadius,
+                              onChange: setFloorRadius,
+                              sheetValue: sheetFloorRadius,
+                            },
+                            clamping: {
+                              rule: clamping,
+                              onChange: setClamping,
+                              sheet: sheetClamping,
+                            },
+                            ...(holeDiameter === null
+                              ? {}
+                              : {
+                                  drill: {
+                                    over: drillDeviation.over,
+                                    under: drillDeviation.under,
+                                    onChange: setDrillDeviation,
+                                    sheet: sheetDrillDeviation,
+                                  },
+                                }),
+                          }}
+                          toolbar
+                        />
+                      }
+                      actions={
+                        <ColumnPicker
+                          columns={orderedCodes(
+                            (tapping ? TAP_COLUMNS : TOOL_COLUMNS).map((column) => column.code),
+                            tapping ? tapColumnOrder : columnOrder,
+                          ).flatMap((code) =>
+                            (tapping ? TAP_COLUMNS : TOOL_COLUMNS)
+                              .filter((column) => column.code === code)
+                              .map((column) => ({ code: column.code, label: column.label })),
+                          )}
+                          shown={(tapping ? TAP_COLUMNS : TOOL_COLUMNS)
+                            .filter(
+                              (column) =>
+                                !(tapping ? hiddenTapColumns : hiddenColumns).includes(column.code),
+                            )
+                            .map((column) => column.code)}
+                          onToggle={(code) => {
+                            if (tapping) {
+                              setHiddenTapColumns((current) =>
+                                current.includes(code)
+                                  ? current.filter((each) => each !== code)
+                                  : [...current, code],
+                              )
+                              return
+                            }
+                            touchedColumns.current.add(code)
+                            setHiddenColumns((current) =>
                               current.includes(code)
                                 ? current.filter((each) => each !== code)
                                 : [...current, code],
                             )
-                            return
-                          }
-                          touchedColumns.current.add(code)
-                          setHiddenColumns((current) =>
-                            current.includes(code)
-                              ? current.filter((each) => each !== code)
-                              : [...current, code],
-                          )
-                        }}
-                        onReorder={tapping ? setTapColumnOrder : setColumnOrder}
-                      />
-                    </span>
-                  </p>
+                          }}
+                          onReorder={tapping ? setTapColumnOrder : setColumnOrder}
+                        />
+                      }
+                    />
+                  </div>
                   <div
-                    // Whichever tab is open scrolls in the whole panel.
-                    className="min-h-0 flex-1 overflow-auto"
+                    // The UI table owns the panel's virtualized scroll area.
+                    className="flex min-h-0 min-w-0 flex-1 overflow-hidden"
                   >
                     {perFeature ? (
                       <p className="p-4 text-sm text-zinc-500">
@@ -2969,7 +2952,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         which columns it offers, and that is now the only thing
                         that is different about it.
                       */
-                      <ToolTable
+                      <PartToolTable
                         tools={tapRows}
                         columns={TAP_COLUMNS}
                         /*
@@ -2992,41 +2975,22 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         unit={unit}
                         chosen={panelTool?.guid ?? null}
                         onChoose={(each) => setChosenTool(each.guid)}
-                        sort={sort}
-                        onSort={setSort}
                         holding={holding}
-                        search={numberSearch}
-                        onSearch={setNumberSearch}
                         inBom={(each) => keptHere.has(each.guid)}
                         keptElsewhere={(each) => bom.has(each.guid) && !keptHere.has(each.guid)}
                       />
                     ) : (
-                      <ToolTable
+                      <PartToolTable
                         // Kept for this feature, then the sheet's order or
                         // whatever column the list is sorted by.
                         tools={shownRows}
-                        /*
-                          The rail asks these questions too, so the column
-                          headers hand them over rather than opening a second
-                          control for the same filter.
-                        */
-                        onRailFilter={setAskedFilter}
-                        railKeys={{ DC: 'DC', LCF: 'LCF', NOF: 'NOF', form: 'form' }}
                         unit={unit}
                         chosen={panelTool?.guid ?? null}
                         onChoose={(each) => setChosenTool(each.guid)}
-                        ranges={query.ranges}
-                        onRange={applyRange}
-                        terms={query.terms}
-                        onTerm={applyTerm}
                         hiddenColumns={hiddenColumns}
                         columnOrder={columnOrder}
                         marks={marksOf}
-                        sort={sort}
-                        onSort={setSort}
                         holding={holding}
-                        search={numberSearch}
-                        onSearch={setNumberSearch}
                         /*
                          * Only in hole mode, where a tap section is under it.
                          *

@@ -9,7 +9,7 @@ import { getFamily } from 'shared/catalog'
 import { ToolTypeIcon, formLabel } from './tool-icons'
 import { MeasurementIcon } from './feature-icons'
 import { CatalogDrawing } from './catalog-drawing'
-import type { Holding } from './tool-table'
+import type { Holding } from './part-tool-table'
 
 /**
  * The tool being read, beside the part.

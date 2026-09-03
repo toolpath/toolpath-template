@@ -25,6 +25,42 @@ export interface DrillDeviationProps {
   readonly unit: Unit
 }
 
+export const DrillDeviationFields = ({
+  over,
+  under,
+  onChange,
+  sheet,
+  unit,
+}: DrillDeviationProps) => (
+  <>
+    <p className="text-2xs text-zinc-400">
+      How far a drill's diameter may be from the hole. Over and under are asked separately, because
+      a shop takes more one way than the other. The list says how far off each drill is.
+    </p>
+    <div className="flex flex-col gap-2">
+      <LengthBox
+        id="drill-oversize"
+        label="Over the hole"
+        value={over}
+        unit={unit}
+        min={0}
+        onChange={(value) => onChange({ over: value, under })}
+      />
+      <LengthBox
+        id="drill-undersize"
+        label="Under the hole"
+        value={under}
+        unit={unit}
+        min={0}
+        onChange={(value) => onChange({ over, under: value })}
+      />
+    </div>
+    <p className="text-2xs text-zinc-600">
+      The sheet says +{formatLength(sheet.over, unit)} and −{formatLength(sheet.under, unit)}.
+    </p>
+  </>
+)
+
 export const DrillDeviation = ({ over, under, onChange, sheet, unit }: DrillDeviationProps) => {
   const changed = over !== sheet.over || under !== sheet.under
   return (
@@ -34,31 +70,15 @@ export const DrillDeviation = ({ over, under, onChange, sheet, unit }: DrillDevi
       value={changed ? [`+${formatLength(over, unit)}`, `−${formatLength(under, unit)}`] : []}
       onClear={changed ? () => onChange(sheet) : undefined}
     >
-      <p className="text-2xs mb-2 text-zinc-400">
-        How far a drill's diameter may be from the hole. Over and under are asked separately,
-        because a shop takes more one way than the other. The list says how far off each drill is.
-      </p>
       <div className="flex flex-col gap-2">
-        <LengthBox
-          id="drill-oversize"
-          label="Over the hole"
-          value={over}
+        <DrillDeviationFields
+          over={over}
+          under={under}
+          onChange={onChange}
+          sheet={sheet}
           unit={unit}
-          min={0}
-          onChange={(value) => onChange({ over: value, under })}
-        />
-        <LengthBox
-          id="drill-undersize"
-          label="Under the hole"
-          value={under}
-          unit={unit}
-          min={0}
-          onChange={(value) => onChange({ over, under: value })}
         />
       </div>
-      <p className="text-2xs mt-2 text-zinc-600">
-        The sheet says +{formatLength(sheet.over, unit)} and −{formatLength(sheet.under, unit)}.
-      </p>
     </RailBubble>
   )
 }

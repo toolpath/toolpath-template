@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
-  BookmarkSimpleIcon,
   BookmarksSimpleIcon,
-  BroomIcon,
   CaretDownIcon,
   CircleIcon,
   CubeIcon,
@@ -11,18 +9,18 @@ import {
   MagnifyingGlassIcon,
   StackSimpleIcon,
   TagIcon,
-  WrenchIcon,
-  XIcon,
 } from '@phosphor-icons/react'
 import type { Facets } from '@toolpath/catalog-data'
 import { MATERIAL_GROUPS, TOOL_FORMS } from '@toolpath/catalog-data'
 import { classNames } from '@toolpath/domain/class-names'
-import type { Unit } from '@toolpath/domain/units'
+import { formatLength, type Unit } from '@toolpath/domain/units'
 import { brandsOfFamily, brandsOfProductLine, getFamily } from 'shared/catalog'
 import { toggleTerm, type ToolQuery } from 'shared/filter'
-import type { SavedFilter } from 'shared/saved-filters'
 import { Chip, ChipGroup } from './chip'
 import { RangeFilter, type Bound, type Kind } from './column-filter'
+import { ClampingLengthFields } from './clamping-length'
+import { DrillDeviationFields } from './drill-deviation'
+import { FloorAllowanceFields } from './floor-allowance'
 import {
   ColletIcon,
   FluteLengthIcon,
@@ -340,11 +338,11 @@ export interface FilterPanelProps {
   /** The part's own material, which is both a filter and what the ranking uses. */
   readonly materialGroup: string | null
   readonly onMaterial: (group: string | null) => void
-  readonly saved: ReadonlyArray<SavedFilter>
-  readonly onSave: (name: string) => void
-  readonly onApply: (query: ToolQuery) => void
-  readonly onForget: (name: string) => void
-  readonly onClear: () => void
+  /** Catalog-number search belongs with the filters when this panel is in the table toolbar. */
+  readonly catalogNumberSearch?: {
+    readonly value: string
+    readonly onChange: (value: string) => void
+  }
   /**
    * Only these quick filters, by key — the always-visible few on the part
    * page (material, holder, collet) rather than the whole panel.
@@ -352,6 +350,27 @@ export interface FilterPanelProps {
   readonly only?: ReadonlyArray<string>
   /** No title row, no saved menu: the filters and nothing else. */
   readonly compact?: boolean
+  /** Render every filter as a compact control for the list chrome. */
+  readonly toolbar?: boolean
+  /** Matching thresholds shown with the other compact filter controls. */
+  readonly matching?: {
+    readonly floor: {
+      readonly value: number
+      readonly onChange: (millimetres: number) => void
+      readonly sheetValue: number
+    }
+    readonly clamping: {
+      readonly rule: Parameters<typeof ClampingLengthFields>[0]['rule']
+      readonly onChange: Parameters<typeof ClampingLengthFields>[0]['onChange']
+      readonly sheet: number
+    }
+    readonly drill?: {
+      readonly over: number
+      readonly under: number
+      readonly onChange: Parameters<typeof DrillDeviationFields>[0]['onChange']
+      readonly sheet: { readonly over: number; readonly under: number }
+    }
+  }
   /** Which answers want a second look, by filter key. */
 }
 
@@ -375,6 +394,201 @@ const Field = ({
     {children}
   </section>
 )
+
+const ToolbarFilter = ({
+  icon,
+  label,
+  summary,
+  open,
+  onOpen,
+  children,
+}: {
+  icon: ReactNode
+  label: string
+  summary: string
+  open: boolean
+  onOpen: () => void
+  children: ReactNode
+}) => (
+  <ToolbarFilterBody icon={icon} label={label} summary={summary} open={open} onOpen={onOpen}>
+    {children}
+  </ToolbarFilterBody>
+)
+
+const ToolbarFilterBody = ({
+  icon,
+  label,
+  summary,
+  open,
+  onOpen,
+  children,
+}: {
+  icon: ReactNode
+  label: string
+  summary: string
+  open: boolean
+  onOpen: () => void
+  children: ReactNode
+}) => {
+  const menu = useRef<HTMLDivElement>(null)
+  const [menuOffset, setMenuOffset] = useState(0)
+
+  useLayoutEffect(() => {
+    if (!open || menu.current === null) {
+      setMenuOffset(0)
+      return
+    }
+
+    const place = () => {
+      const element = menu.current
+      if (element === null) {
+        return
+      }
+      const menuRect = element.getBoundingClientRect()
+      const chrome = element.closest('[data-list-chrome]')?.getBoundingClientRect()
+      const left = Math.max(chrome?.left ?? 0, 8) + 8
+      const right = Math.min(chrome?.right ?? window.innerWidth, window.innerWidth) - 8
+      const correction =
+        menuRect.left < left
+          ? left - menuRect.left
+          : menuRect.right > right
+            ? right - menuRect.right
+            : 0
+      setMenuOffset(correction)
+    }
+
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [open])
+
+  return (
+    <div className="relative min-w-0">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={onOpen}
+        className={classNames(
+          'focus-visible:ring-info/60 flex w-full min-w-0 items-center gap-1.5 rounded border px-2 py-1 text-left text-xs transition focus-visible:ring-1 focus-visible:outline-none',
+          open || summary !== 'Any'
+            ? 'border-info/50 bg-info/10 text-zinc-100'
+            : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
+        )}
+      >
+        <span className="shrink-0 text-zinc-600">{icon}</span>
+        <span className="min-w-0 flex-1 truncate">
+          {summary === 'Any' ? label : `${label}: ${summary}`}
+        </span>
+        <CaretDownIcon
+          className={classNames('shrink-0 text-zinc-600 transition', open && 'rotate-180')}
+        />
+      </button>
+      {open ? (
+        <div
+          data-tool-filter-menu
+          ref={menu}
+          style={{ transform: `translateX(${String(menuOffset)}px)` }}
+          className="absolute top-full right-0 z-30 mt-1 w-[min(30rem,calc(100vw-2rem))] rounded-md border border-zinc-800 bg-zinc-950 p-2 shadow-xl"
+        >
+          {children}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+const ToolbarOptions = ({
+  filter,
+  options,
+  chosen,
+  counted,
+  onToggle,
+  onAny,
+  onAll,
+}: {
+  filter: QuickFilter
+  options: ReadonlyArray<TileOption>
+  chosen: ReadonlyArray<string>
+  counted: ReadonlyMap<string, number>
+  onToggle: (value: string) => void
+  onAny: () => void
+  onAll: (values: ReadonlyArray<string>) => void
+}) => {
+  const [search, setSearch] = useState('')
+  const found = matching(options, search)
+  const many = options.length > 8
+  const single = filter.mode === 'single' || filter.mode === 'single-term'
+
+  return (
+    <div className="flex flex-col gap-1">
+      {many ? (
+        <Find
+          label={filter.label}
+          value={search}
+          onChange={setSearch}
+          count={found.length}
+          onAll={
+            filter.mode === 'multi' && search.trim() !== '' && found.length > 1
+              ? () => onAll(found.map((option) => option.value))
+              : undefined
+          }
+        />
+      ) : null}
+      <div
+        role="group"
+        aria-label={filter.label}
+        className={classNames(
+          'gap-1',
+          many
+            ? classNames(
+                'grid overflow-y-auto',
+                filter.shape === 'tiles' ? 'max-h-80 grid-cols-4' : 'max-h-64 grid-cols-2',
+              )
+            : 'flex flex-wrap',
+        )}
+      >
+        {single ? (
+          <button
+            type="button"
+            aria-pressed={chosen.length === 0}
+            onClick={onAny}
+            className={classNames(
+              'text-2xs rounded border px-2 py-1 text-left transition',
+              chosen.length === 0
+                ? 'border-info/60 bg-info/15 text-info'
+                : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-100',
+            )}
+          >
+            Any
+          </button>
+        ) : null}
+        {found.map((option) => {
+          const pressed = chosen.includes(option.value)
+          const count = counted.get(option.value) ?? 0
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={pressed}
+              title={`${option.label} — ${String(count)} of the tools listed`}
+              onClick={() => onToggle(option.value)}
+              className={classNames(
+                'text-2xs flex min-w-0 items-center gap-1 rounded border px-2 py-1 text-left transition',
+                pressed
+                  ? 'border-info/60 bg-info/15 text-info'
+                  : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-100',
+                count === 0 && !pressed && 'opacity-40',
+              )}
+            >
+              <span className="min-w-0 flex-1 truncate">{option.label}</span>
+              <span className="shrink-0 text-[0.65em] text-zinc-600">{count}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 /** Closes a popover on a pointer down anywhere outside it. */
 const useCloseOnOutside = (open: boolean, close: () => void) => {
@@ -585,7 +799,7 @@ const ChipPicker = ({
         ragged and read as a sentence; on a grid every answer is the same width
         and the eye goes down the column.
       */}
-      <ChipGroup label={filter.label} className="grid! min-w-[19rem] grid-cols-2 items-stretch">
+      <ChipGroup label={filter.label} className="items-center">
         {single ? (
           <Chip pressed={chosen.length === 0} onClick={onAny}>
             Any
@@ -758,82 +972,6 @@ const TilePicker = ({
 }
 
 /**
- * The filters somebody has kept, under the button that keeps them.
- *
- * They were chips that appeared only once one existed, which is a feature
- * nobody finds. A button that is always there — and says "nothing yet" when
- * that is the answer — is one.
- */
-const SavedMenu = ({
-  saved,
-  onApply,
-  onForget,
-}: {
-  saved: ReadonlyArray<SavedFilter>
-  onApply: (query: ToolQuery) => void
-  onForget: (name: string) => void
-}) => {
-  const [open, setOpen] = useState(false)
-  const box = useCloseOnOutside(open, () => setOpen(false))
-
-  return (
-    <div ref={box} className="relative">
-      <Chip
-        title="Filters kept under a name"
-        pressed={open}
-        onClick={() => setOpen(!open)}
-        label={`Saved filters, ${String(saved.length)}`}
-      >
-        <BookmarksSimpleIcon />
-        Saved{saved.length > 0 ? ` · ${String(saved.length)}` : ''}
-        <CaretDownIcon />
-      </Chip>
-      {open ? (
-        <div
-          role="menu"
-          aria-label="Saved filters"
-          className="absolute top-full right-0 z-30 mt-1 min-w-48 rounded-lg border border-zinc-800 bg-zinc-950 py-1 shadow-xl"
-        >
-          {saved.length === 0 ? (
-            <p className="text-2xs px-2 py-1.5 text-zinc-500">
-              Nothing saved yet. Set some filters and press Save.
-            </p>
-          ) : (
-            saved.map((each) => (
-              <div
-                key={each.name}
-                className="text-2xs flex items-center gap-2 px-2 py-1 hover:bg-zinc-900"
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    onApply(each.query)
-                    setOpen(false)
-                  }}
-                  className="min-w-0 flex-1 truncate text-left text-zinc-200"
-                >
-                  {each.name}
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Forget ${each.name}`}
-                  title="Forget it"
-                  onClick={() => onForget(each.name)}
-                  className="rounded p-0.5 text-zinc-600 hover:text-zinc-200"
-                >
-                  <XIcon />
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-/**
  * The first cut: which material, what size, held how, which kind, and whose.
  *
  * **It has to fit without scrolling.** A panel somebody scrolls to see what they
@@ -854,16 +992,13 @@ export const FilterPanel = ({
   holding,
   materialGroup,
   onMaterial,
-  saved,
-  onSave,
-  onApply,
-  onForget,
-  onClear,
+  catalogNumberSearch,
   only,
   compact = false,
+  toolbar = false,
+  matching: matchingFilters,
 }: FilterPanelProps) => {
-  const [naming, setNaming] = useState(false)
-  const [name, setName] = useState('')
+  const [openToolbarFilter, setOpenToolbarFilter] = useState<string | null>(null)
 
   /** What the whole catalog holds of each axis, whatever is on screen. */
   const held = (key: string): ReadonlyMap<string, number> =>
@@ -1012,45 +1147,196 @@ export const FilterPanel = ({
     ? QUICK_FILTERS.filter((filter) => only.includes(filter.key))
     : QUICK_FILTERS
 
+  const toolbarBox = useCloseOnOutside(toolbar && openToolbarFilter !== null, () =>
+    setOpenToolbarFilter(null),
+  )
+
+  const toolbarBound = (filter: QuickFilter): string => {
+    const bound = query.ranges[filter.key]
+    if (bound?.min === undefined && bound?.max === undefined) {
+      return 'Any'
+    }
+    const shown = (value: number): string =>
+      filter.kind === 'length' ? formatLength(value, unit) : String(value)
+    if (bound?.min !== undefined && bound.max !== undefined) {
+      return bound.min === bound.max
+        ? `= ${shown(bound.min)}`
+        : `${shown(bound.min)}–${shown(bound.max)}`
+    }
+    return bound?.min !== undefined ? `≥ ${shown(bound.min)}` : `≤ ${shown(bound?.max ?? 0)}`
+  }
+
+  const toolbarTerm = (filter: QuickFilter, options: ReadonlyArray<TileOption>): string => {
+    const chosen = chosenFor(filter)
+    if (chosen.length === 0) {
+      return 'Any'
+    }
+    if (chosen.length > 1) {
+      return `${String(chosen.length)} selected`
+    }
+    return options.find((option) => option.value === chosen[0])?.label ?? chosen[0] ?? 'Any'
+  }
+
+  const renderToolbarFilter = (filter: QuickFilter): ReactNode => {
+    const counted = counts(filter.key)
+    if (filter.shape === 'range') {
+      return (
+        <ToolbarFilter
+          key={filter.key}
+          icon={filter.icon}
+          label={filter.label}
+          summary={toolbarBound(filter)}
+          open={openToolbarFilter === filter.key}
+          onOpen={() => setOpenToolbarFilter(openToolbarFilter === filter.key ? null : filter.key)}
+        >
+          <RangeFilter
+            label={filter.label}
+            bound={query.ranges[filter.key]}
+            onBound={(next) => setBound(filter.key, next)}
+            unit={unit}
+            kind={filter.kind ?? 'length'}
+          />
+        </ToolbarFilter>
+      )
+    }
+
+    const options = optionsFor(filter)
+    if (options.length === 0) {
+      return null
+    }
+    const chosen = chosenFor(filter)
+    return (
+      <ToolbarFilter
+        key={filter.key}
+        icon={filter.icon}
+        label={filter.label}
+        summary={toolbarTerm(filter, options)}
+        open={openToolbarFilter === filter.key}
+        onOpen={() => setOpenToolbarFilter(openToolbarFilter === filter.key ? null : filter.key)}
+      >
+        <ToolbarOptions
+          filter={filter}
+          options={options}
+          chosen={chosen}
+          counted={counted}
+          onToggle={(value) => toggle(filter, value)}
+          onAll={(values) => setTerm(filter.key, [...new Set([...chosen, ...values])])}
+          onAny={() => {
+            if (filter.mode === 'single') {
+              onMaterial(null)
+              return
+            }
+            setTerm(filter.key, [])
+          }}
+        />
+      </ToolbarFilter>
+    )
+  }
+
+  const renderMatchingFilter = (): ReactNode => {
+    if (matchingFilters === undefined) {
+      return null
+    }
+    const floorChanged = matchingFilters.floor.value > matchingFilters.floor.sheetValue
+    const clampingChanged =
+      !matchingFilters.clamping.rule.vendorSpec ||
+      matchingFilters.clamping.rule.perDiameter !== matchingFilters.clamping.sheet
+    const drillChanged =
+      matchingFilters.drill !== undefined &&
+      (matchingFilters.drill.over !== matchingFilters.drill.sheet.over ||
+        matchingFilters.drill.under !== matchingFilters.drill.sheet.under)
+    return (
+      <>
+        <ToolbarFilter
+          icon={<CircleIcon />}
+          label="Floor radius"
+          summary={floorChanged ? formatLength(matchingFilters.floor.value, unit) : 'Any'}
+          open={openToolbarFilter === 'floor-radius'}
+          onOpen={() =>
+            setOpenToolbarFilter(openToolbarFilter === 'floor-radius' ? null : 'floor-radius')
+          }
+        >
+          <FloorAllowanceFields
+            value={matchingFilters.floor.value}
+            onChange={matchingFilters.floor.onChange}
+            sheetValue={matchingFilters.floor.sheetValue}
+            unit={unit}
+          />
+        </ToolbarFilter>
+        <ToolbarFilter
+          icon={<HolderIcon />}
+          label="Clamping"
+          summary={
+            clampingChanged ? `${String(matchingFilters.clamping.rule.perDiameter)}×D` : 'Any'
+          }
+          open={openToolbarFilter === 'clamping'}
+          onOpen={() => setOpenToolbarFilter(openToolbarFilter === 'clamping' ? null : 'clamping')}
+        >
+          <ClampingLengthFields
+            rule={matchingFilters.clamping.rule}
+            onChange={matchingFilters.clamping.onChange}
+            sheet={matchingFilters.clamping.sheet}
+          />
+        </ToolbarFilter>
+        {matchingFilters.drill === undefined ? null : (
+          <ToolbarFilter
+            icon={<CircleIcon />}
+            label="Drill deviation"
+            summary={drillChanged ? 'Set' : 'Any'}
+            open={openToolbarFilter === 'drill-deviation'}
+            onOpen={() =>
+              setOpenToolbarFilter(
+                openToolbarFilter === 'drill-deviation' ? null : 'drill-deviation',
+              )
+            }
+          >
+            <DrillDeviationFields
+              over={matchingFilters.drill.over}
+              under={matchingFilters.drill.under}
+              onChange={matchingFilters.drill.onChange}
+              sheet={matchingFilters.drill.sheet}
+              unit={unit}
+            />
+          </ToolbarFilter>
+        )}
+      </>
+    )
+  }
+
+  if (toolbar) {
+    return (
+      <div ref={toolbarBox} className="flex min-w-0 flex-col gap-1">
+        <div className="grid grid-cols-2 gap-1 sm:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8">
+          {catalogNumberSearch === undefined ? null : (
+            <label className="flex min-w-0 flex-col gap-1">
+              <input
+                type="search"
+                value={catalogNumberSearch.value}
+                onChange={(event) => catalogNumberSearch.onChange(event.target.value)}
+                placeholder="Catalog number"
+                aria-label="Search by catalog number"
+                className="text-2xs h-8 min-w-0 rounded border border-zinc-800 bg-zinc-950 px-2 text-zinc-100"
+              />
+            </label>
+          )}
+          {shownFilters.map(renderToolbarFilter)}
+          {renderMatchingFilter()}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex min-h-0 flex-col gap-2">
-      {compact ? null : (
-        <div className="flex items-center gap-2">
-          <h3 className="text-2xs font-semibold tracking-wide text-zinc-400 uppercase">Filters</h3>
-          <span className="ml-auto flex items-center gap-1">
-            <SavedMenu saved={saved} onApply={onApply} onForget={onForget} />
-            {naming ? (
-              <input
-                autoFocus
-                aria-label="Name for this filter"
-                placeholder="Name it, then Enter"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    onSave(name)
-                    setName('')
-                    setNaming(false)
-                  }
-                  if (event.key === 'Escape') {
-                    setNaming(false)
-                  }
-                }}
-                onBlur={() => setNaming(false)}
-                className="text-2xs w-32 rounded border border-zinc-700 bg-transparent px-1.5 py-0.5 text-zinc-100 outline-none"
-              />
-            ) : (
-              <Chip title="Keep what is set now, under a name" onClick={() => setNaming(true)}>
-                <BookmarkSimpleIcon />
-                Save
-              </Chip>
-            )}
-            <Chip title="Clear every filter" onClick={onClear}>
-              <BroomIcon />
-              Clear
-            </Chip>
-          </span>
-        </div>
+      {compact || catalogNumberSearch === undefined ? null : (
+        <input
+          type="search"
+          value={catalogNumberSearch.value}
+          onChange={(event) => catalogNumberSearch.onChange(event.target.value)}
+          placeholder="Catalog number"
+          aria-label="Search by catalog number"
+          className="text-2xs w-48 rounded border border-zinc-800 bg-zinc-950 px-2 py-1 text-zinc-100"
+        />
       )}
 
       {/*
