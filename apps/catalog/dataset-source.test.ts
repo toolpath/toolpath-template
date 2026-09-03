@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { datasetSource } from './dataset-source'
+import { datasetSource, profilesSource } from './dataset-source'
 
 const PATHS = { scraped: '/repo/scrape-out/catalog.json', sample: '/pkg/sample-catalog.json' }
 const version = (found: Record<string, number | null>) => (path: string) => found[path] ?? null
@@ -9,6 +9,7 @@ describe('which dataset a build bundles', () => {
     expect(datasetSource(PATHS, 6, () => true, version({ [PATHS.scraped]: 6 }))).toEqual({
       path: PATHS.scraped,
       note: null,
+      fromScrape: true,
     })
   })
 
@@ -16,6 +17,7 @@ describe('which dataset a build bundles', () => {
     expect(datasetSource(PATHS, 6, () => false, version({}))).toEqual({
       path: PATHS.sample,
       note: null,
+      fromScrape: false,
     })
   })
 
@@ -50,5 +52,46 @@ describe('which dataset a build bundles', () => {
       datasetSource(asked, 6, () => true, version({ '/elsewhere/catalog.json': 6 })).path,
     ).toBe('/elsewhere/catalog.json')
     expect(datasetSource(asked, 6, () => true, version({})).path).toBe(PATHS.sample)
+  })
+})
+
+const PROFILES = { scraped: '/repo/scrape-out/profiles.json', sample: '/pkg/sample-profiles.json' }
+const SCRAPED = { path: PATHS.scraped, note: null, fromScrape: true }
+const SAMPLE = { path: PATHS.sample, note: null, fromScrape: false }
+
+describe('which measured holder profiles a build bundles', () => {
+  it("takes the scrape's profiles beside the scrape's catalog", () => {
+    expect(profilesSource(PROFILES, SCRAPED, () => true).path).toBe(PROFILES.scraped)
+  })
+
+  it("takes the sample's profiles beside the sample catalog", () => {
+    expect(profilesSource(PROFILES, SAMPLE, () => false).path).toBe(PROFILES.sample)
+  })
+
+  /**
+   * **The regression this pairing exists for** (Paul, 2026-09-03: "the tool
+   * holders are being drawn"). A version-8 `catalog.json` was stood in for by
+   * the sample, the profiles alias kept pointing at the real
+   * `scrape-out/profiles.json` because the file was still there, and not one
+   * of its 374 guids named a sample holder — so `getProfile` answered null
+   * everywhere and every assembly fell back to the parametric holder, with
+   * nothing anywhere saying why.
+   */
+  it("does not pair a stood-in catalog with another dataset's measurements", () => {
+    expect(profilesSource(PROFILES, SAMPLE, () => true).path).toBe(PROFILES.sample)
+  })
+
+  it('says so when a scrape has holders nobody has measured', () => {
+    const chosen = profilesSource(PROFILES, SCRAPED, () => false)
+
+    expect(chosen.path).toBe(PROFILES.sample)
+    expect(chosen.note).toContain('No measured holder profiles')
+    expect(chosen.note).toContain(PATHS.scraped)
+  })
+
+  it('takes measurements named by hand over both', () => {
+    const asked = { ...PROFILES, override: '/elsewhere/profiles.json' }
+
+    expect(profilesSource(asked, SAMPLE, () => false).path).toBe('/elsewhere/profiles.json')
   })
 })

@@ -5,11 +5,10 @@ import { defineConfig, loadEnv } from 'vite'
 import tsconfigPaths from 'vite-tsconfig-paths'
 import { DEV_SERVER_EXCLUDE } from './dev-server-exclude'
 
-import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import { CATALOG_VERSION } from '@toolpath/catalog-data'
-import { datasetSource } from './dataset-source'
+import { datasetSource, profilesSource, type DatasetChoice } from './dataset-source'
 
 /**
  * Which dataset gets bundled.
@@ -24,49 +23,69 @@ import { datasetSource } from './dataset-source'
  * here, where whoever started the build can read it: `dataset-source.ts` says
  * why.
  */
-const datasetPath = (root: string): string => {
+const datasetChoice = (root: string): DatasetChoice => {
   const override = process.env.CATALOG_DATASET
-  const chosen = datasetSource(
-    {
-      ...(override ? { override: resolve(override) } : {}),
-      scraped: resolve(root, '../../scrape-out/catalog.json'),
-      sample: createRequire(import.meta.url).resolve('@toolpath/catalog-data/sample-catalog.json'),
-    },
-    CATALOG_VERSION,
+  return announce(
+    datasetSource(
+      {
+        ...(override ? { override: resolve(override) } : {}),
+        scraped: resolve(root, '../../scrape-out/catalog.json'),
+        sample: createRequire(import.meta.url).resolve(
+          '@toolpath/catalog-data/sample-catalog.json',
+        ),
+      },
+      CATALOG_VERSION,
+    ),
   )
+}
+
+/** Say what a build chose to stand in, where the build chose to stand something in. */
+const announce = (chosen: DatasetChoice): DatasetChoice => {
   if (chosen.note) {
     console.warn(`[catalog] ${chosen.note}`)
   }
-  return chosen.path
+  return chosen
 }
 
 /**
  * Which measured holder profiles get bundled.
  *
- * The same rule as {@link datasetPath}, one document over: a scrape that has
- * run `toolpath-scrape profiles` on this machine leaves `scrape-out/profiles.json`
- * beside its catalog, and a checkout has the committed synthetic sample. They
- * are two aliases rather than one because the profiles are a second document
- * on purpose — ~110 vertices per holder that only an assembly drawing needs,
- * and every page loads the catalog.
+ * A scrape that has run `toolpath-scrape profiles` on this machine leaves
+ * `scrape-out/profiles.json` beside its catalog, and a checkout has the
+ * committed synthetic sample. They are two aliases rather than one because the
+ * profiles are a second document on purpose — ~110 vertices per holder that
+ * only an assembly drawing needs, and every page loads the catalog.
  *
- * A dataset and a profiles document that disagree are not an error here:
- * `profileFor` answers null for a holder nobody measured, which is what a
- * partially-measured catalog genuinely is.
+ * **Which one is not decided here.** The profiles follow the dataset that won,
+ * because a profile is keyed by holder guid and one document's measurements
+ * match nothing in another document's holders: `dataset-source.ts` has the
+ * rule and what it cost to learn it.
+ *
+ * A dataset and a profiles document from the same side that disagree are still
+ * not an error: `profileFor` answers null for a holder nobody measured, which
+ * is what a partially-measured catalog genuinely is.
  */
-const profilesPath = (root: string): string => {
+const profilesPath = (root: string, dataset: DatasetChoice): string => {
   const override = process.env.CATALOG_PROFILES
-  if (override) {
-    return resolve(override)
-  }
-  const scraped = resolve(root, '../../scrape-out/profiles.json')
-  return existsSync(scraped)
-    ? scraped
-    : createRequire(import.meta.url).resolve('@toolpath/catalog-data/sample-profiles.json')
+  return announce(
+    profilesSource(
+      {
+        ...(override ? { override: resolve(override) } : {}),
+        scraped: resolve(root, '../../scrape-out/profiles.json'),
+        sample: createRequire(import.meta.url).resolve(
+          '@toolpath/catalog-data/sample-profiles.json',
+        ),
+      },
+      dataset,
+    ),
+  ).path
 }
 
 export default defineConfig(({ mode }) => {
   Object.assign(process.env, loadEnv(mode, process.cwd(), ''))
+  // Chosen once: the profiles document follows whichever catalog won, so a
+  // dataset stood in for cannot be paired with another one's measurements.
+  const dataset = datasetChoice(import.meta.dirname)
 
   return {
     // Server configuration reads the environment explicitly above. Prevent Vite
@@ -78,8 +97,8 @@ export default defineConfig(({ mode }) => {
       // the drawing renders against a second React and every hook throws.
       dedupe: ['react', 'react-dom'],
       alias: {
-        'catalog-dataset': datasetPath(import.meta.dirname),
-        'catalog-profiles': profilesPath(import.meta.dirname),
+        'catalog-dataset': dataset.path,
+        'catalog-profiles': profilesPath(import.meta.dirname, dataset),
       },
     },
     // 5173 is the DFM application's. Both are `react-router dev` and would
