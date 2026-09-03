@@ -124,11 +124,37 @@ describe('the catalog drawing', () => {
     )
   })
 
-  it('writes lengths in the unit the page is set to, because the package owns no unit', () => {
-    const container = drawn(<CatalogDrawing tool={tool} unit="in" dimensions />)
+  /**
+   * The drawing stopped writing its own figures in `@toolpath/tool-drawing`
+   * 0.2.0 — it draws the lines and the panel's table carries the numbers — so
+   * the unit no longer reaches it through a dimension. It still reaches the
+   * sentences the package prints and does not compose: the clearance gaps,
+   * which is why this asks for a stack and a feature rather than a bare tool.
+   */
+  it('writes the clearance in the unit the page is set to, because the package owns no unit', () => {
+    const container = drawn(
+      <CatalogDrawing tool={tool} assembly={assembly} unit="in" curve={curve} dimensions />,
+    )
 
-    expect(container.textContent).toMatch(/0\.118 in/)
+    expect(container.textContent).toMatch(/0\.276 in/)
     expect(container.textContent).not.toMatch(/\bmm\b/)
+  })
+
+  /**
+   * **Which line is which is answered by pointing.** The drawing letters
+   * nothing, so the code the panel hands down is the whole of what says a line
+   * is the flute length; `tool-details.test.tsx` pins the hover that produces
+   * it. A code this tool has no line for lights nothing rather than throwing,
+   * which is what `RE` and the two derived figures do.
+   */
+  it('lights the line the panel is pointing at, and nothing for a code it does not draw', () => {
+    const lit = drawn(<CatalogDrawing tool={tool} unit="mm" dimensions highlight="LCF" />)
+    expect(lit.querySelector('[data-dimension="LCF"]')?.getAttribute('data-lit')).toBe('true')
+    expect(lit.querySelectorAll('[data-lit="true"]')).toHaveLength(1)
+
+    const none = drawn(<CatalogDrawing tool={tool} unit="mm" dimensions highlight="RE" />)
+    expect(none.querySelector('[data-dimensions]')).not.toBeNull()
+    expect(none.querySelectorAll('[data-lit="true"]')).toHaveLength(0)
   })
 
   it('draws the material and the verdict this application reached, not one of its own', () => {

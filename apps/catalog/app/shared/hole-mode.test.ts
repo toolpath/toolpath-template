@@ -298,13 +298,25 @@ describe('whether a threading tool reaches the bottom', () => {
   it('refuses a tap whose thread is shorter than the hole', () => {
     const reach = { depth: 20, below: 20 }
 
-    expect(reaches(tap('SHORT', { LCF: 12, LBH: 30 }), reach)).toBe(false)
-    expect(reaches(tap('LONG', { LCF: 25, LBH: 30 }), reach)).toBe(true)
+    expect(reaches(tap('SHORT', { LCF: 12, OAL: 45, SFDM: 5 }), reach)).toBe(false)
+    expect(reaches(tap('LONG', { LCF: 25, OAL: 45, SFDM: 5 }), reach)).toBe(true)
   })
 
-  /** And one that cannot get down to the top of the thread. */
+  /**
+   * And one that cannot get down to the top of the thread.
+   *
+   * **The tools state their lengths rather than a length below holder**
+   * (2026-09-03). These fixtures used to plant `LBH` directly, which worked
+   * only while that field was the furthest a tool could stand out; it is the
+   * length it is set up at now, and the reach question is asked of
+   * `stickoutCeiling`. A test can no longer hand the screen the answer.
+   */
   it('refuses a tap that cannot reach past the part above it', () => {
-    expect(reaches(tap('STUBBY', { LCF: 25, LBH: 15 }), { depth: 20, below: 40 })).toBe(false)
+    // 33 long on a ⌀5 shank: 18 mm of ceiling, under its own 25 of flute, so
+    // it goes in as far as it can and still stops 15 short of the drop.
+    expect(reaches(tap('STUBBY', { LCF: 25, OAL: 33, SFDM: 5 }), { depth: 20, below: 40 })).toBe(
+      false,
+    )
   })
 
   /** A number the vendor never stated cannot refuse a tool. */
@@ -316,7 +328,7 @@ describe('whether a threading tool reaches the bottom', () => {
     const { made, short } = makersFor(
       threadNamed('M6×1')!,
       'cut tap',
-      [tap('SHORT', { LCF: 5, LBH: 30 }), tap('LONG', { LCF: 25, LBH: 30 })],
+      [tap('SHORT', { LCF: 5, OAL: 45, SFDM: 5 }), tap('LONG', { LCF: 25, OAL: 45, SFDM: 5 })],
       { depth: 20, below: 20 },
     )
 
@@ -333,7 +345,7 @@ describe('whether a threading tool reaches the bottom', () => {
     const { made, short } = makersFor(
       threadNamed('M6×1')!,
       'cut tap',
-      [tap('WAY', { LCF: 5, LBH: 30 }), tap('NEAR', { LCF: 18, LBH: 30 })],
+      [tap('WAY', { LCF: 5, OAL: 45, SFDM: 5 }), tap('NEAR', { LCF: 18, OAL: 45, SFDM: 5 })],
       { depth: 20, below: 20 },
     )
 
@@ -359,8 +371,13 @@ describe('why a threading tool is not on the list', () => {
   it('names the length that falls short, and by how much', () => {
     const reach = { depth: 20, below: 30 }
 
-    expect(shortfallOf(tap('SHORT', { LCF: 12, LBH: 40 }), reach)).toEqual({ code: 'LCF', by: 8 })
-    expect(shortfallOf(tap('STUBBY', { LCF: 25, LBH: 22 }), reach)).toEqual({
+    expect(shortfallOf(tap('SHORT', { LCF: 12, OAL: 60, SFDM: 6 }), reach)).toEqual({
+      code: 'LCF',
+      by: 8,
+    })
+    // 33 long: a third stays in the holder, so 22 is the furthest it goes —
+    // 8 short of the 30 mm drop.
+    expect(shortfallOf(tap('STUBBY', { LCF: 21, OAL: 33, SFDM: 3 }), reach)).toEqual({
       code: 'LBH',
       by: 8,
     })
@@ -370,25 +387,27 @@ describe('why a threading tool is not on the list', () => {
   it('says a swept tool fouls the part rather than inventing a number', () => {
     const reach = { depth: 20, below: 30, clears: () => false }
 
-    expect(shortfallOf(tap('FOULS', { LCF: 25, LBH: 40 }), reach)).toEqual({
+    expect(shortfallOf(tap('FOULS', { LCF: 25, OAL: 60, SFDM: 6 }), reach)).toEqual({
       code: 'LBH',
       by: null,
     })
   })
 
   it('says nothing about a tool that reaches', () => {
-    expect(shortfallOf(tap('LONG', { LCF: 25, LBH: 40 }), { depth: 20, below: 30 })).toBeNull()
-    expect(shortfallOf(tap('LONG', { LCF: 25, LBH: 40 }), null)).toBeNull()
+    expect(
+      shortfallOf(tap('LONG', { LCF: 25, OAL: 60, SFDM: 6 }), { depth: 20, below: 30 }),
+    ).toBeNull()
+    expect(shortfallOf(tap('LONG', { LCF: 25, OAL: 60, SFDM: 6 }), null)).toBeNull()
   })
 
   /**
    * A hole at the bottom of an open pocket: half an inch of fresh air over a
-   * quarter inch of hole. The tap's derived length below the holder is shorter
-   * than that drop and it reaches perfectly well, because what is beside the
-   * shank up there is nothing (Paul, 2026-08-31).
+   * quarter inch of hole. The tap cannot stand out as far as that drop and it
+   * reaches perfectly well anyway, because what is beside the shank up there
+   * is nothing (Paul, 2026-08-31).
    */
   it('sweeps rather than measures, where there is a curve to sweep', () => {
-    const stubby = tap('STUBBY', { LCF: 25, LBH: 18 })
+    const stubby = tap('STUBBY', { LCF: 25, OAL: 45, SFDM: 5 })
 
     expect(reaches(stubby, { depth: 20, below: 40 })).toBe(false)
     expect(reaches(stubby, { depth: 20, below: 40, clears: () => true })).toBe(true)

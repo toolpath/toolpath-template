@@ -114,6 +114,32 @@ const NO_DRAWING = {
     'A package may not import @toolpath/tool-drawing. Drawing belongs to an application; a package that needs one takes the picture as data. Import a type if a type is all you need.',
 }
 
+/**
+ * A stickout has one owner, and this is what keeps it that way.
+ *
+ * `clampWanted` is how much shank a shop keeps clamped. Subtract it from the
+ * overall length and you have a ceiling on how far a tool stands out — which is
+ * exactly what `clamping.ts` used to do, in parallel with `toolholding.ts`
+ * capping the same quantity at a share of the overall length, with neither
+ * consulting the other. On an ordinary ⌀1 in end mill the two answered 2.000 in
+ * and 3.333 in while the drawing drew 1.250 in, and the details table
+ * dimensioned a length that ran into the holder body.
+ *
+ * `stickoutRange` in `packages/catalog-data/src/stickout.ts` now compares all
+ * three caps in one place and owns `geometry.LBH`, `Assembly.stickout` and the
+ * reach ceiling alike. So this term is reachable from there and from nowhere
+ * else: a second caller doing `OAL - clampWanted(...)` is the original bug,
+ * written again.
+ *
+ * The same shape as the SDK, scraper and drawing rules above.
+ */
+const NO_CLAMP_MATH = {
+  name: '@toolpath/catalog-data',
+  importNames: ['clampWanted'],
+  message:
+    'Only stickout.ts may turn a clamping length into a stickout. Ask stickoutRange, setupStickout or stickoutCeiling for the number instead.',
+}
+
 const POLICIES = [
   may('server', ['server', 'shared', 'package']),
   may('route', ['route', 'component', 'client', 'shared', 'app-root', 'package']),
@@ -204,6 +230,7 @@ export default tseslint.config(
               message:
                 'Only @toolpath/part-server may use the Toolpath SDK at runtime. Types are fine; values ship the SDK to the browser.',
             },
+            NO_CLAMP_MATH,
           ],
         },
       ],
@@ -213,6 +240,20 @@ export default tseslint.config(
     // Packages run under Node without a bundler, so a relative import inside
     // one carries its `.js` extension — AGENTS.md § Shared Code.
     files: ['packages/*/src/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [RELATIVE_JS, NO_SDK, NO_SCRAPER, NO_DRAWING],
+          paths: [{ ...NO_CLAMP_MATH, name: './clamping.js' }],
+        },
+      ],
+    },
+  },
+  {
+    // The one module that turns a clamping length into a stickout — see
+    // NO_CLAMP_MATH. Everything else asks it for the answer.
+    files: ['packages/catalog-data/src/stickout.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',

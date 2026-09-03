@@ -39,8 +39,8 @@ describe('ingest', () => {
       OAL: 57,
       NOF: 4,
       SFDM: 6,
-      LBH: 39,
-      LD: 7.8,
+      LBH: 15,
+      LD: 3,
     })
     expect(catalog.tools[0]?.provenance.LD).toBe('derived')
     expect(catalog.tools[0]?.unitSystem).toBe('metric')
@@ -199,7 +199,7 @@ describe('ingest', () => {
 
     expect(catalog.builtAt).toBe('2026-09-01')
     expect(catalog.families[0]?.toolCount).toBe(1)
-    expect(catalog.version).toBe(7)
+    expect(catalog.version).toBe(8)
   })
 })
 

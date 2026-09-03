@@ -418,7 +418,10 @@ export const shortfallMarks = (
             detail:
               missed.code === 'LCF'
                 ? 'Its threaded length does not reach the bottom of the hole.'
-                : 'It does not stand far enough out of the holder to reach the bottom of the hole.',
+                : // Measured against the furthest it could stand out, not the
+                  // length it is set up at: pulling it out is the thing a shop
+                  // would try, and it still does not get there.
+                  'Pulled out as far as its shank allows, it still does not reach the bottom of the hole.',
           },
   }
 }

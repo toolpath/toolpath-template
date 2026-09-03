@@ -5,6 +5,7 @@ import { defineConfig, loadEnv } from 'vite'
 import tsconfigPaths from 'vite-tsconfig-paths'
 import { DEV_SERVER_EXCLUDE } from './dev-server-exclude'
 
+import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import { CATALOG_VERSION } from '@toolpath/catalog-data'

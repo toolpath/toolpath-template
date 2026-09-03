@@ -78,6 +78,15 @@ const CODES: Readonly<Record<string, string>> = {
   // it never hides a tool that fits, and the verdict is the judge's.
   'flute length past the corner': 'LCF',
   'length below holder': 'LBH',
+  /*
+    `furthest below holder` is deliberately absent, so the reach must suggests
+    no filter at all. The only column near it is `LBH`, which since 2026-09-03
+    is where the tool is *set* rather than the most it could stand out — always
+    the shorter of the two. Bounding `LBH` by a ceiling rule would hide tools
+    that reach the bottom perfectly well pulled further out, and tight is the
+    one direction a suggestion may not be: it never hides a tool that fits, and
+    the verdict is the judge's.
+  */
   'overall length': 'OAL',
   'L/D': 'LD',
   'corner radius': 'RE',

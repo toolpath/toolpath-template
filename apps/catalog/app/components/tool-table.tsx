@@ -797,18 +797,27 @@ export const ToolTable = ({
                   */
                   if (isStack(column.code) && (mark === undefined || mark.ok)) {
                     /**
-                     * **The tool's own length below the holder, until a holder
-                     * says otherwise** (Paul, 2026-09-01).
+                     * **The tool's own setup length, until a holder says
+                     * otherwise** (Paul, 2026-09-01).
                      *
-                     * On its own a tool stands out by what its shank allows —
-                     * the overall length less the clamping length. Choose a
-                     * holder and the part decides instead: the stack has to
-                     * come out far enough to clear it, and where that is a
-                     * different number the cell says so rather than quietly
-                     * showing a figure nobody entered.
+                     * On its own a tool stands out at `LBH` — its flutes, out
+                     * to the shop's shortest stickout and onto its step.
+                     * Choose a holder and the part decides instead: the stack
+                     * has to come out far enough to clear it, and where that
+                     * is a different number the cell says so rather than
+                     * quietly showing a figure nobody entered.
+                     *
+                     * **The number shown is the one the drawing draws**
+                     * (2026-09-03). This showed `requiredStickout` — what the
+                     * part demands — while the drawing beside it drew the
+                     * setup, which is that demand floored and stepped and held
+                     * under the ceiling. Two numbers, one column. `stickoutFor`
+                     * is the assembly's own, and the demand stays as the note
+                     * that explains why it moved.
                      */
                     const own = tool.geometry.LBH
-                    const needed = holding?.requiredStickout(tool) ?? null
+                    const needed = holding?.stickoutFor(tool) ?? null
+                    const demanded = holding?.requiredStickout(tool) ?? null
                     const picked = holding?.chosen(tool).holderGuid ?? null
                     const cannot = holding?.reachNote?.(tool) ?? null
                     const changed =
@@ -845,8 +854,12 @@ export const ToolTable = ({
                                 className="text-2xs font-sans text-amber-300"
                                 title={
                                   own === undefined
-                                    ? 'What this holder needs to clear the part'
-                                    : `The tool alone stands out ${formatGeometry('LBH', own, unit)}; this holder needs ${formatGeometry('LBH', needed, unit)} to clear the part`
+                                    ? 'What this stack is set up at'
+                                    : `The tool alone is set up at ${formatGeometry('LBH', own, unit)}; in this holder it stands out ${formatGeometry('LBH', needed, unit)}${
+                                        demanded === null
+                                          ? ''
+                                          : `, which is what it takes to clear the part (${formatGeometry('LBH', demanded, unit)}) on the shop’s step`
+                                      }`
                                 }
                               >
                                 {over ? 'holder needs' : 'holder'}
@@ -858,8 +871,8 @@ export const ToolTable = ({
                           <span
                             title={
                               holding === undefined || picked !== null
-                                ? 'The overall length less the shank held'
-                                : 'The overall length less the shank held — pick a holder and the part decides instead'
+                                ? 'How far the tool is set out of the holder'
+                                : 'How far the tool is set out of the holder — pick one and the part decides instead'
                             }
                           >
                             {formatGeometry('LBH', own, unit)}

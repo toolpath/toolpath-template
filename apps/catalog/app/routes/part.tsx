@@ -97,7 +97,13 @@ import {
   tapers,
 } from 'shared/holding'
 import { sectionOf } from 'shared/section-of'
-import { holdable, holderOptions, thresholdsFrom, type HolderOption } from 'shared/holder-choice'
+import {
+  holdable,
+  holderOptions,
+  policyOf,
+  thresholdsFrom,
+  type HolderOption,
+} from 'shared/holder-choice'
 import { closestMisses, type Format } from 'shared/judge'
 import { cautionedTypes, marksFor, shortfallMarks, testedCodes } from 'shared/tool-marks'
 import { knobValue, knobsWith } from 'shared/rules'
@@ -669,7 +675,18 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     vendorSpec: true,
     perDiameter: sheetClamping,
   })
-  const allTools = useMemo(() => withClampingLength(catalogTools, clamping), [clamping])
+  /**
+   * The floor and the step `LBH` is worked out on, from the same sheet the
+   * stickout control reads. Handed in rather than defaulted so the column, the
+   * drawing and the stickout slider are one number: `LBH` is the setup length
+   * since 2026-09-03, and a page re-deriving it under a different policy from
+   * the one the assembly uses would put the disagreement straight back.
+   */
+  const stickoutPolicy = useMemo(() => policyOf(thresholdsFrom()), [])
+  const allTools = useMemo(
+    () => withClampingLength(catalogTools, clamping, stickoutPolicy),
+    [clamping, stickoutPolicy],
+  )
   /** The sheet's knobs with what the page sets, so the judge reads the same numbers. */
   const knobs = useMemo(
     () =>

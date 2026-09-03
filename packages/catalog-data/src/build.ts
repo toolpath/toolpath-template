@@ -12,7 +12,7 @@ import {
 import type { ToolForm } from './forms.js'
 import { facetsFor } from './facets.js'
 import { type Collet, type Holder } from './toolholding.js'
-import { lengthBelowHolder } from './clamping.js'
+import { setupStickout } from './stickout.js'
 
 /**
  * What ingestion hands this package.
@@ -114,16 +114,24 @@ const formOf = (tool: ToolInput): { form: ToolForm; provenance: Provenance } => 
 /**
  * The facts this package works out for a tool, marked as its own.
  *
- * - `LBH`, length below holder: the overall length less the shank the shop
- *   keeps clamped — `clamping.ts` is the rule and the reasoning, and this
- *   builds with its default of the vendor's `LSCN` where one is stated and 3×D
- *   of the shank where none is. It replaced a rule of this package's own —
- *   flute length plus a diameter, capped at two thirds of the overall length —
- *   which disagreed with what the part page applied over the top, so the same
- *   tool read one way on the catalog page and another beside a feature (Paul,
- *   2026-09-02).
- * - `LD`: length below holder over cutting diameter, the "3×D" a shop reads
- *   reach in.
+ * - `LBH`, length below holder: **the length a machinist would set this tool
+ *   up at** — the flutes, or the neck on a necked tool, taken out to the
+ *   sheet's floor and onto its step, and held under whatever the clamping
+ *   rule, the hold share and any collet grip allow. `stickout.ts` is the rule
+ *   and the reasoning, and `setupStickout` is the only call that writes this
+ *   field, here and on the page.
+ *
+ *   It was the *ceiling* — `OAL` less the shank the shop keeps clamped — until
+ *   2026-09-03, which made the number in this column one a drawing beside it
+ *   would contradict, because the drawing drew the setup. The ceiling is still
+ *   worked out and still checked; it is `stickoutCeiling`, and it is not this
+ *   field.
+ *
+ *   A tool that states no flute length now carries no `LBH` at all, where it
+ *   used to get one from `OAL` and `SFDM` alone: without a head there is no
+ *   knowing where a setup starts.
+ * - `LD`: length below holder over cutting diameter, the "×D" a shop reads
+ *   reach in — now the ×D of the setup rather than of the ceiling.
  * - `form`: what the tool is in a CAM library's words.
  *
  * None is a vendor's column, so all are derived here, **once, where the
@@ -145,7 +153,7 @@ export const withDerived = (tool: ToolInput): CatalogTool => {
   const ours = (code: string) => geometry[code] === undefined || provenance[code] === 'derived'
 
   const { DC } = geometry
-  const below = ours('LBH') ? lengthBelowHolder(geometry) : null
+  const below = ours('LBH') ? setupStickout({ geometry, unitSystem: tool.unitSystem }) : null
   if (below !== null) {
     geometry.LBH = round(below)
     provenance.LBH = 'derived'

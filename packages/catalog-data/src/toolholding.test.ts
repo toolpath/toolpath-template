@@ -4,7 +4,6 @@ import {
   canHold,
   defaultStickout,
   holdBand,
-  minStickout,
   stickoutLimits,
   withStickout,
   colletFitsHolder,
@@ -17,6 +16,8 @@ import {
   type Holder,
 } from './toolholding.js'
 import { assembliesForFeatures, assemblyAgainst, unholdableTools } from './assembly-fit.js'
+/** The bounds alone: no floor, no step — so a case about the caps is only about the caps. */
+const BARE = { heldShare: 1 / 3, least: 0, step: { inch: 0, metric: 0 } }
 import type { FeatureDemand } from './fit.js'
 import type { CatalogTool } from './types.js'
 
@@ -151,7 +152,8 @@ describe('assembliesFor', () => {
 
     // Both start at the flutes; the collet with the shorter reach — the firmer grip — comes first.
     expect(found.map((each) => each.collet?.guid)).toEqual(['short', 'long'])
-    expect(found.map((each) => each.stickout)).toEqual([20, 20])
+    // 20 mm of flute, onto the 3 mm step.
+    expect(found.map((each) => each.stickout)).toEqual([21, 21])
     expect(found.map((each) => each.maxStickout)).toEqual([30, 40])
   })
 
@@ -327,35 +329,40 @@ describe('how far a tool stands out by default', () => {
   const gripped = collet({ guid: 'c', clampLength: 18 })
   const unpublished = collet({ guid: 'c', clampLength: null })
 
-  /** The shop's rule: length below holder, so nothing but shank is in the collet. */
-  it('starts at the flute length', () => {
-    expect(defaultStickout(tool({ guid: 't', geometry: { OAL: 60, LCF: 26 } }), gripped)).toBe(26)
-    expect(minStickout(tool({ guid: 't', geometry: { LCF: 26 } }))).toBe(26)
+  /**
+   * The flutes, out to the sheet's floor and onto its step — the same
+   * `stickoutRange().setup` that writes `geometry.LBH`. It was the bare flute
+   * length until 2026-09-03, when the default policy gained the floor and the
+   * step it had always had on the page: 26 mm of flute lands on the 27 mm step.
+   */
+  it('starts at the flutes, floored and stepped', () => {
+    expect(defaultStickout(tool({ guid: 't', geometry: { OAL: 60, LCF: 26 } }), gripped)).toBe(27)
   })
 
   /** REGO-FIX publishes no grip length; the default still stands, and only the ceiling is unknown. */
   it('still has a default when the collet publishes no grip length', () => {
     expect(defaultStickout(tool({ guid: 't', geometry: { OAL: 60, LCF: 26 } }), unpublished)).toBe(
-      26,
+      27,
     )
   })
 
   /**
    * A grip the tool cannot fully fill is not a reason to push the flutes into
-   * the collet: the stickout stays at the length below holder, the collet
-   * grips what shank there is, and `stickoutLimits.gripShort` says so.
+   * the collet: the stickout stays at the flutes, the collet grips what shank
+   * there is, and `stickoutLimits.gripShort` says so.
    */
-  it('stays at the length below holder even where the grip could not be filled', () => {
+  it('stays at the flutes even where the grip could not be filled', () => {
     expect(defaultStickout(tool({ guid: 't', geometry: { OAL: 40, LCF: 26 } }), gripped)).toBe(26)
     expect(
       stickoutLimits(tool({ guid: 't', geometry: { OAL: 40, LCF: 26 } }), gripped),
     ).toMatchObject({
       max: 26,
       gripShort: true,
+      limitedBy: 'collet',
     })
   })
 
-  it('falls back to the grip when the tool states no length below holder', () => {
+  it('falls back to the grip when the tool states no flute length', () => {
     expect(defaultStickout(tool({ guid: 't', geometry: { OAL: 60 } }), gripped)).toBe(42)
     expect(defaultStickout(tool({ guid: 't', geometry: { OAL: 60 } }), unpublished)).toBeNull()
   })
@@ -367,7 +374,7 @@ describe('how far a tool stands out by default', () => {
       [gripped],
     )[0]!
 
-    expect(assembly.stickout).toBe(26)
+    expect(assembly.stickout).toBe(27)
     expect(assembly.maxStickout).toBe(40)
     expect(withStickout(assembly, 35).stickout).toBe(35)
     expect(withStickout(assembly, 10).stickout).toBe(26)
@@ -389,10 +396,12 @@ describe('how far a tool may stand out of a holder', () => {
     expect(limits).toMatchObject({
       min: 19,
       max: 40,
-      default: 19,
+      // 19 mm of flute, onto the 3 mm step.
+      setup: 21,
       grip: 41,
       wantedGrip: 20,
       gripShort: false,
+      limitedBy: 'hold',
     })
   })
 
@@ -403,6 +412,7 @@ describe('how far a tool may stand out of a holder', () => {
     )
 
     expect(limits?.max).toBe(35)
+    expect(limits?.limitedBy).toBe('collet')
     const longGrip = collet({ guid: 'c', clampLength: 30 })
     expect(
       stickoutLimits(tool({ guid: 't', geometry: { DC: 6, OAL: 60, SFDM: 6, LCF: 19 } }), longGrip)
@@ -410,50 +420,61 @@ describe('how far a tool may stand out of a holder', () => {
     ).toBe(30)
   })
 
-  /** A stated length below holder past two thirds of the tool: the rule cannot be met, the physical bound wins, and the range collapses. */
+  /** More flute than the shop's clamping rule leaves: the rule cannot be met, the physical bound wins, and the range collapses. */
   it('collapses onto the shortest stickout when the grip rule cannot be met, and says so', () => {
     const limits = stickoutLimits(
       tool({ guid: 't', geometry: { DC: 16, OAL: 123, SFDM: 16, LCF: 89 } }),
       unpublished,
     )
 
-    expect(limits).toMatchObject({ min: 89, max: 89, gripShort: true, grip: 34, wantedGrip: 41 })
+    // 3×⌀16 wants 48 clamped, which is tighter than the 41 the hold share
+    // would keep — and before 2026-09-03 only the hold share was ever consulted
+    // here, so this said 41.
+    expect(limits).toMatchObject({
+      min: 89,
+      max: 89,
+      gripShort: true,
+      grip: 34,
+      wantedGrip: 48,
+      limitedBy: 'clamp',
+    })
   })
 
   /** Paul's rule: flutes plus what the holder needs, and never more than the tool allows. */
   it('starts at the flutes plus what the holder needs to clear the part', () => {
     const t = tool({ guid: 't', geometry: { DC: 6, OAL: 60, SFDM: 6, LCF: 19 } })
-    expect(stickoutLimits(t, unpublished, 27)?.default).toBe(27)
-    expect(stickoutLimits(t, unpublished, 10)?.default).toBe(19)
-    expect(stickoutLimits(t, unpublished, 55)?.default).toBe(40)
+    expect(stickoutLimits(t, unpublished, 27)?.setup).toBe(27)
+    expect(stickoutLimits(t, unpublished, 10)?.setup).toBe(21)
+    expect(stickoutLimits(t, unpublished, 55)?.setup).toBe(40)
   })
 
-  /** The ceiling is the sheet's: what leaves `good hold` in the holder. */
-  it('takes the held share from the sheet', () => {
+  /**
+   * **The two knobs, in one place.** The sheet carries `good hold` as a share
+   * of the overall length and `minimum clamping length` as a length of shank,
+   * and the ceiling is whichever bites first. Loosen the hold share far enough
+   * and the clamping rule takes over — which is the reconciliation this module
+   * exists for: before 2026-09-03 the second knob capped a number in another
+   * file and this one never saw it, so a quarter answered 45.
+   */
+  it('takes the tighter of the sheet’s two knobs, and names it', () => {
     const t = tool({ guid: 't', geometry: { DC: 6, OAL: 60, SFDM: 6, LCF: 19 } })
     const share = (heldShare: number) => ({ heldShare, least: 0, step: { inch: 0, metric: 0 } })
-    expect(stickoutLimits(t, unpublished, null, share(1 / 3))?.max).toBe(40)
-    expect(stickoutLimits(t, unpublished, null, share(1 / 4))?.max).toBe(45)
+    expect(stickoutLimits(t, unpublished, null, share(1 / 3))).toMatchObject({
+      max: 40,
+      limitedBy: 'hold',
+    })
+    expect(stickoutLimits(t, unpublished, null, share(1 / 4))).toMatchObject({
+      max: 42,
+      limitedBy: 'clamp',
+    })
   })
 
-  /** A neck is not for gripping: the least stickout is the shoulder. A shoulder as wide as the shank is shank. */
-  it('keeps a collet off a neck, and grips a full-width shoulder anywhere', () => {
+  /** A shop that clamps more has less reach, and the same call says so. */
+  it('follows the shop’s clamping rule', () => {
+    const t = tool({ guid: 't', geometry: { DC: 6, OAL: 60, SFDM: 6, LCF: 19 } })
     expect(
-      minStickout(
-        tool({
-          guid: 't',
-          geometry: { LCF: 12, SFDM: 6, 'shoulder-length': 30, 'shoulder-diameter': 5 },
-        }),
-      ),
-    ).toBe(30)
-    expect(
-      minStickout(
-        tool({
-          guid: 't',
-          geometry: { LCF: 12, SFDM: 6, 'shoulder-length': 30, 'shoulder-diameter': 6 },
-        }),
-      ),
-    ).toBe(12)
+      stickoutLimits(t, unpublished, null, BARE, { vendorSpec: true, perDiameter: 6 })?.max,
+    ).toBe(24)
   })
 
   it('grades the hold by the share of the tool left in the holder', () => {
@@ -475,7 +496,7 @@ describe('how far a tool may stand out of a holder', () => {
   })
 })
 
-describe('the default stickout, by the sheet', () => {
+describe('the setup stickout, by the sheet', () => {
   const unpublished = collet({ guid: 'c', clampLength: null })
   /** Paul's numbers: half an inch at least, on an eighth of an inch for inch tools and 3 mm for metric ones. */
   const policy = { heldShare: 1 / 3, least: 12.7, step: { inch: 3.175, metric: 3 } }
@@ -492,32 +513,45 @@ describe('the default stickout, by the sheet', () => {
 
   it('lands on the step nearest what the holder needs, never under it', () => {
     // 20.3 needed: the nearest eighth is 19.05, which is short, so the one above.
-    expect(stickoutLimits(inch, unpublished, 20.3, policy)?.default).toBeCloseTo(22.225, 6)
+    expect(stickoutLimits(inch, unpublished, 20.3, policy)?.setup).toBe(22.23)
     // 21.5 needed: 22.225 is nearest and clears.
-    expect(stickoutLimits(inch, unpublished, 21.5, policy)?.default).toBeCloseTo(22.225, 6)
+    expect(stickoutLimits(inch, unpublished, 21.5, policy)?.setup).toBe(22.23)
   })
 
   it('stands out at least the least worth setting up, on the metric step for a metric tool', () => {
     // 8 mm of flute and 10 needed: half an inch is the floor, and 12 is the 3 mm step nearest it.
-    expect(stickoutLimits(metric, unpublished, 10, policy)?.default).toBe(12)
-    expect(stickoutLimits(metric, unpublished, null, policy)?.default).toBe(12)
+    expect(stickoutLimits(metric, unpublished, 10, policy)?.setup).toBe(12)
+    expect(stickoutLimits(metric, unpublished, null, policy)?.setup).toBe(12)
   })
 
+  /**
+   * A 15 mm tool on a ⌀3 shank: 3×D wants 9 clamped, which leaves exactly its
+   * 6 mm of flute. The half-inch floor asks for more than the tool has, and
+   * the ceiling wins — as it must, or the drawing stands a tool out further
+   * than the shank behind it allows.
+   */
   it('goes no further than the tool allows', () => {
     const stubby = tool({
       guid: 's',
       unitSystem: 'inch',
       geometry: { DC: 3, OAL: 15, SFDM: 3, LCF: 6 },
     })
-    // Two thirds of 15 is 10: under the half-inch floor, so the floor gives way.
     expect(stickoutLimits(stubby, unpublished, null, policy)).toMatchObject({
-      max: 10,
-      default: 10,
+      max: 6,
+      setup: 6,
+      limitedBy: 'clamp',
     })
   })
 
-  it('is the bounds alone without a policy', () => {
-    expect(stickoutLimits(inch, unpublished, 20.3)?.default).toBe(20.3)
-    expect(stickoutLimits(metric, unpublished)?.default).toBe(8)
+  /**
+   * **The default policy is the sheet's now**, so "the bounds alone" is
+   * something a caller asks for rather than what it gets by omission. It was
+   * the other way round until 2026-09-03, and that is precisely why `LBH` came
+   * out as a bare flute length the first time this reading was tried.
+   */
+  it('is the bounds alone only when asked for them', () => {
+    expect(stickoutLimits(inch, unpublished, 20.3, BARE)?.setup).toBe(20.3)
+    expect(stickoutLimits(metric, unpublished, null, BARE)?.setup).toBe(8)
+    expect(stickoutLimits(metric, unpublished)?.setup).toBe(12)
   })
 })

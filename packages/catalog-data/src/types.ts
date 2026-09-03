@@ -90,21 +90,26 @@ export const GEOMETRY_FIELDS: Readonly<Record<string, GeometryField>> = {
     iso: 'LCF',
   },
   /**
-   * Not a vendor's column. Worked out in `build.ts`: flute length plus one
-   * diameter — the shop rule for the least a tool has to stand out — capped so
-   * a third of the overall length stays in the holder. Stickout starts here,
-   * so it is geometry like any stated dimension, with `derived` provenance.
+   * Not a vendor's column. Worked out by `stickout.ts` and written in
+   * `build.ts`: **the length a machinist would set this tool up at** — the
+   * flutes (or the neck) out to the sheet's floor and onto its step, held
+   * under the clamping rule, the hold share and any collet grip.
+   *
+   * It stated the *ceiling* until 2026-09-03 — `OAL` less the shank the shop
+   * keeps clamped — which is a different question and was answered in four
+   * different places. The ceiling is `stickoutCeiling`; this is the setup, and
+   * it is the same number the drawing beside it draws.
    */
   LBH: {
     code: 'LBH',
     label: 'Length below holder',
     unit: 'mm',
     description:
-      'The overall length less the shank the shop keeps clamped — the minimum clamping length, ×D of the shank. Where stickout starts.',
+      'How far the tool is set out of the holder: its flutes, out to the shop’s shortest stickout and onto its step, within the shank the shop keeps clamped.',
     iso: null,
   },
   /**
-   * Length below holder over cutting diameter — the "3×D" a shop reads reach
+   * Length below holder over cutting diameter — the "×D" a shop reads reach
    * in. Derived from LBH and DC; no vendor states it.
    */
   LD: {
@@ -350,5 +355,12 @@ export interface Catalog {
  * three-value union rejected. A version-6 dataset cannot be repaired by reading
  * it: it holds no toolholding at all, because nothing ever wrote any. Re-ingest
  * the store.
+ *
+ * 8 — `LBH` is the length the tool is set up at rather than the most it could
+ * stand out, and `LD` follows it. Both are derived, so unlike 5, 6 and 7 this
+ * one **rebuilds**: `scripts/rebuild.mjs` re-runs `withDerived` over an
+ * existing dataset and writes what a fresh ingest would. A tool that states no
+ * flute length now carries neither field, where a version-7 document gave it
+ * both from `OAL` and `SFDM` alone.
  */
-export const CATALOG_VERSION = 7
+export const CATALOG_VERSION = 8

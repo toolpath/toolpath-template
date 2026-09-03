@@ -29,7 +29,7 @@ UndercutFilletedTslot,,slot mill,,diameter <= entry width,must,
 UndercutDovetail,,dovetail mill,,tip angle = taper angle + chamfer angle tolerance,must,
 UndercutFilletedDovetail,,dovetail mill,,tip angle = taper angle + chamfer angle tolerance,must,
 Thread*,,thread mill,,diameter <= hole diameter - thread mill margin,must,98 % of the minor diameter
-*,,*,,length below holder >= depth below top,must,"What stands out of the holder has to reach the bottom of the feature from the top of the part. With no holder chosen the length below holder is the overall length less the minimum clamping length, so a tool that cannot reach at the stickout its shank allows is not eligible"
+*,,*,,furthest below holder >= depth below top,must,"What stands out of the holder has to reach the bottom of the feature from the top of the part. Measured against the furthest the tool could ever stand out — its overall length less whichever holds it back first, the shank the shop keeps clamped or the share that stays in the holder — so a tool that cannot reach even pulled all the way out is not eligible. Length below holder is where the tool is set, which is shorter, and refusing on it would drop tools a shop reaches with by pulling them out"
 *,ball only,*,,form is ball end mill,must,The kernel says only a ball finishes this surface without a cusp
 ContourSurface,,*,,form is not flat end mill,must,A flat end cannot finish a 3D surface: the engine's invalid finishing type — terminal finishing rules for everything
 SlantedFace,,*,,form is not flat end mill,must,Same as a contour surface

@@ -87,7 +87,7 @@ describe('buildCatalog', () => {
 
     expect(catalog.builtAt).toBe('2026-08-27')
     // Literal on purpose: moving it is a decision, and this is where it is made.
-    expect(catalog.version).toBe(7)
+    expect(catalog.version).toBe(8)
     expect(catalog.tools).toEqual([])
   })
 })
@@ -106,45 +106,52 @@ describe('undefinedGeometryCodes', () => {
 
 describe('what the pipeline works out for itself', () => {
   /**
-   * **The clamping rule, built in** (Paul, 2026-09-02: "I think we should do
-   * what I did"). The dataset used to carry a rule of this package's own —
-   * flute length plus a diameter, capped at two thirds of the overall length —
-   * while the part page applied the shop's clamping rule over the top, so the
-   * same tool read one way on the catalog page and another beside a feature.
-   * `clamping.ts` is the rule and holds its own tests; these are that the
-   * build uses it.
+   * **`LBH` is the setup length** (Justin Gray, 2026-09-03). It was the
+   * ceiling — the overall length less the shank the shop keeps clamped — which
+   * made it one of four unreconciled answers to how far a tool stands out, and
+   * the one the drawing beside it contradicted. `stickout.ts` is the rule and
+   * holds its own tests; these are that the build uses it and nothing else.
    */
-  it('derives length below holder from the clamping rule, and L/D from that', () => {
-    // 57 long on a ⌀6 shank, 3×D clamped: 39 below the holder, and 39 ÷ 5.
+  it('derives the setup stickout into LBH, and L/D from that', () => {
+    // 13 mm of flute, up to the half-inch floor and onto the 3 mm step: 15,
+    // and 15 ÷ 5. Its ceiling is 39, which is what this used to say.
     const derived = withDerived(
       tool({ guid: 'a', familyId: 'f', geometry: { DC: 5, SFDM: 6, LCF: 13, OAL: 57 } }),
     )
 
-    expect(derived.geometry.LBH).toBe(39)
+    expect(derived.geometry.LBH).toBe(15)
     expect(derived.provenance.LBH).toBe('derived')
-    expect(derived.geometry.LD).toBe(7.8)
+    expect(derived.geometry.LD).toBe(3)
     expect(derived.provenance.LD).toBe('derived')
   })
 
-  /** No shank stated: the cut stands in, because there is nothing else. */
-  it('measures the clamp against the cut where no shank is stated', () => {
+  /**
+   * No flute length, no head, no knowing where a setup starts — so no `LBH`
+   * and no `LD`. A version-7 document gave this tool both, from `OAL` and
+   * `SFDM` alone, which was only ever possible because the field meant the
+   * ceiling.
+   */
+  it('derives no setup at all for a tool that states no flute length', () => {
     const derived = withDerived(
-      tool({ guid: 'a', familyId: 'f', geometry: { DC: 5, LCF: 13, OAL: 57 } }),
+      tool({ guid: 'a', familyId: 'f', geometry: { DC: 5, SFDM: 6, OAL: 57 } }),
     )
 
-    expect(derived.geometry.LBH).toBe(42)
+    expect(derived.geometry.LBH).toBeUndefined()
+    expect(derived.geometry.LD).toBeUndefined()
   })
 
   /**
-   * And where the rule would leave the holder gripping the head, the tool comes
-   * out to the head plus a diameter of shank instead.
+   * Where the shop's clamping rule leaves less than the flutes, the ceiling
+   * wins and the tool is drawn pushed all the way in — 3×⌀6 of a 24 mm tool
+   * leaves 6, under its 13 of flute, so the setup collapses onto the flutes
+   * rather than standing out to the sheet's step.
    */
-  it('leaves a diameter of shank showing rather than burying the head', () => {
+  it('holds the setup under the ceiling where the rule would bury the head', () => {
     const stubby = withDerived(
       tool({ guid: 'a', familyId: 'f', geometry: { DC: 5, SFDM: 6, LCF: 13, OAL: 24 } }),
     )
 
-    expect(stubby.geometry.LBH).toBe(19)
+    expect(stubby.geometry.LBH).toBe(13)
   })
 
   /** A figure this package worked out last time is replaced by what the rule says now. */
@@ -153,12 +160,12 @@ describe('what the pipeline works out for itself', () => {
       tool({
         guid: 'a',
         familyId: 'f',
-        geometry: { DC: 5, SFDM: 6, LCF: 13, OAL: 57, LBH: 13, LD: 2.6 },
+        geometry: { DC: 5, SFDM: 6, LCF: 13, OAL: 57, LBH: 39, LD: 7.8 },
         provenance: { LBH: 'derived', LD: 'derived' },
       }),
     )
-    expect(rebuilt.geometry.LBH).toBe(39)
-    expect(rebuilt.geometry.LD).toBe(7.8)
+    expect(rebuilt.geometry.LBH).toBe(15)
+    expect(rebuilt.geometry.LD).toBe(3)
 
     const stated = withDerived(
       tool({
@@ -191,9 +198,10 @@ describe('what the pipeline works out for itself', () => {
       families: [family({ id: 'f', tools: [tool({ guid: 'a', familyId: 'f' })] })],
     })
 
-    // ⌀6 shank, 50 long, 3×D clamped: 32 below the holder, and 32 ÷ 5.
-    expect(catalog.tools[0]?.geometry.LBH).toBe(32)
-    expect(catalog.tools[0]?.geometry.LD).toBe(6.4)
+    // 12 mm of flute, already on the 3 mm step and under the 32 its shank
+    // allows: set up at 12, and 12 ÷ 5.
+    expect(catalog.tools[0]?.geometry.LBH).toBe(12)
+    expect(catalog.tools[0]?.geometry.LD).toBe(2.4)
     expect(catalog.facets.ranges.map((axis) => axis.key)).toEqual(
       expect.arrayContaining(['LBH', 'LD']),
     )

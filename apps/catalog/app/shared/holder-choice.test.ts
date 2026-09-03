@@ -115,8 +115,14 @@ describe('the holders that work, pulled out to what the feature needs', () => {
       value === null ? null : Math.round(value * 100) / 100
     expect(options.map((each) => [each.holder.guid, rounded(each.stickout), each.grade])).toEqual([
       ['slim', 13, 'good'],
-      // Wanted 30.5; the tool allows 2/3 of 38 = 25.33, and at that the nose collides.
-      ['wide', 25.33, 'bad'],
+      /*
+        Wanted 30.5. The tool allows 20: 3×⌀6 of shank has to stay clamped in
+        a 38 mm tool, which is tighter than the 25.33 the hold share alone
+        would leave — and until 2026-09-03 only the hold share was consulted
+        here, because the clamping rule capped a different number in another
+        file. At 20 the nose collides.
+      */
+      ['wide', 20, 'bad'],
     ])
     expect(options[1]?.clears).toBe(false)
     expect(describeGrade(options[1]!)).toContain('collides')

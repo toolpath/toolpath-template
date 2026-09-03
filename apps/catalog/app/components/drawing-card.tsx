@@ -21,6 +21,21 @@ import { CatalogDrawing } from './catalog-drawing'
 import { LengthBox } from './length-box'
 
 /**
+ * What set the ceiling, in the words of the knob it came from.
+ *
+ * Three rules cap a stickout and the tightest wins — `stickoutRange` in
+ * `@toolpath/catalog-data` is where they are compared. Before 2026-09-03 two of
+ * them capped different numbers in different files, so there was nothing to
+ * name.
+ */
+const CEILING_SAYS: Record<'clamp' | 'hold' | 'collet' | 'none', string> = {
+  clamp: ' — held here by the shank the shop keeps clamped',
+  hold: ' — held here by the share of the tool that stays in the holder',
+  collet: ' — held here by the collet’s published grip length',
+  none: '',
+}
+
+/**
  * The drawing, as a card, wherever the page decides to put it.
  *
  * The picker picks; the page places. Both read one `BuildSelection`, so they
@@ -112,7 +127,7 @@ export const DrawingCard = ({
             <LengthBox
               id="stickout"
               label="stickout"
-              value={stickout ?? limits.default}
+              value={stickout ?? limits.setup}
               unit={unit}
               min={overLimit ? limits.min : (least ?? limits.min)}
               max={limits.max ?? undefined}
@@ -120,7 +135,14 @@ export const DrawingCard = ({
             />
             <span
               className="text-2xs text-zinc-600"
-              title="This application's default and bounds, not a vendor's"
+              /*
+                **Which rule set the ceiling**, because a bound nobody can trace
+                is a number to argue with. `limitedBy` is the one place the
+                sheet's two knobs are compared — `minimum clamping length`
+                against `good hold` — and saying which won is what stops the
+                next reader assuming the other one is broken (2026-09-03).
+              */
+              title={`This application's bounds, not a vendor's${CEILING_SAYS[limits.limitedBy ?? 'none']}`}
             >
               {limits.gripShort
                 ? `only ${formatLength(limits.grip ?? 0, unit)} of shank behind the flutes, so it is drawn pushed all the way in`

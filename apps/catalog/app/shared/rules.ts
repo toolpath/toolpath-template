@@ -1,5 +1,11 @@
 import type { PartFeature } from '@toolpath/part-contracts'
-import { TOOL_FORMS, isToolForm, shankOf, type CatalogTool } from '@toolpath/catalog-data'
+import {
+  TOOL_FORMS,
+  isToolForm,
+  shankOf,
+  stickoutCeiling,
+  type CatalogTool,
+} from '@toolpath/catalog-data'
 import { FIELDS, featureKey, parseCondition, sheetOf, type Condition } from './feature-defaults'
 import knobsCsv from './knobs.csv?raw'
 import rulesCsv from './rules.csv?raw'
@@ -181,6 +187,18 @@ export const TOOL_NUMBERS: Readonly<Record<string, ToolNumber>> = {
   diameter: { unit: 'mm', read: geometry('DC') },
   'flute length': { unit: 'mm', read: geometry('LCF') },
   'length below holder': { unit: 'mm', read: geometry('LBH') },
+  /**
+   * The most this tool could ever stand out of a holder, mm.
+   *
+   * **Not `length below holder`, which is where it is set** (2026-09-03).
+   * `LBH` used to be this number, and the sheet's reach rule was written
+   * against it meaning exactly that — "a tool that cannot reach at the
+   * stickout its shank allows is not eligible". Asking the setup length there
+   * would refuse a tool that reaches the bottom pulled a little further out,
+   * which is a thing a shop simply does. `stickout.ts` in
+   * `@toolpath/catalog-data` works both out from one rule.
+   */
+  'furthest below holder': { unit: 'mm', read: (tool) => stickoutCeiling(tool) },
   'overall length': { unit: 'mm', read: geometry('OAL') },
   'L/D': { unit: 'ratio', read: geometry('LD') },
   'corner radius': { unit: 'mm', read: geometry('RE') },

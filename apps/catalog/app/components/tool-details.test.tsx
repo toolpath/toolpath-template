@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { CatalogTool } from '@toolpath/catalog-data'
 import { ToolDetails } from './tool-details'
 
@@ -78,6 +78,79 @@ describe('what the panel says about where a number came from', () => {
  * top"). The list used to be empty until a holder was picked, which read as a
  * broken control.
  */
+/**
+ * **Which line is which is answered by pointing** (`@toolpath/tool-drawing`
+ * 0.2.0). The drawing letters nothing any more — six two-line figures were
+ * fighting for the margin of a panel that already had the same six numbers in
+ * the table under it — so the table is what names a line, and pointing is what
+ * connects the two.
+ *
+ * The drawing has to be measured for there to be a line to light, which is
+ * what the observer below is for: `<ToolDrawing>` draws no `<svg>` until
+ * something has told it how big its panel is.
+ */
+describe('pointing at a number', () => {
+  class StubResizeObserver {
+    static all: Array<StubResizeObserver> = []
+    private readonly callback: ResizeObserverCallback
+    constructor(callback: ResizeObserverCallback) {
+      this.callback = callback
+      StubResizeObserver.all.push(this)
+    }
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+    static measure() {
+      act(() => {
+        for (const each of StubResizeObserver.all) {
+          each.callback(
+            [{ contentRect: { width: 1450, height: 297 } } as ResizeObserverEntry],
+            each as unknown as ResizeObserver,
+          )
+        }
+      })
+    }
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    StubResizeObserver.all = []
+  })
+
+  const panel = () => {
+    vi.stubGlobal('ResizeObserver', StubResizeObserver)
+    const drawn = render(<ToolDetails tool={tool} unit="mm" />)
+    StubResizeObserver.measure()
+    return drawn
+  }
+
+  it('lights the line on the drawing for the number under the pointer', () => {
+    const { container } = panel()
+    const card = screen.getByText('Flute length').closest('div')!
+
+    expect(container.querySelectorAll('[data-lit="true"]')).toHaveLength(0)
+
+    fireEvent.mouseEnter(card)
+    expect(container.querySelector('[data-dimension="LCF"]')?.getAttribute('data-lit')).toBe('true')
+    expect(container.querySelectorAll('[data-lit="true"]')).toHaveLength(1)
+
+    fireEvent.mouseLeave(card)
+    expect(container.querySelectorAll('[data-lit="true"]')).toHaveLength(0)
+  })
+
+  /**
+   * A number the drawing has no line for is not an error. `RE` is a real
+   * measurement drawn on the corner and `L/D` is a ratio, and neither is a
+   * dimension — so pointing at one lights the card and nothing else.
+   */
+  it('lights nothing on the drawing for a number it has no line for', () => {
+    const { container } = panel()
+
+    fireEvent.mouseEnter(screen.getByText('L/D').closest('div')!)
+    expect(container.querySelectorAll('[data-lit="true"]')).toHaveLength(0)
+  })
+})
+
 describe('choosing a holder and a collet', () => {
   const holding = (over: Partial<Parameters<typeof ToolDetails>[0]['holding'] & object> = {}) => {
     const onChoose = vi.fn()
@@ -110,6 +183,36 @@ describe('choosing a holder and a collet', () => {
     const collet = screen.getByLabelText('Collet')
     expect(collet).toBeEnabled()
     expect(screen.getByRole('option', { name: 'ER16-4 · ER16' })).toBeInTheDocument()
+  })
+
+  /**
+   * **The number in the table is the number on the sheet** (2026-09-03).
+   *
+   * The panel printed the tool's own `LBH` beside a drawing of the stack, and
+   * the two were different quantities: `LBH` was the most the tool could stand
+   * out and the drawing was drawn at the setup, so the sheet dimensioned a
+   * length the table beside it contradicted — the report's symptom, a
+   * dimension line running up into the holder body. They are one number now,
+   * and this is the lockstep that keeps them one. AGENTS.md § Testing: a
+   * duplicate across a boundary gets a test, not a comment.
+   */
+  it('prints the stickout the stack is drawn at, not the tool’s own', () => {
+    const { holding: held } = holding({
+      chosen: () => ({ holderGuid: 'h-er16', colletGuid: null }),
+      stickoutFor: () => 19,
+    })
+    render(<ToolDetails tool={tool} unit="mm" holding={held} />)
+
+    // Not the 46 mm the tool carries on its own.
+    expect(screen.getByText('Below holder').closest('div')?.textContent).toBe(
+      'Below holderLBH19.00 mm*',
+    )
+
+    // And with the sheet switched back to the bare tool, its own figure again.
+    fireEvent.click(screen.getByRole('button', { name: 'Tool' }))
+    expect(screen.getByText('Below holder').closest('div')?.textContent).toBe(
+      'Below holderLBH46.00 mm*',
+    )
   })
 
   it('keeps a collet the new holder can take, and drops one it cannot', () => {

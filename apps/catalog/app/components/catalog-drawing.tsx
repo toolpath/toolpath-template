@@ -13,7 +13,6 @@ import {
   ToolDrawing,
   type Box,
   type Extent,
-  type FormatLength,
   type Padding,
   type Sheet,
   type ViewerAssembly,
@@ -68,6 +67,24 @@ export interface CatalogDrawingProps {
   readonly dimensions?: boolean
   readonly dimensionSides?: 'one' | 'both'
   /**
+   * Which dimension lines are lit, by ISO 13399 code.
+   *
+   * **The drawing letters nothing**, so this is how a reader is told which
+   * line is which: the panel's own table of numbers lights the line for the
+   * number under the pointer. A code the drawing has no line for — `RE`, and
+   * the two this catalog derives — lights nothing, which is the honest answer
+   * rather than an error.
+   */
+  readonly highlight?: string | ReadonlyArray<string> | null
+  /**
+   * The code under the pointer on the drawing, and `null` when it leaves.
+   *
+   * The other direction of the same wire, so pointing at a line names the
+   * number in the table. Passing it is what puts hit targets on the lines;
+   * without it the drawing is inert, which is what a card beside a list wants.
+   */
+  readonly onDimensionHover?: (code: string | null) => void
+  /**
    * Draw the holder from its measured silhouette where one exists.
    *
    * On by default, and worth a switch rather than a constant: the parametric
@@ -86,6 +103,8 @@ export const CatalogDrawing = ({
   margins = NO_MARGINS,
   dimensions = false,
   dimensionSides = 'one',
+  highlight = null,
+  onDimensionHover,
   measured = true,
 }: CatalogDrawingProps) => {
   const [theme] = useTheme()
@@ -129,7 +148,8 @@ export const CatalogDrawing = ({
       caption={caption}
       dimensions={dimensions}
       dimensionSides={dimensionSides}
-      formatLength={format}
+      highlight={highlight}
+      {...(onDimensionHover === undefined ? {} : { onDimensionHover })}
       padding={padding}
       collisions={verdict?.collisions}
       verdict={

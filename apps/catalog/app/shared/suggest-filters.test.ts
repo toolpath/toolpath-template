@@ -61,11 +61,16 @@ describe('what the sheet says about a feature', () => {
     expect(ranges.DC).toEqual({ max: 6 })
     expect(ranges.LCF).toEqual({ min: 12 })
     /**
-     * Reach is a rule of its own now (Paul, 2026-09-01): what stands out of
-     * the holder has to reach the bottom from the top of the part, so the
-     * panel bounds it like any other must — visible, and somebody's to clear.
+     * **Reach is a must the panel cannot bound** (2026-09-03). It is a rule of
+     * its own (Paul, 2026-09-01) — what stands out of the holder has to reach
+     * the bottom from the top of the part — and it is measured against the
+     * furthest the tool could ever stand out, which no column carries. The
+     * nearest one, `LBH`, is where the tool is set, and it is always shorter:
+     * filtering on it would hide tools a shop reaches with by pulling them
+     * out. So the judge keeps this one and the panel suggests nothing, which
+     * is the loose direction a suggestion is allowed to be wrong in.
      */
-    expect(ranges.LBH).toEqual({ min: 12 })
+    expect(ranges.LBH).toBeUndefined()
     // A should is still not a filter.
     expect(ranges.LD).toBeUndefined()
   })

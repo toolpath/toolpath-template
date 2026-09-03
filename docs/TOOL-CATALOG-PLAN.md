@@ -422,56 +422,103 @@ load-bearing to the next person to open the file.
 
 ### Length below the holder, and where it cannot go
 
-**The rule is measured from the top of the tool down** — the shop's clamping
-length is what stays in the holder, and what is left below it is the overall
-length less that. It is applied once, in `shared/clamping-length.ts`, before
-anything reads a tool, so the judge, the columns and the filters all see one
-number.
+**`LBH` is the length the tool is set up at** (Justin Gray, 2026-09-03). Not
+the most it could stand out — that is the ceiling, and it is checked rather
+than shown. The column answers what a machinist would set, which is what the
+drawing beside it has always drawn.
 
-**One subtraction, and one exception** (Paul, 2026-09-01, with the arithmetic
-after a first go at this went the wrong way):
+**One module owns the number**, `packages/catalog-data/src/stickout.ts`, and
+everything is that one call with different arguments:
 
-    LBH = OAL − (minimum clamping length × SFDM)
+    geometry.LBH      = stickoutRange(tool).setup
+    Assembly.stickout = stickoutRange(tool, { grip, required }).setup
+    the ceiling       = stickoutRange(tool, …).max
 
-with the vendor's own `LSCN` in place of the multiple wherever one is
-published. **Except** where that would leave the holder gripping the head: when
-`LBH ≤ shoulder length`, the tool comes out to `shoulder length + SFDM`
-instead, so a diameter of plain shank shows under the holder. On a plain tool
-the head is the flute length; on a necked one it is the shoulder.
+    setup   = flutes (or the neck), out to what the feature needs,
+              no shorter than `least stickout`, onto the unit's `stickout step`,
+              held under the ceiling
+    ceiling = the tightest of
+                OAL − (minimum clamping length × SFDM)   ← `minimum clamping length`
+                OAL × (1 − good hold)                    ← `good hold`
+                OAL − the collet's published grip
+              and never under the flutes; `limitedBy` names the winner
 
-A ⌀20 necked bull nose 104 mm long with 53 mm of shoulder: 3×D wants 60
-clamped, which would leave 44 below the holder — inside the neck. It comes out
-to 73, and the holder grips 31 mm of plain shank. A ⌀0.096 drill 2.283 in long
-on a 0.157 in shank: 2.283 − 3 × 0.157 = 1.812 in, and the rule holds.
+`min ≤ setup ≤ max` holds by construction, so the drawing cannot dimension a
+length the table contradicts. `stickout.test.ts` checks it over the committed
+dataset, and `NO_CLAMP_MATH` in `eslint.config.js` keeps `clampWanted` — the
+term a second ceiling would be built out of — reachable from that module and
+nowhere else.
 
-**What was tried and rolled back on the same day.** Starting every tool at its
-own head length — Toolpath's convention for an unknown stickout, in
-`toolpath_ui`'s `tool_v1.ts` — reads well on paper, and over the 17,470-tool
-scrape it put the median L/D at 3.0 against 13.0 for the multiple-of-diameter
-rule. It also set that drill's length below holder to its 0.669 in of flute,
-which is not a stickout anybody would set up: "now length below holder is
-always set to the flute length! Argh." The measurement is in the history if it
-is ever wanted again; the rule above is the one in force, and the two ways of
-reading it are `git log` between `ce08303` and its revert.
+#### What this replaced
 
-What is not yet done, in the order it is worth doing:
+Four derivations of one quantity, none of which consulted another. On a ⌀1 in
+end mill, `OAL` 5 in, `LCF` 1.25 in, `SFDM` 1 in:
 
-1. **Say it on the tool.** `clampShortfall` returns how much shank the rule
-   wanted and the tool has not got. Nothing shows it yet; the length-below-holder
-   column is the place, beside the figure it explains.
+| where                                    | what it computed                | answer   |
+| ---------------------------------------- | ------------------------------- | -------- |
+| `clamping.ts` → `geometry.LBH`           | `OAL − 3×SFDM`                  | 2.000 in |
+| `toolholding.ts` `stickoutLimits().max`  | `OAL − OAL×heldShare`           | 3.333 in |
+| `stickoutLimits().default` → the drawing | flutes, floored and stepped     | 1.250 in |
+| `hole-mode.ts` `reaches`                 | `geometry.LBH` as maximum reach | 2.000 in |
+
+The details table printed the first and the drawing beside it drew the third,
+so the `LBH` dimension ran up past the holder nose and into the holder body.
+The sheet's two knobs — `minimum clamping length`, a length of **shank**, and
+`good hold`, a share of the **overall length** — capped different numbers in
+different files and were compared nowhere. `assembliesFor`'s bore branch was a
+fifth reading, standing a tool out to its bare flutes where an otherwise
+identical collet assembly used the floor and the step.
+
+#### Why this is not the 2026-09-01 revert
+
+Reading `LBH` as the setup was tried once and rolled back the same day: "now
+length below holder is always set to the flute length! Argh." What is different
+is that `DEFAULT_STICKOUT_POLICY` now carries the sheet's `least stickout` and
+`stickout step`, where it carried zero for both — the knobs existed and had
+never reached the build. The ⌀0.096 in drill that made the case then, 2.283 in
+long with 0.669 in of flute on a 0.157 in shank, comes out at **0.750 in**
+(flutes, up to the half-inch floor, onto the next eighth) rather than its bare
+0.669 in, with a 1.522 in ceiling checked behind it.
+
+#### What moved with it
+
+- `lengthBelowHolder` and `clampedLength` are gone. The bury-the-head exception
+  they carried — push the tool out to `shoulder length + SFDM` rather than let
+  a chuck close on the relief — is now the range's floor and `gripShort`, which
+  applies it to all three caps instead of one. As a _cap_ the exception was
+  backwards: it raised the ceiling above what the clamping rule allowed.
+- **A tool that states no flute length carries no `LBH` and no `LD`.** Without a
+  head there is nowhere for a setup to start. A version-7 document gave it both
+  from `OAL` and `SFDM` alone, which was only possible while the field meant the
+  ceiling.
+- `hole-mode.ts` asks `stickoutCeiling`. It was reading `LBH` to mean "the
+  furthest this tap can get", which would now refuse a tap that reaches the
+  bottom pulled a little further out.
+- The tool table's stack column shows the stickout the drawing is drawn at
+  rather than `requiredStickout`, which was a third number again — the part's
+  demand before the floor, the step and the ceiling had been applied to it.
+- Catalog version 8. Both fields are derived, so unlike 5, 6 and 7 this one
+  **rebuilds**: `scripts/rebuild.mjs` over an existing dataset writes what a
+  fresh ingest would. No re-scrape and no re-ingest.
+- Every `LD` in the catalog moved. The 2026-09-01 measurement over the
+  17,470-tool scrape put the median at 3.0 for this reading against 13.0 for
+  the old one, so saved filters and the `LBH`/`LD` facet bands shift with it.
+
+#### Still not done, in the order it is worth doing
+
+1. **Say the shortfall on the tool.** `clampShortfall` returns how much shank
+   the rule wanted and the tool has not got. Nothing shows it; the
+   length-below-holder column is the place, beside the figure it explains.
 2. **Decide whether it is a refusal.** A tool that cannot be held the way a shop
    holds tools is arguably not eligible for the feature at all, which is a rules
-   sheet question — a `must` on the clamping knob rather than a note — and
-   Paul's to answer.
-3. **Vendor `LSCN` first.** Every stated clamping length is exempt from all of
-   this, because it is the manufacturer's own answer for that tool. No vendor in
-   this catalog publishes one yet; when the scraper carries it, the cap should
-   apply to the rule of thumb only.
-4. **Stickout is the other direction.** `holder-choice.ts` grades a stack by how
-   far it must stand out to clear the part; that measurement starts at the
-   holder nose and is unaffected by this cap, but the two must agree about where
-   the shank begins. They both read `LCF` and `shoulder-length`; a tool whose
-   vendor states neither is the case to watch.
+   sheet question — a `must` on the clamping knob rather than a note.
+3. **Vendor `LSCN` first.** Every stated clamping length is exempt from the rule
+   of thumb, because it is the manufacturer's own answer for that tool. No
+   vendor in this catalog publishes one yet; `clampWanted` already prefers it.
+4. **A ceiling column.** The reach shortfall is painted on `LBH` and measured
+   against the ceiling, which the table has no column for. It is the honest
+   place for it, and adding one touches the dictionary, the facets and the
+   column sets.
 
 ### Where the drill sizes come from
 
@@ -650,14 +697,14 @@ vocabulary, so a typo fails the gate rather than showing nothing.
 
 Reach is deliberately **not** a filter: it depends on the holder, and checking
 that an assembly clears the part is the assembly's question. `LBH` stays on
-each tool as a figure — the overall length less the shank the shop keeps
-clamped, `catalog-data/clamping.ts` — and L/D is length below holder over
-diameter. **One rule, in the package**: the dataset used to carry a rule of
-its own while the part page applied the clamping rule over the top, so the
-same tool read one way on the catalog page and another beside a feature (Paul,
-2026-09-02). The derivation re-runs on every build, so changing the rule and
-running `rebuild.mjs` reaches an existing dataset; the page applies a shop's
-own multiple over it through `withClampingLength`.
+each tool as a figure — the length it is set up at, `catalog-data/stickout.ts`
+— and L/D is that over the diameter. **One rule, in the package**, and since
+2026-09-03 one _function_: the same call answers the column, the assembly and
+the reach ceiling, where four separate derivations used to disagree. The
+derivation re-runs on every build, so changing the rule and running
+`rebuild.mjs` reaches an existing dataset; the page applies a shop's own
+multiple over it through `withClampingLength`, on the sheet's own floor and
+step.
 
 ## Building an assembly
 
@@ -687,15 +734,14 @@ filters stay on the page and sticky across features. Changing a filter clears
 the holder and collet; choosing a holder clears the collet; a link can never
 describe an assembly the page is not showing.
 
-**Stickout** is set on the drawing. Its default is this application's — the
-tool's length below holder — and its ceiling leaves a third of the overall
-length in the holder (`HELD_SHARE`, the same third that caps the derived
-length below holder; Paul's rule, 2026-08-29, replacing three shank diameters
-because how much a collet needs is about the tool's leverage, not its shank),
-or the collet's own grip where a vendor states one, whichever is stricter. A
-tool whose stated length below holder outruns that collapses the range and
-the card says why. No vendor publishes a stickout; the card says whose number
-it is.
+**Stickout** is set on the drawing, and it is `stickoutRange(...).setup` — the
+same call that writes `geometry.LBH`, so the slider, the column and the sheet
+cannot disagree. Its ceiling is the tightest of three caps: the shank the shop
+keeps clamped, the share of the overall length that stays in the holder, and
+the collet's own grip where a vendor states one. `limitedBy` names which won
+and the card's tooltip says it. A tool that meets none of them at any depth
+collapses the range onto its flutes and the card says why. No vendor publishes
+a stickout; the card says whose number it is. See § Length below the holder.
 
 ## Holder body
 

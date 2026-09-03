@@ -77,7 +77,9 @@ const geometryOf = (tool: CatalogTool): Record<string, number> => {
     }
   }
   // Fusion's `LB` is the length below the holder — the figure this dataset
-  // derives as `LBH`, under the name Fusion reads it by.
+  // derives as `LBH`, under the name Fusion reads it by. Since 2026-09-03
+  // that is the length the tool is set up at rather than the most it could
+  // stand out, which is what Fusion's `LB` means in the first place.
   if (tool.geometry.LBH !== undefined) {
     held.LB = tool.geometry.LBH
   }

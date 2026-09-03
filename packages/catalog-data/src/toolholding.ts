@@ -1,4 +1,10 @@
-import { hasNeck } from './forms.js'
+import { DEFAULT_CLAMPING, type ClampingRule } from './clamping.js'
+import {
+  DEFAULT_STICKOUT_POLICY,
+  stickoutRange,
+  type StickoutPolicy,
+  type StickoutRange,
+} from './stickout.js'
 import type { CatalogTool, Provenance } from './types.js'
 
 /**
@@ -183,11 +189,13 @@ export interface Assembly {
    * Tool tip to holder nose, in millimetres — the reach of the stack, as set.
    *
    * **A decision, with a default.** How far a tool stands out of its holder
-   * is chosen at the machine, not published by anybody. The default is the
-   * tool's length below holder (`LBH`: flute length plus a diameter, with a
-   * third of the tool kept in the holder) — the least it can stand out with
-   * the flutes clear of the collet — capped at {@link Assembly.maxStickout}
-   * where the grip is known. `null` only when the tool states nothing at all.
+   * is chosen at the machine, not published by anybody. The default is
+   * `stickoutRange(tool, …).setup` — the flutes, or the neck on a necked tool,
+   * out to whatever the feature needs, floored and stepped by the sheet and
+   * held under {@link Assembly.maxStickout}. That is the same call that writes
+   * `geometry.LBH`, so a tool alone and a tool in a holder cannot disagree
+   * about the one number; `stickout.ts` has the four ways they used to.
+   * `null` only when the tool states no flute length.
    */
   readonly stickout: number | null
   /**
@@ -224,24 +232,6 @@ export const maxStickout = (tool: CatalogTool, collet: Collet | null): number | 
   return stickout > 0 ? stickout : null
 }
 
-/**
- * The least a tool can stand out: its flutes, or its neck where it has one.
- *
- * Paul's rule (2026-08-29): the default stickout is the flute length plus
- * whatever the holder needs, so the least is the flute length — the collet
- * face at the end of the flutes — and a stated neck, which a collet must not
- * close on, pushes it to the shoulder. The length below holder stays the
- * tool's own number for L/D; it is no longer the floor of the stickout.
- */
-export const minStickout = (tool: CatalogTool): number | null => {
-  const { LCF } = tool.geometry
-  if (LCF === undefined) {
-    return null
-  }
-  const shoulder = tool.geometry['shoulder-length']
-  return hasNeck(tool) && shoulder !== undefined ? shoulder : LCF
-}
-
 export type HoldBand = 'good' | 'medium' | 'bad'
 
 /**
@@ -270,174 +260,40 @@ export const holdBand = (
 }
 
 /**
- * The share of a tool's overall length a holder must always have hold of.
+ * How far this tool may stand out of this holder — the collet-shaped way into
+ * {@link stickoutRange}.
  *
- * A third. **This application's figure, not a vendor's** — no vendor in this
- * catalog publishes a minimum engagement — which is why it is named here and
- * the control says whose it is. It is one rule read twice: the length below
- * holder is capped so that at least this much stays in (`build.ts`), and a
- * stickout may never leave less than this much in. Deliberately a share of
- * the length and not a multiple of the shank diameter: how much of a tool a
- * collet needs is about the tool's leverage, not its shank.
+ * **The arithmetic is not here any more** (2026-09-03). It was one of four
+ * places that worked out a stickout, and the one that capped at a share of the
+ * overall length while `clamping.ts` capped at a length of shank and neither
+ * knew about the other. `stickout.ts` owns the quantity and combines the
+ * sheet's two knobs in one place; this maps a collet onto the grip length that
+ * module asks for, which is all a collet was ever contributing.
  */
-export const HELD_SHARE = 1 / 3
+export type StickoutLimits = StickoutRange
 
-/**
- * How the default stickout is set, from the catalog's sheet.
- *
- * Paul's rule (2026-08-30): nobody sets a tool up 6 mm out, so the default
- * stands out at least `least` (half an inch) where the tool's length allows,
- * and lands on a round number — the `step` for the tool's unit system (an
- * eighth of an inch, or 3 mm) nearest what the holder needs, never under it.
- * The range shown beside it is still the flutes up to `heldShare` held.
- */
-export interface StickoutPolicy {
-  /** Share of the overall length that must stay in the holder. */
-  readonly heldShare: number
-  /**
-   * The shank that must stay clamped, in diameters of **shank** — ISO 13399's
-   * **LSCN**, *clamping length minimum*, stated against `DMM`.
-   *
-   * The manufacturers publish it per tool and this catalog has none of it:
-   * Seco's 410050R050 wants 36 mm of a ⌀6 shank clamped, which is 6×D against
-   * the 3×D rule of thumb everybody quotes. A shop that knows its own answer
-   * states it here, and it caps the stickout ahead of {@link heldShare} —
-   * which is the same rule read as a share of the tool rather than as a length
-   * of shank. Zero for none.
-   */
-  readonly clampedPerDiameter?: number
-  /** The shortest stickout worth setting up, mm; zero for none. */
-  readonly least: number
-  /** The increment the default lands on, mm, by the tool's unit system; zero for none. */
-  readonly step: { readonly inch: number; readonly metric: number }
-}
-
-/** A third held, no floor, no rounding: the bounds alone. */
-export const DEFAULT_STICKOUT_POLICY: StickoutPolicy = {
-  heldShare: HELD_SHARE,
-  least: 0,
-  step: { inch: 0, metric: 0 },
-}
-
-/** A hair, so a rounded stickout a femtometre under what is needed is not stepped up. */
-const STICKOUT_TOLERANCE = 1e-6
-
-/**
- * The default stickout: what is needed, no shorter than the policy's least,
- * on the policy's step for this tool — the nearest step, or the one above it
- * where the nearest falls short of what is needed.
- */
-const defaultOf = (tool: CatalogTool, needed: number, policy: StickoutPolicy): number => {
-  const step = tool.unitSystem === 'metric' ? policy.step.metric : policy.step.inch
-  const preferred = Math.max(needed, policy.least)
-  if (step <= 0) {
-    return preferred
-  }
-  const nearest = Math.round(preferred / step) * step
-  return nearest + STICKOUT_TOLERANCE < needed ? nearest + step : nearest
-}
-
-export interface StickoutLimits {
-  /** Shortest, mm: the flutes out of the collet, or the neck where there is one. */
-  readonly min: number
-  /**
-   * Longest, mm: what still leaves the holder enough to grip. The stricter of
-   * the collet's own grip, where stated, and {@link HELD_SHARE} of the overall
-   * length. Null when neither can be worked out — an unbounded range, not a
-   * bound of nothing.
-   */
-  readonly max: number | null
-  /** Where the stickout starts: the flutes plus what the holder needs to clear the part. */
-  readonly default: number
-  /** The parallel shank behind the length below holder, mm: all a holder can ever grip. */
-  readonly grip: number | null
-  /** How much grip the rule asks for, mm. */
-  readonly wantedGrip: number | null
-  /**
-   * True when the rule cannot be met at any depth: the range collapses onto
-   * the shortest stickout, and the control should say why rather than refuse.
-   */
-  readonly gripShort: boolean
-}
-
-/**
- * How far this tool may stand out of this holder.
- *
- * **Both bounds come off the tool, and that is a statement about the data.**
- * The shortest is the tool's length below holder; the longest is what still
- * leaves enough of the tool in the grip — the collet's published grip length
- * where there is one, and a third of the overall length as the shop rule
- * either way. Nothing in this catalog measures how deep a holder's bore goes,
- * so a holder may refuse the deepest of these for a reason nothing here
- * records.
- *
- * When a tool has less shank behind its flutes than the rule wants — a
- * vendor-stated length below holder past two thirds of the tool — nothing is
- * wrong with the tool; the rule simply cannot be met, the physical bound wins,
- * and `gripShort` says so.
- */
 export const stickoutLimits = (
   tool: CatalogTool,
   collet: Collet | null,
-  /** What the holder needs to clear the part, from the sweep: the default stands out at least this far. */
+  /** What the holder needs to clear the part, from the sweep: the setup stands out at least this far. */
   required: number | null = null,
-  /** The sheet's hold share, least stickout and step; the bounds alone by default. */
+  /** The sheet's hold share, least stickout and step. */
   policy: StickoutPolicy = DEFAULT_STICKOUT_POLICY,
-): StickoutLimits | null => {
-  const min = minStickout(tool)
-  if (min === null) {
-    return null
-  }
-  const { OAL, DC } = tool.geometry
-  const grip = OAL === undefined ? null : Math.max(0, OAL - min)
-  /**
-   * What must stay in the holder: the shop's own clamping length where it has
-   * one, and otherwise the share of the tool this package falls back to.
-   */
-  // Of the **shank**: `LSCN` is stated against `DMM`, and the holder grips the
-  // shank rather than the cut (Paul, 2026-09-01).
-  const shank = tool.geometry.SFDM ?? DC
-  const clamped =
-    policy.clampedPerDiameter !== undefined && policy.clampedPerDiameter > 0 && shank !== undefined
-      ? shank * policy.clampedPerDiameter
-      : null
-  const wantedGrip = clamped !== null ? clamped : OAL === undefined ? null : OAL * policy.heldShare
-
-  const caps: Array<number> = []
-  const byGrip = maxStickout(tool, collet)
-  if (byGrip !== null) {
-    caps.push(byGrip)
-  }
-  if (OAL !== undefined && wantedGrip !== null) {
-    caps.push(OAL - wantedGrip)
-  }
-  const most = caps.length === 0 ? null : Math.min(...caps)
-  const gripShort = most !== null && most < min
-
-  const max = most === null ? null : gripShort ? min : most
-  const wanted = defaultOf(tool, Math.max(min, required ?? min), policy)
-  return {
-    min,
-    max,
-    // Flutes plus what the holder needs — the length to set the tool up at —
-    // on the sheet's step, held within what the tool allows.
-    default: max === null ? wanted : Math.min(wanted, max),
-    grip,
-    wantedGrip,
-    gripShort,
-  }
-}
+  /** What the shop keeps clamped. The dataset's own by default. */
+  rule: ClampingRule = DEFAULT_CLAMPING,
+): StickoutLimits | null =>
+  stickoutRange(tool, { grip: collet?.clampLength ?? null, required, policy, rule })
 
 /**
- * The stickout an assembly starts at: the least the tool allows, within what
- * the grip allows. A tool whose length below holder outruns its grip is
- * gripped as short as the grip lets it and no shorter — rather than refused,
- * because the shop is the one who knows whether that is a problem.
+ * The stickout an assembly starts at: the setup length for this tool, held
+ * within what the grip allows. A tool whose setup outruns its grip is gripped
+ * as short as the grip lets it and no shorter — rather than refused, because
+ * the shop is the one who knows whether that is a problem.
  */
 export const defaultStickout = (tool: CatalogTool, collet: Collet | null): number | null => {
   const limits = stickoutLimits(tool, collet)
   if (limits !== null) {
-    return limits.default
+    return limits.setup
   }
   return maxStickout(tool, collet)
 }
@@ -491,19 +347,24 @@ export const assembliesFor = (
 
     if (holderTakesTool(holder, null, tool)) {
       // A bore holder's grip length is unstated, so the most the tool can
-      // stand out is what leaves a third of it held — the same rule as a
-      // collet with no published grip. `maxStickout` refuses to guess on its
-      // own, which is why this reads the limits rather than it.
+      // stand out is whatever the clamping rule and the hold share allow —
+      // the same two caps as a collet with no published grip. `maxStickout`
+      // refuses to guess on its own, which is why this reads the range.
       const overall = tool.geometry.OAL
       if (overall === undefined) {
         continue
       }
+      // The same setup length the collet branch above uses. It read
+      // `minStickout` until 2026-09-03, which made a bore assembly stand out
+      // to the bare flutes where an otherwise identical collet assembly stood
+      // out to the sheet's floor and step — a fifth reading of the one number.
+      const limits = stickoutLimits(tool, null)
       assemblies.push({
         holder,
         collet: null,
         tool,
-        stickout: minStickout(tool) ?? overall,
-        maxStickout: stickoutLimits(tool, null)?.max ?? overall,
+        stickout: limits?.setup ?? overall,
+        maxStickout: limits?.max ?? overall,
       })
     }
   }

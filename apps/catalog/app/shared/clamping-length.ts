@@ -1,13 +1,13 @@
 import {
   DEFAULT_CLAMPING,
-  clampWanted,
-  clampedLength,
-  lengthBelowHolder,
+  DEFAULT_STICKOUT_POLICY,
+  setupStickout,
   type CatalogTool,
   type ClampingRule,
+  type StickoutPolicy,
 } from '@toolpath/catalog-data'
 
-export { clampWanted, clampedLength, lengthBelowHolder, type ClampingRule }
+export { type ClampingRule }
 
 /**
  * The shop's clamping rule, as this page lets somebody set it.
@@ -17,6 +17,13 @@ export { clampWanted, clampedLength, lengthBelowHolder, type ClampingRule }
  * same number on the catalog page as beside a feature. What lives here is the
  * knob — the default the rail starts at, and applying a changed one to the
  * whole catalog.
+ *
+ * **What the rule now moves is the ceiling, not `LBH` directly** (2026-09-03).
+ * `LBH` is the length the tool is set up at, and the clamping rule is one of
+ * three caps on it — so clamping more shank shortens the column only for tools
+ * whose setup was already against the ceiling. `stickout.ts` in the package is
+ * the whole rule; this file has no arithmetic of its own left, which is the
+ * point of it.
  */
 
 /**
@@ -33,18 +40,23 @@ export const SHEET_CLAMPING: ClampingRule = DEFAULT_CLAMPING
  *
  * Applied once, where the tools are read, so nothing downstream has to know
  * the rule exists: the judge, the columns and the filters all see a tool whose
- * `LBH` already has the shank it holds taken out of it. `LD` follows, because
- * it is `LBH ÷ DC` and would otherwise disagree with the column beside it.
+ * `LBH` is already this shop's. `LD` follows, because it is `LBH ÷ DC` and
+ * would otherwise disagree with the column beside it.
+ *
+ * **The policy is passed in and is not optional in practice.** With the sheet's
+ * floor and step, `setupStickout` gives the length a machinist sets up at; with
+ * a policy of zeroes it gives the bare flute length, which is the answer this
+ * reading was reverted over on 2026-09-01. `clamping-length.test.ts` pins the
+ * page's policy against the package's so a knob edited in `knobs.csv` cannot
+ * leave the dataset's `LBH` and the page's disagreeing.
  */
 export const withClampingLength = (
   tools: ReadonlyArray<CatalogTool>,
   rule: ClampingRule,
-): ReadonlyArray<CatalogTool> => {
-  if (!rule.vendorSpec && rule.perDiameter <= 0) {
-    return tools
-  }
-  return tools.map((tool) => {
-    const below = lengthBelowHolder(tool.geometry, rule)
+  policy: StickoutPolicy = DEFAULT_STICKOUT_POLICY,
+): ReadonlyArray<CatalogTool> =>
+  tools.map((tool) => {
+    const below = setupStickout({ geometry: tool.geometry, unitSystem: tool.unitSystem }, rule)
     const { DC } = tool.geometry
     if (below === null || DC === undefined || DC <= 0) {
       return tool
@@ -55,4 +67,3 @@ export const withClampingLength = (
       provenance: { ...tool.provenance, LBH: 'derived' as const, LD: 'derived' as const },
     }
   })
-}

@@ -155,9 +155,20 @@ end mill's own row wants the second. Reading the second as the first threw
 the right-sized drill out of every hole (2026-08-31).
 
 **Tool fields** (numbers off the catalog): `diameter`, `flute length`,
-`flute length past the corner`, `length below holder`, `overall length`,
-`L/D`, `corner radius`, `flutes`, `tip angle`, `shank diameter`, `shoulder
-length`, `shoulder diameter`. Words: `form`, `shank`, `brand`.
+`flute length past the corner`, `length below holder`, `furthest below
+holder`, `overall length`, `L/D`, `corner radius`, `flutes`, `tip angle`,
+`shank diameter`, `shoulder length`, `shoulder diameter`. Words: `form`,
+`shank`, `brand`.
+
+`length below holder` and `furthest below holder` are two different questions
+and a reach rule wants the second. The first is where the tool is **set** —
+its flutes, out to the shortest stickout worth setting up and onto the step;
+the second is the **most** it could stand out, its overall length less
+whichever holds it back first, the shank the shop keeps clamped or the share
+that has to stay in the holder. Refusing a tool on the first drops tools a
+shop reaches with simply by pulling them out. They were one field until
+2026-09-03, when `length below holder` meant the ceiling and the drawing drew
+the setup — see `docs/TOOL-CATALOG-PLAN.md` § _Length below the holder_.
 
 `flute length past the corner` is the flute length less the corner radius,
 and it is what a cut with nothing under it wants: a through cut is taken past

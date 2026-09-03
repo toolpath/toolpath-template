@@ -51,7 +51,18 @@ const KEY_LABELS: Record<(typeof KEY_CODES)[number], string> = {
   NOF: 'Flutes',
 }
 
-/** The codes the drawing does not letter, so the table does not either. */
+/**
+ * The codes the drawing has no line for, so the table shows no code for them.
+ *
+ * A ratio and a count are not dimensions: nothing on a drawing runs between
+ * two points and measures four flutes. The chip is the pointer at a line, and
+ * a chip pointing at nothing is worse than none.
+ *
+ * `RE` is the near miss and stays: the corner radius is a real measurement the
+ * drawing puts on the corner, and it is the one key number with no dimension
+ * line of its own — so its chip names a thing on the sheet, and hovering it
+ * lights nothing, which is the truth.
+ */
 const UNLETTERED: ReadonlySet<string> = new Set(['LD', 'NOF'])
 
 const SELECT =
@@ -108,12 +119,27 @@ export const ToolDetails = ({
    * cutters does not have to say so again on every tool it clicks.
    */
   const [view, setView] = useState<'tool' | 'stack'>('stack')
+  /**
+   * The number the reader is pointing at, by ISO 13399 code.
+   *
+   * **The drawing letters nothing** as of `@toolpath/tool-drawing` 0.2.0: the
+   * six two-line figures were fighting for the margin of a panel that already
+   * had the same six numbers in the table below, so the linework stayed and
+   * the naming moved here. Which line is which is now answered by pointing —
+   * the card lights its line, and the line lights its card.
+   *
+   * One piece of state for both directions, so the two can never disagree
+   * about what is lit.
+   */
+  const [pointed, setPointed] = useState<string | null>(null)
   const chosen = holding?.chosen(tool) ?? { holderGuid: null, colletGuid: null }
   const holders = holding?.holdersFor(tool) ?? []
   const collets = holding?.colletsFor(tool, chosen.holderGuid) ?? []
   const needed = holding?.requiredStickout(tool) ?? null
   const holderChosen = holders.find((each) => each.guid === chosen.holderGuid)?.holder
   const stickout = holding?.stickoutFor?.(tool) ?? null
+  /** Whether the sheet below is the stack rather than the bare tool. */
+  const drawnAsStack = holderChosen !== undefined && view === 'stack' && stickout !== null
 
   return (
     /*
@@ -322,6 +348,8 @@ export const ToolDetails = ({
             unit={unit}
             dimensions
             dimensionSides="both"
+            highlight={pointed}
+            onDimensionHover={setPointed}
             {...(holderChosen === undefined || view === 'tool' || stickout === null
               ? {}
               : {
@@ -342,15 +370,41 @@ export const ToolDetails = ({
           code (Paul, 2026-09-01). */}
       <dl className="grid shrink-0 grid-cols-2 gap-x-4 gap-y-1.5 overflow-auto rounded-lg border border-zinc-800 bg-zinc-950 p-2">
         {KEY_CODES.flatMap((code) => {
-          const value = tool.geometry[code]
+          /**
+           * **`LBH` is whatever the drawing above is drawn at** (2026-09-03).
+           * The panel printed the tool's own figure beside a drawing of the
+           * stack, so a tool set out further to clear the part read as two
+           * different lengths on one card — and the sheet dimensioned the one
+           * it drew. Drawn as the stack, the number is the stack's; drawn
+           * alone, it is the tool's own.
+           */
+          const shown =
+            code === 'LBH' && drawnAsStack && stickout !== null ? stickout : tool.geometry[code]
+          const value = shown
           if (value === undefined) {
             return []
           }
-          const provenance = tool.provenance[code]
+          const provenance =
+            code === 'LBH' && drawnAsStack && stickout !== null ? 'derived' : tool.provenance[code]
           return [
             <div
               key={code}
-              className="flex items-baseline justify-between gap-2 border-b border-zinc-900 pb-1"
+              /*
+                Pointing at a number lights its line on the drawing above, and
+                the drawing lights the number back. The pointer only: a card
+                holds nothing focusable, so a `focus` handler here would be a
+                claim about the keyboard that nothing honours. Reaching this by
+                keyboard means making eight cards tab stops, which is a bigger
+                question than this change.
+              */
+              onMouseEnter={() => setPointed(code)}
+              onMouseLeave={() => setPointed(null)}
+              className={classNames(
+                'flex items-baseline justify-between gap-2 rounded-sm border-b border-zinc-900 pb-1 transition',
+                // The same blue the panel lights the tool it is about in, so
+                // the sheet and the table agree about what is being pointed at.
+                pointed === code ? 'bg-info/15' : null,
+              )}
               title={
                 provenance && provenance !== 'vendor-stated'
                   ? `${provenance} — not the vendor's figure`

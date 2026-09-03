@@ -71,7 +71,7 @@ export const drawnAssembly = (
     limits === null
       ? null
       : Math.min(
-          Math.max(selection.stickout ?? limits.default, limits.min),
+          Math.max(selection.stickout ?? limits.setup, limits.min),
           limits.max ?? Number.POSITIVE_INFINITY,
         )
   const band = stickout === null ? null : holdBand(tool, stickout, thresholds)

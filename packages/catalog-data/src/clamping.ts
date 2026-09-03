@@ -6,6 +6,14 @@ type ToolGeometry = Readonly<Record<string, number>>
 /**
  * How much shank stays in the holder, and what that leaves below it.
  *
+ * **This is a cap, not `LBH`** (Justin Gray, 2026-09-03). Until then
+ * {@link lengthBelowHolder} was written straight into `geometry.LBH` at build
+ * time, which made it one of four unreconciled answers to "how far does this
+ * tool stand out" — see the table at the top of `stickout.ts`. `LBH` is now
+ * the *setup* length and `stickout.ts` owns it; what lives here is
+ * {@link clampWanted}, the length of shank a shop keeps clamped, which
+ * `stickoutRange` takes as one of three caps on that setup.
+ *
  * **ISO 13399 calls it `LSCN`** — *clamping length minimum*, stated against
  * the shank diameter `DMM`, which is what a multiple of "D" means here: the
  * holder grips the shank, not the cut. Manufacturers publish it per tool; the
@@ -15,20 +23,22 @@ type ToolGeometry = Readonly<Record<string, number>>
  * to a multiple of the diameter for every tool that publishes none — which is
  * every tool in this catalog today, because no scraper carries the column yet.
  *
- *     LBH = OAL − (minimum clamping length × SFDM)
+ *     the clamping cap = OAL − (minimum clamping length × SFDM)
  *
- * **Except where that would bury the head.** When the answer is at or under
- * the shoulder length — the flutes, and the reduced section under them on a
- * necked tool — the tool comes out to `shoulder length + SFDM` instead, so a
- * diameter of plain shank shows below the holder rather than a chuck closing
- * on the relief (Paul, 2026-09-01).
+ * **The bury-the-head case is not handled here any more.** It used to be: when
+ * the subtraction landed at or under the shoulder length, `lengthBelowHolder`
+ * pushed the tool out to `shoulder length + SFDM` so a diameter of plain shank
+ * showed below the holder (Paul, 2026-09-01). That is now what
+ * `stickoutRange`'s floor and `gripShort` do, and they do it for all three
+ * caps rather than this one — a tool the rule cannot hold is gripped as short
+ * as the grip allows and says so. `lengthBelowHolder` went with it on
+ * 2026-09-03, because as a *cap* the exception was backwards: it raised the
+ * ceiling above what the clamping rule allowed.
  *
  * **Here rather than in the application** (Paul, 2026-09-02: "I think we
- * should do what I did"). The dataset carried its own older rule — flute
- * length plus a diameter, capped at two thirds of the overall length — while
- * the part page applied this one over the top, so the same tool read one way
- * on the catalog page and another beside a feature. One rule, in the package
- * that owns the contract, used by the build and by the page.
+ * should do what I did"). The dataset is built with this rule and the part
+ * page applies a shop's own multiple over it, so the same tool reads one way
+ * on the catalog page and beside a feature.
  */
 
 /** What a shop holds: the vendor's number where there is one, else a multiple of the diameter. */
@@ -77,34 +87,6 @@ export const clampWanted = (
   return round(shank * rule.perDiameter)
 }
 
-/** What is left below the holder: see the rule at the top of this file. */
-export const lengthBelowHolder = (
-  geometry: ToolGeometry,
-  rule: ClampingRule = DEFAULT_CLAMPING,
-): number | null => {
-  const wanted = clampWanted(geometry, rule)
-  const { OAL } = geometry
-  if (wanted === null || OAL === undefined) {
-    return null
-  }
-  const below = OAL - wanted
-  const head = headLength(geometry)
-  if (head <= 0 || below > head) {
-    return round(Math.max(0, below))
-  }
-  return round(Math.min(OAL, head + (heldDiameter(geometry) ?? 0)))
-}
-
-/** What the holder is left holding, which is what a drawing shades. */
-export const clampedLength = (
-  geometry: ToolGeometry,
-  rule: ClampingRule = DEFAULT_CLAMPING,
-): number | null => {
-  const below = lengthBelowHolder(geometry, rule)
-  const { OAL } = geometry
-  return below === null || OAL === undefined ? clampWanted(geometry, rule) : round(OAL - below)
-}
-
 /** How much shank the rule asked for and the tool has not got, or null where it fits. */
 export const clampShortfall = (
   geometry: ToolGeometry,
@@ -118,7 +100,3 @@ export const clampShortfall = (
   const shank = Math.max(0, OAL - headLength(geometry))
   return wanted <= shank ? null : round(wanted - shank)
 }
-
-/** The same, for a whole tool rather than a bare geometry. */
-export const belowHolderFor = (tool: CatalogTool, rule?: ClampingRule): number | null =>
-  lengthBelowHolder(tool.geometry, rule)

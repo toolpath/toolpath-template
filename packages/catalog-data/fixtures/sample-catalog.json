@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 8,
   "builtAt": "2026-08-27",
   "families": [
     {
@@ -56,8 +56,8 @@
         "RE": 0,
         "NOF": 4,
         "SFDM": 6,
-        "LBH": 32,
-        "LD": 10.67
+        "LBH": 12,
+        "LD": 4
       },
       "materialGroups": [
         "P",
@@ -94,8 +94,8 @@
         "RE": 0.5,
         "NOF": 4,
         "SFDM": 6,
-        "LBH": 39,
-        "LD": 7.8
+        "LBH": 15,
+        "LD": 3
       },
       "materialGroups": [
         "P",
@@ -132,8 +132,8 @@
         "RE": 1,
         "NOF": 4,
         "SFDM": 8,
-        "LBH": 39,
-        "LD": 4.88
+        "LBH": 21,
+        "LD": 2.63
       },
       "materialGroups": [
         "P",
@@ -170,8 +170,8 @@
         "RE": 2,
         "NOF": 5,
         "SFDM": 12,
-        "LBH": 47,
-        "LD": 3.92
+        "LBH": 27,
+        "LD": 2.25
       },
       "materialGroups": [
         "P",
@@ -207,8 +207,8 @@
         "OAL": 62,
         "SIG": 140,
         "SFDM": 6,
-        "LBH": 44,
-        "LD": 14.67
+        "LBH": 12,
+        "LD": 4
       },
       "materialGroups": [
         "P",
@@ -244,8 +244,8 @@
         "OAL": 82,
         "SIG": 140,
         "SFDM": 6,
-        "LBH": 64,
-        "LD": 10.67
+        "LBH": 24,
+        "LD": 4
       },
       "materialGroups": [
         "P",
@@ -281,8 +281,8 @@
         "OAL": 103,
         "SIG": 140,
         "SFDM": 10,
-        "LBH": 73,
-        "LD": 7.3
+        "LBH": 42,
+        "LD": 4.2
       },
       "materialGroups": [
         "P",
@@ -319,8 +319,8 @@
         "NOF": 3,
         "SFDM": 6.35,
         "ZEFP": 3,
-        "LBH": 44.45,
-        "LD": 7
+        "LBH": 15.88,
+        "LD": 2.5
       },
       "materialGroups": [],
       "productLine": null,
@@ -353,8 +353,8 @@
         "NOF": 3,
         "SFDM": 7.938,
         "ZEFP": 3,
-        "LBH": 52.39,
-        "LD": 5.5
+        "LBH": 19.05,
+        "LD": 2
       },
       "materialGroups": null,
       "productLine": null,
@@ -714,8 +714,8 @@
       {
         "key": "LBH",
         "label": "Length below holder",
-        "min": 32,
-        "max": 73
+        "min": 12,
+        "max": 42
       },
       {
         "key": "LCF",
@@ -726,8 +726,8 @@
       {
         "key": "LD",
         "label": "L/D",
-        "min": 3.92,
-        "max": 14.67
+        "min": 2,
+        "max": 4.2
       },
       {
         "key": "OAL",

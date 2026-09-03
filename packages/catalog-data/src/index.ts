@@ -63,13 +63,10 @@ export {
   gripsShank,
   holderTakesTool,
   maxStickout,
-  minStickout,
-  DEFAULT_STICKOUT_POLICY,
   defaultStickout,
   stickoutLimits,
   holdBand,
   type HoldBand,
-  HELD_SHARE,
   withStickout,
   type Assembly,
   type Clamping,
@@ -78,8 +75,27 @@ export {
   type GripRanges,
   type Holder,
   type StickoutLimits,
-  type StickoutPolicy,
 } from './toolholding.js'
+/**
+ * The one owner of "how far does this tool stand out of its holder".
+ *
+ * `geometry.LBH`, `Assembly.stickout` and the reach ceiling are all this one
+ * function with different arguments — see the table at the top of
+ * `stickout.ts` for the four unreconciled derivations it replaced.
+ */
+export {
+  DEFAULT_STICKOUT_POLICY,
+  HELD_SHARE,
+  minStickout,
+  setupStickout,
+  stickoutCeiling,
+  stickoutRange,
+  type StickoutLimit,
+  type StickoutPolicy,
+  type StickoutRange,
+  type StickoutRequest,
+  type StickoutTool,
+} from './stickout.js'
 export {
   NOT_MODELLED,
   assembliesForFeatures,
@@ -137,15 +153,16 @@ export {
   type SilhouettePart,
 } from './clearance.js'
 export { materialProfile, type OutlinePoint } from './outline.js'
+/**
+ * `clampWanted` is deliberately not re-exported: turning a clamping length into
+ * a stickout is `stickout.ts`'s job and nobody else's — `NO_CLAMP_MATH` in
+ * `eslint.config.js` says why. Ask `setupStickout` or `stickoutCeiling`.
+ */
 export {
   DEFAULT_CLAMPING,
-  belowHolderFor,
   clampShortfall,
-  clampWanted,
-  clampedLength,
   headLength,
   heldDiameter,
-  lengthBelowHolder,
   type ClampingRule,
 } from './clamping.js'
 

@@ -102,7 +102,16 @@ export const thresholdsFrom = (knobs: ReadonlyArray<Knob> = KNOBS.knobs): HoldTh
   },
 })
 
-/** The same thresholds as the stickout policy `stickoutLimits` takes. */
+/**
+ * The same thresholds as the stickout policy `stickoutRange` takes.
+ *
+ * **The page's half of a lockstep pair.** `DEFAULT_STICKOUT_POLICY` in
+ * `@toolpath/catalog-data` is what the dataset's `LBH` is built with, and a
+ * package cannot read a sheet inside an application; `clamping-length.test.ts`
+ * fails when the two drift, because since 2026-09-03 `LBH` is the setup length
+ * and a page working it out on a different floor or step would disagree with
+ * the drawing beside it.
+ */
 export const policyOf = (thresholds: HoldThresholds): StickoutPolicy => ({
   heldShare: thresholds.good,
   least: thresholds.leastStickout,
@@ -127,7 +136,7 @@ const optionFor = (
       : clearance({ tool, holder, collet, stickout: 0, maxStickout: null }, curve, margins)
   const required = probe?.requiredStickout ?? null
   const limits = stickoutLimits(tool, collet, required, policyOf(thresholds))
-  const stickout = limits?.default ?? null
+  const stickout = limits?.setup ?? null
   const band = stickout === null ? null : holdBand(tool, stickout, thresholds)
   const check =
     curve === null || stickout === null

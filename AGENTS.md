@@ -88,6 +88,7 @@ judgment rule starts being violated, give it a check rather than restating it.
 | `components/*`, `client/*`, `routes/*`, `shared/*` aliases in `app/` | `pnpm lint`        |
 | Only `@toolpath/part-server` uses the Toolpath SDK at runtime        | `pnpm lint`        |
 | Nothing in `packages/` imports an application                        | `pnpm lint`        |
+| Only `stickout.ts` turns a clamping length into a stickout           | `pnpm lint`        |
 | A relative import inside a package carries its `.js` extension       | `pnpm lint`        |
 | The layering under Project Map                                       | `pnpm lint`        |
 | Tailwind classes for styling; `style={{}}` only for a computed value | judgment           |
@@ -201,7 +202,15 @@ application unless that application says otherwise.
   `app/shared/tool-drawing-input.ts` the whole adapter.
 - `packages/catalog-data/` (`@toolpath/catalog-data`) is the tool catalog's data
   contract, its pure record-to-catalog transform, the tool-fit calculation, and
-  the committed sample dataset. `profiles.ts` is the measured-holder half —
+  the committed sample dataset. **`stickout.ts` owns how far a tool stands out
+  of its holder** — `geometry.LBH`, `Assembly.stickout` and the reach ceiling
+  are one function with different arguments, and `LBH` is the length the tool is
+  _set up_ at rather than the most it could stand out (2026-09-03). Four
+  unreconciled derivations of that number used to disagree by a factor of two
+  on an ordinary tool, so `NO_CLAMP_MATH` in `eslint.config.js` keeps
+  `clampWanted` reachable from that module alone, and `stickout.test.ts` checks
+  `min ≤ setup ≤ max` over the committed dataset. See
+  `docs/TOOL-CATALOG-PLAN.md` § _Length below the holder_. `profiles.ts` is the measured-holder half —
   its own document, keyed by guid and read lazily, because a silhouette is
   ~110 vertices only an assembly drawing needs and every page loads the
   catalog. It also answers **whether an assembly clears a

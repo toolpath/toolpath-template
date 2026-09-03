@@ -1,5 +1,5 @@
 import type { PartFeature } from '@toolpath/part-contracts'
-import { TOOL_FORMS, type CatalogTool } from '@toolpath/catalog-data'
+import { TOOL_FORMS, stickoutCeiling, type CatalogTool } from '@toolpath/catalog-data'
 import { asNumber, asRecord } from '@toolpath/part-contracts/datasheet'
 import { partTop } from '@toolpath/part-contracts/measurements'
 import { makerOf, minorOf, type HoleMode, type ThreadSpec } from './threads'
@@ -267,8 +267,14 @@ export interface ThreadReach {
  * the cutting length has to cover the thread, and the tool's own body has to
  * clear the part on the way down — swept against the reach curve where there
  * is one, which is the same question `clearance.ts` asks of a drill. Without a
- * curve it falls back to the derived length below the holder against the drop
- * from the part top, which is the conservative reading.
+ * curve it falls back to how far the tool can stand out at all against the
+ * drop from the part top, which is the conservative reading.
+ *
+ * **The ceiling, not `LBH`** (2026-09-03). This read `geometry.LBH` while that
+ * field was the most a tool could stand out; it is the length the tool is *set
+ * up* at now, and asking it here would refuse a tap that reaches the bottom
+ * perfectly well pulled a little further out. `stickoutCeiling` is the
+ * question this was always asking — see the table at the top of `stickout.ts`.
  *
  * A number the vendor never stated cannot refuse a tool, so an absent one
  * passes.
@@ -284,19 +290,21 @@ export const reaches = (tool: CatalogTool, reach: ThreadReach | null): boolean =
   if (reach.clears) {
     return reach.clears(tool)
   }
-  const below = tool.geometry.LBH
-  return below === undefined || below >= reach.below
+  const furthest = stickoutCeiling(tool)
+  return furthest === null || furthest >= reach.below
 }
 
 /** How far short of the bottom a threading tool falls, in millimetres. */
-const fallsShortBy = (tool: CatalogTool, reach: ThreadReach): number =>
-  Math.max(
+const fallsShortBy = (tool: CatalogTool, reach: ThreadReach): number => {
+  // Only where the drop is what was measured: a swept tool either clears or
+  // does not, and there is no shortfall to sort by.
+  const furthest = reach.clears ? null : stickoutCeiling(tool)
+  return Math.max(
     0,
     tool.geometry.LCF === undefined ? 0 : reach.depth - tool.geometry.LCF,
-    // Only where the drop is what was measured: a swept tool either clears or
-    // does not, and there is no shortfall to sort by.
-    reach.clears || tool.geometry.LBH === undefined ? 0 : reach.below - tool.geometry.LBH,
+    furthest === null ? 0 : reach.below - furthest,
   )
+}
 
 /**
  * Which number keeps a threading tool off the list, and by how much.
@@ -323,10 +331,15 @@ export const shortfallOf = (
   if (reach.clears) {
     return { code: 'LBH', by: null }
   }
-  const below = tool.geometry.LBH
-  return below === undefined
+  /**
+   * Painted on `LBH`, measured against the ceiling. The column a reader
+   * associates with reach is the one to paint, and the shortfall is against
+   * the furthest the tool can go — pulling it out is the thing they would try.
+   */
+  const furthest = stickoutCeiling(tool)
+  return furthest === null
     ? null
-    : { code: 'LBH', by: Math.round((reach.below - below) * 1000) / 1000 }
+    : { code: 'LBH', by: Math.round((reach.below - furthest) * 1000) / 1000 }
 }
 
 /**
