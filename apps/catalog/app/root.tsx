@@ -61,7 +61,21 @@ try {
 `.trim()
 
 export const Layout = ({ children }: { children: ReactNode }) => (
-  <html lang="en" className="dark">
+  /*
+   * `suppressHydrationWarning` because this element is **deliberately** not
+   * what the build shipped: `THEME` below rewrites its class and its
+   * `color-scheme` before the first paint, which is the whole point of an
+   * inline blocking script. Hydration then compared the mutated document
+   * against the render and reported the difference as a mistake — a shop in
+   * light mode opened the console to `className="dark"` against `className=""`
+   * on every page (2026-09-02).
+   *
+   * It suppresses this element's own attributes and nothing deeper, which is
+   * exactly the extent of what the script touches. The class stays in the JSX
+   * so that a page whose script never ran is still the dark one the
+   * application was drawn for.
+   */
+  <html lang="en" className="dark" suppressHydrationWarning>
     <head>
       <meta charSet="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />

@@ -2261,7 +2261,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                       and a stack of filter bubbles painted over the tool list
                       is not what that was for.
                     */}
-                    <div className="flex max-h-full w-fit flex-col gap-1 overflow-hidden">
+                    <div className="pointer-events-auto flex max-h-full w-fit flex-col gap-1 overflow-hidden">
                       <FilterRail
                         open={askedFilter}
                         onOpened={() => setAskedFilter(null)}
@@ -2319,7 +2319,14 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                       full height, so a long list is what stops the editor
                       fitting under it.
                     */}
-                    <div className="flex h-full flex-col flex-wrap content-start gap-2">
+                    {/*
+                      **Transparent to the part.** `h-full` is what makes the
+                      wrap rule above work, and it also makes this an invisible
+                      full-height sheet over the canvas. It arranges the two
+                      cards and takes no click of its own; each card says for
+                      itself that it does.
+                    */}
+                    <div className="pointer-events-none flex h-full flex-col flex-wrap content-start gap-2">
                       <Card
                         /*
                          * The same solid ground the filter bubbles wear, and no
@@ -2347,7 +2354,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         the top of the table: the overlay is floored to the
                         viewer, and the viewer stops where the table starts.
                       */
-                        className="filter-off flex max-h-full min-h-32 w-80 shrink-0 flex-col self-start overflow-hidden"
+                        className="filter-off pointer-events-auto flex max-h-full min-h-32 w-80 shrink-0 flex-col self-start overflow-hidden"
                       >
                         <div className="flex min-h-0 flex-1 flex-col gap-1.5 p-2">
                           <h4 className="text-2xs flex shrink-0 items-center gap-1.5 font-semibold tracking-wide text-zinc-500 uppercase">
@@ -2435,7 +2442,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                       {draft?.kind === 'group' || reading !== null ? (
                         <Card
                           className={classNames(
-                            'filter-off max-h-full shrink-0 self-start overflow-y-auto',
+                            'filter-off pointer-events-auto max-h-full shrink-0 self-start overflow-y-auto',
                             draft?.kind === 'group' ? 'w-[26rem]' : 'w-80',
                           )}
                         >
@@ -2626,7 +2633,16 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               <Card className="relative flex size-full min-h-0 flex-col overflow-hidden">
                 {/* The panel measures itself here: `Card` takes no ref. */}
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                  <p
+                  {/*
+                    A `div`, not a `p`: this is the list's header bar, and it
+                    holds two tab buttons and the column picker. A `p` may hold
+                    phrasing content only, so the picker's own `div` inside it
+                    was invalid nesting — which the browser corrects by closing
+                    the paragraph early, and which React reports as a hydration
+                    error because the tree it built is not the tree that came
+                    back (2026-09-02).
+                  */}
+                  <div
                     data-list-chrome
                     className="flex items-center gap-2 border-b border-zinc-900 px-3 py-2 text-sm"
                   >
@@ -2841,7 +2857,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         onReorder={tapping ? setTapColumnOrder : setColumnOrder}
                       />
                     </span>
-                  </p>
+                  </div>
                   <div
                     // Whichever tab is open scrolls in the whole panel.
                     className="min-h-0 flex-1 overflow-auto"

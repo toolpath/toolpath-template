@@ -493,3 +493,55 @@ test('presses the tool under a row for everything that fits it', async ({ page }
   await expect(page.getByText('Cuts every feature in the group')).toBeVisible()
   await expect(page.getByRole('searchbox', { name: 'Search by catalog number' })).toBeVisible()
 })
+
+/**
+ * **The part takes the pointer where the part is drawn.**
+ *
+ * The boxes over the top-left corner are laid out in columns, and a column is
+ * not a box: on 2026-09-02 one of them became a transparent `h-full` sheet
+ * carrying `pointer-events: auto`, which is a curtain over the canvas. Nothing
+ * under it could be clicked and nothing under it could be dragged, so
+ * click-drag-rotate on the part stopped working while the view cube in the far
+ * corner went on rotating — the corner is the only place outside the curtain.
+ *
+ * **At a laptop width, on purpose.** The rest of this file runs at 1680, where
+ * the centre of the part clears the curtain by a few dozen pixels; that is the
+ * whole reason a bug this total shipped with the suite green. Narrower, `FACE`
+ * is under it. Nothing else about these two tests is different, so the window
+ * is the only thing they have to say.
+ */
+test.describe('at a laptop width', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  /**
+   * The hit test, which says *what* is in the way when this breaks.
+   *
+   * Only `FACE` itself: the filter rail is a column of real controls and it
+   * genuinely covers the left of the canvas, so a sweep would have to tell a
+   * drawn box from an invisible one. The point every other test in this file
+   * clicks is the point worth defending.
+   */
+  test('the canvas is what the pointer finds at the centre of the part', async ({ page }) => {
+    const canvas = page.locator('canvas')
+    await expect(canvas).toBeVisible()
+    let box = await canvas.boundingBox()
+    await expect(async () => {
+      box = await canvas.boundingBox()
+      expect(box).not.toBeNull()
+    }).toPass({ timeout: 10_000 })
+    const seen = box!
+
+    const over = await page.evaluate(
+      (point) => document.elementFromPoint(point.x, point.y)?.tagName.toLowerCase() ?? 'none',
+      { x: seen.x + seen.width * FACE.x, y: seen.y + seen.height * FACE.y },
+    )
+    expect(over).toBe('canvas')
+  })
+
+  /** And the behaviour it exists for: a click there still reaches the mesh. */
+  test('a click on the part names its reading', async ({ page }) => {
+    await ready(page)
+
+    await expect(field(page)).toBeVisible()
+  })
+})

@@ -264,9 +264,22 @@ export const PartViewer = ({
            * what is being read. It wrapped by height for a while and the
            * boxes moved about as the window changed — Paul (2026-08-31): "I
            * like it up there and then it doesn't need to be jumping around."
-           * Only the boxes take a click, so the part is live between them.
+           *
+           * **Only the boxes take a click, and each says so itself.** This
+           * used to hand the pointer to every top-level child
+           * (`[&>*]:pointer-events-auto`), which was the same thing for as
+           * long as every child *was* a drawn box. On 2026-09-02 one of them
+           * became a transparent `h-full` column that arranges two cards — and
+           * a full-height invisible sheet of `pointer-events: auto` over the
+           * canvas is a curtain: click-drag-rotate died everywhere left of it,
+           * while the view cube in the far corner went on working. The suite
+           * missed it because `on-the-part.spec.ts` runs at 1680 wide, the one
+           * width where the centre of the part clears the curtain.
+           *
+           * So the overlay's own boxes opt in, and the columns holding them
+           * stay transparent to the part underneath.
            */
-          className="pointer-events-none absolute top-3 bottom-3 left-3 z-40 flex gap-2 [&>*]:pointer-events-auto"
+          className="pointer-events-none absolute top-3 bottom-3 left-3 z-40 flex gap-2"
         >
           {overlay}
         </div>
