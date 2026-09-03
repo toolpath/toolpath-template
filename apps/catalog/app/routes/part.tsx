@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Badge, Button, Card, Panels } from '@toolpath/ui'
 import {
   colletsFor,
@@ -25,6 +25,7 @@ import { directionColor, directionIndexOf } from '@toolpath/viewer'
 import { classNames } from '@toolpath/domain/class-names'
 import { formatLength } from '@toolpath/domain/units'
 import { AppHeader } from 'components/app-header'
+import { PartUploadOverlay, type ReplacementAnalysis } from 'components/part-upload-overlay'
 import { FeatureDetails } from 'components/feature-details'
 import { KindIcon } from 'components/feature-icons'
 import { CursorClickIcon } from '@phosphor-icons/react'
@@ -108,7 +109,8 @@ import { OrderDialog } from 'components/order-dialog'
 import { closeCandidates, fittingTools, tightestRule } from 'shared/tool-fit'
 import { useUnit } from 'shared/use-unit'
 import { usePartMaterial, usePreferences } from 'shared/use-preferences'
-import { recallPart, rememberPart } from 'shared/part-session'
+import { partHref, recallPart, rememberPart } from 'shared/part-session'
+import { usePartUpload, type StartedPartUpload } from 'client/use-part-upload'
 import { IDLE, groupOf as holeGroupOf, interactionFor } from 'shared/part-interaction'
 import { arrowsFor, byLargest, keptFeatures, partHighlight } from 'shared/part-selection'
 import {
@@ -175,6 +177,46 @@ const Failed = ({ message }: { message: string }) => (
   </Shell>
 )
 
+/** Follows a replacement job without taking the current part off screen. */
+const ReplacementProgress = ({
+  part,
+  onReady,
+  onFailed,
+}: {
+  part: StartedPartUpload
+  onReady: (report: PublicInspectionReport, jobId: string) => void
+  onFailed: (message: string) => void
+}) => {
+  const state = useAnalysisEvents(part.partId, part.jobId)
+
+  useEffect(() => {
+    if (state.status === 'ready') {
+      onReady(state.report, part.jobId)
+      return
+    }
+    if (state.status === 'failed') {
+      onFailed(state.message)
+    }
+  }, [onFailed, onReady, part.jobId, state])
+
+  const analysis: ReplacementAnalysis =
+    state.status === 'pending'
+      ? { message: state.message, progress: state.progress }
+      : state.status === 'failed'
+        ? { message: state.message, progress: null }
+        : { message: 'Opening the replacement part…', progress: 1 }
+  return (
+    <PartUploadOverlay
+      full
+      status="idle"
+      error={null}
+      analysis={analysis}
+      onUpload={() => {}}
+      onClose={() => {}}
+    />
+  )
+}
+
 /**
  * Working a part: the viewer, what is selected on it, and what cuts it.
  *
@@ -186,6 +228,47 @@ const Failed = ({ message }: { message: string }) => (
 const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: string }) => {
   const [unit, setUnit] = useUnit()
   const [search, setSearch] = useSearchParams()
+  const navigate = useNavigate()
+  const [uploadOpen, setUploadOpen] = useState(() => search.get('upload') === '1')
+  const [replacement, setReplacement] = useState<StartedPartUpload | null>(null)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
+  const {
+    status: uploadStatus,
+    error: uploadError,
+    upload: uploadPart,
+    reset: resetUpload,
+  } = usePartUpload({
+    onStarted: (part) => setReplacement(part),
+  })
+  const startReplacement = (file: File) => {
+    setAnalysisError(null)
+    void uploadPart(file)
+  }
+  const finishReplacement = useCallback(
+    (next: PublicInspectionReport, nextJobId: string) => {
+      rememberPart({ partId: next.partId, jobId: nextJobId, report: next })
+      void navigate(partHref({ partId: next.partId, jobId: nextJobId, report: next }))
+    },
+    [navigate],
+  )
+  const failReplacement = useCallback(
+    (message: string) => {
+      setReplacement(null)
+      setAnalysisError(message)
+      resetUpload()
+    },
+    [resetUpload],
+  )
+  const closeUpload = () => {
+    resetUpload()
+    setAnalysisError(null)
+    setUploadOpen(false)
+    if (search.has('upload')) {
+      const next = new URLSearchParams(search)
+      next.delete('upload')
+      setSearch(next)
+    }
+  }
   /**
    * What a click on the part means, all of it, in `shared/part-interaction`.
    *
@@ -2135,7 +2218,12 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
 
   return (
     <main className="flex h-screen flex-col overflow-hidden">
-      <AppHeader unit={unit} onUnit={setUnit} toolCount={allTools.length} />
+      <AppHeader
+        unit={unit}
+        onUnit={setUnit}
+        toolCount={allTools.length}
+        onUploadPart={() => setUploadOpen(true)}
+      />
 
       {/*
         Paul's layout (2026-08-31): the part takes the whole left, with the
@@ -2252,6 +2340,26 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                   still marked on the part.
                 */
                 tooled={tooled}
+                modal={
+                  uploadOpen ? (
+                    replacement ? (
+                      <ReplacementProgress
+                        part={replacement}
+                        onReady={finishReplacement}
+                        onFailed={failReplacement}
+                      />
+                    ) : (
+                      <PartUploadOverlay
+                        full
+                        status={uploadStatus}
+                        error={analysisError ?? uploadError}
+                        analysis={null}
+                        onUpload={startReplacement}
+                        onClose={closeUpload}
+                      />
+                    )
+                  ) : null
+                }
                 overlay={
                   <>
                     {/*

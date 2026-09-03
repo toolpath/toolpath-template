@@ -1,9 +1,9 @@
 import { useRef, type FormEvent } from 'react'
 import { Button, Card } from '@toolpath/ui'
-import { CAD_EXTENSIONS } from '@toolpath/part-contracts'
 import { useSession } from '@toolpath/part-client'
 import { AppHeader } from 'components/app-header'
 import { usePartUpload } from 'client/use-part-upload'
+import { PartUploadOverlay } from 'components/part-upload-overlay'
 import { allTools } from 'shared/catalog'
 import { useUnit } from 'shared/use-unit'
 
@@ -45,72 +45,31 @@ const Parts = () => {
     <main className="flex h-screen flex-col overflow-hidden">
       <AppHeader unit={unit} onUnit={setUnit} toolCount={allTools.length} />
 
-      {/*
-        The panel the part will be drawn in, holding the way to get one into
-        it — same place, same size, so nothing moves out from under somebody
-        between uploading a part and reading it.
-      */}
+      {/* This is the viewer stage before the first mesh exists. */}
       <div className="min-h-0 flex-1 p-3">
-        <Card className="flex size-full min-h-0 items-center justify-center overflow-auto p-6">
-          <div className="flex w-full max-w-xl flex-col gap-6">
-            <div>
-              <h2 className="font-heading text-xl font-bold text-zinc-100">
-                Match tools to a part
-              </h2>
-              <p className="mt-2 text-sm text-zinc-400">
-                Upload a CAD part, select the features you want to cut, and the catalog narrows to
-                the tools that can cut all of them.
-              </p>
-            </div>
-
-            {session.status === 'connected' ? (
-              <div className="flex flex-col gap-4">
-                <label className="text-sm font-semibold text-zinc-100" htmlFor="cad">
-                  CAD file
-                  <input
-                    id="cad"
-                    name="cad"
-                    type="file"
-                    accept={CAD_EXTENSIONS.join(',')}
-                    disabled={upload.status !== 'idle'}
-                    onChange={(event) => {
-                      const file = event.target.files?.[0]
-                      if (file) {
-                        void upload.upload(file)
-                      }
-                    }}
-                    className="mt-2 block w-full text-sm text-zinc-300"
-                  />
-                </label>
-                <p className="text-xs text-zinc-500">
-                  {CAD_EXTENSIONS.join(', ')} — the file is uploaded straight to Toolpath storage,
-                  not through this application.
-                </p>
-                {upload.status !== 'idle' ? (
-                  <p role="status" className="text-sm text-zinc-300">
-                    {upload.status === 'creating-part'
-                      ? 'Preparing the upload…'
-                      : upload.status === 'uploading-file'
-                        ? 'Uploading the file…'
-                        : 'Starting analysis…'}
-                  </p>
-                ) : null}
-                {upload.error ? (
-                  <p role="alert" className="text-danger text-sm">
-                    {upload.error}
-                  </p>
-                ) : null}
+        <section className="relative size-full overflow-hidden rounded-xl bg-zinc-950">
+          {session.status === 'connected' ? (
+            <PartUploadOverlay
+              full
+              title="Match tools to a part"
+              description="Upload a CAD part, select the features you want to cut, and the catalog narrows to the tools that can cut all of them."
+              status={upload.status}
+              error={upload.error}
+              analysis={null}
+              onUpload={(file) => void upload.upload(file)}
+              footer={
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="self-start"
                   disabled={session.action !== 'idle'}
                   onClick={() => void session.disconnectSession()}
                 >
                   Disconnect
                 </Button>
-              </div>
-            ) : (
+              }
+            />
+          ) : (
+            <Card className="flex size-full min-h-0 items-center justify-center overflow-auto p-6">
               <div>
                 <form ref={form} onSubmit={connect} className="flex flex-col gap-4">
                   <label className="text-sm font-semibold text-zinc-100" htmlFor="apiKey">
@@ -148,9 +107,9 @@ const Parts = () => {
                   </Button>
                 </form>
               </div>
-            )}
-          </div>
-        </Card>
+            </Card>
+          )}
+        </section>
       </div>
     </main>
   )

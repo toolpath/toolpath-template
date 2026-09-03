@@ -19,9 +19,11 @@ export interface AppHeaderProps {
   readonly unit: Unit
   readonly onUnit: (unit: Unit) => void
   readonly toolCount: number
+  /** Opens an in-workspace uploader when a part is already on screen. */
+  readonly onUploadPart?: () => void
 }
 
-export const AppHeader = ({ unit, onUnit, toolCount }: AppHeaderProps) => {
+export const AppHeader = ({ unit, onUnit, toolCount, onUploadPart }: AppHeaderProps) => {
   const [theme, onTheme] = useTheme()
   // A part stays loaded while somebody reads the catalog, so the tab that
   // brought them there takes them back to it rather than to an upload form
@@ -34,13 +36,21 @@ export const AppHeader = ({ unit, onUnit, toolCount }: AppHeaderProps) => {
       <div className="flex items-center gap-3 px-6 pt-4 pb-2">
         <h1 className="font-heading text-lg font-bold text-zinc-100">Tool catalog</h1>
         <Badge variant="secondary">{toolCount} tools</Badge>
-        {/* A new part is always one press away, from wherever somebody is: it is
-          the way in to everything else here, and hunting for it through the
-          part already open is the wrong first step. */}
+        {/* A new part is always one press away. When another part is already
+          loaded, return to its viewer and open the uploader there rather than
+          discarding it for a separate form. */}
         <Chip
           className="ml-auto"
           title="Start again with another part"
           onClick={() => {
+            if (onUploadPart) {
+              onUploadPart()
+              return
+            }
+            if (part) {
+              void navigate(`${partHref(part)}&upload=1`)
+              return
+            }
             // The part in play is let go first, so the upload page opens ready
             // for the next one rather than offering a way back to the old.
             forgetPart()
