@@ -1,4 +1,4 @@
-import { cn } from '@toolpath/ui'
+import { Button, cn } from '@toolpath/ui'
 import type { CSSProperties, ReactNode } from 'react'
 
 /**
@@ -44,8 +44,10 @@ export const Chip = ({
     pressed && color ? { background: color, borderColor: color } : undefined
 
   return (
-    <button
+    <Button
       type="button"
+      variant="muted"
+      size="sm"
       aria-pressed={pressed}
       aria-label={label}
       title={title}
@@ -63,7 +65,7 @@ export const Chip = ({
       )}
     >
       {children}
-    </button>
+    </Button>
   )
 }
 

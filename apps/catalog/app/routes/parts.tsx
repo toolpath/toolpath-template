@@ -1,5 +1,5 @@
 import { useRef, type FormEvent } from 'react'
-import { Button, Card } from '@toolpath/ui'
+import { Button, Card, Input } from '@toolpath/ui'
 import { useSession } from '@toolpath/part-client'
 import { AppHeader } from 'components/app-header'
 import { usePartUpload } from 'client/use-part-upload'
@@ -74,20 +74,22 @@ const Parts = () => {
                 <form ref={form} onSubmit={connect} className="flex flex-col gap-4">
                   <label className="text-sm font-semibold text-zinc-100" htmlFor="apiKey">
                     Toolpath API key
-                    <input
-                      id="apiKey"
-                      name="apiKey"
-                      type="text"
-                      required
-                      autoComplete="off"
-                      autoCapitalize="off"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      data-1p-ignore="true"
-                      data-lpignore="true"
-                      className="api-key-input focus-visible:ring-info/75 mt-2 block w-full rounded-lg border border-zinc-700 bg-transparent px-3 py-3 font-mono text-sm text-zinc-100 outline-none focus-visible:ring-2"
-                    />
                   </label>
+                  <Input
+                    id="apiKey"
+                    name="apiKey"
+                    type="text"
+                    required
+                    autoComplete="off"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    data-1p-ignore="true"
+                    data-lpignore="true"
+                    variant="ghost"
+                    size="xl"
+                    className="api-key-input mt-2 w-full rounded-lg border border-zinc-700 font-mono text-sm text-zinc-100"
+                  />
                   <p className="text-xs text-zinc-500">
                     The key is sent to this application's server, sealed into an encrypted session
                     cookie, and never stored in the browser.

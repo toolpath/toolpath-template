@@ -1,5 +1,5 @@
-import { cn } from '@toolpath/ui'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Button, IconButton, Menu, cn } from '@toolpath/ui'
+import type { ReactNode } from 'react'
 import {
   CaretDownIcon,
   CaretRightIcon,
@@ -86,80 +86,6 @@ const RESULT_LABEL = {
 } as const
 
 /**
- * The two menus this panel needs, hand-drawn.
- *
- * The kit has `Menu`, and it is the right thing in a page; this panel is 320
- * pixels of a card that already draws its own dropdown for a face's readings,
- * and a second popover with different manners inside the same box reads as a
- * different application. One shape, opened two ways: pressed on the `+`, and
- * right-clicked on a row.
- */
-const Popover = ({
-  onClose,
-  at,
-  children,
-}: {
-  onClose: () => void
-  /** Where the right-click was, in the window. */
-  at: { readonly x: number; readonly y: number }
-  children: ReactNode
-}) => {
-  const box = useRef<HTMLUListElement>(null)
-  useEffect(() => {
-    const away = (event: MouseEvent) => {
-      if (!box.current?.contains(event.target as Node)) {
-        onClose()
-      }
-    }
-    // A frame late, or the click that opened it closes it again.
-    const timer = window.setTimeout(() => document.addEventListener('mousedown', away), 0)
-    return () => {
-      window.clearTimeout(timer)
-      document.removeEventListener('mousedown', away)
-    }
-  }, [onClose])
-  /*
-    **Fixed to the window, not to the row** (Paul, 2026-09-02: "the feature list
-    should overlap, not require me to scroll down to access the right click
-    menu"). Positioned inside the list it was clipped by the list's own scroll,
-    so the menu for a row near the bottom opened where nobody could reach it —
-    the very thing the scroll was supposed to make safe.
-  */
-  return (
-    <ul
-      ref={box}
-      style={{ left: at.x, top: at.y }}
-      className="fixed z-50 w-max min-w-40 rounded-lg border border-zinc-800 bg-zinc-950 py-0.5 shadow-xl"
-    >
-      {children}
-    </ul>
-  )
-}
-
-const MenuItem = ({
-  onClick,
-  danger = false,
-  children,
-}: {
-  onClick: () => void
-  danger?: boolean
-  children: ReactNode
-}) => (
-  <li>
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'w-full px-2 py-1 text-left text-xs hover:bg-zinc-900',
-        danger ? 'text-danger' : 'text-zinc-300',
-      )}
-    >
-      {children}
-    </button>
-  </li>
-)
-
-/**
  * One tool a row is answered with, and the way to the whole offer behind it.
  *
  * **A row can carry several** (Paul, 2026-09-02: "a feature or group can have
@@ -190,8 +116,10 @@ const Answer = ({
   */
   const holding = [pick.holder, pick.collet].filter((each) => each !== null).join(' · ')
   return (
-    <button
+    <Button
       type="button"
+      variant="muted"
+      size="sm"
       aria-pressed={here}
       aria-label={`${pick.tool.catalogNumber} for ${label}`}
       title={`${pick.tool.catalogNumber}${holding === '' ? '' : ` in ${holding}`} — every tool that fits ${label}`}
@@ -215,7 +143,7 @@ const Answer = ({
       {holding === '' ? null : (
         <span className="w-full truncate pl-5 font-mono text-zinc-500">{holding}</span>
       )}
-    </button>
+    </Button>
   )
 }
 
@@ -287,12 +215,6 @@ export const FeatureListPanel = ({
   onRemove,
 }: FeatureListPanelProps) => {
   /** The row a right-click is asking about, and where it was asked. */
-  const [asking, setAsking] = useState<{
-    readonly id: string
-    readonly x: number
-    readonly y: number
-  } | null>(null)
-
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1">
       {items.length === 0 ? null : (
@@ -321,115 +243,105 @@ export const FeatureListPanel = ({
             const label = labelOf(item, nameOf)
             return (
               <li key={item.id} className="relative">
-                <div
-                  className={cn(
-                    'flex items-center gap-1 rounded border px-1.5 py-1 text-left transition',
-                    here
-                      ? 'border-info/60 bg-info/15'
-                      : 'border-transparent hover:border-zinc-800 hover:bg-zinc-900/60',
-                  )}
-                >
-                  {/* A group opens; a feature has nothing to open, and keeps
-                      the indent so the two kinds line up. */}
-                  {item.kind === 'group' ? (
-                    <button
-                      type="button"
-                      aria-expanded={opened}
-                      aria-label={`${opened ? 'Close' : 'Open'} ${label}`}
-                      onClick={() => onOpen(item.id)}
-                      className="shrink-0 rounded p-0.5 text-zinc-500 hover:text-zinc-200"
-                    >
-                      {opened ? <CaretDownIcon /> : <CaretRightIcon />}
-                    </button>
-                  ) : (
-                    <span aria-hidden="true" className="size-4 shrink-0" />
-                  )}
-                  <button
-                    type="button"
-                    aria-pressed={here}
-                    // Named for what it is, so the caret beside it — "Open 4 ×
-                    // Through Hole" — is a different control by its name as
-                    // well as by its shape.
-                    aria-label={label}
-                    // Selecting the row already on screen puts it down again,
-                    // which is the way back to the list's own answers.
-                    onClick={() => onSelect(here ? null : item.id)}
-                    onContextMenu={(event) => {
-                      event.preventDefault()
-                      setAsking({ id: item.id, x: event.clientX, y: event.clientY })
-                    }}
-                    className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-                  >
-                    <span className="shrink-0 text-zinc-400">
-                      {item.kind === 'group' ? (
-                        opened ? (
-                          <FolderOpenIcon />
-                        ) : (
-                          <FolderIcon />
-                        )
-                      ) : (
-                        (iconOf?.(item.tags[0] ?? '') ?? null)
-                      )}
-                    </span>
-                    <span
+                <Menu context>
+                  <Menu.Trigger>
+                    <div
                       className={cn(
-                        'min-w-0 flex-1 truncate text-xs',
-                        here ? 'text-zinc-100' : 'text-zinc-300',
+                        'flex items-center gap-1 rounded border px-1.5 py-1 text-left transition',
+                        here
+                          ? 'border-info/60 bg-info/15'
+                          : 'border-transparent hover:border-zinc-800 hover:bg-zinc-900/60',
                       )}
                     >
-                      {label}
-                    </span>
-                    {/* What the group was asked for, on the row: it changes the
+                      {/* A group opens; a feature has nothing to open, and keeps
+                      the indent so the two kinds line up. */}
+                      {item.kind === 'group' ? (
+                        <IconButton
+                          type="button"
+                          size="md"
+                          variant="muted"
+                          aria-expanded={opened}
+                          aria-label={`${opened ? 'Close' : 'Open'} ${label}`}
+                          onClick={() => onOpen(item.id)}
+                          className="shrink-0 rounded p-0.5 text-zinc-500 hover:text-zinc-200"
+                        >
+                          {opened ? <CaretDownIcon /> : <CaretRightIcon />}
+                        </IconButton>
+                      ) : (
+                        <span aria-hidden="true" className="size-4 shrink-0" />
+                      )}
+                      <Button
+                        type="button"
+                        variant="muted"
+                        size="sm"
+                        aria-pressed={here}
+                        // Named for what it is, so the caret beside it — "Open 4 ×
+                        // Through Hole" — is a different control by its name as
+                        // well as by its shape.
+                        aria-label={label}
+                        // Selecting the row already on screen puts it down again,
+                        // which is the way back to the list's own answers.
+                        onClick={() => onSelect(here ? null : item.id)}
+                        className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                      >
+                        <span className="shrink-0 text-zinc-400">
+                          {item.kind === 'group' ? (
+                            opened ? (
+                              <FolderOpenIcon />
+                            ) : (
+                              <FolderIcon />
+                            )
+                          ) : (
+                            (iconOf?.(item.tags[0] ?? '') ?? null)
+                          )}
+                        </span>
+                        <span
+                          className={cn(
+                            'min-w-0 flex-1 truncate text-xs',
+                            here ? 'text-zinc-100' : 'text-zinc-300',
+                          )}
+                        >
+                          {label}
+                        </span>
+                        {/* What the group was asked for, on the row: it changes the
                         answer underneath, and a shop should not have to open a
                         dialog to see which question it is. */}
-                    {item.kind === 'group' ? (
-                      <span
-                        className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-zinc-400"
-                        title={
-                          item.results === 'all'
-                            ? 'One tool that cuts every feature in this group'
-                            : 'The best tool for each feature in this group'
-                        }
-                      >
-                        {RESULT_LABEL[item.results]}
-                      </span>
-                    ) : (
-                      <span className="text-2xs shrink-0 font-mono text-zinc-500">
-                        {directionOf?.(item.tags[0] ?? '') ?? ''}
-                      </span>
-                    )}
-                    {item.tags.length > 1 ? (
-                      <span
-                        className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 font-semibold text-zinc-300"
-                        title={`${String(item.tags.length)} features`}
-                      >
-                        ×{item.tags.length}
-                      </span>
-                    ) : null}
-                  </button>
-                </div>
-
-                {asking?.id === item.id ? (
-                  <Popover onClose={() => setAsking(null)} at={asking}>
-                    <MenuItem
-                      onClick={() => {
-                        setAsking(null)
-                        onEdit(item.id)
-                      }}
-                    >
+                        {item.kind === 'group' ? (
+                          <span
+                            className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-zinc-400"
+                            title={
+                              item.results === 'all'
+                                ? 'One tool that cuts every feature in this group'
+                                : 'The best tool for each feature in this group'
+                            }
+                          >
+                            {RESULT_LABEL[item.results]}
+                          </span>
+                        ) : (
+                          <span className="text-2xs shrink-0 font-mono text-zinc-500">
+                            {directionOf?.(item.tags[0] ?? '') ?? ''}
+                          </span>
+                        )}
+                        {item.tags.length > 1 ? (
+                          <span
+                            className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 font-semibold text-zinc-300"
+                            title={`${String(item.tags.length)} features`}
+                          >
+                            ×{item.tags.length}
+                          </span>
+                        ) : null}
+                      </Button>
+                    </div>
+                  </Menu.Trigger>
+                  <Menu.Popover>
+                    <Menu.Item onClick={() => onEdit(item.id)}>
                       Edit {item.kind === 'group' ? 'group' : 'feature'}…
-                    </MenuItem>
-                    <MenuItem
-                      danger
-                      onClick={() => {
-                        setAsking(null)
-                        onRemove(item.id)
-                      }}
-                    >
+                    </Menu.Item>
+                    <Menu.Item variant="danger" onClick={() => onRemove(item.id)}>
                       Remove
-                    </MenuItem>
-                  </Popover>
-                ) : null}
+                    </Menu.Item>
+                  </Menu.Popover>
+                </Menu>
 
                 {/*
                   **The answer under the question.** A group asked for one tool
@@ -504,8 +416,10 @@ export const FeatureListPanel = ({
         There are two things; there are two buttons.
       */}
       <div className="flex items-center gap-1">
-        <button
+        <Button
           type="button"
+          variant="muted"
+          size="sm"
           aria-pressed={addingFeature}
           title="Add the feature being read"
           onClick={onAddFeature}
@@ -518,15 +432,17 @@ export const FeatureListPanel = ({
         >
           <PlusIcon aria-hidden="true" />
           Add feature
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="muted"
+          size="sm"
           onClick={onAddGroup}
           className="focus-visible:ring-info/60 flex flex-1 items-center justify-center gap-1 rounded border border-dashed border-zinc-800 px-2 py-1 text-xs text-zinc-500 transition hover:border-zinc-700 hover:text-zinc-200 focus-visible:ring-1 focus-visible:outline-none"
         >
           <PlusIcon aria-hidden="true" />
           Add group
-        </button>
+        </Button>
       </div>
       {/* Pressed with nothing being read, the button asks for the one thing it
           needs rather than refusing to be pressed. */}

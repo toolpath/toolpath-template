@@ -126,9 +126,8 @@ describe('PartToolTable', () => {
       },
     })
 
-    fireEvent.change(screen.getAllByRole('combobox', { name: 'Holder for T-20' })[0], {
-      target: { value: 'holder' },
-    })
+    fireEvent.click(screen.getAllByRole('combobox', { name: 'Holder for T-20' })[0]!)
+    fireEvent.click(screen.getByRole('option', { name: 'BT30' }))
 
     expect(onChoose).not.toHaveBeenCalled()
   })

@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router'
-import { Badge, cn } from '@toolpath/ui'
+import { Badge, IconButton, cn } from '@toolpath/ui'
 import { Chip, ChipGroup } from 'components/chip'
 import { UNIT_ABBREVIATION, UNIT_SYSTEMS, type UnitSystem } from '@toolpath/tool-support'
 import { MoonIcon, SunIcon, UploadSimpleIcon } from '@phosphor-icons/react'
@@ -60,15 +60,17 @@ export const AppHeader = ({ unit, onUnit, toolCount, onUploadPart }: AppHeaderPr
           Upload part
         </Chip>
         {/* Light or dark: the palette flips, the classes do not. */}
-        <button
-          type="button"
+        <IconButton
+          size="lg"
+          variant="muted"
           aria-label={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+          toggled={theme === 'light'}
           title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
           onClick={() => onTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="focus-visible:ring-info/60 rounded border border-zinc-800 p-1.5 text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-100 focus-visible:ring-1 focus-visible:outline-none"
+          className="!size-7 [&_svg]:!size-4"
         >
           {theme === 'dark' ? <SunIcon aria-hidden="true" /> : <MoonIcon aria-hidden="true" />}
-        </button>
+        </IconButton>
         <ChipGroup label="Units">
           {UNIT_SYSTEMS.map((each) => (
             <Chip key={each} pressed={each === unit} onClick={() => onUnit(each)}>

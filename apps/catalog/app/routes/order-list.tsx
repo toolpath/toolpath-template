@@ -1,7 +1,7 @@
 import { ArrowSquareOutIcon, DownloadSimpleIcon, TrashIcon } from '@phosphor-icons/react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useParams, useSearchParams } from 'react-router'
-import { Badge, Card, cn } from '@toolpath/ui'
+import { Badge, Button, Card, IconButton, cn, Input } from '@toolpath/ui'
 import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import type { CatalogTool, Collet, Holder } from '@toolpath/catalog-data'
 import { AppHeader } from 'components/app-header'
@@ -157,15 +157,20 @@ const Count = ({
   onValue: (many: number) => void
   label: string
 }) => (
-  <input
+  <Input
+    id={`quantity-${label.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`}
+    name="quantity"
     type="number"
     inputMode="numeric"
     min={1}
     step={1}
     value={value}
-    onChange={(event) => onValue(Number(event.target.value))}
+    onValueChange={(next) => onValue(next === null ? 1 : Number(next))}
     aria-label={label}
-    className="focus-visible:ring-info/60 w-14 [appearance:textfield] rounded border border-zinc-700 bg-zinc-950 px-1.5 py-0.5 text-right font-mono text-xs text-zinc-100 focus-visible:ring-1 focus-visible:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+    variant="ghost"
+    size="md"
+    textEnd
+    className="inline-flex w-14 rounded border border-zinc-700 font-mono text-xs text-zinc-100"
   />
 )
 
@@ -189,15 +194,16 @@ const AssemblyHead = ({ tool, features, verb, total, onTotal, onRemove }: Assemb
   <>
     <span className="flex items-center gap-1.5">
       <span className="text-sm break-words text-zinc-200">{tool}</span>
-      <button
-        type="button"
+      <IconButton
+        size="md"
+        variant="muted"
         aria-label={`Remove ${tool} from the order list`}
         title="Remove the whole assembly"
         onClick={onRemove}
         className="focus-visible:ring-danger/60 hover:text-danger shrink-0 rounded p-0.5 text-zinc-600 transition focus-visible:ring-1 focus-visible:outline-none"
       >
         <TrashIcon aria-hidden="true" />
-      </button>
+      </IconButton>
     </span>
     <span className="text-2xs block text-zinc-500">
       {verb} {features.join(', ')}
@@ -255,15 +261,16 @@ const Row = ({
           <span className="text-2xs font-mono text-zinc-400">= {String(total * quantity)}</span>
         )}
         {/* One component off the assembly, rather than the whole of it. */}
-        <button
-          type="button"
+        <IconButton
+          size="md"
+          variant="muted"
           aria-label={`Remove ${line.catalogNumber} from this assembly`}
           title="Remove this component"
           onClick={onRemove}
           className="focus-visible:ring-danger/60 hover:text-danger shrink-0 rounded p-0.5 text-zinc-600 transition focus-visible:ring-1 focus-visible:outline-none"
         >
           <TrashIcon aria-hidden="true" />
-        </button>
+        </IconButton>
       </span>
     </td>
     <td className="text-2xs w-24 px-3 py-1.5 tracking-wide whitespace-nowrap text-zinc-400 uppercase">
@@ -415,15 +422,17 @@ const Bom = () => {
             </Badge>
             <span className="text-2xs text-zinc-500">what has been decided for this part</span>
             {assemblies.length === 0 ? null : (
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="sm"
                 onClick={downloadFusion}
                 title="Every tool on this bill, as a library Fusion can import"
                 className="text-2xs focus-visible:ring-info/60 border-info/40 text-info hover:border-info/70 hover:bg-info/10 ml-auto inline-flex items-center gap-1 rounded border px-2 py-1 font-semibold whitespace-nowrap transition focus-visible:ring-1 focus-visible:outline-none"
               >
                 <DownloadSimpleIcon aria-hidden="true" />
                 Fusion tool library
-              </button>
+              </Button>
             )}
           </p>
           <div className="min-h-0 flex-1 overflow-auto">

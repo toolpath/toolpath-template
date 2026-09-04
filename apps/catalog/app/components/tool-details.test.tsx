@@ -71,6 +71,30 @@ describe('what the panel says about where a number came from', () => {
   })
 })
 
+describe('tool actions', () => {
+  it('uses standard Toolpath action surfaces without custom color overrides', () => {
+    const add = vi.fn()
+    const remove = vi.fn()
+    render(
+      <ToolDetails
+        tool={tool}
+        unit="millimeters"
+        actions={[
+          { key: 'add', label: 'Add tool', onClick: add },
+          { key: 'remove', label: 'Remove tool', onClick: remove, danger: true },
+        ]}
+      />,
+    )
+
+    const addButton = screen.getByRole('button', { name: 'Add tool' })
+    const removeButton = screen.getByRole('button', { name: 'Remove tool' })
+    expect(addButton.firstElementChild).toHaveClass('bg-success', 'py-1')
+    expect(removeButton.firstElementChild).toHaveClass('bg-danger', 'py-1')
+    expect(addButton.className).not.toContain('emerald')
+    expect(removeButton.className).not.toContain('border-danger')
+  })
+})
+
 /**
  * **A collet can be chosen before a holder** (Paul, 2026-09-01: "I should be
  * able to select a collet without selecting a holder. Right now the drop down
@@ -202,8 +226,9 @@ describe('choosing a holder and a collet', () => {
   it('offers the collets that grip the shank with no holder chosen', () => {
     render(<ToolDetails tool={tool} unit="millimeters" holding={holding().holding} />)
 
-    const collet = screen.getByLabelText('Collet')
+    const collet = screen.getByRole('combobox', { name: 'Collet' })
     expect(collet).toBeEnabled()
+    fireEvent.click(collet)
     expect(screen.getByRole('option', { name: 'ER16-4 · ER16' })).toBeInTheDocument()
   })
 
@@ -243,13 +268,15 @@ describe('choosing a holder and a collet', () => {
     })
     render(<ToolDetails tool={tool} unit="millimeters" holding={takes} />)
 
-    fireEvent.change(screen.getByLabelText('Holder'), { target: { value: 'h-er16' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'Holder' }))
+    fireEvent.click(screen.getByRole('option', { name: /ER16 chuck/ }))
     expect(onChoose).toHaveBeenLastCalledWith(tool, {
       holderGuid: 'h-er16',
       colletGuid: 'c-er16',
     })
 
-    fireEvent.change(screen.getByLabelText('Holder'), { target: { value: 'h-pg6' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'Holder' }))
+    fireEvent.click(screen.getByRole('option', { name: /PG6 chuck/ }))
     expect(onChoose).toHaveBeenLastCalledWith(tool, { holderGuid: 'h-pg6', colletGuid: null })
   })
 })

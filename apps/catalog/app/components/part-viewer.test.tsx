@@ -147,6 +147,7 @@ describe('the viewer controls', () => {
       .querySelectorAll('button')
 
     expect(controls.length).toBe(3)
+    expect(controls[0]).toHaveClass('!size-7', '[&_svg]:!size-4')
     expect(screen.queryByRole('button', { name: /assembly/i })).not.toBeInTheDocument()
   })
 })

@@ -1,6 +1,5 @@
-import { cn } from '@toolpath/ui'
-import { useState } from 'react'
-import { CaretDownIcon, InfoIcon } from '@phosphor-icons/react'
+import { Combobox, IconButton, cn } from '@toolpath/ui'
+import { InfoIcon } from '@phosphor-icons/react'
 import type { PartFeature } from '@toolpath/part-contracts'
 import {
   STRIP_LABELS,
@@ -18,6 +17,7 @@ import {
 import { defaultsFor, readingsFor, type Reading } from 'shared/feature-defaults'
 import { featureRow } from 'shared/feature-rows'
 import { KindIcon, MeasurementIcon } from './feature-icons'
+import { CatalogComboboxButton } from './catalog-combobox-button'
 
 export interface SelectionPanelProps {
   /** The reading on screen, or nothing while the part is untouched. */
@@ -105,7 +105,6 @@ export const SelectionPanel = ({
   chose = true,
   thread,
 }: SelectionPanelProps) => {
-  const [listing, setListing] = useState(false)
   const ways = new Set(
     candidates.flatMap((each) => {
       const at = directionOf?.(each) ?? null
@@ -182,43 +181,31 @@ export const SelectionPanel = ({
               <KindIcon featureType={feature.featureType} kind={row.type} />
             </span>
             {candidates.length > 1 && onRead ? (
-              <span className="relative min-w-0 flex-1">
-                <button
-                  type="button"
-                  aria-expanded={listing}
-                  aria-label="What this face reads as"
-                  onClick={() => setListing((was) => !was)}
-                  className="focus-visible:ring-info/60 flex w-full items-center gap-1.5 rounded border border-zinc-700 bg-zinc-950 px-1.5 py-0.5 text-left focus-visible:ring-1 focus-visible:outline-none"
+              <div className="min-w-0 flex-1">
+                <Combobox
+                  items={candidates}
+                  value={feature}
+                  onValueChange={(next) => {
+                    if (next !== null) {
+                      onRead(next.featureTag)
+                    }
+                  }}
+                  itemToStringLabel={(each) =>
+                    asking
+                      ? 'Select a direction'
+                      : featureRow({ feature: each, features, regions, unit }).type
+                  }
+                  size="sm"
+                  variant="ghost"
                 >
-                  <Swatch colour={colourOf?.(feature) ?? null} hidden={asking} />
-                  <span
-                    className={cn(
-                      'min-w-0 flex-1 truncate text-sm font-semibold',
-                      asking ? 'text-info' : 'text-zinc-100',
-                    )}
-                  >
-                    {asking ? 'Select a direction' : row.type}
-                  </span>
-                  <CaretDownIcon aria-hidden="true" className="shrink-0 text-zinc-500" />
-                </button>
-                {listing ? (
-                  <ul className="absolute top-full left-0 z-30 mt-1 max-h-64 w-max min-w-full overflow-auto rounded-lg border border-zinc-800 bg-zinc-950 py-0.5 shadow-xl">
-                    {candidates.map((each) => (
-                      <li key={each.featureTag}>
-                        <button
-                          type="button"
-                          aria-pressed={each.featureTag === feature.featureTag}
-                          onClick={() => {
-                            onRead(each.featureTag)
-                            setListing(false)
-                          }}
-                          className={cn(
-                            'flex w-full items-center gap-2 px-2 py-1 text-left text-xs',
-                            each.featureTag === feature.featureTag && !asking
-                              ? 'bg-info/15 text-zinc-100'
-                              : 'text-zinc-300 hover:bg-zinc-900',
-                          )}
-                        >
+                  <CatalogComboboxButton
+                    label="What this face reads as"
+                    placeholder="Select a direction"
+                  />
+                  <Combobox.Popover>
+                    <Combobox.List>
+                      {candidates.map((each) => (
+                        <Combobox.Item key={each.featureTag} value={each}>
                           <Swatch colour={colourOf?.(each) ?? null} />
                           <span className="min-w-0 flex-1 truncate">
                             {featureRow({ feature: each, features, regions, unit }).type}
@@ -226,12 +213,13 @@ export const SelectionPanel = ({
                           <span className="text-2xs shrink-0 font-mono text-zinc-500">
                             {featureRow({ feature: each, features, regions, unit }).direction}
                           </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </span>
+                          <Combobox.ItemIndicator />
+                        </Combobox.Item>
+                      ))}
+                    </Combobox.List>
+                  </Combobox.Popover>
+                </Combobox>
+              </div>
             ) : (
               <span className="truncate text-sm font-semibold text-zinc-100">{row.type}</span>
             )}
@@ -246,15 +234,16 @@ export const SelectionPanel = ({
             <span className="text-2xs ml-auto shrink-0 font-mono text-zinc-500">
               {row.direction}
             </span>
-            <button
-              type="button"
+            <IconButton
+              size="md"
+              variant="muted"
               aria-label={`What Toolpath measured about ${row.type}`}
               title="Everything Toolpath measured"
               onClick={onInfo}
               className="shrink-0 rounded p-0.5 text-zinc-500 hover:text-zinc-200"
             >
               <InfoIcon />
-            </button>
+            </IconButton>
           </>
         ) : (
           <span className="text-xs text-zinc-500">

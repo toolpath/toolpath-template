@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ArrowSquareOutIcon } from '@phosphor-icons/react'
-import { Badge, cn } from '@toolpath/ui'
+import { Badge, Button, Combobox, Toggle, cn } from '@toolpath/ui'
 import { NO_MARGINS, type CatalogTool, type Margins } from '@toolpath/catalog-data'
 import type { ReachCurve } from '@toolpath/part-contracts'
 import { formatLength, type UnitSystem } from '@toolpath/tool-support'
@@ -12,6 +12,7 @@ import { ToolTypeIcon, formLabel } from './tool-icons'
 import { MeasurementIcon } from './feature-icons'
 import { CatalogDrawing } from './catalog-drawing'
 import type { Holding } from './part-tool-table'
+import { CatalogComboboxButton } from './catalog-combobox-button'
 
 /**
  * The tool being read, beside the part.
@@ -67,9 +68,6 @@ const KEY_LABELS: Record<(typeof KEY_CODES)[number], string> = {
  * lights nothing, which is the truth.
  */
 const UNLETTERED: ReadonlySet<string> = new Set(['LD', 'NOF'])
-
-const SELECT =
-  'focus-visible:ring-info/60 w-full truncate rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100 focus-visible:ring-1 focus-visible:outline-none'
 
 /**
  * Room for the material on this panel's sheet, in pixels.
@@ -223,7 +221,7 @@ export const ToolDetails = ({
         2026-09-01) — the same blue a chosen row is lit in, so the panel and
         the table agree about what is being read.
       */}
-      <div className="bg-info/15 border-info/30 flex items-start gap-2 rounded-md border px-2 py-1.5">
+      <div className="flex items-start gap-2 rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1.5">
         <span className="mt-0.5 shrink-0 text-zinc-400">
           <ToolTypeIcon toolType={tool.form} className="size-6" />
         </span>
@@ -257,25 +255,16 @@ export const ToolDetails = ({
         {actions.length === 0 ? null : (
           <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
             {actions.map((action) => (
-              <button
+              <Button
                 key={action.key}
                 type="button"
+                size="md"
+                variant={action.danger === true ? 'danger' : 'success'}
                 onClick={action.onClick}
-                /*
-                  **Bold, and on its own ground** (Paul, 2026-09-01): these are
-                  the things somebody presses in this panel, and the blue wash
-                  behind it was tinting them. The solid surface underneath is
-                  what keeps them the colour they are.
-                */
-                className={cn(
-                  'text-2xs focus-visible:ring-info/60 inline-flex shrink-0 items-center gap-1 rounded border-2 bg-zinc-950 px-2 py-1 font-bold whitespace-nowrap transition focus-visible:ring-1 focus-visible:outline-none',
-                  action.danger === true
-                    ? 'border-danger/70 text-danger hover:border-danger hover:bg-danger/10'
-                    : 'border-emerald-600 text-emerald-600 hover:border-emerald-500 hover:text-emerald-500',
-                )}
+                className="shrink-0 whitespace-nowrap"
               >
                 {action.label}
-              </button>
+              </Button>
             ))}
           </span>
         )}
@@ -301,19 +290,12 @@ export const ToolDetails = ({
       {holding === undefined ? null : (
         <div className="flex flex-col gap-2">
           {/* No label over either: the select says which it is (Paul, 2026-09-01). */}
-          <select
-            aria-label="Holder"
-            className={SELECT}
+          <Combobox
+            items={['', ...holders.map((each) => each.guid)]}
             value={chosen.holderGuid ?? ''}
-            /*
-              **A collet chosen first survives the holder** (Paul, 2026-09-01):
-              the collet can be picked before there is a holder, and the holders
-              that take it are listed first — so picking one of them and losing
-              the collet would undo the step that got you there. It is dropped
-              only where the new holder cannot take it.
-            */
-            onChange={(event) => {
-              const holderGuid = event.target.value === '' ? null : event.target.value
+            aria-label="Holder"
+            onValueChange={(next) => {
+              const holderGuid = typeof next === 'string' && next !== '' ? next : null
               const kept = holding
                 .colletsFor(tool, holderGuid)
                 .some((each) => each.guid === chosen.colletGuid)
@@ -322,34 +304,53 @@ export const ToolDetails = ({
                 colletGuid: kept ? chosen.colletGuid : null,
               })
             }}
+            itemToStringLabel={(guid) =>
+              guid === '' ? 'No holder' : (holders.find((each) => each.guid === guid)?.label ?? '')
+            }
+            size="sm"
+            variant="ghost"
           >
-            <option value="">No holder</option>
-            {holders.map((each) => (
-              <option key={each.guid} value={each.guid}>
-                {each.label}
-                {each.trouble === null ? '' : ` · ${each.trouble}`}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Collet"
-            className={SELECT}
-            disabled={collets.length === 0}
+            <CatalogComboboxButton label="Holder" placeholder="No holder" />
+            <Combobox.Popover>
+              <Combobox.List>
+                {['', ...holders.map((each) => each.guid)].map((guid) => (
+                  <Combobox.Item key={guid || 'none'} value={guid}>
+                    {guid === '' ? 'No holder' : holders.find((each) => each.guid === guid)?.label}
+                    <Combobox.ItemIndicator />
+                  </Combobox.Item>
+                ))}
+              </Combobox.List>
+            </Combobox.Popover>
+          </Combobox>
+          <Combobox
+            items={['', ...collets.map((each) => each.guid)]}
             value={chosen.colletGuid ?? ''}
-            onChange={(event) =>
+            aria-label="Collet"
+            disabled={collets.length === 0}
+            onValueChange={(next) =>
               holding.onChoose(tool, {
                 holderGuid: chosen.holderGuid,
-                colletGuid: event.target.value === '' ? null : event.target.value,
+                colletGuid: typeof next === 'string' && next !== '' ? next : null,
               })
             }
+            itemToStringLabel={(guid) =>
+              guid === '' ? 'No collet' : (collets.find((each) => each.guid === guid)?.label ?? '')
+            }
+            size="sm"
+            variant="ghost"
           >
-            <option value="">No collet</option>
-            {collets.map((each) => (
-              <option key={each.guid} value={each.guid}>
-                {each.label}
-              </option>
-            ))}
-          </select>
+            <CatalogComboboxButton label="Collet" placeholder="No collet" />
+            <Combobox.Popover>
+              <Combobox.List>
+                {['', ...collets.map((each) => each.guid)].map((guid) => (
+                  <Combobox.Item key={guid || 'none'} value={guid}>
+                    {guid === '' ? 'No collet' : collets.find((each) => each.guid === guid)?.label}
+                    <Combobox.ItemIndicator />
+                  </Combobox.Item>
+                ))}
+              </Combobox.List>
+            </Combobox.Popover>
+          </Combobox>
           {needed === null ? null : (
             <p className="text-2xs text-zinc-500">
               This stack has to stand out{' '}
@@ -368,27 +369,22 @@ export const ToolDetails = ({
       <div className="flex min-h-0 flex-1 flex-col gap-1">
         {drawn.holder === null ? null : (
           <div className="flex justify-end gap-1">
-            {(
-              [
-                ['tool', 'Tool'],
-                ['stack', 'Tool + holder'],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={view === value}
-                onClick={() => setView(value)}
-                className={cn(
-                  'text-2xs focus-visible:ring-info/60 rounded border px-2 py-0.5 transition focus-visible:ring-1 focus-visible:outline-none',
-                  view === value
-                    ? 'border-info/60 bg-info/15 text-info'
-                    : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
-                )}
-              >
-                {label}
-              </button>
-            ))}
+            <Toggle
+              value={view}
+              onValueChange={(next) => {
+                if (next === 'tool' || next === 'stack') {
+                  setView(next)
+                }
+              }}
+              size="sm"
+            >
+              <Toggle.Item value="tool" className="text-2xs px-2 py-0.5">
+                Tool
+              </Toggle.Item>
+              <Toggle.Item value="stack" className="text-2xs px-2 py-0.5">
+                Tool + holder
+              </Toggle.Item>
+            </Toggle>
           </div>
         )}
         {/*

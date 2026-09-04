@@ -68,8 +68,13 @@ describe('building a group', () => {
   it('offers the two questions a group can ask, and reports the change', () => {
     const { onResults } = show()
 
-    const each = screen.getByRole('radio', { name: /The best tool for each/ })
-    expect(screen.getByRole('radio', { name: /One tool for all of them/ })).toBeChecked()
+    const each = screen.getByRole('button', { name: /The best tool for each/ })
+    const all = screen.getByRole('button', { name: /One tool for all of them/ })
+    expect(all).toHaveAttribute('aria-pressed', 'true')
+    expect(all).toHaveClass('w-full')
+    expect(each).toHaveClass('w-full')
+    expect(all.firstElementChild).toHaveClass('w-full', 'justify-start', 'text-left')
+    expect(each.firstElementChild).toHaveClass('w-full', 'justify-start', 'text-left')
     fireEvent.click(each)
 
     expect(onResults).toHaveBeenCalledWith('each')

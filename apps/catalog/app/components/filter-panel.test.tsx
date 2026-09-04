@@ -263,3 +263,33 @@ describe('a family list scoped to the chosen vendor', () => {
     )
   })
 })
+
+describe('the table filter toolbar', () => {
+  it('uses a compact catalog-number field and a wrapping natural-width row', () => {
+    render(
+      <FilterPanel
+        facets={{
+          terms: [
+            { key: 'form', label: 'Type', values: FORMS.map((value) => ({ value, count: 1 })) },
+          ],
+          ranges: [],
+        }}
+        query={EMPTY_QUERY}
+        onQuery={vi.fn()}
+        counts={() => new Map()}
+        unit="millimeters"
+        materialGroup={null}
+        onMaterial={() => {}}
+        holding={{ tapers: [], series: [] }}
+        catalogNumberSearch={{ value: '', onChange: vi.fn() }}
+        only={['form']}
+        toolbar
+      />,
+    )
+
+    expect(
+      screen.getByRole('searchbox', { name: 'Search by catalog number' }).parentElement,
+    ).toHaveClass('w-32')
+    expect(document.querySelector('[data-filter-toolbar]')).toHaveClass('flex', 'flex-wrap')
+  })
+})

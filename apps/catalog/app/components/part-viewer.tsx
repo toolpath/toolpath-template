@@ -1,4 +1,4 @@
-import { cn } from '@toolpath/ui'
+import { IconButton, cn } from '@toolpath/ui'
 import { Component, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 import {
@@ -61,22 +61,17 @@ const ToolButton = ({
   onClick: () => void
   children: ReactNode
 }) => (
-  <button
-    type="button"
+  <IconButton
+    size="lg"
+    variant="muted"
     title={label}
     aria-label={label}
-    aria-pressed={pressed}
+    toggled={pressed}
     onClick={onClick}
-    className={cn(
-      'grid size-7 place-items-center rounded border transition',
-      pressed
-        ? 'border-info/60 bg-info/20 text-info'
-        : 'border-transparent text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
-      'focus-visible:ring-info/60 focus-visible:ring-1 focus-visible:outline-none',
-    )}
+    className="!size-7 [&_svg]:!size-4"
   >
     {children}
-  </button>
+  </IconButton>
 )
 
 export interface PartViewerProps {
@@ -355,15 +350,15 @@ export const PartViewer = ({
             <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
               Feature details
             </span>
-            <button
-              type="button"
+            <IconButton
+              size="lg"
+              variant="muted"
               aria-label="Back to the part"
               title="Back to the part"
               onClick={onCloseDetails}
-              className="rounded p-1 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
             >
               <XIcon />
-            </button>
+            </IconButton>
           </div>
           <div className="min-h-0 flex-1 overflow-auto">{details}</div>
         </div>

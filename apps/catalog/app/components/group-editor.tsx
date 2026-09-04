@@ -112,15 +112,17 @@ export const GroupEditor = ({
       <ul className="flex max-h-28 flex-wrap gap-1 overflow-y-auto pr-1">
         {tags.map((tag) => (
           <li key={tag}>
-            <button
+            <Button
               type="button"
+              variant="muted"
+              size="sm"
               aria-label={`Take ${nameOf(tag)} out of the group`}
               onClick={() => onDrop(tag)}
               className="text-2xs focus-visible:ring-info/60 flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-zinc-300 hover:border-zinc-700 hover:text-zinc-100 focus-visible:ring-1 focus-visible:outline-none"
             >
               <span className="max-w-32 truncate">{nameOf(tag)}</span>
               <XIcon aria-hidden="true" className="shrink-0 text-zinc-500" />
-            </button>
+            </Button>
           </li>
         ))}
       </ul>
@@ -154,23 +156,21 @@ export const GroupEditor = ({
     <fieldset className="flex flex-col gap-1">
       <legend className="text-2xs mb-1 text-zinc-500">Results</legend>
       {CHOICES.map((choice) => (
-        <label
+        <Button
           key={choice.value}
+          type="button"
+          variant="muted"
+          size="sm"
+          full
+          aria-pressed={results === choice.value}
+          onClick={() => onResults(choice.value)}
           className={cn(
-            'flex cursor-pointer items-start gap-2 rounded border px-1.5 py-1 transition',
+            'flex min-h-10 cursor-pointer items-start justify-start gap-2 rounded border px-1.5 py-1 text-left transition',
             results === choice.value
               ? 'border-info/60 bg-info/15'
               : 'border-zinc-800 hover:border-zinc-700',
           )}
         >
-          <input
-            type="radio"
-            name="group-results"
-            value={choice.value}
-            checked={results === choice.value}
-            onChange={() => onResults(choice.value)}
-            className="accent-info mt-0.5 shrink-0"
-          />
           <span className="flex min-w-0 flex-col">
             <span
               className={cn('text-2xs', results === choice.value ? 'text-info' : 'text-zinc-300')}
@@ -179,7 +179,7 @@ export const GroupEditor = ({
             </span>
             <span className="text-2xs text-zinc-500">{choice.note}</span>
           </span>
-        </label>
+        </Button>
       ))}
     </fieldset>
 

@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
-import { Badge, Button, Card, cn, Panels } from '@toolpath/ui'
+import { Badge, Button, Card, Tabs, cn, Panels } from '@toolpath/ui'
 import {
   colletsFor,
   colletsForShank,
@@ -2818,30 +2818,33 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                       {threadSpec === null || perFeature ? (
                         <span className="text-zinc-200">{listTitle}</span>
                       ) : (
-                        <span className="flex items-center gap-1">
-                          {(
-                            [
-                              ['tap', `Taps for ${threadSpec.name}`, makers.made.length],
-                              ['drill', 'Drills', listed.length],
-                            ] as const
-                          ).map(([key, label, many]) => (
-                            <button
-                              key={key}
-                              type="button"
-                              aria-pressed={pane === key}
-                              onClick={() => setPane(key)}
-                              className={cn(
-                                'focus-visible:ring-info/60 flex items-center gap-1.5 rounded border px-2 py-0.5 text-sm transition focus-visible:ring-1 focus-visible:outline-none',
-                                pane === key
-                                  ? 'border-info/60 bg-info/15 text-info'
-                                  : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
-                              )}
-                            >
-                              {label}
-                              <span className="text-2xs text-zinc-500">{many}</span>
-                            </button>
-                          ))}
-                          {/*
+                        <Tabs
+                          value={pane}
+                          onValueChange={(next) => {
+                            if (next === 'tap' || next === 'drill') {
+                              setPane(next)
+                            }
+                          }}
+                          size="md"
+                          className="border-0"
+                        >
+                          <Tabs.List className="flex items-center gap-1">
+                            {(
+                              [
+                                ['tap', `Taps for ${threadSpec.name}`, makers.made.length],
+                                ['drill', 'Drills', listed.length],
+                              ] as const
+                            ).map(([key, label, many]) => (
+                              <Tabs.Tab
+                                key={key}
+                                value={key}
+                                className="flex items-center gap-1.5 rounded border px-2 py-0.5 text-sm"
+                              >
+                                {label}
+                                <span className="text-2xs text-zinc-500">{many}</span>
+                              </Tabs.Tab>
+                            ))}
+                            {/*
                           **A hole can be interpolated** (Paul, 2026-09-02: "I
                           need to be able to use an end mill on a threaded hole
                           in place of a drill… a quick option in the drills
@@ -2855,39 +2858,42 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           them off again — the same reason choosing a thread
                           writes its own forms there (Paul, 2026-08-31).
                         */}
-                          {pane === 'drill' ? (
-                            <button
-                              type="button"
-                              aria-pressed={predrillMills.length > 0}
-                              title={
-                                predrillMills.length > 0
-                                  ? 'Showing the end mills that can interpolate this predrill, after the drills — press to take them off'
-                                  : 'Also show the flat and bull nose end mills that can interpolate this predrill'
-                              }
-                              onClick={() => {
-                                const forms = query.terms.form ?? []
-                                applyTerm(
-                                  'form',
-                                  // Nothing ticked means every form, so turning
-                                  // the mills on has to name the drills and taps
-                                  // as well or the press would hide them.
-                                  formsWithMills(
-                                    forms.length === 0 ? THREADED_FORMS : forms,
-                                    predrillMills.length === 0,
-                                  ),
-                                )
-                              }}
-                              className={cn(
-                                'focus-visible:ring-info/60 text-2xs ml-1 rounded border px-2 py-1 transition focus-visible:ring-1 focus-visible:outline-none',
-                                predrillMills.length > 0
-                                  ? 'border-info/60 bg-info/15 text-info'
-                                  : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
-                              )}
-                            >
-                              {millsLabel(query.terms.form ?? [])}
-                            </button>
-                          ) : null}
-                        </span>
+                            {pane === 'drill' ? (
+                              <Button
+                                type="button"
+                                variant="muted"
+                                size="sm"
+                                aria-pressed={predrillMills.length > 0}
+                                title={
+                                  predrillMills.length > 0
+                                    ? 'Showing the end mills that can interpolate this predrill, after the drills — press to take them off'
+                                    : 'Also show the flat and bull nose end mills that can interpolate this predrill'
+                                }
+                                onClick={() => {
+                                  const forms = query.terms.form ?? []
+                                  applyTerm(
+                                    'form',
+                                    // Nothing ticked means every form, so turning
+                                    // the mills on has to name the drills and taps
+                                    // as well or the press would hide them.
+                                    formsWithMills(
+                                      forms.length === 0 ? THREADED_FORMS : forms,
+                                      predrillMills.length === 0,
+                                    ),
+                                  )
+                                }}
+                                className={cn(
+                                  'focus-visible:ring-info/60 text-2xs ml-1 rounded border px-2 py-1 transition focus-visible:ring-1 focus-visible:outline-none',
+                                  predrillMills.length > 0
+                                    ? 'border-info/60 bg-info/15 text-info'
+                                    : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
+                                )}
+                              >
+                                {millsLabel(query.terms.form ?? [])}
+                              </Button>
+                            ) : null}
+                          </Tabs.List>
+                        </Tabs>
                       )}
                       {/* Nothing to count where nothing has been asked of this
                         panel: a number beside "nothing selected" reads as a

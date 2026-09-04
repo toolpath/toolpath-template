@@ -1,4 +1,4 @@
-import { cn } from '@toolpath/ui'
+import { Button, IconButton, cn } from '@toolpath/ui'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { CaretRightIcon, XIcon } from '@phosphor-icons/react'
 import { formatLength, type UnitSystem } from '@toolpath/tool-support'
@@ -153,8 +153,10 @@ export const RailBubble = ({
 
   return (
     <div ref={mine} data-rail-item className="group pointer-events-auto relative">
-      <button
+      <Button
         type="button"
+        variant="muted"
+        size="sm"
         aria-expanded={open}
         aria-pressed={set}
         onClick={(event) => {
@@ -190,22 +192,23 @@ export const RailBubble = ({
           aria-hidden="true"
           className={cn('mt-0.5 shrink-0 transition', open && 'rotate-90')}
         />
-      </button>
+      </Button>
       {/*
         Clearing one question without opening it. On the button rather than
         inside the panel, because "I did not mean that one" is a thing
         somebody knows from the rail (Paul, 2026-08-31).
       */}
       {set && onClear ? (
-        <button
-          type="button"
+        <IconButton
+          size="lg"
+          variant="muted"
           aria-label={`Clear ${label.toLowerCase()}`}
           title={`Clear ${label.toLowerCase()}`}
           onClick={onClear}
           className="focus-visible:ring-info/60 absolute top-1/2 left-full z-10 ml-1 -translate-y-1/2 rounded border border-zinc-800 bg-zinc-950/90 p-1 text-zinc-400 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100 hover:border-zinc-700 hover:text-zinc-100 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
         >
           <XIcon aria-hidden="true" />
-        </button>
+        </IconButton>
       ) : null}
       {open && at ? (
         // No height of its own and nothing to scroll: opening the rest of a
@@ -222,15 +225,16 @@ export const RailBubble = ({
             third of the popover spent on undo.
           */}
           {set && onClear ? (
-            <button
-              type="button"
+            <IconButton
+              size="lg"
+              variant="muted"
               aria-label={`Clear ${label.toLowerCase()}`}
               title={`Clear ${label.toLowerCase()}`}
               onClick={onClear}
               className="focus-visible:ring-info/60 absolute top-1.5 right-1.5 rounded p-1 text-zinc-500 transition hover:text-zinc-100 focus-visible:ring-1 focus-visible:outline-none"
             >
               <XIcon aria-hidden="true" />
-            </button>
+            </IconButton>
           ) : null}
           {/*
             **As wide as its answers, no wider.** A fixed 18 rem left the shank

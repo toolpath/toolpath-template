@@ -136,8 +136,8 @@ describe('the list of what has been asked about', () => {
     const { onEdit, onRemove } = show()
 
     fireEvent.contextMenu(screen.getByRole('button', { name: '2 × Through Hole' }))
-    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Edit group…' }))
+    expect(screen.getByRole('menuitem', { name: 'Remove' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit group…' }))
 
     expect(onEdit).toHaveBeenCalledWith('group-1')
     expect(onRemove).not.toHaveBeenCalled()

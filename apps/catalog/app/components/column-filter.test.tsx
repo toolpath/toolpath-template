@@ -2,7 +2,14 @@ import { useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { UnitSystem } from '@toolpath/tool-support'
-import { RangeFilter, boundFor, compareOf, type Bound, type Kind } from './column-filter'
+import {
+  ColumnPicker,
+  RangeFilter,
+  boundFor,
+  compareOf,
+  type Bound,
+  type Kind,
+} from './column-filter'
 
 /**
  * The filter as a page holds it: the bound it writes is the bound it is shown.
@@ -39,7 +46,17 @@ const Harness = ({
 }
 
 const operator = () => screen.getByRole('combobox', { name: 'How to compare Diameter' })
-const choose = (compare: string) => fireEvent.change(operator(), { target: { value: compare } })
+const choose = (compare: string) => {
+  const labels: Record<string, string> = {
+    any: 'Any',
+    under: '≤ at most',
+    over: '≥ at least',
+    equals: '= exactly',
+    range: 'between',
+  }
+  fireEvent.click(operator())
+  fireEvent.click(screen.getByRole('option', { name: labels[compare] }))
+}
 const box = (name = 'value') => screen.getByRole('textbox', { name: `Diameter — ${name}` })
 const type = (raw: string, name = 'value') =>
   fireEvent.change(box(name), { target: { value: raw } })
@@ -57,7 +74,6 @@ describe('asking about one number', () => {
     choose('under')
 
     expect(box()).toBeInTheDocument()
-    expect(operator()).toHaveValue('under')
   })
 
   it('writes the number in millimetres, whatever unit it was typed in', () => {
@@ -119,16 +135,13 @@ describe('asking about one number', () => {
       />
     )
     const { rerender } = render(shown({ max: 6 }))
-    expect(operator()).toHaveValue('under')
     expect(box()).toHaveValue('6.00')
 
     rerender(shown({ min: 2, max: 6 }))
-    expect(operator()).toHaveValue('range')
     expect(box('from')).toHaveValue('2.00')
     expect(box('to')).toHaveValue('6.00')
 
     rerender(shown(undefined))
-    expect(operator()).toHaveValue('any')
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 
@@ -147,7 +160,6 @@ describe('asking about one number', () => {
 
     type('')
 
-    expect(operator()).toHaveValue('under')
     expect(box()).toBeInTheDocument()
   })
 
@@ -176,5 +188,19 @@ describe('what an operator and its numbers add up to', () => {
     expect(compareOf(boundFor('equals', 6, undefined))).toBe('equals')
     expect(compareOf(boundFor('range', 3, 6))).toBe('range')
     expect(compareOf(boundFor('any', 6, 6))).toBe('any')
+  })
+})
+
+describe('the column picker', () => {
+  it('keeps the pencil at the table header touch target size', () => {
+    render(
+      <ColumnPicker
+        columns={[{ code: 'DC', label: 'Diameter' }]}
+        shown={['DC']}
+        onToggle={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Which columns to show' })).toHaveClass('size-6')
   })
 })

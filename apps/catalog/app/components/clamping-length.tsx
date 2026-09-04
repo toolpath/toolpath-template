@@ -1,6 +1,7 @@
 import { RailBubble } from './filter-rail'
 import { ClampingLengthIcon } from './tool-icons'
 import type { ClampingRule } from 'shared/clamping-length'
+import { Checkbox, Input, Toggle } from '@toolpath/ui'
 
 /**
  * How much shank stays in the holder, in diameters.
@@ -31,11 +32,12 @@ export const ClampingLengthFields = ({ rule, onChange }: ClampingLengthProps) =>
       what is held — and the L/D beside it.
     </p>
     <label className="text-2xs flex items-start gap-2 text-zinc-300">
-      <input
-        type="checkbox"
+      <Checkbox
+        name="use-vendor-clamping-length"
         checked={rule.vendorSpec}
-        onChange={(event) => onChange({ ...rule, vendorSpec: event.target.checked })}
-        className="accent-info mt-0.5"
+        onChange={(checked) => onChange({ ...rule, vendorSpec: checked })}
+        size="sm"
+        className="mt-0.5"
       />
       <span>
         Use the manufacturer&rsquo;s spec where it is published
@@ -44,38 +46,38 @@ export const ClampingLengthFields = ({ rule, onChange }: ClampingLengthProps) =>
         </span>
       </span>
     </label>
-    <div className="flex flex-wrap items-center gap-1">
+    <Toggle
+      value={String(rule.perDiameter)}
+      onValueChange={(value) => onChange({ ...rule, perDiameter: Number(value) })}
+      size="sm"
+      className="flex-wrap"
+    >
       {[3, 4, 5, 6].map((each) => (
-        <button
-          key={each}
-          type="button"
-          aria-pressed={rule.perDiameter === each}
-          onClick={() => onChange({ ...rule, perDiameter: each })}
-          className={
-            rule.perDiameter === each
-              ? 'text-2xs border-info/60 bg-info/15 text-info rounded border px-2 py-0.5'
-              : 'text-2xs rounded border border-zinc-800 px-2 py-0.5 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
-          }
-        >
+        <Toggle.Item key={each} value={String(each)} className="text-2xs px-2 py-0.5">
           {String(each)}×D
-        </button>
+        </Toggle.Item>
       ))}
-    </div>
-    <label className="text-2xs flex items-center gap-2 text-zinc-400">
+    </Toggle>
+    <div className="text-2xs flex items-center gap-2 text-zinc-400">
       Or a multiple of your own
-      <input
+      <Input
+        id="custom-clamping-length"
+        name="custom-clamping-length"
         type="text"
         inputMode="decimal"
         value={rule.perDiameter}
         aria-label="Minimum clamping length, in diameters"
-        onChange={(event) => {
-          const value = Number(event.target.value)
+        onValueChange={(raw) => {
+          const value = Number(raw ?? '')
           onChange({ ...rule, perDiameter: Number.isFinite(value) && value >= 0 ? value : 0 })
         }}
-        className="focus-visible:ring-info/60 w-16 rounded border border-zinc-700 bg-zinc-950 px-1.5 py-0.5 text-right font-mono text-xs text-zinc-100 focus-visible:ring-1 focus-visible:outline-none"
+        variant="ghost"
+        size="md"
+        textEnd
+        className="inline-flex w-16 rounded border border-zinc-700 font-mono text-xs text-zinc-100"
       />
       ×D
-    </label>
+    </div>
   </>
 )
 

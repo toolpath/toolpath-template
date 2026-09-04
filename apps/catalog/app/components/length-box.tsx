@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Input } from '@toolpath/ui'
 import {
   UNIT_ABBREVIATION,
   type UnitSystem,
@@ -81,10 +82,11 @@ export const LengthBox = ({
   }
 
   return (
-    <label className={className}>
+    <div className={className}>
       <span className="text-2xs mr-1.5 text-zinc-500">{label}</span>
-      <input
+      <Input
         id={id}
+        name={id}
         type="text"
         inputMode="decimal"
         aria-label={label}
@@ -110,9 +112,12 @@ export const LengthBox = ({
             event.currentTarget.blur()
           }
         }}
-        className="text-2xs w-16 rounded border border-zinc-800 bg-zinc-950 px-1.5 py-0.5 text-right font-mono text-zinc-100 outline-none focus-visible:border-zinc-600"
+        variant="ghost"
+        size="md"
+        textEnd
+        className="inline-flex w-16 rounded border border-zinc-800 px-1.5 font-mono text-zinc-100 focus-within:border-zinc-600"
       />
       <span className="text-2xs ml-1 text-zinc-600">{UNIT_ABBREVIATION[unit]}</span>
-    </label>
+    </div>
   )
 }

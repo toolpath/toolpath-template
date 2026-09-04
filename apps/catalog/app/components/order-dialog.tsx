@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Button, Card } from '@toolpath/ui'
+import { Button, Card, Combobox } from '@toolpath/ui'
 import { colletsFor, isOnSize, type CatalogTool, type Collet } from '@toolpath/catalog-data'
 import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { collets as allCollets } from 'shared/catalog'
 import { describeGrade, type HolderOption } from 'shared/holder-choice'
 import { ToolTypeIcon, formLabel } from './tool-icons'
+import { CatalogComboboxButton } from './catalog-combobox-button'
 
 /**
  * Keeping a tool for a feature: what holds it, and what it is held in.
@@ -65,9 +66,6 @@ const troubleWith = (option: HolderOption): string | null => {
   }
   return null
 }
-
-const SELECT =
-  'focus-visible:ring-info/60 w-full truncate rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100 focus-visible:ring-1 focus-visible:outline-none'
 
 export const OrderDialog = ({
   tool,
@@ -135,30 +133,51 @@ export const OrderDialog = ({
               <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
                 Holder
               </span>
-              <select
-                autoFocus
-                className={SELECT}
+              <Combobox
+                items={['', ...options.map((option) => option.holder.guid)]}
                 value={holderGuid ?? ''}
-                onChange={(event) => {
-                  setHolderGuid(event.target.value === '' ? null : event.target.value)
+                onValueChange={(next) => {
+                  setHolderGuid(typeof next === 'string' && next !== '' ? next : null)
                   setColletGuid(null)
                 }}
-              >
-                <option value="">No holder</option>
-                {options.map((option) => {
+                itemToStringLabel={(guid) => {
+                  if (guid === '') {
+                    return 'No holder'
+                  }
+                  const option = options.find((each) => each.holder.guid === guid)
+                  if (!option) {
+                    return ''
+                  }
                   const wrong = troubleWith(option)
-                  return (
-                    <option key={option.holder.guid} value={option.holder.guid}>
-                      {option.holder.catalogNumber}
-                      {wrong === null
-                        ? option.recommended
-                          ? ' · recommended'
-                          : ''
-                        : ` · ${wrong}`}
-                    </option>
-                  )
-                })}
-              </select>
+                  return `${option.holder.catalogNumber}${wrong === null ? (option.recommended ? ' · recommended' : '') : ` · ${wrong}`}`
+                }}
+                size="sm"
+                variant="ghost"
+                aria-label="Holder"
+              >
+                <CatalogComboboxButton label="Holder" placeholder="No holder" />
+                <Combobox.Popover>
+                  <Combobox.List>
+                    {['', ...options.map((option) => option.holder.guid)].map((guid) => {
+                      const option = options.find((each) => each.holder.guid === guid)
+                      const wrong = option === undefined ? null : troubleWith(option)
+                      return (
+                        <Combobox.Item key={guid || 'none'} value={guid}>
+                          {guid === '' ? 'No holder' : option?.holder.catalogNumber}
+                          {guid === '' || option === undefined
+                            ? null
+                            : wrong === null
+                              ? option.recommended
+                                ? ' · recommended'
+                                : null
+                              : ` · ${wrong}`}
+                          <Combobox.ItemIndicator />
+                        </Combobox.Item>
+                      )
+                    })}
+                  </Combobox.List>
+                </Combobox.Popover>
+              </Combobox>
               {trouble === null ? (
                 chosen?.stickout == null ? null : (
                   <span className="text-2xs text-zinc-500">
@@ -175,23 +194,45 @@ export const OrderDialog = ({
                 <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
                   Collet
                 </span>
-                <select
-                  className={SELECT}
+                <Combobox
+                  items={['', ...collets.map((each) => each.guid)]}
                   value={collet?.guid ?? ''}
-                  onChange={(event) =>
-                    setColletGuid(event.target.value === '' ? null : event.target.value)
+                  onValueChange={(next) =>
+                    setColletGuid(typeof next === 'string' && next !== '' ? next : null)
                   }
+                  itemToStringLabel={(guid) => {
+                    if (guid === '') {
+                      return 'No collet'
+                    }
+                    const each = collets.find((colletOption) => colletOption.guid === guid)
+                    return each === undefined
+                      ? ''
+                      : `${each.catalogNumber}${tool.geometry.SFDM !== undefined && isOnSize(each, tool.geometry.SFDM) ? ' · on-size' : ''}`
+                  }}
+                  size="sm"
+                  variant="ghost"
+                  aria-label="Collet"
                 >
-                  <option value="">No collet</option>
-                  {collets.map((each) => (
-                    <option key={each.guid} value={each.guid}>
-                      {each.catalogNumber}
-                      {tool.geometry.SFDM !== undefined && isOnSize(each, tool.geometry.SFDM)
-                        ? ' · on-size'
-                        : ''}
-                    </option>
-                  ))}
-                </select>
+                  <CatalogComboboxButton label="Collet" placeholder="No collet" />
+                  <Combobox.Popover>
+                    <Combobox.List>
+                      {['', ...collets.map((each) => each.guid)].map((guid) => {
+                        const each = collets.find((colletOption) => colletOption.guid === guid)
+                        return (
+                          <Combobox.Item key={guid || 'none'} value={guid}>
+                            {guid === '' ? 'No collet' : each?.catalogNumber}
+                            {each !== undefined &&
+                            tool.geometry.SFDM !== undefined &&
+                            isOnSize(each, tool.geometry.SFDM)
+                              ? ' · on-size'
+                              : null}
+                            <Combobox.ItemIndicator />
+                          </Combobox.Item>
+                        )
+                      })}
+                    </Combobox.List>
+                  </Combobox.Popover>
+                </Combobox>
               </label>
             ) : null}
           </div>

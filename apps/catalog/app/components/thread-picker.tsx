@@ -1,4 +1,4 @@
-import { cn } from '@toolpath/ui'
+import { Combobox, Toggle, cn } from '@toolpath/ui'
 import { convertLength, decimalsFor, formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { CheckIcon, InfoIcon, XCircleIcon } from '@phosphor-icons/react'
 import {
@@ -12,6 +12,7 @@ import {
   type HoleMode,
   type ThreadSpec,
 } from 'shared/threads'
+import { CatalogComboboxButton } from './catalog-combobox-button'
 
 /**
  * How this hole is made, and for what thread.
@@ -140,53 +141,59 @@ export const ThreadPicker = ({
         first group in the list, each saying what it read as and by how much
         the model is off it.
       */}
-      <label className="text-2xs mt-0.5 flex flex-col gap-0.5 text-zinc-500">
-        Thread:
-        <select
+      <div className="text-2xs mt-0.5 flex flex-col gap-0.5 text-zinc-500">
+        <span>Thread:</span>
+        <Combobox
+          items={['', ...THREADS.map((each) => each.name)]}
           value={spec !== null && threadNamed(spec.name) ? spec.name : ''}
-          onChange={(event) => {
-            const chosen = threadNamed(event.target.value)
+          onValueChange={(next) => {
+            const chosen = typeof next === 'string' ? threadNamed(next) : null
             onChange(
               chosen === null
                 ? { mode: 'plain', spec: null }
                 : { mode: mode === 'plain' ? 'cut tap' : mode, spec: chosen },
             )
           }}
-          className="text-2xs focus-visible:ring-info/60 w-full rounded border border-zinc-800 bg-zinc-950 px-1.5 py-1 text-zinc-200 focus-visible:ring-1 focus-visible:outline-none"
+          itemToStringLabel={(name) => (name === '' ? 'No thread — a plain hole' : name)}
+          size="sm"
+          variant="ghost"
+          aria-label="Thread specification"
         >
-          <option value="">No thread — a plain hole</option>
-          {offered.length === 0 ? null : (
-            /*
-              **The list ranks; it does not argue** (Paul, 2026-09-02: "we
-              don't need to defend our match on the thread spec in the drop
-              down — we should just float the closest matches to the top and
-              call the section 'Closest Match to Modeled Diameter'"). Every
-              option carried what it read as *and* how far the model was off
-              it, which is a case being made for a guess in a list somebody is
-              scanning. The order already says which is closest; the words say
-              only which diameter it is closest to.
-            */
-            <optgroup label="Closest match to modeled diameter">
-              {offered.map((each) => (
-                <option key={each.spec.name} value={each.spec.name}>
-                  {each.spec.name} — {readLabel(each.read)}
-                </option>
-              ))}
-            </optgroup>
-          )}
-          <optgroup label="Every thread">
-            {THREADS.map((each) => {
-              const guess = guesses.find((one) => one.spec.name === each.name)
-              return (
-                <option key={each.name} value={each.name}>
-                  {each.name}
-                  {guess ? ` — ${readLabel(guess.read)}` : ''}
-                </option>
-              )
-            })}
-          </optgroup>
-        </select>
-      </label>
+          <CatalogComboboxButton label="Thread" placeholder="No thread — a plain hole" />
+          <Combobox.Popover>
+            <Combobox.List>
+              <Combobox.Item value="">
+                No thread — a plain hole
+                <Combobox.ItemIndicator />
+              </Combobox.Item>
+              {offered.length === 0 ? null : (
+                <Combobox.Group>
+                  <Combobox.GroupLabel>Closest match to modeled diameter</Combobox.GroupLabel>
+                  {offered.map((each) => (
+                    <Combobox.Item key={`closest-${each.spec.name}`} value={each.spec.name}>
+                      {each.spec.name} — {readLabel(each.read)}
+                      <Combobox.ItemIndicator />
+                    </Combobox.Item>
+                  ))}
+                </Combobox.Group>
+              )}
+              <Combobox.Group>
+                <Combobox.GroupLabel>Every thread</Combobox.GroupLabel>
+                {THREADS.map((each) => {
+                  const guess = guesses.find((one) => one.spec.name === each.name)
+                  return (
+                    <Combobox.Item key={`every-${each.name}`} value={each.name}>
+                      {each.name}
+                      {guess ? ` — ${readLabel(guess.read)}` : ''}
+                      <Combobox.ItemIndicator />
+                    </Combobox.Item>
+                  )
+                })}
+              </Combobox.Group>
+            </Combobox.List>
+          </Combobox.Popover>
+        </Combobox>
+      </div>
 
       {/*
         **Each way of making it, with the predrill it starts from** (Paul,
@@ -204,7 +211,16 @@ export const ThreadPicker = ({
         figure and how far the model is from it.
       */}
       {spec === null ? null : (
-        <div className="mt-0.5 flex flex-col gap-0.5">
+        <Toggle
+          value={mode}
+          onValueChange={(next) => {
+            if (next === 'cut tap' || next === 'form tap') {
+              onChange({ mode: next, spec })
+            }
+          }}
+          size="sm"
+          className="mt-0.5 flex h-auto w-full flex-col gap-0.5 bg-transparent outline-none"
+        >
           {/*
             **Column headings, because each row carries two figures** (Paul,
             2026-09-02: "the table needs a table for Standard Drill and
@@ -222,19 +238,11 @@ export const ThreadPicker = ({
             const drill = drillFor(spec, way.mode)
             const on = mode === way.mode
             return (
-              <button
+              <Toggle.Item
                 key={way.mode}
-                type="button"
-                aria-pressed={on}
-                aria-label={`${spec.name} ${way.mode}`}
-                title={
-                  drill === null
-                    ? `${spec.name}, ${way.mode}`
-                    : `${spec.name}, ${way.mode} — starts from a ⌀${formatLength(drill, unit)} hole`
-                }
-                onClick={() => onChange({ mode: way.mode, spec })}
+                value={way.mode}
                 className={cn(
-                  'focus-visible:ring-info/60 flex items-baseline gap-2 rounded border px-1.5 py-1 text-left transition focus-visible:ring-1 focus-visible:outline-none',
+                  'flex w-full items-baseline gap-2 rounded border px-1.5 py-1 text-left transition',
                   on
                     ? 'border-info/60 bg-info/15 text-info'
                     : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
@@ -313,10 +321,10 @@ export const ThreadPicker = ({
                     </span>
                   </>
                 )}
-              </button>
+              </Toggle.Item>
             )
           })}
-        </div>
+        </Toggle>
       )}
     </div>
   )

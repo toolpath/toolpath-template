@@ -30,4 +30,13 @@ describe('the upload control', () => {
 
     expect(navigate).toHaveBeenCalledWith('/parts/part-1?job=job-1&upload=1')
   })
+
+  it('keeps the theme control at the header touch target size', () => {
+    render(<AppHeader unit="millimeters" onUnit={vi.fn()} toolCount={42} />)
+
+    expect(screen.getByRole('button', { name: /Switch to/ })).toHaveClass(
+      '!size-7',
+      '[&_svg]:!size-4',
+    )
+  })
 })

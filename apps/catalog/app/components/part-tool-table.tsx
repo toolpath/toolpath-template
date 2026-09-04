@@ -4,9 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type ChangeEvent,
   type SetStateAction,
-  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react'
 import {
@@ -16,13 +14,14 @@ import {
   WarningIcon,
   XCircleIcon,
 } from '@phosphor-icons/react'
-import { Table, cn } from '@toolpath/ui'
+import { Button, Combobox, Table, cn } from '@toolpath/ui'
 import type { CatalogTool, Holder } from '@toolpath/catalog-data'
 import type { UnitSystem } from '@toolpath/tool-support'
 import { formatGeometry } from 'shared/geometry'
 import type { Mark } from 'shared/tool-marks'
 import { orderedCodes } from 'shared/column-order'
 import { ToolTypeIcon, formLabel } from './tool-icons'
+import { CatalogComboboxButton } from './catalog-combobox-button'
 
 export interface PartToolColumn {
   readonly code: string
@@ -119,55 +118,89 @@ const HoldingCell = ({
   holding: Holding
 }) => {
   const { holderGuid, colletGuid } = holding.chosen(tool)
-  const stop = (event: ReactMouseEvent | ChangeEvent<HTMLSelectElement>) => event.stopPropagation()
   if (code === 'holder') {
+    const holders = holding.holdersFor(tool)
+    const items = ['', ...holders.map((each) => each.guid)]
     return (
-      <select
-        aria-label={`Holder for ${tool.catalogNumber}`}
-        value={holderGuid ?? ''}
-        onClick={stop}
-        onChange={(event) => {
-          stop(event)
-          holding.onChoose(tool, {
-            holderGuid: event.target.value === '' ? null : event.target.value,
-            colletGuid: null,
-          })
-        }}
-        className="w-36 max-w-full truncate rounded border border-zinc-800 bg-zinc-950 px-1.5 py-1 text-xs text-zinc-200"
-      >
-        <option value="">No holder</option>
-        {holding.holdersFor(tool).map((each) => (
-          <option key={each.guid} value={each.guid}>
-            {each.label}
-            {each.trouble === null ? '' : ` · ${each.trouble}`}
-          </option>
-        ))}
-      </select>
+      <div className="w-36 max-w-full" onClick={(event) => event.stopPropagation()}>
+        <Combobox
+          items={items}
+          value={holderGuid ?? ''}
+          aria-label={`Holder for ${tool.catalogNumber}`}
+          onValueChange={(next) => {
+            const nextHolder = typeof next === 'string' && next !== '' ? next : null
+            holding.onChoose(tool, { holderGuid: nextHolder, colletGuid: null })
+          }}
+          itemToStringLabel={(guid) => {
+            if (guid === '') {
+              return 'No holder'
+            }
+            const holder = holders.find((each) => each.guid === guid)
+            return holder === undefined
+              ? ''
+              : `${holder.label}${holder.trouble === null ? '' : ` · ${holder.trouble}`}`
+          }}
+          size="sm"
+          variant="ghost"
+        >
+          <CatalogComboboxButton
+            label={`Holder for ${tool.catalogNumber}`}
+            placeholder="No holder"
+          />
+          <Combobox.Popover>
+            <Combobox.List>
+              {items.map((guid) => {
+                const holder = holders.find((each) => each.guid === guid)
+                return (
+                  <Combobox.Item key={guid || 'none'} value={guid}>
+                    {guid === '' ? 'No holder' : holder?.label}
+                    {holder?.trouble === null || holder === undefined
+                      ? null
+                      : ` · ${holder.trouble}`}
+                    <Combobox.ItemIndicator />
+                  </Combobox.Item>
+                )
+              })}
+            </Combobox.List>
+          </Combobox.Popover>
+        </Combobox>
+      </div>
     )
   }
   const collets = holding.colletsFor(tool, holderGuid)
+  const items = ['', ...collets.map((each) => each.guid)]
   return (
-    <select
-      aria-label={`Collet for ${tool.catalogNumber}`}
-      value={colletGuid ?? ''}
-      disabled={collets.length === 0}
-      onClick={stop}
-      onChange={(event) => {
-        stop(event)
-        holding.onChoose(tool, {
-          holderGuid,
-          colletGuid: event.target.value === '' ? null : event.target.value,
-        })
-      }}
-      className="w-36 max-w-full truncate rounded border border-zinc-800 bg-zinc-950 px-1.5 py-1 text-xs text-zinc-200 disabled:text-zinc-600"
-    >
-      <option value="">No collet</option>
-      {collets.map((each) => (
-        <option key={each.guid} value={each.guid}>
-          {each.label}
-        </option>
-      ))}
-    </select>
+    <div className="w-36 max-w-full" onClick={(event) => event.stopPropagation()}>
+      <Combobox
+        items={items}
+        value={colletGuid ?? ''}
+        disabled={collets.length === 0}
+        aria-label={`Collet for ${tool.catalogNumber}`}
+        onValueChange={(next) =>
+          holding.onChoose(tool, {
+            holderGuid,
+            colletGuid: typeof next === 'string' && next !== '' ? next : null,
+          })
+        }
+        itemToStringLabel={(guid) =>
+          guid === '' ? 'No collet' : (collets.find((each) => each.guid === guid)?.label ?? '')
+        }
+        size="sm"
+        variant="ghost"
+      >
+        <CatalogComboboxButton label={`Collet for ${tool.catalogNumber}`} placeholder="No collet" />
+        <Combobox.Popover>
+          <Combobox.List>
+            {items.map((guid) => (
+              <Combobox.Item key={guid || 'none'} value={guid}>
+                {guid === '' ? 'No collet' : collets.find((each) => each.guid === guid)?.label}
+                <Combobox.ItemIndicator />
+              </Combobox.Item>
+            ))}
+          </Combobox.List>
+        </Combobox.Popover>
+      </Combobox>
+    </div>
   )
 }
 
@@ -486,8 +519,10 @@ export const ToolTableToolbar = ({
   return (
     <>
       <div data-part-tool-table-toolbar className="flex items-center justify-end gap-1">
-        <button
+        <Button
           type="button"
+          size="sm"
+          variant="secondary"
           aria-expanded={open}
           title="Open filters. Right-click to clear all filters."
           onClick={() => setOpen(!open)}
@@ -498,7 +533,7 @@ export const ToolTableToolbar = ({
           className="rounded border border-zinc-800 px-2 py-1 text-xs text-zinc-300 hover:border-zinc-700"
         >
           Filters
-        </button>
+        </Button>
       </div>
       {actions}
       {open ? (

@@ -1,4 +1,4 @@
-import { cn } from '@toolpath/ui'
+import { Button, cn, Input } from '@toolpath/ui'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   BookmarksSimpleIcon,
@@ -7,7 +7,6 @@ import {
   CubeIcon,
   HashIcon,
   DotsThreeIcon,
-  MagnifyingGlassIcon,
   StackSimpleIcon,
   TagIcon,
 } from '@phosphor-icons/react'
@@ -464,8 +463,10 @@ const ToolbarFilterBody = ({
 
   return (
     <div className="relative min-w-0">
-      <button
+      <Button
         type="button"
+        variant="muted"
+        size="sm"
         aria-expanded={open}
         onClick={onOpen}
         className={cn(
@@ -480,7 +481,7 @@ const ToolbarFilterBody = ({
           {summary === 'Any' ? label : `${label}: ${summary}`}
         </span>
         <CaretDownIcon className={cn('shrink-0 text-zinc-600 transition', open && 'rotate-180')} />
-      </button>
+      </Button>
       {open ? (
         <div
           data-tool-filter-menu
@@ -546,8 +547,10 @@ const ToolbarOptions = ({
         )}
       >
         {single ? (
-          <button
+          <Button
             type="button"
+            variant="muted"
+            size="sm"
             aria-pressed={chosen.length === 0}
             onClick={onAny}
             className={cn(
@@ -558,15 +561,17 @@ const ToolbarOptions = ({
             )}
           >
             Any
-          </button>
+          </Button>
         ) : null}
         {found.map((option) => {
           const pressed = chosen.includes(option.value)
           const count = counted.get(option.value) ?? 0
           return (
-            <button
+            <Button
               key={option.value}
               type="button"
+              variant="muted"
+              size="sm"
               aria-pressed={pressed}
               title={`${option.label} — ${String(count)} of the tools listed`}
               onClick={() => onToggle(option.value)}
@@ -580,7 +585,7 @@ const ToolbarOptions = ({
             >
               <span className="min-w-0 flex-1 truncate">{option.label}</span>
               <span className="shrink-0 text-[0.65em] text-zinc-600">{count}</span>
-            </button>
+            </Button>
           )
         })}
       </div>
@@ -620,8 +625,10 @@ const Tile = ({
   count: number
   onToggle: () => void
 }) => (
-  <button
+  <Button
     type="button"
+    variant="muted"
+    size="sm"
     aria-pressed={pressed}
     aria-label={option.label}
     title={
@@ -651,7 +658,7 @@ const Tile = ({
   >
     {icon}
     <span className="w-full truncate text-center text-[0.6rem] leading-tight">{option.label}</span>
-  </button>
+  </Button>
 )
 
 /**
@@ -677,25 +684,28 @@ const Find = ({
   count?: number
 }) => (
   <div className="mb-1 flex items-center gap-1">
-    <label className="flex min-w-0 flex-1 items-center gap-1.5 rounded border border-zinc-800 px-2 py-1">
-      <MagnifyingGlassIcon className="shrink-0 text-zinc-600" />
-      <input
-        type="search"
-        aria-label={`Find a ${label.toLowerCase()}`}
-        placeholder={`Find a ${label.toLowerCase()}`}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="text-2xs min-w-0 flex-1 bg-transparent text-zinc-100 outline-none placeholder:text-zinc-600"
-      />
-    </label>
+    <Input
+      id={`find-${label.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`}
+      name="filter-search"
+      type="search"
+      aria-label={`Find a ${label.toLowerCase()}`}
+      placeholder={`Find a ${label.toLowerCase()}`}
+      value={value}
+      onValueChange={(next) => onChange(next ?? '')}
+      variant="ghost"
+      size="md"
+      className="min-w-0 flex-1 rounded border border-zinc-800 px-2"
+    />
     {onAll ? (
-      <button
+      <Button
         type="button"
+        variant="muted"
+        size="sm"
         onClick={onAll}
         className="text-2xs focus-visible:ring-info/60 shrink-0 rounded border border-zinc-700 px-1.5 py-1 whitespace-nowrap text-zinc-300 hover:border-zinc-600 hover:text-zinc-100 focus-visible:ring-1 focus-visible:outline-none"
       >
         All {count}
-      </button>
+      </Button>
     ) : null}
   </div>
 )
@@ -930,8 +940,10 @@ const TilePicker = ({
       >
         {front.map(tile)}
         {rest > 0 ? (
-          <button
+          <Button
             type="button"
+            variant="muted"
+            size="sm"
             aria-expanded={open}
             aria-label={`Every ${filter.label.toLowerCase()}`}
             title={`${String(rest)} more`}
@@ -940,7 +952,7 @@ const TilePicker = ({
           >
             <DotsThreeIcon weight="bold" className="size-6" />
             <span className="text-[0.6rem] leading-tight">{String(rest)} more</span>
-          </button>
+          </Button>
         ) : null}
       </div>
 
@@ -1304,16 +1316,20 @@ export const FilterPanel = ({
   if (toolbar) {
     return (
       <div ref={toolbarBox} className="flex min-w-0 flex-col gap-1">
-        <div className="grid grid-cols-2 gap-1 sm:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8">
+        <div data-filter-toolbar className="flex flex-wrap items-center gap-1">
           {catalogNumberSearch === undefined ? null : (
             <label className="flex min-w-0 flex-col gap-1">
-              <input
+              <Input
+                id="catalog-number-toolbar"
+                name="catalog-number-toolbar"
                 type="search"
                 value={catalogNumberSearch.value}
-                onChange={(event) => catalogNumberSearch.onChange(event.target.value)}
+                onValueChange={(next) => catalogNumberSearch.onChange(next ?? '')}
                 placeholder="Catalog number"
                 aria-label="Search by catalog number"
-                className="text-2xs h-8 min-w-0 rounded border border-zinc-800 bg-zinc-950 px-2 text-zinc-100"
+                variant="ghost"
+                size="md"
+                className="h-8 w-32 min-w-0 rounded border border-zinc-800 px-2 text-zinc-100"
               />
             </label>
           )}
@@ -1327,13 +1343,17 @@ export const FilterPanel = ({
   return (
     <div className="flex min-h-0 flex-col gap-2">
       {compact || catalogNumberSearch === undefined ? null : (
-        <input
+        <Input
+          id="catalog-number"
+          name="catalog-number"
           type="search"
           value={catalogNumberSearch.value}
-          onChange={(event) => catalogNumberSearch.onChange(event.target.value)}
+          onValueChange={(next) => catalogNumberSearch.onChange(next ?? '')}
           placeholder="Catalog number"
           aria-label="Search by catalog number"
-          className="text-2xs w-48 rounded border border-zinc-800 bg-zinc-950 px-2 py-1 text-zinc-100"
+          variant="ghost"
+          size="md"
+          className="w-48 rounded border border-zinc-800 px-2"
         />
       )}
 
@@ -1379,9 +1399,11 @@ export const FilterPanel = ({
                   {present.length === 0 ? null : (
                     <div className="flex flex-wrap gap-1">
                       {present.map((each) => (
-                        <button
+                        <Button
                           key={each.value}
                           type="button"
+                          variant="muted"
+                          size="sm"
                           aria-pressed={exactly(each.value)}
                           title={`${String(each.count)} of what is left`}
                           onClick={() =>
@@ -1409,7 +1431,7 @@ export const FilterPanel = ({
                           */}
                           <span className="font-mono">{each.value}</span>
                           <span className="ml-1 text-[0.65em] text-zinc-500">({each.count})</span>
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   )}

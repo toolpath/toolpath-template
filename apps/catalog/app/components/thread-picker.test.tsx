@@ -27,6 +27,7 @@ const show = (props: Partial<Parameters<typeof ThreadPicker>[0]> = {}) => {
       {...props}
     />,
   )
+  fireEvent.click(screen.getByRole('combobox', { name: /Thread/ }))
   return onChange
 }
 
@@ -96,8 +97,8 @@ describe('what the panel says about a hole before anything is chosen', () => {
   it('offers cut and form tap as rows, each with its own standard tap drill', () => {
     show({ spec: threadNamed('M6×1'), mode: 'cut tap' })
 
-    const cut = screen.getByRole('button', { name: 'M6×1 cut tap' })
-    const form = screen.getByRole('button', { name: 'M6×1 form tap' })
+    const cut = screen.getByRole('button', { name: /^Cut tap/ })
+    const form = screen.getByRole('button', { name: /^Form tap/ })
 
     // The Engine's charts: ⌀5.00 for a cut tap, ⌀5.50 for a form tap.
     expect(screen.getByText('Standard predrill')).toBeInTheDocument()
@@ -113,8 +114,8 @@ describe('what the panel says about a hole before anything is chosen', () => {
     show({ spec: threadNamed('M6×1'), mode: 'cut tap', holeDiameter: 5 })
 
     // ⌀5 is the cut tap's drill exactly, and half a millimetre under the form's.
-    expect(screen.getByRole('button', { name: 'M6×1 cut tap' })).toHaveTextContent('exactly')
-    expect(screen.getByRole('button', { name: 'M6×1 form tap' })).toHaveTextContent('−0.50')
+    expect(screen.getByRole('button', { name: /^Cut tap/ })).toHaveTextContent('exactly')
+    expect(screen.getByRole('button', { name: /^Form tap/ })).toHaveTextContent('−0.50')
   })
 
   /** Nothing to make until there is a thread to make. */
@@ -145,9 +146,7 @@ describe('picking a thread', () => {
   it('takes the thread from the list, cut-tapped until somebody says otherwise', () => {
     const onChange = show()
 
-    fireEvent.change(screen.getByRole('combobox', { name: /Thread/ }), {
-      target: { value: 'M6×1' },
-    })
+    fireEvent.click(screen.getAllByRole('option', { name: /M6×1/ })[0]!)
 
     expect(onChange).toHaveBeenCalledWith({ mode: 'cut tap', spec: threadNamed('M6×1') })
   })
@@ -156,7 +155,7 @@ describe('picking a thread', () => {
   it('sets the method on the thread that is chosen', () => {
     const onChange = show({ spec: threadNamed('M6×1'), mode: 'cut tap' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'M6×1 form tap' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Form tap/ }))
 
     expect(onChange).toHaveBeenCalledWith({ mode: 'form tap', spec: threadNamed('M6×1') })
   })
@@ -197,16 +196,14 @@ describe('picking a thread', () => {
   it('shows a thread that is not on offer as the chosen one', () => {
     show({ spec: threadNamed('M20×2.5'), mode: 'cut tap' })
 
-    expect(screen.getByRole('combobox', { name: /Thread/ })).toHaveValue('M20×2.5')
+    expect(screen.getByRole('combobox', { name: 'Thread' })).toHaveTextContent('M20×2.5')
   })
 
   /** The list is also a way back: a plain hole is one of its options. */
   it('goes back to a plain hole from the list', () => {
     const onChange = show({ spec: threadNamed('M6×1'), mode: 'cut tap' })
 
-    fireEvent.change(screen.getByRole('combobox', { name: /Thread/ }), {
-      target: { value: '' },
-    })
+    fireEvent.click(screen.getByRole('option', { name: 'No thread — a plain hole' }))
 
     expect(onChange).toHaveBeenCalledWith({ mode: 'plain', spec: null })
   })
@@ -226,8 +223,8 @@ describe('how far the model is from each predrill', () => {
   const rows = () => {
     show({ spec: threadNamed('M6×1'), mode: 'cut tap', holeDiameter: 5 })
     return {
-      cut: screen.getByRole('button', { name: 'M6×1 cut tap' }),
-      form: screen.getByRole('button', { name: 'M6×1 form tap' }),
+      cut: screen.getByRole('button', { name: /^Cut tap/ }),
+      form: screen.getByRole('button', { name: /^Form tap/ }),
     }
   }
 
@@ -274,7 +271,7 @@ describe('how far the model is from each predrill', () => {
       holeDiameter: 5.05,
       deviation: { over: 0.2, under: 0.2 },
     })
-    const cut = screen.getByRole('button', { name: 'M6×1 cut tap' })
+    const cut = screen.getByRole('button', { name: /^Cut tap/ })
 
     expect(cut.querySelector('.text-danger')).toBeNull()
     expect(within(cut).getByLabelText(/inside the shop's max drill deviation/)).toBeInTheDocument()
@@ -290,7 +287,7 @@ describe('how far the model is from each predrill', () => {
     })
 
     expect(
-      screen.getByRole('button', { name: 'M6×1 form tap' }).querySelector('.text-danger'),
+      screen.getByRole('button', { name: /^Form tap/ }).querySelector('.text-danger'),
     ).toBeNull()
   })
 })

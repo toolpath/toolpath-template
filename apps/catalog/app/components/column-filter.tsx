@@ -1,4 +1,4 @@
-import { cn } from '@toolpath/ui'
+import { Checkbox, Combobox, IconButton, Input, cn } from '@toolpath/ui'
 import { useEffect, useRef, useState } from 'react'
 import {
   DotsSixVerticalIcon,
@@ -13,6 +13,7 @@ import {
   decimalsFor,
 } from '@toolpath/tool-support'
 import { movedBy, movedTo } from 'shared/column-order'
+import { CatalogComboboxButton } from './catalog-combobox-button'
 
 /**
  * Asking about one number: an operator and a number, or two for a range.
@@ -193,30 +194,47 @@ export const RangeFilter = ({ label, bound, onBound, unit, kind }: RangeFilterPr
   }
 
   const box = (name: string, value: string, onValue: (raw: string) => void) => (
-    <input
+    <Input
+      id={`${label}-${name}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}
+      name={`range-${name}`}
       type="text"
       inputMode="decimal"
       aria-label={`${label} — ${name}`}
       value={value}
-      onChange={(event) => onValue(event.target.value)}
-      className="text-2xs w-16 rounded border border-zinc-800 bg-zinc-950 px-1.5 py-1 text-right font-mono text-zinc-100 outline-none focus-visible:border-zinc-600"
+      onValueChange={(next) => onValue(next ?? '')}
+      variant="ghost"
+      size="md"
+      textEnd
+      className="inline-flex w-16 rounded border border-zinc-800 px-1.5 py-1 font-mono text-zinc-100 focus-within:border-zinc-600"
     />
   )
 
   return (
     <div className="flex flex-wrap items-center gap-1">
-      <select
-        aria-label={`How to compare ${label}`}
+      <Combobox
+        items={COMPARES.map((each) => each.value)}
         value={compare}
-        onChange={(event) => commit(event.target.value as Compare, one, other)}
-        className="text-2xs rounded border border-zinc-800 bg-zinc-950 py-1 pr-1 pl-1.5 text-zinc-100 outline-none focus-visible:border-zinc-600"
+        onValueChange={(next) => {
+          if (typeof next === 'string') {
+            commit(next as Compare, one, other)
+          }
+        }}
+        itemToStringLabel={(value) => COMPARES.find((each) => each.value === value)?.label ?? ''}
+        size="md"
+        variant="ghost"
       >
-        {COMPARES.map((each) => (
-          <option key={each.value} value={each.value}>
-            {each.label}
-          </option>
-        ))}
-      </select>
+        <CatalogComboboxButton label={`How to compare ${label}`} placeholder="Any" />
+        <Combobox.Popover>
+          <Combobox.List>
+            {COMPARES.map((each) => (
+              <Combobox.Item key={each.value} value={each.value}>
+                {each.label}
+                <Combobox.ItemIndicator />
+              </Combobox.Item>
+            ))}
+          </Combobox.List>
+        </Combobox.Popover>
+      </Combobox>
 
       {compare === 'any' ? null : (
         <>
@@ -267,8 +285,9 @@ export const ColumnFilter = ({ label, bound, onBound, unit, kind }: RangeFilterP
   return (
     <div ref={box} className="relative inline-flex items-center justify-end gap-1">
       <span>{label}</span>
-      <button
-        type="button"
+      <IconButton
+        size="md"
+        variant="muted"
         aria-label={`Filter by ${label}`}
         aria-expanded={open}
         title={set ? `Filtered by ${label}` : `Filter by ${label}`}
@@ -280,7 +299,7 @@ export const ColumnFilter = ({ label, bound, onBound, unit, kind }: RangeFilterP
         }
       >
         {set ? <FunnelIcon weight="fill" /> : <FunnelSimpleIcon />}
-      </button>
+      </IconButton>
 
       {open ? (
         <div className="absolute top-full right-0 z-30 mt-1 rounded-lg border border-zinc-800 bg-zinc-950 p-2 shadow-xl">
@@ -333,8 +352,9 @@ export const TermColumnFilter = ({
   return (
     <div ref={box} className="relative inline-flex items-center gap-1">
       <span>{label}</span>
-      <button
-        type="button"
+      <IconButton
+        size="md"
+        variant="muted"
         aria-label={`Filter by ${label}`}
         aria-expanded={open}
         title={set ? `Filtered by ${label}` : `Filter by ${label}`}
@@ -346,7 +366,7 @@ export const TermColumnFilter = ({
         }
       >
         {set ? <FunnelIcon weight="fill" /> : <FunnelSimpleIcon />}
-      </button>
+      </IconButton>
 
       {open ? (
         <div
@@ -358,21 +378,22 @@ export const TermColumnFilter = ({
             <p className="text-2xs px-2 py-1.5 text-zinc-600">Nothing to narrow by.</p>
           ) : (
             options.map((option) => (
-              <label
+              <div
                 key={option.value}
                 className="text-2xs flex cursor-pointer items-center gap-2 px-2 py-1 whitespace-nowrap normal-case hover:bg-zinc-900"
               >
-                <input
-                  type="checkbox"
+                <Checkbox
+                  name={`term-filter-${option.value}`}
                   checked={chosen.includes(option.value)}
                   onChange={() => toggle(option.value)}
-                  className="accent-info size-3"
+                  size="sm"
+                  aria-label={option.label}
                 />
                 <span className="text-zinc-200">{option.label}</span>
                 <span className="ml-auto pl-3 font-mono tabular-nums text-zinc-600">
                   {option.count}
                 </span>
-              </label>
+              </div>
             ))
           )}
         </div>
@@ -434,8 +455,9 @@ export const ColumnPicker = ({
 
   return (
     <div ref={box} className="relative">
-      <button
-        type="button"
+      <IconButton
+        size="lg"
+        variant="muted"
         aria-label="Which columns to show"
         aria-expanded={open}
         title="Which columns to show"
@@ -443,7 +465,7 @@ export const ColumnPicker = ({
         className="rounded p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
       >
         <PencilSimpleIcon />
-      </button>
+      </IconButton>
       {open ? (
         <div
           role="group"
@@ -473,8 +495,9 @@ export const ColumnPicker = ({
               )}
             >
               {onReorder === undefined ? null : (
-                <button
-                  type="button"
+                <IconButton
+                  size="md"
+                  variant="muted"
                   draggable
                   aria-label={`Move ${column.label.toLowerCase()}`}
                   title="Drag to reorder, or use the arrow keys"
@@ -490,17 +513,18 @@ export const ColumnPicker = ({
                   className="focus-visible:ring-info/60 shrink-0 cursor-grab rounded text-zinc-600 transition hover:text-zinc-300 focus-visible:ring-1 focus-visible:outline-none active:cursor-grabbing"
                 >
                   <DotsSixVerticalIcon aria-hidden="true" />
-                </button>
+                </IconButton>
               )}
-              <label className="flex flex-1 cursor-pointer items-center gap-2">
-                <input
-                  type="checkbox"
+              <div className="flex flex-1 cursor-pointer items-center gap-2">
+                <Checkbox
+                  name={`column-${column.code}`}
                   checked={shown.includes(column.code)}
                   onChange={() => onToggle(column.code)}
-                  className="accent-info size-3"
+                  size="sm"
+                  aria-label={column.label}
                 />
                 <span className="text-zinc-200">{column.label}</span>
-              </label>
+              </div>
             </div>
           ))}
         </div>
