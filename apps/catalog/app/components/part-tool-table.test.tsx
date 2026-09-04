@@ -2,7 +2,12 @@ import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { CatalogTool } from '@toolpath/catalog-data'
-import { PartToolTable, TOOL_COLUMNS, ToolTableToolbar } from './part-tool-table'
+import {
+  flexibleColumnWidth,
+  PartToolTable,
+  TOOL_COLUMNS,
+  ToolTableToolbar,
+} from './part-tool-table'
 
 const first: CatalogTool = {
   guid: 'first',
@@ -136,6 +141,10 @@ describe('PartToolTable', () => {
     })
 
     expect(document.querySelector('[data-table-library_table]')).toHaveClass('min-w-max')
+  })
+
+  it('uses flexible tracks for initial column widths', () => {
+    expect(flexibleColumnWidth('10rem')).toBe('minmax(10rem, 1fr)')
   })
 })
 

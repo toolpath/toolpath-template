@@ -59,6 +59,8 @@ export const TAP_COLUMNS: ReadonlyArray<PartToolColumn> = [
 export const hiddenByDefault = (columns: ReadonlyArray<PartToolColumn>): Array<string> =>
   columns.filter((column) => !column.default).map((column) => column.code)
 
+export const flexibleColumnWidth = (width: string): string => `minmax(${width}, 1fr)`
+
 export interface Holding {
   readonly holdersFor: (tool: CatalogTool) => ReadonlyArray<{
     readonly guid: string
@@ -344,13 +346,13 @@ export const PartToolTable = ({
 
   const header = (
     <Table.HeaderRow>
-      <Table.HeaderCell sortKey="catalogNumber" width="10rem">
+      <Table.HeaderCell sortKey="catalogNumber" width={flexibleColumnWidth('10rem')}>
         Catalog number
       </Table.HeaderCell>
-      <Table.HeaderCell sortKey="brand" width="7rem">
+      <Table.HeaderCell sortKey="brand" width={flexibleColumnWidth('7rem')}>
         Vendor
       </Table.HeaderCell>
-      <Table.HeaderCell sortKey="form" width="12rem">
+      <Table.HeaderCell sortKey="form" width={flexibleColumnWidth('12rem')}>
         Type
       </Table.HeaderCell>
       {shown.map((column) => (
@@ -367,7 +369,7 @@ export const PartToolTable = ({
               return a - b
             })
           }
-          width={isHolding(column.code) ? '10rem' : '6rem'}
+          width={flexibleColumnWidth(isHolding(column.code) ? '10rem' : '6rem')}
         >
           {column.label}
         </Table.HeaderCell>
