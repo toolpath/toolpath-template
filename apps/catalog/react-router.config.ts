@@ -6,7 +6,7 @@ import type { Config } from '@react-router/dev/config'
  *
  * **This is a deploy requirement, not only a build setting.** Clean paths mean
  * the host must rewrite unknown paths to `index.html`, or a refresh on
- * `/tools/<guid>` 404s. See `docs/TOOL-CATALOG-PLAN.md`.
+ * an active part route 404s. See `docs/TOOL-CATALOG-PLAN.md`.
  */
 export default {
   ssr: false,

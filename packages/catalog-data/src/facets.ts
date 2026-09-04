@@ -60,7 +60,7 @@ const LIST_AXES: ReadonlyArray<{
     label: 'Workpiece material',
     // A tool nobody rated contributes to no value, exactly as one the vendor
     // rates for nothing does. The two are told apart where a person reads a
-    // tool — `tool-sheet.tsx` — and not in a count, because a facet counts
+    // tool details — and not in a count, because a facet counts
     // tools *under a value* and neither of them is under one.
     of: (tool) => tool.materialGroups ?? [],
   },

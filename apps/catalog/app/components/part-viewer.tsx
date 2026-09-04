@@ -125,6 +125,8 @@ export interface PartViewerProps {
    * stays mounted underneath, so the mesh is not fetched again.
    */
   readonly details?: ReactNode
+  /** A transient action that sits over the part without replacing its mesh. */
+  readonly modal?: ReactNode
   /**
    * What sits over the part in its top-left corner: the filter rail and the
    * feature being read (Paul's layout, 2026-08-31). The viewer owns the
@@ -168,6 +170,7 @@ export const PartViewer = ({
   onPickDirection,
   directionColor,
   details,
+  modal,
   overlay,
   overlaySpills = false,
   tooled = [],
@@ -365,6 +368,8 @@ export const PartViewer = ({
           <div className="min-h-0 flex-1 overflow-auto">{details}</div>
         </div>
       ) : null}
+
+      {modal}
 
       {report.hasMeshGlb || report.hasMeshStl ? (
         <MeshErrorBoundary key={`${report.partId}:${jobId}`}>

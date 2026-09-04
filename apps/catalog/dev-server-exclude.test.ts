@@ -26,7 +26,7 @@ describe('what the dev server leaves to Vite', () => {
   })
 
   it('leaves a document to the app', () => {
-    for (const url of ['/', '/parts', '/parts/part-1?job=job-1', '/tools/abc', '/api/session']) {
+    for (const url of ['/', '/parts', '/parts/part-1?job=job-1', '/api/session']) {
       expect(leftToVite(url), url).toBe(false)
     }
   })

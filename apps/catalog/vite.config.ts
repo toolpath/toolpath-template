@@ -7,6 +7,7 @@ import { DEV_SERVER_EXCLUDE } from './dev-server-exclude'
 
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
+import { existsSync } from 'node:fs'
 import { CATALOG_VERSION } from '@toolpath/catalog-data'
 import { datasetSource, profilesSource, type DatasetChoice } from './dataset-source'
 

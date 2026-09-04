@@ -372,7 +372,7 @@ Two defects, both from answering every row of the list:
 | the list on screen                       | `app/components/feature-list-panel.tsx` |
 | building a group                         | `app/components/group-editor.tsx`       |
 | the reading and its thread               | `app/components/selection-panel.tsx`    |
-| the tool table and its marks             | `app/components/tool-table.tsx`         |
+| the tool table and its marks             | `app/components/part-tool-table.tsx`    |
 | everything wired together                | `app/routes/part.tsx`                   |
 
 Each pure module owns its tests. `tests/on-the-part.spec.ts` walks the paths that

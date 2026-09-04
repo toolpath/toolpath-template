@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { GEOMETRY_FIELDS } from '@toolpath/catalog-data'
-import { TAP_COLUMNS, TOOL_COLUMNS, isHolding, isStack } from './tool-table'
+import { TAP_COLUMNS, TOOL_COLUMNS, isHolding, isStack } from './part-tool-table'
 
 /**
  * **A column has to have a number behind it.**

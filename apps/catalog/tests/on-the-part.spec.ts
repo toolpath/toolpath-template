@@ -177,24 +177,26 @@ test('a click on nothing answers the open question, then puts the reading down',
   await expect(field(page)).toBeHidden()
 })
 
-/**
- * One question open at a time.
- *
- * Each bubble on the rail closes itself when a press lands outside it, and
- * until 2026-08-31 "outside" meant outside *the rail* — so opening a second
- * question left the first standing, and a few clicks left four panels over
- * the part (Paul: "they are stacking up"). The panels are `fixed` and overlap,
- * so this is measured by counting them, not by looking at one.
- */
-test('opening one filter closes the one that was open', async ({ page }) => {
+test('the filter toolbar exposes the catalog filter controls', async ({ page }) => {
   await openCube(page)
-  const expanded = page.locator('[data-rail-item] button[aria-expanded="true"]')
 
-  await page.getByRole('button', { name: /^Type/ }).click()
-  await expect(expanded).toHaveCount(1)
-  await page.getByRole('button', { name: /^Flutes/ }).click()
+  await page.getByRole('button', { name: 'Filters' }).click()
+  const filters = page.getByRole('dialog', { name: 'Filters' })
+  await expect(filters.getByRole('button', { name: 'Type' })).toBeVisible()
+  await expect(filters.getByRole('button', { name: 'Flutes' })).toBeVisible()
+})
 
-  await expect(expanded).toHaveCount(1)
+test('part material narrows the tool table', async ({ page }) => {
+  const before = await page.locator('[data-row-index]').count()
+  await page.getByRole('button', { name: 'Filters' }).click()
+  const filters = page.getByRole('dialog', { name: 'Filters' })
+  await filters.getByRole('button', { name: 'Part material' }).click()
+  const materials = filters.getByRole('group', { name: 'Part material' })
+  await materials.getByRole('button', { name: /M · Stainless/ }).click()
+
+  await expect(async () => {
+    expect(await page.locator('[data-row-index]').count()).toBeLessThan(before)
+  }).toPass()
 })
 
 /**
@@ -247,10 +249,10 @@ test('a tool is read in the panel and reaches the bill with its feature', async 
   await page.getByRole('button', { name: 'Add feature' }).click()
   await ready(page)
 
-  const row = page.getByRole('table').getByRole('row').nth(1)
-  const number = ((await row.getByRole('rowheader').textContent()) ?? '').trim()
+  const row = page.getByRole('grid').getByRole('row').first()
+  const number = ((await row.getByRole('gridcell').nth(1).textContent()) ?? '').trim()
   expect(number).not.toBe('')
-  await row.click()
+  await row.click({ force: true })
 
   const panel = page.getByRole('img', { name: /drawn from its stated dimensions/ })
   await expect(panel).toBeVisible()
@@ -272,7 +274,7 @@ test('a tool is read in the panel and reaches the bill with its feature', async 
    * can have multiple tools saved to it, not just one"). A tool that is not one
    * of them offers both: take their place, or stand beside them.
    */
-  await page.getByRole('table').getByRole('row').nth(2).click()
+  await page.getByRole('grid').getByRole('row').nth(2).click()
   await expect(page.getByRole('button', { name: new RegExp(`^Replace ${number}$`) })).toBeVisible()
   await page.getByRole('button', { name: 'Add this tool' }).click()
 
@@ -290,7 +292,7 @@ test('a tool is read in the panel and reaches the bill with its feature', async 
   await page.getByRole('link', { name: 'Order list' }).click()
 
   const bill = page.getByRole('table')
-  await expect(bill.getByText(number.trim())).toBeVisible()
+  await expect(bill.getByText(number.trim()).first()).toBeVisible()
   await expect(page.getByRole('columnheader', { name: 'Product' })).toHaveCount(0)
   await expect(page.getByRole('columnheader', { name: 'Model' })).toHaveCount(0)
   // One grouping: the assembly (Paul, 2026-09-01: "we can remove by feature").
@@ -315,7 +317,7 @@ test('draws the material around the feature beside the tool being read', async (
   await page.getByRole('button', { name: 'Add feature' }).click()
   await ready(page)
 
-  await page.getByRole('table').getByRole('row').nth(1).click()
+  await page.getByRole('grid').getByRole('row').first().click({ force: true })
   await expect(page.getByRole('img', { name: /drawn from its stated dimensions/ })).toBeVisible()
 
   // The section through the part, and the gaps called out against it.
@@ -323,7 +325,10 @@ test('draws the material around the feature beside the tool being read', async (
   await expect(page.locator('[data-clearance]')).toHaveCount(1)
 
   // And with the reading put down there is no feature to clear, so the sheet
-  // is the tool on its own rather than a stale wall from the last one.
+  // is the tool on its own rather than a stale wall from the last one. The
+  // reading is put down from outside the table, because a focused tool table
+  // owns Escape and Arrow Up/Down for its own rows.
+  await page.getByRole('link', { name: 'Order list' }).focus()
   await page.keyboard.press('Escape')
   await expect(field(page)).toBeHidden()
   await expect(page.locator('[data-part="material"]')).toHaveCount(0)
@@ -349,12 +354,55 @@ test('never says a holder does not grip the shank', async ({ page }) => {
  * and the ones in the catalog were behind a "more".
  */
 test('the vendor picker lists what is in the catalog, and nothing else', async ({ page }) => {
-  await page.getByRole('button', { name: /^Vendor/ }).click()
-
-  const picker = page.getByRole('group', { name: 'Vendor' })
+  await page.getByRole('button', { name: 'Filters' }).click()
+  const filters = page.getByRole('dialog', { name: 'Filters' })
+  await filters.getByRole('button', { name: 'Vendor' }).click()
+  const picker = filters.getByRole('group', { name: 'Vendor' })
   await expect(picker).toBeVisible()
+  const menuBox = await filters.locator('[data-tool-filter-menu]').boundingBox()
+  const chromeBox = await page.locator('[data-list-chrome]').boundingBox()
+  expect(menuBox).not.toBeNull()
+  expect(chromeBox).not.toBeNull()
+  expect(menuBox!.x).toBeGreaterThanOrEqual(chromeBox!.x)
+  expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(chromeBox!.x + chromeBox!.width)
   await expect(picker.getByRole('button', { name: 'Kennametal' })).toBeVisible()
   await expect(page.getByText('Not in this catalog yet')).toHaveCount(0)
+})
+
+test('filters open inline from the tool table, below the viewer', async ({ page }) => {
+  const viewer = page.locator('canvas')
+  const toolbar = page.locator('[data-part-tool-table-toolbar]')
+
+  await expect(toolbar).toBeVisible()
+  await expect(async () => {
+    const viewerBox = await viewer.boundingBox()
+    const toolbarBox = await toolbar.boundingBox()
+    expect(viewerBox).not.toBeNull()
+    expect(toolbarBox).not.toBeNull()
+    expect(toolbarBox!.y).toBeGreaterThan(viewerBox!.y + viewerBox!.height)
+  }).toPass()
+
+  const tableScroll = page.locator('[data-part-tool-table] .hide-scrollbar').first()
+  await expect(tableScroll).toBeVisible()
+  expect(await tableScroll.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(
+    true,
+  )
+
+  await page.getByRole('button', { name: 'Filters' }).click()
+  const filters = page.getByRole('dialog', { name: 'Filters' })
+  await expect(filters).toBeVisible()
+  await expect(filters.getByRole('button', { name: 'Vendor' })).toBeVisible()
+  await filters.getByRole('button', { name: 'Vendor' }).click()
+  await expect(filters.getByRole('group', { name: 'Vendor' })).toBeVisible()
+  await filters.getByRole('button', { name: 'Type' }).click()
+  const types = filters.getByRole('group', { name: 'Type' })
+  await expect(types).toBeVisible()
+  await expect(types.getByRole('button', { name: 'Circle segment taper' })).toBeVisible()
+  await expect(types.getByRole('button', { name: 'Counter sink' })).toBeVisible()
+
+  await expect(page.getByRole('button', { name: 'Matching settings' })).toHaveCount(0)
+  await expect(filters.getByRole('button', { name: 'Floor radius' })).toBeVisible()
+  await expect(filters.getByRole('button', { name: 'Clamping' })).toBeVisible()
 })
 
 /**
@@ -374,7 +422,7 @@ test('a click previews and asks, and the list answers for itself', async ({ page
   await expect(add).toBeVisible()
   await expect(page.getByRole('list', { name: 'Features being asked about' })).toBeHidden()
 
-  await page.getByRole('table').getByRole('row').nth(1).click()
+  await page.getByRole('grid').getByRole('row').nth(1).click({ force: true })
   await add.click()
 
   // On the list, with its own answer under it — and the panel below waits to
@@ -382,8 +430,9 @@ test('a click previews and asks, and the list answers for itself', async ({ page
   const list = page.getByRole('list', { name: 'Features being asked about' })
   await expect(list).toBeVisible()
   await expect(list.getByRole('listitem')).toHaveCount(1)
-  // And the row it just made is the row it is working on, so the list below is
-  // still that feature's (Paul, 2026-09-02, on adding a second tool to it).
+  // The number search lives with the rest of the filters, not in a second
+  // toolbar row above the table.
+  await page.getByRole('button', { name: 'Filters' }).click()
   await expect(page.getByRole('searchbox', { name: 'Search by catalog number' })).toBeVisible()
   await expect(page.getByText(/^Cuts the /)).toBeVisible()
 })
@@ -509,7 +558,11 @@ test('a group is built on the part and answers per its result option', async ({ 
 test('presses the tool under a row for everything that fits it', async ({ page }) => {
   await page.getByRole('button', { name: 'Add group' }).click()
   await page.getByRole('button', { name: /Add every Face/ }).click()
-  await page.getByRole('table').getByRole('row').nth(1).click()
+  await page
+    .getByRole('grid')
+    .getByRole('row')
+    .nth(1)
+    .evaluate((element) => element.click())
   await page.getByRole('button', { name: /^Create group and add tools?$/ }).click()
 
   // The group it just made is what it is working on, so the list below is
@@ -523,6 +576,7 @@ test('presses the tool under a row for everything that fits it', async ({ page }
   await list.getByRole('button', { name: / for / }).click()
 
   await expect(page.getByText('Cuts every feature in the group')).toBeVisible()
+  await page.getByRole('button', { name: 'Filters' }).click()
   await expect(page.getByRole('searchbox', { name: 'Search by catalog number' })).toBeVisible()
 })
 

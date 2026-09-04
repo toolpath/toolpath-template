@@ -108,7 +108,7 @@ serves.
 Two consequences are load-bearing:
 
 - **Deep links need an `index.html` fallback.** The application uses clean paths
-  like `/tools/<guid>`, and no file exists at that path. The host must serve
+  like `/parts/<partId>`, and no file exists at that path. The host must serve
   `index.html` for unknown paths and let the router take over — one rule on
   Netlify, Vercel, Cloudflare or S3, and already implemented in `server/prod.ts`.
   Without it, browsing works and refreshing a shared link 404s.
@@ -160,9 +160,8 @@ apps/catalog              @toolpath/catalog         browse tools, and match them
   vendor's numbers.**
 - **`apps/catalog`** opens on the part: connect, upload, follow the analysis,
   click a feature, and the catalog narrows to the tools that cut it, with the
-  selection held in the URL. The catalog browser and the family list are still
-  there and still tested at `/catalog` and `/families`, and nothing links to
-  them — see _Taken out on 2026-09-01_.
+  selection held in the URL. The former standalone catalog browser, tool detail,
+  family list, and holder browser were removed — see _Taken out on 2026-09-01_.
 
 ## Phases
 
@@ -399,9 +398,9 @@ on `paul/tool_catalog`.
   the grouping half of `shared/hole-mode.ts`, and the mode switch in
   `components/selection-panel.tsx`. `git show e34b952:apps/catalog/…` brings any of
   it back; what has to be rebuilt is the wiring in `routes/part.tsx`.
-- **The catalog browser and the family list.** Still there, still tested, and
-  reachable at `/catalog` and `/families` — nothing links to them, and `/` is
-  the part flow. Two `NavLink`s in `components/app-header.tsx` put them back.
+- **The catalog browser, standalone tool detail, family list, and holder
+  browser.** Removed on 2026-09-03; the part screen is the only tool-selection,
+  detail, and assembly workflow.
 - **Thread milling** stays out of `HOLE_MODES` (2026-09-01), and the type still
   carries it.
 - **The thread suggestions as chips.** One select, with the readings in it.
@@ -710,7 +709,7 @@ step.
 ## Building an assembly
 
 **The DFM catalog's flow (Justin Gray, 2026-08-05 → 08-10), followed here.**
-Three panes, each narrowing the next — `components/assembly-picker.tsx` over
+Three panes, each narrowing the next — the part-screen assembly controls over
 `catalog-data/assembly-picking.ts`:
 
 - **Holders** that can hold the shank, filtered by spindle taper, spindle
@@ -727,9 +726,8 @@ Three panes, each narrowing the next — `components/assembly-picker.tsx` over
   _Save assembly_.
 
 The selection is one `BuildSelection` (`catalog-data/assembly-selection.ts`)
-that the picker and the drawing both read, so they cannot disagree. On the
-tool page it lives in the URL — an assembly _is_ that page. On the part page
-it belongs to the feature: guids and stickout go on a **setup sheet**
+that the picker and the drawing both read, so they cannot disagree. On the part
+page it belongs to the feature: guids and stickout go on a **setup sheet**
 (`shared/setup-sheet.ts`, references only, per part, in this browser); the
 filters stay on the page and sticky across features. Changing a filter clears
 the holder and collet; choosing a holder clears the collet; a link can never

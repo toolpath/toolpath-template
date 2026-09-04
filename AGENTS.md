@@ -158,8 +158,9 @@ application unless that application says otherwise.
   module that touches it — while its `server/` serves the shared part API,
   because uploading and analysing a part needs the user's API key.
   **It opens on the part** (Paul, 2026-09-01): `/` is the upload, drawn in the
-  space the viewer fills, and the catalog browser and family list are still
-  served at `/catalog` and `/families` with nothing linking to them.
+  space the viewer fills. The former standalone catalog, tool-detail, family,
+  and holder-browsing routes were removed because the part screen owns that
+  workflow.
   See `docs/TOOL-CATALOG-PLAN.md`, including _Taken out on 2026-09-01_ for what
   is parked and where to restore it from, and _The filter panel_ for the one
   rule saying which values a picker offers — an empty answer stays and is
@@ -170,9 +171,10 @@ application unless that application says otherwise.
   **A holder can be drawn from its own CAD model** rather than from the nine
   numbers a vendor publishes: `catalog-profiles` is a second Vite alias beside
   `catalog-dataset`, `shared/catalog.ts` `getProfile` is the only way to reach
-  it, and `/holders` browses the rack and draws one. `docs/HOLDER-PROFILES.md`
-  is the guide, including the two things deliberately left undone — clearance
-  still reasons from the published dimensions, and the record seam below.
+  it, and `catalog-drawing.tsx` uses it in the active part workflow.
+  `docs/HOLDER-PROFILES.md` is the guide, including the two things deliberately
+  left undone — clearance still reasons from the published dimensions, and the
+  record seam below.
   **The feature list is what drives the page** (Paul, 2026-09-02): a click on
   the part adds a row, a row is what the tool table is being asked about, and a
   tool reaches the bill only because a row put it there — there is no second

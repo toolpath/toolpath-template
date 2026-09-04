@@ -11,8 +11,7 @@ import { thresholdsFrom } from 'shared/holder-choice'
 import { ToolTypeIcon, formLabel } from './tool-icons'
 import { MeasurementIcon } from './feature-icons'
 import { CatalogDrawing } from './catalog-drawing'
-
-import type { Holding } from './tool-table'
+import type { Holding } from './part-tool-table'
 
 /**
  * The tool being read, beside the part.
@@ -23,8 +22,9 @@ import type { Holding } from './tool-table'
  * only in the list. The vendor's page is a button at the top, because "where
  * do I buy this" is asked of the thing on screen.
  *
- * The long field-by-field sheet still lives on the tool's own page: this is
- * the working panel, not the reference.
+ * This is the working panel, not a reference sheet: the tool's own page and
+ * the standalone catalog browser were removed on 2026-09-03, so the panel
+ * beside the part is the only place a tool is read.
  *
  * **The drawing shows the tool, or the tool and what holds it** (Paul,
  * 2026-09-01), and says so with a switch rather than by whether a holder

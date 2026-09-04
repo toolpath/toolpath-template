@@ -17,7 +17,7 @@ import profileDocument from 'catalog-profiles'
  *
  * Everything the UI knows about tool data comes through here, so replacing
  * today's build-time JSON with a fetch against an API later is a one-file
- * change. Components import {@link searchableTools} and {@link getTool};
+ * change. Components import {@link allTools} and {@link getTool};
  * nothing else imports the dataset.
  *
  * `catalog-dataset` is resolved by `vite.config.ts`: the gitignored
@@ -36,8 +36,6 @@ if (document.version !== CATALOG_VERSION) {
   )
 }
 
-export const builtAt: string = document.builtAt
-export const families: ReadonlyArray<ToolFamily> = document.families
 export const allTools: ReadonlyArray<CatalogTool> = document.tools
 export const facets: Facets = document.facets
 
@@ -75,14 +73,8 @@ if (measured.profilesVersion !== PROFILES_VERSION) {
 /** The silhouette measured off this holder's own CAD model, or null where none was. */
 export const getProfile = (guid: string): HolderProfile | null => profileFor(measured, guid)
 
-/** Whether this dataset was measured at all — "none yet" and "none for this holder" differ. */
-export const hasProfiles = (): boolean => Object.keys(measured.holders).length > 0
-
 const byGuid = new Map(document.tools.map((tool) => [tool.guid, tool]))
 const familiesById = new Map(document.families.map((family) => [family.id, family]))
-
-/** The tools a search runs over, in catalog order. */
-export const searchableTools = (): ReadonlyArray<CatalogTool> => allTools
 
 export const getTool = (guid: string): CatalogTool | null => byGuid.get(guid) ?? null
 

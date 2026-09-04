@@ -1,8 +1,8 @@
 # @toolpath/catalog
 
-A browsable catalog of cutting tools — what a shop has available, what each tool
-measures, what the vendor's terse codes mean — and the tools that can cut a
-given part's features.
+A catalog of cutting tools — what a shop has available, what each tool measures,
+what the vendor's terse codes mean — and the tools that can cut a given part's
+features.
 
 **Tool data is bundled at build time** and filtered entirely in the browser.
 **Parts are not**: uploading and analysing one needs the user's Toolpath API
@@ -36,6 +36,7 @@ the catalog's shape. It is not a vendor's data. Real ingestion is phase 2 in
 ## Deploying
 
 Clean paths need the host to **serve `index.html` for unknown paths**. Without
-that rewrite, a refresh on `/tools/<guid>` returns 404 and the deploy looks
-broken only to people who follow a shared link. `server/prod.ts` implements it,
-and `tests/catalog.spec.ts` covers it, so a deploy that forgets fails in CI.
+that rewrite, a refresh on an active `/parts/:partId` route returns 404 and the
+deploy looks broken only to people who follow a shared link. `server/prod.ts`
+implements it, and `tests/catalog.spec.ts` covers it, so a deploy that forgets
+fails in CI.
