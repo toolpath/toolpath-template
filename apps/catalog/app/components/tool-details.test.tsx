@@ -1,6 +1,7 @@
+import type { ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import type { CatalogTool } from '@toolpath/catalog-data'
+import type { CatalogTool, Holder } from '@toolpath/catalog-data'
 import { ToolDetails } from './tool-details'
 
 const tool = {
@@ -89,40 +90,49 @@ describe('what the panel says about where a number came from', () => {
  * what the observer below is for: `<ToolDrawing>` draws no `<svg>` until
  * something has told it how big its panel is.
  */
+/**
+ * A `ResizeObserver` that reports to every observer at once.
+ *
+ * `<ToolDrawing>` draws no `<svg>` until something has told it how big its
+ * panel is, and the overlay layer beside it watches the same element — so one
+ * measurement has to reach both, exactly as the browser's would.
+ */
+class StubResizeObserver {
+  static all: Array<StubResizeObserver> = []
+  private readonly callback: ResizeObserverCallback
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback
+    StubResizeObserver.all.push(this)
+  }
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  static measure() {
+    act(() => {
+      for (const each of StubResizeObserver.all) {
+        each.callback(
+          [{ contentRect: { width: 1450, height: 297 } } as ResizeObserverEntry],
+          each as unknown as ResizeObserver,
+        )
+      }
+    })
+  }
+}
+
+const measured = (element: ReactElement) => {
+  vi.stubGlobal('ResizeObserver', StubResizeObserver)
+  const drawn = render(element)
+  StubResizeObserver.measure()
+  return drawn
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  StubResizeObserver.all = []
+})
+
 describe('pointing at a number', () => {
-  class StubResizeObserver {
-    static all: Array<StubResizeObserver> = []
-    private readonly callback: ResizeObserverCallback
-    constructor(callback: ResizeObserverCallback) {
-      this.callback = callback
-      StubResizeObserver.all.push(this)
-    }
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-    static measure() {
-      act(() => {
-        for (const each of StubResizeObserver.all) {
-          each.callback(
-            [{ contentRect: { width: 1450, height: 297 } } as ResizeObserverEntry],
-            each as unknown as ResizeObserver,
-          )
-        }
-      })
-    }
-  }
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    StubResizeObserver.all = []
-  })
-
-  const panel = () => {
-    vi.stubGlobal('ResizeObserver', StubResizeObserver)
-    const drawn = render(<ToolDetails tool={tool} unit="millimeters" />)
-    StubResizeObserver.measure()
-    return drawn
-  }
+  const panel = () => measured(<ToolDetails tool={tool} unit="millimeters" />)
 
   it('lights the line on the drawing for the number under the pointer', () => {
     const { container } = panel()
@@ -157,9 +167,21 @@ describe('choosing a holder and a collet', () => {
     return {
       onChoose,
       holding: {
+        /*
+          The holder carries its own guid, the way the page's own `holdersFor`
+          mints it (`routes/part.tsx`: `guid: option.holder.guid`). The panel
+          hands the chosen holder to `shared/drawn-assembly`, which finds it by
+          that guid — a wrapper guid over a holder with none is a stack that
+          never assembles.
+        */
         holdersFor: () => [
-          { guid: 'h-er16', label: 'ER16 chuck · takes this collet', trouble: null, holder: {} },
-          { guid: 'h-pg6', label: 'PG6 chuck', trouble: null, holder: {} },
+          {
+            guid: 'h-er16',
+            label: 'ER16 chuck · takes this collet',
+            trouble: null,
+            holder: { guid: 'h-er16' },
+          },
+          { guid: 'h-pg6', label: 'PG6 chuck', trouble: null, holder: { guid: 'h-pg6' } },
         ],
         colletsFor: (_tool: unknown, holderGuid: string | null) =>
           holderGuid === null
@@ -229,5 +251,89 @@ describe('choosing a holder and a collet', () => {
 
     fireEvent.change(screen.getByLabelText('Holder'), { target: { value: 'h-pg6' } })
     expect(onChoose).toHaveBeenLastCalledWith(tool, { holderGuid: 'h-pg6', colletGuid: null })
+  })
+})
+
+/**
+ * **The part is drawn beside the tool** (2026-09-03).
+ *
+ * The panel drew the cutter against nothing from 2026-08-31 to 2026-09-03,
+ * while the page had the feature's reach curve in hand and spent it entirely
+ * on the holder list — so the one place a shop reads a tool showed no reason
+ * for the stickout the list beside it had settled on. Everything downstream
+ * was intact the whole time; the panel simply had no `curve` prop to be fed
+ * through. This is the sensor for the feed, not for the drawing:
+ * `catalog-drawing.test.tsx` owns what the overlay looks like.
+ */
+describe('the material around the feature', () => {
+  /** A wall 2 mm out from the axis, running 12 mm up and then away. */
+  const curve = { horizontalOffset: [0, 2, 8, 15], verticalOffset: [12, 12, 30, 30] }
+
+  const holder: Holder = {
+    guid: 'h-er16',
+    familyId: 'bt30',
+    brand: 'REGO-FIX',
+    vendor: 'REGO-FIX',
+    catalogNumber: 'BT 30 / ER 16 x 060',
+    materialNumber: null,
+    taper: 'BT30',
+    contact: null,
+    clamping: 'collet',
+    gaugeLength: 60,
+    colletSeries: 'ER16',
+    boreDiameter: null,
+    noseDiameter: 28,
+    noseLength: 8,
+    bodyDiameter: 42,
+    bodyLength: 3,
+    projection: 11.6,
+    flangeDiameter: 46,
+    colletProtrusion: 2,
+    productLink: null,
+    cadModelUrl: null,
+    provenance: {},
+  }
+
+  const held = {
+    holdersFor: () => [{ guid: 'h-er16', label: 'ER16 chuck', trouble: null, holder }],
+    colletsFor: () => [],
+    chosen: () => ({ holderGuid: 'h-er16', colletGuid: null }),
+    requiredStickout: () => null,
+    stickoutFor: () => 19,
+    reachNote: () => null,
+    onChoose: vi.fn(),
+  } as unknown as Parameters<typeof ToolDetails>[0]['holding']
+
+  it('draws the part wall and the gaps beside the stack when there is a feature', () => {
+    const { container } = measured(
+      <ToolDetails tool={tool} unit="millimeters" holding={held} curve={curve} />,
+    )
+
+    expect(container.querySelector('[data-part="material"]')).not.toBeNull()
+    expect(container.querySelector('[data-clearance]')).not.toBeNull()
+  })
+
+  /** No feature to clear is the tool on its own, with no clearance claimed. */
+  it('draws the tool alone when the panel is given no feature', () => {
+    const { container } = measured(<ToolDetails tool={tool} unit="millimeters" holding={held} />)
+
+    expect(container.querySelector('svg')).not.toBeNull()
+    expect(container.querySelector('[data-part="material"]')).toBeNull()
+    expect(container.querySelector('[data-clearance]')).toBeNull()
+  })
+
+  /**
+   * The material is the feature's, not the holder's, so it stays on the sheet
+   * with the stack switched off — the gaps are then the bare cutter's, which
+   * is the honest answer rather than a blank flank.
+   */
+  it('keeps the material on the sheet with the drawing switched back to the tool', () => {
+    const { container } = measured(
+      <ToolDetails tool={tool} unit="millimeters" holding={held} curve={curve} />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tool' }))
+
+    expect(container.querySelector('[data-part="material"]')).not.toBeNull()
   })
 })

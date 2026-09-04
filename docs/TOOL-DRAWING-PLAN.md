@@ -999,11 +999,30 @@ handoff**: `withOverlay` passes no frame, because it cannot. Deleting the
 provider fails 6 tests. `pnpm check` is green in both repositories; the package
 is at 135 tests, the catalog at 459.
 
-**A smaller consequence stands unchanged:** `padding` is a pixel constant a
-caller supplies before anything is measured, so the material's room is
-`MATERIAL_ROOM = 240` px rather than "whatever the panel has spare", which is
-what the old drawing gave it. Safe, because `frameFor` clamps an over-large
-request, but less good on a narrow panel.
+**A smaller consequence, and what it cost — 2026-09-03.** `padding` is a pixel
+constant a caller supplies before anything is measured, so the material's room
+is a number rather than "whatever the panel has spare", which is what the old
+drawing gave it. This paragraph called that "safe, because `frameFor` clamps an
+over-large request, but less good on a narrow panel", and that is exactly how it
+landed when the overlay reached the part page's tool panel.
+
+`MOST_OF_A_PANEL` is 0.6, and the panel is a column beside the part — around
+400 px on its short axis with the assembly drawn horizontally. So 240 px _was_
+the whole allowance: the clamp scaled the dimension bands back proportionally
+with it and the assembly was crushed into the top third of the sheet. The clamp
+is a guard against nonsense, not a layout.
+
+The fix stayed on this side: `MATERIAL_ROOM` is now the default of a
+`materialRoom` prop on `CatalogDrawing`, the drawing card keeps 240, and
+`tool-details.tsx` passes `PANEL_MATERIAL_ROOM = 130`.
+`catalog-drawing.test.tsx` pins that asking for less leaves the tool more of
+the sheet, so the prop cannot quietly become decoration.
+
+**The package-side fix is still the better one and is still not taken**: teach
+`Padding` to accept a fraction of the panel as well as pixels, since the caller
+cannot know the panel width and the package measures it. That is a
+`@toolpath/tool-drawing` release and a version bump across two repositories
+(§ 12), which is why a prop was enough for now.
 
 ### Phase 7 — Publish
 

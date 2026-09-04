@@ -1,13 +1,17 @@
 import { useState } from 'react'
 import { ArrowSquareOutIcon } from '@phosphor-icons/react'
 import { Badge, cn } from '@toolpath/ui'
-import type { CatalogTool } from '@toolpath/catalog-data'
+import { NO_MARGINS, type CatalogTool, type Margins } from '@toolpath/catalog-data'
+import type { ReachCurve } from '@toolpath/part-contracts'
 import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { formatGeometry } from 'shared/geometry'
 import { getFamily } from 'shared/catalog'
+import { drawnAssembly } from 'shared/drawn-assembly'
+import { thresholdsFrom } from 'shared/holder-choice'
 import { ToolTypeIcon, formLabel } from './tool-icons'
 import { MeasurementIcon } from './feature-icons'
 import { CatalogDrawing } from './catalog-drawing'
+
 import type { Holding } from './tool-table'
 
 /**
@@ -67,6 +71,19 @@ const UNLETTERED: ReadonlySet<string> = new Set(['LD', 'NOF'])
 const SELECT =
   'focus-visible:ring-info/60 w-full truncate rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100 focus-visible:ring-1 focus-visible:outline-none'
 
+/**
+ * Room for the material on this panel's sheet, in pixels.
+ *
+ * The drawing card's own figure is `MATERIAL_ROOM`, 240, which is right on a
+ * full-width `h-96` card and wrong here: this panel is a column beside the
+ * part, `minSize={280}` wide and around 400 tall, and the package caps every
+ * flank at 0.6 of the axis — so 240 was the whole allowance, taken from the
+ * assembly and from the dimension bands that share it (2026-09-03). About a
+ * third of the short axis leaves the tool the sheet and the material a band
+ * wide enough to read.
+ */
+const PANEL_MATERIAL_ROOM = 130
+
 export interface ToolDetailsProps {
   readonly tool: CatalogTool
   readonly unit: UnitSystem
@@ -103,6 +120,19 @@ export interface ToolDetailsProps {
    * catalog, whichever decisions had been made with it.
    */
   readonly mappedTo?: ReadonlyArray<string>
+  /**
+   * The material around the feature, read off the row being answered.
+   *
+   * **The section beside the tool is back** (2026-09-03). The panel drew the
+   * cutter against nothing from 2026-08-31, while the page had the curve in
+   * hand and spent it on the holder list — so the one place a shop looks at a
+   * tool showed no reason for the stickout the list had settled on. With it,
+   * the sheet carries the part wall, the tightest gaps, and the verdict the
+   * list sorted on.
+   */
+  readonly curve?: ReachCurve | null
+  /** Room the shop wants kept between the stack and the part. */
+  readonly margins?: Margins
 }
 
 export const ToolDetails = ({
@@ -111,6 +141,8 @@ export const ToolDetails = ({
   holding,
   actions = [],
   mappedTo = [],
+  curve = null,
+  margins = NO_MARGINS,
 }: ToolDetailsProps) => {
   const family = getFamily(tool.familyId)
   /**
@@ -134,11 +166,42 @@ export const ToolDetails = ({
   const chosen = holding?.chosen(tool) ?? { holderGuid: null, colletGuid: null }
   const holders = holding?.holdersFor(tool) ?? []
   const collets = holding?.colletsFor(tool, chosen.holderGuid) ?? []
+  /**
+   * What the stack has to stand out to clear, from the list rather than the
+   * drawing. `drawnAssembly` works the same number out as `drawn.required`,
+   * and this is the one shown: the tool list was sorted and graded on
+   * `holding`'s, so printing the drawing's beside a list ordered by the
+   * other would be two answers to one question.
+   */
   const needed = holding?.requiredStickout(tool) ?? null
   const holderChosen = holders.find((each) => each.guid === chosen.holderGuid)?.holder
   const stickout = holding?.stickoutFor?.(tool) ?? null
+  /**
+   * The stack, worked out where every other page works it out.
+   *
+   * **One assembly, not two** (2026-09-03). This panel built its own inline,
+   * with the collet hardcoded to `null` and no stickout ceiling — which was
+   * cosmetic only while the sheet drew the tool against nothing. The moment a
+   * curve arrives it stops being: the drawing asks `clearance()` about the
+   * stack it is given, so an assembly missing its collet would print gaps for
+   * a stack nobody picked. `shared/drawn-assembly` is the one place that stack
+   * is worked out, and its own header says why.
+   *
+   * The holder is handed in rather than looked up in the crib, so the panel
+   * draws the holder it *offered*: `holdersFor` is already filtered by what
+   * the rail asks for, and a holder that has dropped off that list is one the
+   * panel has always drawn nothing for.
+   */
+  const drawn = drawnAssembly(
+    tool,
+    { holder: chosen.holderGuid, collet: chosen.colletGuid, stickout },
+    curve,
+    margins,
+    thresholdsFrom(),
+    holderChosen === undefined ? [] : [holderChosen],
+  )
   /** Whether the sheet below is the stack rather than the bare tool. */
-  const drawnAsStack = holderChosen !== undefined && view === 'stack' && stickout !== null
+  const drawnAsStack = drawn.assembly !== null && view === 'stack'
 
   return (
     /*
@@ -303,7 +366,7 @@ export const ToolDetails = ({
         numbers leave.
       */}
       <div className="flex min-h-0 flex-1 flex-col gap-1">
-        {holderChosen === undefined ? null : (
+        {drawn.holder === null ? null : (
           <div className="flex justify-end gap-1">
             {(
               [
@@ -345,21 +408,14 @@ export const ToolDetails = ({
           <CatalogDrawing
             tool={tool}
             unit={unit}
+            curve={curve}
+            margins={margins}
+            materialRoom={PANEL_MATERIAL_ROOM}
             dimensions
             dimensionSides="both"
             highlight={pointed}
             onDimensionHover={setPointed}
-            {...(holderChosen === undefined || view === 'tool' || stickout === null
-              ? {}
-              : {
-                  assembly: {
-                    tool,
-                    holder: holderChosen,
-                    collet: null,
-                    stickout,
-                    maxStickout: null,
-                  },
-                })}
+            assembly={drawnAsStack ? drawn.assembly : null}
           />
         </div>
       </div>
@@ -377,14 +433,13 @@ export const ToolDetails = ({
            * it drew. Drawn as the stack, the number is the stack's; drawn
            * alone, it is the tool's own.
            */
-          const shown =
-            code === 'LBH' && drawnAsStack && stickout !== null ? stickout : tool.geometry[code]
+          const asDrawn = drawnAsStack ? drawn.stickout : null
+          const shown = code === 'LBH' && asDrawn !== null ? asDrawn : tool.geometry[code]
           const value = shown
           if (value === undefined) {
             return []
           }
-          const provenance =
-            code === 'LBH' && drawnAsStack && stickout !== null ? 'derived' : tool.provenance[code]
+          const provenance = code === 'LBH' && asDrawn !== null ? 'derived' : tool.provenance[code]
           return [
             <div
               key={code}

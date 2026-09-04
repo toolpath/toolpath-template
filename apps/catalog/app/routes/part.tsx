@@ -2979,9 +2979,11 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         <Panels.Separator className={separator} />
 
         {/*
-          The tool's own numbers. The assembly was drawn here until
-          2026-08-31; Paul took the drawing out while the holder half of it is
-          being sorted out, and the panel is the tool alone in the meantime.
+          The tool, the stack that holds it, and the part around it. The
+          assembly came out on 2026-08-31 while the holder half was being
+          sorted out; measured holder profiles landed on 2026-09-02, so it is
+          back — with the feature's own reach curve, which this page has had in
+          hand the whole time and was spending only on the holder list.
         */}
         <Panels.Panel className="min-h-0 overflow-hidden" minSize={280}>
           {panelTool ? (
@@ -3005,6 +3007,14 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                   is where they are said and tested.
                 */
                 actions={panelActions}
+                /*
+                  The material around the feature being answered, and the room
+                  the shop asked to keep from it. Both are already worked out
+                  for the holder list; handing them down is what puts the part
+                  wall on the sheet beside the tool.
+                */
+                curve={curve}
+                margins={margins}
               />
             </Card>
           ) : (

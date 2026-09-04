@@ -98,6 +98,46 @@ describe('the drawn assembly', () => {
     expect(drawn.band).toBe('good')
   })
 
+  /**
+   * **A holder with no collet picked is still drawn with one.**
+   *
+   * The panel used to build its assembly inline with `collet: null` hardcoded,
+   * which was cosmetic while it drew the tool against nothing; the moment a
+   * reach curve reached it, `clearance()` was being asked about a stack the
+   * shop had not picked. Two callers depend on this resolution now
+   * (`components/drawing-card.tsx` and `components/tool-details.tsx`), so it
+   * gets a test of its own rather than riding along on the cases above.
+   */
+  it('fits the first collet the holder takes when none was picked', () => {
+    const drawn = drawnAssembly(
+      tool,
+      { holder: 'h', collet: null, stickout: null },
+      null,
+      room,
+      thresholds,
+      [holder],
+      [collet],
+    )
+    expect(drawn.collet?.guid).toBe('c')
+    expect(drawn.assembly?.collet?.guid).toBe('c')
+  })
+
+  /** And a holder that needs none is drawn with none, rather than the first that grips. */
+  it('leaves a bore holder colletless', () => {
+    const bore = { ...holder, guid: 'b', clamping: 'bore' as const, colletSeries: null }
+    const drawn = drawnAssembly(
+      tool,
+      { holder: 'b', collet: null, stickout: null },
+      null,
+      room,
+      thresholds,
+      [bore],
+      [collet],
+    )
+    expect(drawn.collet).toBeNull()
+    expect(drawn.assembly?.holder.guid).toBe('b')
+  })
+
   it('holds a picked stickout inside the tool’s range, and reports what then collides', () => {
     const wall = { horizontalOffset: [0, 2, 30], verticalOffset: [0, 0, 20] }
     const drawn = drawnAssembly(

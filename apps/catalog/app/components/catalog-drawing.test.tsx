@@ -225,6 +225,33 @@ describe('the overlay this application draws', () => {
     expect(svg?.querySelector('[data-wall="cut"]')).not.toBeNull()
   })
 
+  /**
+   * **The gaps are said in words, not lettered on the sheet** (Paul,
+   * 2026-09-03: "I don't know what those numbers are… they should just not
+   * show at all, not even the call out arrows").
+   *
+   * The overlay letters each gap at its own tightest point, which is a place
+   * on the *stack* rather than anywhere that reads as a gap: on a bare tool it
+   * lands in the white beside the flutes, and under a holder against the
+   * flange, well away from the material it measures. The caption below says
+   * the same two numbers **and where they were taken** — "above the wall at
+   * the body" — which the figure could only point at.
+   *
+   * So the real gaps still reach `describeGaps` and only the drawing is told
+   * there is nothing to letter. Both halves matter: the leaders gone, and the
+   * sentence still carrying the number.
+   */
+  it('letters neither gap on the sheet, and still says both in the caption', () => {
+    const container = drawn(
+      <CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" curve={curve} />,
+    )
+
+    expect(container.querySelectorAll('[data-clearance-dimension]')).toHaveLength(0)
+    // The material it would have been lettered against is still drawn.
+    expect(container.querySelector('[data-part="material"]')).not.toBeNull()
+    expect(container.textContent).toMatch(/tightest: .*(above|into) the wall at the/)
+  })
+
   it('draws the tool alone when there is no feature to clear', () => {
     const container = drawn(
       <CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" dimensions />,
@@ -232,6 +259,42 @@ describe('the overlay this application draws', () => {
 
     expect(container.querySelector('svg')).not.toBeNull()
     expect(container.querySelector('[data-clearance]')).toBeNull()
+  })
+
+  /**
+   * **The room for the material is the caller's**, because only the caller
+   * knows how much sheet there is.
+   *
+   * `<ToolDrawing>` is told its padding before it has measured its panel, so
+   * it cannot take a share of an axis it has not seen; it only clamps an
+   * over-large request to 0.6 of the axis and scales the dimension bands back
+   * with it. On the part page's tool panel — a column beside the part, not a
+   * full-width card — 240 px *was* that whole 0.6, and the assembly was
+   * crushed into the top third (2026-09-03). Asking for less has to leave the
+   * tool more of the sheet, or the prop is decoration.
+   */
+  it('draws the tool larger when the caller keeps less of the sheet for the material', () => {
+    const wide = drawn(
+      <CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" curve={curve} />,
+    )
+    const generous = wide.querySelector('svg')?.getAttribute('viewBox')
+
+    StubResizeObserver.all = []
+    const narrow = drawn(
+      <CatalogDrawing
+        tool={tool}
+        assembly={assembly}
+        unit="millimeters"
+        curve={curve}
+        materialRoom={MATERIAL_ROOM / 4}
+      />,
+    )
+    const tight = narrow.querySelector('svg')?.getAttribute('viewBox')
+
+    const across = (viewBox: string | null | undefined) =>
+      Number((viewBox ?? '0 0 0 0').split(' ')[2])
+    expect(across(tight)).toBeGreaterThan(0)
+    expect(across(tight)).toBeLessThan(across(generous))
   })
 
   /**

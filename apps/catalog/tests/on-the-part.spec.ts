@@ -298,6 +298,38 @@ test('a tool is read in the panel and reaches the bill with its feature', async 
 })
 
 /**
+ * **The part is drawn beside the tool it is being read for** (2026-09-03).
+ *
+ * The panel drew the cutter against nothing from 2026-08-31, while this page
+ * had the feature's reach curve in hand the whole time and spent it entirely
+ * on the holder list — so the one place a shop reads a tool showed no reason
+ * for the stickout the list beside it had settled on. Nothing downstream was
+ * missing; the panel simply had no prop to be fed through.
+ *
+ * It goes here because it begins with a click on the part: the curve is read
+ * off a *reading*, and `cube-fixture.ts` is the only fixture that mounts
+ * geometry. `components/tool-details.test.tsx` pins the same wiring cheaply;
+ * this is the one that proves a real report reaches it.
+ */
+test('draws the material around the feature beside the tool being read', async ({ page }) => {
+  await page.getByRole('button', { name: 'Add feature' }).click()
+  await ready(page)
+
+  await page.getByRole('table').getByRole('row').nth(1).click()
+  await expect(page.getByRole('img', { name: /drawn from its stated dimensions/ })).toBeVisible()
+
+  // The section through the part, and the gaps called out against it.
+  await expect(page.locator('[data-part="material"]')).toHaveCount(1)
+  await expect(page.locator('[data-clearance]')).toHaveCount(1)
+
+  // And with the reading put down there is no feature to clear, so the sheet
+  // is the tool on its own rather than a stale wall from the last one.
+  await page.keyboard.press('Escape')
+  await expect(field(page)).toBeHidden()
+  await expect(page.locator('[data-part="material"]')).toHaveCount(0)
+})
+
+/**
  * **"Means nothing, never show it"** (Paul, 2026-09-01). The length-below-holder
  * cell carried "no holder grips this shank" for every tool whose shank size
  * nothing in the crib takes — which is most of a seventeen-thousand-tool
