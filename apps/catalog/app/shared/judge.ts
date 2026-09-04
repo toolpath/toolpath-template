@@ -403,7 +403,13 @@ export const judgeTools = (
     // every stickout. Paul (2026-08-30): a tool whose shank rubs the wall
     // above the flutes is not compatible and is not shown — find longer
     // flutes or a reduced shank.
-    const rub = sheet.curve ? toolCollisions(tool, sheet.curve, margins)[0] : undefined
+    // A tool already rejected by a must-rule cannot become usable because it
+    // also collides with the part. Avoid the expensive sweep in that case; the
+    // first rejection is sufficient for the catalog result.
+    const rub =
+      pass.removed.length === 0 && sheet.curve
+        ? toolCollisions(tool, sheet.curve, margins)[0]
+        : undefined
     if (rub) {
       const short = rub.needs - rub.height
       pass.removed.push({

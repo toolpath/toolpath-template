@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useDeferredValue,
   useMemo,
   useReducer,
   useRef,
@@ -55,7 +56,7 @@ import {
   type ListItem,
   type Results,
 } from 'shared/feature-list'
-import { recommendationRows, type Answer } from 'shared/recommendations'
+import { recommendationRows, type RecommendationAnswer } from 'shared/recommendations'
 import { toolActionLabel, toolActions, type ToolAction } from 'shared/tool-actions'
 import { featureRow } from 'shared/feature-rows'
 import {
@@ -106,7 +107,7 @@ import { closestMisses, type Format } from 'shared/judge'
 import { cautionedTypes, marksFor, shortfallMarks, testedCodes } from 'shared/tool-marks'
 import { knobValue, knobsWith } from 'shared/rules'
 import { OrderDialog } from 'components/order-dialog'
-import { closeCandidates, fittingTools, tightestRule } from 'shared/tool-fit'
+import { closeCandidates, tightestRule } from 'shared/tool-fit'
 import { useUnit } from 'shared/use-unit'
 import { usePartMaterial, usePreferences } from 'shared/use-preferences'
 import { partHref, recallPart, rememberPart } from 'shared/part-session'
@@ -126,6 +127,14 @@ import {
 import { hasSharpCorner } from 'shared/feature-defaults'
 import { threadPanes } from 'shared/thread-panes'
 import { drillFor, minorOf, type HoleMode, type ThreadSpec } from 'shared/threads'
+import { useCatalogMatcher } from 'client/catalog-matcher'
+import {
+  matchKey,
+  rehydrateVerdicts,
+  type DetailedResult,
+  type MatchContext,
+  type MatchDemand,
+} from 'shared/catalog-matcher'
 
 /** How one hole is made, and for what thread: hole mode's answer per feature. */
 interface HoleChoice {
@@ -163,6 +172,34 @@ const Shell = ({ children }: { children: ReactNode }) => {
     </main>
   )
 }
+
+/** A table-shaped first-load state; completed tables remain visible on later requests. */
+const TablePlaceholder = ({ error }: { error: string | null }) => (
+  <div
+    role={error === null ? 'status' : 'alert'}
+    className="relative flex min-h-0 flex-1 flex-col gap-px overflow-hidden bg-zinc-900/60"
+  >
+    {error === null ? (
+      <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
+        <span className="size-5 animate-spin rounded-full border-2 border-zinc-700 border-t-info" />
+        <span className="sr-only">Finding compatible tools...</span>
+      </div>
+    ) : (
+      <p className="relative z-10 p-4 text-sm text-danger">{error}</p>
+    )}
+    {Array.from({ length: 8 }, (_, index) => (
+      <div
+        key={index}
+        className="grid h-10 grid-cols-[2fr_1fr_1fr_1fr] gap-6 bg-zinc-950 px-4 py-3"
+      >
+        <span className="animate-pulse rounded bg-zinc-800" />
+        <span className="animate-pulse rounded bg-zinc-900" />
+        <span className="animate-pulse rounded bg-zinc-900" />
+        <span className="animate-pulse rounded bg-zinc-900" />
+      </div>
+    ))}
+  </div>
+)
 
 const Failed = ({ message }: { message: string }) => (
   <Shell>
@@ -523,10 +560,15 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    */
   const perFeature = asking && askedNow.results === 'each'
 
-  /** The features the tool list is judged against, whichever of the four is asking. */
+  /**
+   * The features the tool list is judged against, whichever of the four is
+   * asking. Matching is intentionally deferred: the chips and the part
+   * selection can paint before a large catalog calculation catches up.
+   */
+  const deferredAskedTags = useDeferredValue(askedNow.tags)
   const selectedFeatures = useMemo(
-    () => keptFeatures(report.features, askedNow.tags),
-    [report.features, askedNow.tags],
+    () => keptFeatures(report.features, deferredAskedTags),
+    [report.features, deferredAskedTags],
   )
 
   const axes = useMemo(
@@ -761,6 +803,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     () => withClampingLength(catalogTools, clamping, stickoutPolicy),
     [clamping, stickoutPolicy],
   )
+  const toolsByGuid = useMemo(() => new Map(allTools.map((tool) => [tool.guid, tool])), [allTools])
   /** Material is held with the part preferences, but it is still a tool filter. */
   const effectiveQuery = useMemo(
     () =>
@@ -917,67 +960,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     return bore ?? holeDiameter
   }, [threadSpec, holeChoice.mode, holeDiameter])
 
-  /**
-   * What the list is judged against.
-   *
-   * A threaded hole is drilled at the **tap drill**, and the model may be
-   * drawn at the minor or the nominal size, so the drill half of hole mode is
-   * judged against the hole the shop will actually make rather than the one
-   * the model shows (Paul, 2026-08-31).
-   */
-  const judged = useMemo(() => {
-    const bore = threadSpec === null ? null : drillFor(threadSpec, holeChoice.mode)
-    if (bore === null || focused === null) {
-      return selectedFeatures
-    }
-    /**
-     * **The whole group, not the one that was clicked** (Paul, 2026-09-02:
-     * "full tap drill matches should be shown first — lead with green checks
-     * not i icons").
-     *
-     * Clicking a hole keeps its group: eight holes on a bolt circle are one
-     * decision, and the list is judged against every one of them. Only the
-     * *focused* one was stood in at the tap drill, so the rest went on being
-     * judged at the size the model draws — and `foldVerdicts` takes its rank
-     * key from the first feature in the fold, which is whichever the kernel
-     * happened to report first. An M3×0.5 whose model is drawn at ⌀0.102
-     * therefore ranked a ⌀0.102 drill above the ⌀0.098 that is actually its
-     * tap drill, while the deviation column — which reads the predrill
-     * directly — said the ⌀0.098 was the exact one.
-     *
-     * They are the same hole by definition: same diameter, same depth, same
-     * way up. One predrill.
-     */
-    const group = new Set(holeGroupOf(report.features, focused))
-    return selectedFeatures.map((each) => (group.has(each.featureTag) ? holeAt(each, bore) : each))
-  }, [selectedFeatures, threadSpec, holeChoice.mode, focused, report.features])
-  const { fitting, excluded } = useMemo(
-    () => fittingTools(judged, report.features, allTools, format, knobs),
-    [judged, report.features, allTools, format, knobs],
-  )
-
-  const tightest = useMemo(() => tightestRule(excluded), [excluded])
-
-  /**
-   * The sheet's order, narrowed by the filters. Nothing here widens it, and
-   * nothing here reorders by tool type: that is the sheet's `form in order`
-   * rows, by Paul's call. Two questions, intersected: what a tool *is*, and
-   * whether this crib can put it in a spindle — the second is not a tool
-   * field, so it cannot go through `filterTools`.
-   */
-  const narrowed = useMemo(() => {
-    const { tools: toolQuery, holding } = splitHolding(effectiveQuery)
-    const kept = new Set(
-      holdableTools(
-        filterTools(
-          fitting.map((verdict) => verdict.tool),
-          toolQuery,
-        ),
-        holding,
-      ).map((each) => each.guid),
-    )
-    return fitting.filter((verdict) => kept.has(verdict.tool.guid))
-  }, [fitting, effectiveQuery])
   /** The reach curve the holders are swept over, read off the feature. */
   const curve = useMemo(
     () => (reading ? (sectionOf(reading, report.features)?.curve ?? null) : null),
@@ -989,6 +971,84 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     () => ({ taper: query.terms.taper ?? [], colletSeries: query.terms.colletSeries ?? [] }),
     [query.terms.taper, query.terms.colletSeries],
   )
+
+  /**
+   * Matching owns the expensive rules and holder sweep, so this route only
+   * builds a cloneable question and rehydrates the worker's compact verdicts.
+   */
+  const {
+    ready: matcherReady,
+    table: tableMatch,
+    recommendations: recommendationMatch,
+    matchTable,
+    matchRecommendations,
+  } = useCatalogMatcher()
+  const tableContext = useMemo<MatchContext>(
+    () => ({
+      features: report.features,
+      query: effectiveQuery,
+      knobs,
+      clamping,
+      unit,
+      holderFilters,
+      margins,
+      thresholds,
+    }),
+    [report.features, effectiveQuery, knobs, clamping, unit, holderFilters, margins, thresholds],
+  )
+  const tableDemand = useMemo<MatchDemand | null>(() => {
+    if (!asking || perFeature) {
+      return null
+    }
+    const bore = threadSpec === null ? null : drillFor(threadSpec, holeChoice.mode)
+    const threaded = bore === null || focused === null ? [] : holeGroupOf(report.features, focused)
+    const bores: Record<string, number> = {}
+    if (bore !== null) {
+      for (const tag of threaded) {
+        if (askedNow.tags.includes(tag)) {
+          bores[tag] = bore
+        }
+      }
+    }
+    return {
+      demandKey: `table:${askedNow.tags.join('|')}`,
+      tags: askedNow.tags,
+      ...(Object.keys(bores).length === 0 ? {} : { bores }),
+      reachTag: focused,
+    }
+  }, [asking, perFeature, threadSpec, holeChoice.mode, focused, report.features, askedNow.tags])
+  const tableKey = useMemo(
+    () => (tableDemand === null ? null : matchKey('table', tableContext, [tableDemand])),
+    [tableContext, tableDemand],
+  )
+  useEffect(() => {
+    if (matcherReady && tableDemand !== null) {
+      matchTable(tableContext, [tableDemand])
+    }
+  }, [matcherReady, matchTable, tableContext, tableDemand])
+  const detailed =
+    tableMatch.status === 'ready' && tableMatch.key === tableKey
+      ? (tableMatch.results[0] ?? null)
+      : null
+  const tableError =
+    tableMatch.status === 'error' && tableMatch.key === tableKey ? tableMatch.message : null
+  const fitting = useMemo(
+    () => (detailed === null ? [] : rehydrateVerdicts(detailed.fitting, allTools)),
+    [detailed, allTools],
+  )
+  const excluded = useMemo(
+    () => (detailed === null ? [] : rehydrateVerdicts(detailed.excluded, allTools)),
+    [detailed, allTools],
+  )
+  const narrowed = useMemo(() => {
+    const kept = new Set(detailed?.narrowedGuids ?? [])
+    return fitting.filter((verdict) => kept.has(verdict.tool.guid))
+  }, [detailed, fitting])
+  const held = useMemo(() => {
+    const kept = new Set(detailed?.heldGuids ?? [])
+    return fitting.filter((verdict) => kept.has(verdict.tool.guid))
+  }, [detailed, fitting])
+  const tightest = useMemo(() => tightestRule(excluded), [excluded])
 
   /** What makes the thread: taps for either tapping mode, mills for milling. */
   /** What the taps are measured against, so the table can say what fell short. */
@@ -1048,13 +1108,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * ten best are the ten best *holdable* tools; `holdable` stops at the
    * first holder that works, so it stays quick.
    */
-  const held = useMemo(
-    () =>
-      narrowed.filter((verdict) =>
-        holdable(verdict.tool, allHolders, allCollets, holderFilters, curve, margins, thresholds),
-      ),
-    [narrowed, holderFilters, curve, margins, thresholds],
-  )
   const unheld = narrowed.length - held.length
   const tools = useMemo(() => held.map((verdict) => verdict.tool), [held])
   /**
@@ -1516,6 +1569,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   }, [focused, threadSpec?.name])
   /** True while the list is showing the taps rather than the tools. */
   const tapping = threadSpec !== null && pane === 'tap'
+  const tablePending =
+    tableMatch.status === 'pending' && tableMatch.key === tableKey && !perFeature && !tapping
 
   /**
    * The taps, read the way the tool list is read.
@@ -1679,100 +1734,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const typeChoices = useMemo(() => typeButtons(report.features, nameOf), [report.features, nameOf])
 
   /**
-   * The one tool the rules put first for a set of features.
-   *
-   * The whole pipeline the list runs, ending at the first row rather than at
-   * two hundred: the rules, then the filters, then the crib — a recommendation
-   * nothing in the shop can hold is not a recommendation. Threads count, so a
-   * tapped hole in a group is judged against its predrill exactly as it is
-   * when it is the one thing selected.
-   */
-  const topFor = useCallback(
-    (tags: ReadonlyArray<string>): Answer | null => {
-      /**
-       * **What was chosen beats what is recommended** (Paul, 2026-09-02:
-       * "holders and collets should also be shown with the tool in the feature
-       * list"). Once a tool is on the bill for a feature, that — with whatever
-       * it is held in — is the answer to this row; the rules' own pick stands
-       * in only until somebody has made one.
-       */
-      const decided = tags[0] === undefined ? [] : choicesFor(sheet, tags[0])
-      const picks = decided.flatMap((line) => {
-        const kept = allTools.find((one) => one.guid === line.toolGuid)
-        return kept === undefined
-          ? []
-          : [
-              {
-                tool: kept,
-                holder:
-                  allHolders.find((one) => one.guid === line.holderGuid)?.catalogNumber ?? null,
-                collet:
-                  allCollets.find((one) => one.guid === line.colletGuid)?.catalogNumber ?? null,
-              },
-            ]
-      })
-      if (picks.length > 0) {
-        return { picks, chosen: true }
-      }
-      const features = keptFeatures(report.features, tags)
-      if (features.length === 0) {
-        return null
-      }
-      const stood = features.map((each) => {
-        const choice = threads[each.featureTag]
-        const bore = choice?.spec ? drillFor(choice.spec, choice.mode) : null
-        return bore === null ? each : holeAt(each, bore)
-      })
-      /**
-       * **Narrowed before it is judged, not after** (Paul, 2026-09-02: "adding
-       * groups of holes is making it hang for a long time"). Every row of the
-       * list costs a pass, and a group of thirty-nine holes is a dozen distinct
-       * sizes — a dozen passes over seventeen thousand tools, then a filter
-       * that threw most of the results away. The filters do not depend on the
-       * rules, so applying them first is the same answer for a fraction of the
-       * work: a threaded hole's list is drills, which is a few hundred.
-       */
-      const { tools: toolQuery, holding: crib } = splitHolding(effectiveQuery)
-      const admitted = holdableTools(filterTools(allTools, toolQuery), crib)
-      const { fitting: ranked } = fittingTools(stood, report.features, admitted, format, knobs)
-      const first = features[0]
-      const reach = first ? (sectionOf(first, report.features)?.curve ?? null) : null
-      for (const verdict of ranked) {
-        if (
-          holdable(verdict.tool, allHolders, allCollets, holderFilters, reach, margins, thresholds)
-        ) {
-          return {
-            picks: [{ tool: verdict.tool, holder: null, collet: null }],
-            chosen: false,
-          }
-        }
-      }
-      return null
-    },
-    [
-      sheet,
-      report.features,
-      threads,
-      allTools,
-      format,
-      knobs,
-      effectiveQuery,
-      holderFilters,
-      margins,
-      thresholds,
-    ],
-  )
-
-  /**
-   * The rows of the list, answered.
-   *
-   * **Every row, always** — the answers live on the rows now, so they stay on
-   * screen whatever is selected. It costs a judging pass per row whenever the
-   * filters, the threads or the crib change; a list of a dozen is a dozen
-   * passes over the catalog, which is the price of the answer being where the
-   * question is (Paul, 2026-09-02).
-   */
-  /**
    * The distinct features in a set of tags: identical holes are one.
    *
    * The rule the rest of the page groups by — a bolt circle is one decision —
@@ -1798,28 +1759,120 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     [groupOf],
   )
 
+  const recommendationDemandKey = useCallback((tags: ReadonlyArray<string>) => tags.join('|'), [])
   /**
-   * The same set of features is asked once, however many rows ask it.
-   *
-   * A part with three groups over the same bolt circle judged it three times,
-   * and every render that changed nothing about the rules did it all again.
-   * The cache is rebuilt whenever `topFor` is — which is whenever the filters,
-   * the threads, the crib or the knobs move — so it can never answer with a
-   * stale verdict (Paul, 2026-09-02, on the page hanging).
+   * Saved choices are local and immediate. Every unresolved question becomes
+   * one item in a single worker batch rather than a render-time matcher call.
    */
-  const answerFor = useMemo(() => {
-    const known = new Map<string, Answer | null>()
-    return (tags: ReadonlyArray<string>): Answer | null => {
-      const key = tags.join('|')
-      const had = known.get(key)
-      if (had !== undefined) {
-        return had
+  const recommendationInputs = useMemo(() => {
+    const answers = new Map<string, RecommendationAnswer>()
+    const demands = new Map<string, MatchDemand>()
+    const add = (tags: ReadonlyArray<string>) => {
+      const key = recommendationDemandKey(tags)
+      if (answers.has(key) || demands.has(key)) {
+        return
       }
-      const made = topFor(tags)
-      known.set(key, made)
-      return made
+      const decided = tags[0] === undefined ? [] : choicesFor(sheet, tags[0])
+      const picks = decided.flatMap((line) => {
+        const tool = toolsByGuid.get(line.toolGuid)
+        return tool === undefined
+          ? []
+          : [
+              {
+                tool,
+                holder:
+                  allHolders.find((one) => one.guid === line.holderGuid)?.catalogNumber ?? null,
+                collet:
+                  allCollets.find((one) => one.guid === line.colletGuid)?.catalogNumber ?? null,
+              },
+            ]
+      })
+      if (picks.length > 0) {
+        answers.set(key, { picks, chosen: true })
+        return
+      }
+      const bores = Object.fromEntries(
+        tags.flatMap((tag) => {
+          const choice = threads[tag]
+          const bore = choice?.spec ? drillFor(choice.spec, choice.mode) : null
+          return bore === null ? [] : [[tag, bore] as const]
+        }),
+      )
+      demands.set(key, {
+        demandKey: key,
+        tags,
+        ...(Object.keys(bores).length === 0 ? {} : { bores }),
+        reachTag: tags[0] ?? null,
+      })
     }
-  }, [topFor])
+    for (const item of list) {
+      if (item.kind === 'group' && item.results === 'each') {
+        for (const tags of distinctIn(item.tags)) {
+          add(tags)
+        }
+      } else {
+        add(item.tags)
+      }
+    }
+    if (draft?.kind === 'group' && draft.results === 'each') {
+      for (const tags of distinctIn(kept)) {
+        add(tags)
+      }
+    }
+    return { answers, demands: [...demands.values()] }
+  }, [
+    list,
+    draft,
+    kept,
+    recommendationDemandKey,
+    sheet,
+    toolsByGuid,
+    allHolders,
+    allCollets,
+    threads,
+    distinctIn,
+  ])
+  const recommendationKey = useMemo(
+    () =>
+      recommendationInputs.demands.length === 0
+        ? null
+        : matchKey('recommendations', tableContext, recommendationInputs.demands),
+    [tableContext, recommendationInputs.demands],
+  )
+  useEffect(() => {
+    if (matcherReady && recommendationInputs.demands.length > 0) {
+      matchRecommendations(tableContext, recommendationInputs.demands)
+    }
+  }, [matcherReady, matchRecommendations, tableContext, recommendationInputs.demands])
+  const recommendationAnswers = useMemo(() => {
+    const answers = new Map(recommendationInputs.answers)
+    const results =
+      recommendationMatch.status === 'ready' && recommendationMatch.key === recommendationKey
+        ? new Map(recommendationMatch.results.map((result) => [result.demandKey, result]))
+        : new Map()
+    for (const demand of recommendationInputs.demands) {
+      const result = results.get(demand.demandKey)
+      if (result?.state === 'ready' && result.toolGuid !== null) {
+        const tool = toolsByGuid.get(result.toolGuid)
+        answers.set(
+          demand.demandKey,
+          tool === undefined
+            ? 'error'
+            : { picks: [{ tool, holder: null, collet: null }], chosen: false },
+        )
+      } else if (result?.state === 'nothing-fits') {
+        answers.set(demand.demandKey, 'nothing-fits')
+      } else if (
+        recommendationMatch.status === 'error' &&
+        recommendationMatch.key === recommendationKey
+      ) {
+        answers.set(demand.demandKey, 'error')
+      } else {
+        answers.set(demand.demandKey, 'pending')
+      }
+    }
+    return answers
+  }, [recommendationInputs, recommendationMatch, recommendationKey, toolsByGuid])
 
   /**
    * The tools already on the bill for what is being asked about.
@@ -1846,9 +1899,36 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   }, [asking, askedNow.tags, distinctIn, sheet])
 
   const summaryRows = useMemo(
-    () => recommendationRows(list, { topFor: answerFor, nameOf, split: distinctIn }),
-    [list, answerFor, nameOf, distinctIn],
+    () =>
+      recommendationRows(list, {
+        answers: recommendationAnswers,
+        demandKey: recommendationDemandKey,
+        nameOf,
+        split: distinctIn,
+      }),
+    [list, recommendationAnswers, recommendationDemandKey, nameOf, distinctIn],
   )
+  const draftEach = useMemo(() => {
+    if (draft?.kind !== 'group' || draft.results !== 'each') {
+      return { status: 'idle' as const, picked: false }
+    }
+    const answers = distinctIn(kept).map((tags) =>
+      recommendationAnswers.get(recommendationDemandKey(tags)),
+    )
+    if (answers.some((answer) => answer === 'error')) {
+      return { status: 'error' as const, picked: false }
+    }
+    if (answers.some((answer) => answer === 'pending' || answer === undefined)) {
+      return { status: 'pending' as const, picked: false }
+    }
+    if (answers.some((answer) => answer === 'nothing-fits')) {
+      return { status: 'nothing-fits' as const, picked: false }
+    }
+    return {
+      status: 'ready' as const,
+      picked: true,
+    }
+  }, [draft, distinctIn, kept, recommendationAnswers, recommendationDemandKey])
   /**
    * Whether the bottom of the page is the list's answers rather than a tool
    * list.
@@ -1949,7 +2029,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       if (results === 'each') {
         commit(
           distinctIn(tags).reduce((current, each) => {
-            const best = answerFor(each)?.picks[0]
+            const answer = recommendationAnswers.get(recommendationDemandKey(each))
+            const best = typeof answer === 'object' ? answer.picks[0] : undefined
             return best === undefined || each[0] === undefined
               ? current
               : addChoice(current, each[0], { toolGuid: best.tool.guid })
@@ -1981,7 +2062,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         ),
       )
     },
-    [panelTool, picked, commit, distinctIn, sheet, answerFor],
+    [panelTool, picked, commit, distinctIn, sheet, recommendationAnswers, recommendationDemandKey],
   )
 
   /**
@@ -2029,6 +2110,9 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     if (draft === null || kept.length === 0) {
       return
     }
+    if (draft.kind === 'group' && draft.results === 'each' && !draftEach.picked) {
+      return
+    }
     if (draft.kind === 'feature' && draft.editing === null) {
       addFeature()
       return
@@ -2056,7 +2140,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     // The row somebody has just made is the row they are working on.
     setSelectedId(made.id)
     setSelectedTag(null)
-  }, [draft, kept, list, addFeature, billFor, unbill])
+  }, [draft, kept, list, addFeature, billFor, unbill, draftEach.picked])
 
   const cancelDraft = useCallback(() => {
     setDraft(null)
@@ -2541,7 +2625,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                               what is being built; picking a row there is what
                               finishes it.
                             */
-                                picked={draft.results === 'each' || panelTool !== null}
+                                picked={
+                                  draft.results === 'each' ? draftEach.picked : panelTool !== null
+                                }
+                                matching={draftEach.status}
                                 editing={draft.editing !== null}
                               />
                             ) : (
@@ -2810,6 +2897,24 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           {listed.length}
                         </Badge>
                       )}
+                      {tablePending ? (
+                        <span
+                          role="status"
+                          title="Updating compatible tools"
+                          className="flex items-center text-info"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="size-3 animate-spin rounded-full border-2 border-info/30 border-t-info"
+                          />
+                          <span className="sr-only">Updating compatible tools...</span>
+                        </span>
+                      ) : null}
+                      {tableError !== null && detailed !== null ? (
+                        <span role="alert" className="text-2xs text-danger">
+                          {tableError}
+                        </span>
+                      ) : null}
                       {/*
                       **The notes are about the list on show** (Paul,
                       2026-09-02). What the rules took off the drill list is
@@ -2967,13 +3072,15 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                   </div>
                   <div
                     // The UI table owns the panel's virtualized scroll area.
-                    className="flex min-h-0 min-w-0 flex-1 overflow-hidden"
+                    className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
                   >
                     {perFeature ? (
                       <p className="p-4 text-sm text-zinc-500">
                         Tools will automatically be selected for each feature. After creating the
                         group, click on a feature in the list to see all compatible tools.
                       </p>
+                    ) : asking && detailed === null && !tapping ? (
+                      <TablePlaceholder error={tableError} />
                     ) : tapping ? (
                       /*
                         **The same table, with the taps' own columns** (Paul,
@@ -3041,6 +3148,12 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         keptElsewhere={(each) => bom.has(each.guid) && !keptHere.has(each.guid)}
                       />
                     )}
+                    {tablePending && detailed !== null ? (
+                      <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0 bg-zinc-950/10"
+                      />
+                    ) : null}
                   </div>
                 </div>
               </Card>

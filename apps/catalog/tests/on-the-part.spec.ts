@@ -528,25 +528,25 @@ test('takes a removed row off the bill as well as off the list', async ({ page }
  * result option asks — a group wanting one tool **each** answering in one row
  * that opens (Paul, 2026-09-02).
  */
-test('a group is built on the part and answers per its result option', async ({ page }) => {
-  await ready(page)
+test('a group answers per its result option', async ({ page }) => {
   await page.getByRole('button', { name: 'Add group' }).click()
 
   await expect(page.getByText('New group')).toBeVisible()
-
-  // The list below is already showing what fits the group as it stands, with
-  // its first row highlighted, so the group takes that one (Paul, 2026-09-02).
-  await expect(page.getByRole('button', { name: /^Create group and add tools?$/ })).toBeEnabled()
+  // The committed sample catalog has matching tools for its planar faces.
+  await page.getByRole('button', { name: /Add every Face/ }).click()
 
   // A group asked for one tool *each* shows no list at all: the question is one
   // per feature, and the answers arrive when the group does (Paul, same day).
   await page.getByRole('radio', { name: /The best tool for each/ }).click()
   await expect(page.getByText(/Tools will automatically be selected/)).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Create group and add tools?$/ })).toBeEnabled()
   await page.getByRole('button', { name: /^Create group and add tools?$/ }).click()
 
   const list = page.getByRole('list', { name: 'Features being asked about' })
   await expect(list.getByRole('listitem')).toHaveCount(1)
   await expect(list.getByText('one each')).toBeVisible()
+  await list.getByRole('button', { name: /Open 4 × Face/ }).click()
+  await expect(list.getByRole('button', { name: / for Face/ }).first()).toBeVisible()
 })
 
 /**

@@ -46,6 +46,8 @@ export interface GroupEditorProps {
    * confirming and choosing again somewhere else.
    */
   readonly picked?: boolean
+  /** Per-feature recommendations must finish before an each group can be saved. */
+  readonly matching?: 'idle' | 'pending' | 'error' | 'nothing-fits' | 'ready'
 }
 
 const CHOICES: ReadonlyArray<{ value: Results; label: string; note: string }> = [
@@ -76,6 +78,7 @@ export const GroupEditor = ({
   onCancel,
   editing = false,
   picked = false,
+  matching = 'ready',
 }: GroupEditorProps) => (
   <div className="flex flex-col gap-2">
     <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
@@ -187,7 +190,11 @@ export const GroupEditor = ({
       {/* A group of nothing is not a group, and a group with no tool is not an
           answer: the way out of either is Cancel, so the confirm says nothing
           it cannot do. */}
-      <Button size="sm" disabled={tags.length === 0 || !picked} onClick={onConfirm}>
+      <Button
+        size="sm"
+        disabled={tags.length === 0 || !picked || (results === 'each' && matching !== 'ready')}
+        onClick={onConfirm}
+      >
         {editing
           ? 'Save group'
           : /*
@@ -200,7 +207,26 @@ export const GroupEditor = ({
             ? 'Create group and add tools'
             : 'Create group and add tool'}
       </Button>
-      {tags.length > 0 && !picked ? (
+      {tags.length > 0 && results === 'each' && matching === 'pending' ? (
+        <span role="status" className="text-2xs flex items-center gap-1 text-zinc-500">
+          <span
+            aria-hidden="true"
+            className="size-2.5 animate-spin rounded-full border-2 border-zinc-700 border-t-info"
+          />
+          Finding compatible tools...
+        </span>
+      ) : null}
+      {tags.length > 0 && results === 'each' && matching === 'error' ? (
+        <span className="text-2xs text-danger">
+          Unable to match tools. Change the group to retry.
+        </span>
+      ) : null}
+      {tags.length > 0 && results === 'each' && matching === 'nothing-fits' ? (
+        <span className="text-2xs text-zinc-500">
+          Nothing in the catalog fits at least one feature.
+        </span>
+      ) : null}
+      {tags.length > 0 && !picked && !(results === 'each' && matching !== 'ready') ? (
         <span className="text-2xs text-zinc-500">Pick a tool from the list below.</span>
       ) : null}
     </div>

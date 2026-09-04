@@ -15,6 +15,7 @@ describe('what the dev server leaves to Vite', () => {
       '/app/shared/rules.csv?raw',
       '/app/shared/rules.csv',
       '/app/routes/part.tsx',
+      '/app/client/catalog-matcher.worker.ts?worker_file&type=module',
       '/app/styles.css?t=3',
       '/@vite/client',
       '/@fs/Users/x/packages/catalog-data/dist/index.js',

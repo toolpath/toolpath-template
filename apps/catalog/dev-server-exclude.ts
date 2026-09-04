@@ -25,6 +25,7 @@ export const DEV_SERVER_EXCLUDE: Array<string | RegExp> = [
   /\?(?:inline|url|no-inline|raw|import(?:&(?:inline|url|no-inline|raw)?)?)$/,
   // Ours: a Vite query anywhere in the string, and the assets the app imports.
   /[?&](?:raw|import|url|inline|no-inline)(?:[&=]|$)/,
+  /[?&]worker_file(?:[&=]|$)/,
   /[?&]t=\d+/,
   /^\/app\/.*\.(?:csv|json|svg|png|glb|woff2?)(?:\?.*)?$/,
 ]

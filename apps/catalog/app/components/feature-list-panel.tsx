@@ -238,6 +238,17 @@ const Answers = ({
     return null
   }
   if (row.picks.length === 0) {
+    if (row.note === 'Finding a compatible tool...') {
+      return (
+        <span role="status" className="text-2xs flex items-center gap-1 px-1 text-zinc-500">
+          <span
+            aria-hidden="true"
+            className="size-2.5 animate-spin rounded-full border-2 border-zinc-700 border-t-info"
+          />
+          {row.note}
+        </span>
+      )
+    }
     return <span className="text-2xs px-1 text-zinc-600">{row.note ?? '—'}</span>
   }
   return (

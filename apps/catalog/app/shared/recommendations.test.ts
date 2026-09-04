@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CatalogTool } from '@toolpath/catalog-data'
-import { recommendationRows } from './recommendations'
+import { recommendationRows, type Answer } from './recommendations'
 import type { ListItem } from './feature-list'
 
 const tool = (guid: string): CatalogTool =>
@@ -14,6 +14,22 @@ const recommends = (guid: string) => ({
 
 const nameOf = (tag: string): string => (tag.startsWith('hole') ? 'Through Hole' : 'Pocket')
 
+const reading = (
+  keys: ReadonlyArray<ReadonlyArray<string>>,
+  answer: (tags: ReadonlyArray<string>) => Answer | null,
+  split?: (tags: ReadonlyArray<string>) => Array<ReadonlyArray<string>>,
+) => ({
+  answers: new Map(
+    keys.map((tags) => {
+      const made = answer(tags)
+      return [tags.join('|'), made === null ? 'nothing-fits' : made] as const
+    }),
+  ),
+  demandKey: (tags: ReadonlyArray<string>) => tags.join('|'),
+  nameOf,
+  ...(split === undefined ? {} : { split }),
+})
+
 const LIST: Array<ListItem> = [
   { kind: 'feature', id: 'feature-1', tags: ['pocket-1'] },
   { kind: 'group', id: 'group-1', tags: ['hole-1', 'hole-2'], results: 'all' },
@@ -23,7 +39,12 @@ const LIST: Array<ListItem> = [
 describe('the list answered a row at a time', () => {
   /** One row per item: the list is the questions, the table is the answers. */
   it('recommends one tool per row, named by what the row is', () => {
-    const rows = recommendationRows(LIST, { topFor: (tags) => recommends(tags.join('+')), nameOf })
+    const rows = recommendationRows(
+      LIST,
+      reading([['pocket-1'], ['hole-1', 'hole-2'], ['hole-3'], ['pocket-2']], (tags) =>
+        recommends(tags.join('+')),
+      ),
+    )
 
     expect(rows.map((row) => [row.label, row.picks[0]?.tool.guid])).toEqual([
       ['Pocket', 'pocket-1'],
@@ -40,7 +61,12 @@ describe('the list answered a row at a time', () => {
    * returned in a single row and expanded to see results for each feature").
    */
   it('opens a one-each group into a row per feature, and nothing else opens', () => {
-    const rows = recommendationRows(LIST, { topFor: (tags) => recommends(tags.join('+')), nameOf })
+    const rows = recommendationRows(
+      LIST,
+      reading([['pocket-1'], ['hole-1', 'hole-2'], ['hole-3'], ['pocket-2']], (tags) =>
+        recommends(tags.join('+')),
+      ),
+    )
 
     expect(rows[0]?.children).toEqual([])
     expect(rows[1]?.children).toEqual([])
@@ -60,11 +86,11 @@ describe('the list answered a row at a time', () => {
   it('opens identical holes as one row, not one each', () => {
     const rows = recommendationRows(
       [{ kind: 'group', id: 'group-1', tags: ['hole-1', 'hole-2', 'pocket-1'], results: 'each' }],
-      {
-        topFor: (tags) => recommends(tags.join('+')),
-        nameOf,
-        split: (tags) => [tags.filter((tag) => tag.startsWith('hole')), ['pocket-1']],
-      },
+      reading(
+        [['hole-1', 'hole-2'], ['pocket-1']],
+        (tags) => recommends(tags.join('+')),
+        (tags) => [tags.filter((tag) => tag.startsWith('hole')), ['pocket-1']],
+      ),
     )
 
     expect(rows[0]?.children.map((child) => child.label)).toEqual(['2 × Through Hole', 'Pocket'])
@@ -77,7 +103,7 @@ describe('the list answered a row at a time', () => {
   it('names the one tool where every feature in a one-each group wants it', () => {
     const rows = recommendationRows(
       [{ kind: 'group', id: 'group-1', tags: ['hole-1', 'hole-2'], results: 'each' }],
-      { topFor: () => recommends('B976Z02500'), nameOf },
+      reading([['hole-1'], ['hole-2']], () => recommends('B976Z02500')),
     )
 
     expect(rows[0]?.picks[0]?.tool.guid).toBe('B976Z02500')
@@ -90,7 +116,10 @@ describe('the list answered a row at a time', () => {
    * which is a different sentence from a feature nothing in the catalog fits.
    */
   it('says why a row has no tool, in the words of the question it asked', () => {
-    const rows = recommendationRows(LIST, { topFor: () => null, nameOf })
+    const rows = recommendationRows(
+      LIST,
+      reading([['pocket-1'], ['hole-1', 'hole-2'], ['hole-3'], ['pocket-2']], () => null),
+    )
 
     expect(rows.map((row) => row.note)).toEqual([
       'nothing fits',
@@ -98,6 +127,22 @@ describe('the list answered a row at a time', () => {
       'nothing fits',
     ])
     expect(rows[2]?.children.map((child) => child.note)).toEqual(['nothing fits', 'nothing fits'])
+  })
+
+  it('does not call an unresolved one-each group a no-fit result', () => {
+    const rows = recommendationRows(
+      [{ kind: 'group', id: 'group-1', tags: ['hole-1', 'pocket-1'], results: 'each' }],
+      {
+        answers: new Map([
+          ['hole-1', 'pending'],
+          ['pocket-1', 'nothing-fits'],
+        ]),
+        demandKey: (tags) => tags.join('|'),
+        nameOf,
+      },
+    )
+
+    expect(rows[0]?.note).toBe('Finding compatible tools...')
   })
 })
 
@@ -108,16 +153,16 @@ describe('the list answered a row at a time', () => {
  */
 describe('a row answered with several tools', () => {
   it('carries every one of them, in the order they were chosen', () => {
-    const rows = recommendationRows([{ kind: 'feature', id: 'feature-1', tags: ['hole-1'] }], {
-      topFor: () => ({
+    const rows = recommendationRows(
+      [{ kind: 'feature', id: 'feature-1', tags: ['hole-1'] }],
+      reading([['hole-1']], () => ({
         picks: [
           { tool: tool('SPOT'), holder: 'BT30-ER16', collet: 'ER16-3' },
           { tool: tool('DRILL'), holder: null, collet: null },
         ],
         chosen: true,
-      }),
-      nameOf,
-    })
+      })),
+    )
 
     expect(rows[0]?.picks.map((pick) => pick.tool.guid)).toEqual(['SPOT', 'DRILL'])
     expect(rows[0]?.picks[0]?.holder).toBe('BT30-ER16')
@@ -129,13 +174,10 @@ describe('a row answered with several tools', () => {
   it('counts a one-each group’s tools across all of its features', () => {
     const rows = recommendationRows(
       [{ kind: 'group', id: 'group-1', tags: ['hole-1', 'pocket-1'], results: 'each' }],
-      {
-        topFor: (tags) => ({
-          picks: [{ tool: tool(tags.join('+')), holder: null, collet: null }],
-          chosen: true,
-        }),
-        nameOf,
-      },
+      reading([['hole-1'], ['pocket-1']], (tags) => ({
+        picks: [{ tool: tool(tags.join('+')), holder: null, collet: null }],
+        chosen: true,
+      })),
     )
 
     expect(rows[0]?.note).toBe('2 tools, one per feature')

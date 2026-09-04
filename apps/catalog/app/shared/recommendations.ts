@@ -14,8 +14,8 @@ import { groupLabel, labelOf, type ListItem } from './feature-list'
  * row too, and opens: the group has no single answer, and printing six rows
  * where the list has one item would make a two-item list eight rows long.
  *
- * Pure: the judging is handed in as `topFor`, so this module is about what a
- * row says and nothing about how a tool is chosen.
+ * Pure: matching answers arrive as data, so this module is about what a row
+ * says and never about calculating a tool choice.
  */
 /**
  * What a row is answered with.
@@ -67,9 +67,14 @@ export interface RecommendationRow {
   readonly children: ReadonlyArray<RecommendationRow>
 }
 
+/** A saved choice is immediate; unsaved worker answers have explicit states. */
+export type RecommendationAnswer = Answer | 'pending' | 'nothing-fits' | 'error'
+
 export interface Reading {
-  /** What answers these features together, or null where nothing fits them all. */
-  readonly topFor: (tags: ReadonlyArray<string>) => Answer | null
+  /** Answers keyed by the stable demand key the route sent to the worker. */
+  readonly answers: ReadonlyMap<string, RecommendationAnswer>
+  /** The key a tags set has in the worker request/result protocol. */
+  readonly demandKey: (tags: ReadonlyArray<string>) => string
   /** What one feature is called. */
   readonly nameOf: (tag: string) => string
   /**
@@ -91,26 +96,38 @@ const distinct = (rows: ReadonlyArray<RecommendationRow>): number =>
 
 export const recommendationRows = (
   list: ReadonlyArray<ListItem>,
-  { topFor, nameOf, split = oneEach }: Reading,
+  { answers, demandKey, nameOf, split = oneEach }: Reading,
 ): Array<RecommendationRow> =>
   list.map((item) => {
     const label = labelOf(item, nameOf)
     if (item.kind === 'group' && item.results === 'each') {
       const children = split(item.tags).map((tags) => {
-        const answer = topFor(tags)
+        const answer = answers.get(demandKey(tags)) ?? 'pending'
+        const picked = typeof answer === 'object' ? answer : null
         return {
           id: `${item.id}:${tags[0] ?? ''}`,
           itemId: item.id,
           tag: tags[0] ?? null,
           label: groupLabel(tags.map(nameOf)),
-          picks: answer?.picks ?? [],
-          chosen: answer?.chosen ?? false,
-          note: answer === null ? 'nothing fits' : null,
+          picks: picked?.picks ?? [],
+          chosen: picked?.chosen ?? false,
+          note:
+            answer === 'pending'
+              ? 'Finding a compatible tool...'
+              : answer === 'error'
+                ? 'Unable to match tools. Retry the selection.'
+                : answer === 'nothing-fits'
+                  ? 'nothing fits'
+                  : null,
           children: [],
         }
       })
       const kinds = distinct(children)
       const only = kinds === 1 ? (children.find((row) => row.picks.length > 0) ?? null) : null
+      const pending = children.some((row) => row.note === 'Finding a compatible tool...')
+      const failed = children.some(
+        (row) => row.note === 'Unable to match tools. Retry the selection.',
+      )
       return {
         id: item.id,
         itemId: item.id,
@@ -123,29 +140,37 @@ export const recommendationRows = (
         */
         picks: only?.picks ?? [],
         chosen: only?.chosen ?? false,
-        note:
-          kinds === 1
-            ? null
-            : kinds === 0
-              ? 'nothing fits'
-              : `${String(kinds)} tools, one per feature`,
+        note: pending
+          ? 'Finding compatible tools...'
+          : failed
+            ? 'Unable to match tools. Retry the selection.'
+            : kinds === 1
+              ? null
+              : kinds === 0
+                ? 'nothing fits'
+                : `${String(kinds)} tools, one per feature`,
         children,
       }
     }
-    const answer = topFor(item.tags)
+    const answer = answers.get(demandKey(item.tags)) ?? 'pending'
+    const picked = typeof answer === 'object' ? answer : null
     return {
       id: item.id,
       itemId: item.id,
       tag: null,
       label,
-      picks: answer?.picks ?? [],
-      chosen: answer?.chosen ?? false,
+      picks: picked?.picks ?? [],
+      chosen: picked?.chosen ?? false,
       note:
-        answer !== null
-          ? null
-          : item.kind === 'group'
-            ? 'no one tool cuts all of these'
-            : 'nothing fits',
+        answer === 'pending'
+          ? 'Finding a compatible tool...'
+          : answer === 'error'
+            ? 'Unable to match tools. Retry the selection.'
+            : answer === 'nothing-fits'
+              ? item.kind === 'group'
+                ? 'no one tool cuts all of these'
+                : 'nothing fits'
+              : null,
       children: [],
     }
   })

@@ -204,6 +204,22 @@ describe('the list of what has been asked about', () => {
     expect(screen.getByText('9.53 mm')).toBeInTheDocument()
   })
 
+  it('distinguishes a pending recommendation from nothing fitting', () => {
+    show({
+      answers: [
+        {
+          ...ANSWERS[0]!,
+          picks: [],
+          note: 'Finding a compatible tool...',
+        },
+      ],
+    })
+
+    expect(screen.getByText('Finding a compatible tool...')).toBeInTheDocument()
+    expect(screen.getByRole('status').firstElementChild).toHaveClass('animate-spin')
+    expect(screen.queryByText('nothing fits')).not.toBeInTheDocument()
+  })
+
   /** And pressing it asks that row's question in full. */
   it('asks for everything that fits when its tool is pressed', () => {
     const { onSelect } = show({ answers: ANSWERS })

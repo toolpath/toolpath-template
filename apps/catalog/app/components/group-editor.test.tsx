@@ -96,6 +96,23 @@ describe('building a group', () => {
     expect(screen.getByText('Pick a tool from the list below.')).toBeInTheDocument()
   })
 
+  it('waits for one-each recommendations before confirming', () => {
+    show({ results: 'each', matching: 'pending' })
+
+    expect(screen.getByRole('button', { name: 'Create group and add tools' })).toBeDisabled()
+    expect(screen.getByText('Finding compatible tools...')).toBeInTheDocument()
+    expect(screen.getByRole('status').firstElementChild).toHaveClass('animate-spin')
+  })
+
+  it('will not confirm a one-each group where a feature has no fitting tool', () => {
+    show({ results: 'each', matching: 'nothing-fits', picked: false })
+
+    expect(screen.getByRole('button', { name: 'Create group and add tools' })).toBeDisabled()
+    expect(
+      screen.getByText('Nothing in the catalog fits at least one feature.'),
+    ).toBeInTheDocument()
+  })
+
   /** An edit says it is one, in the heading and on the button. */
   it('says whether it is making a group or changing one', () => {
     show({ editing: true })

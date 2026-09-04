@@ -274,6 +274,82 @@ export default tseslint.config(
     },
   },
   {
+    // Worker bundles do not resolve the application aliases. It may use these
+    // two adjacent pure modules while keeping the standard package guard.
+    files: ['apps/catalog/app/client/catalog-matcher.worker.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@toolpath/part-server',
+              allowTypeImports: true,
+              message:
+                "Only an application's own server may use @toolpath/part-server: it is the one place an API key is handled. Types are fine; values ship it to the browser.",
+            },
+            {
+              name: '@toolpath/api',
+              allowTypeImports: true,
+              message:
+                'Only @toolpath/part-server may use the Toolpath SDK at runtime. Types are fine; values ship the SDK to the browser.',
+            },
+            NO_CLAMP_MATH,
+            NO_CLAMP_MATH_UPSTREAM,
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // The matcher worker is the only runtime execution path for these values.
+    files: ['apps/catalog/app/{routes,components}/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../*', '../**'],
+              message:
+                'Use the shared/, components/, client/ or routes/ alias instead of reaching out of the folder.',
+            },
+          ],
+          paths: [
+            {
+              name: '@toolpath/part-server',
+              allowTypeImports: true,
+              message:
+                "Only an application's own server may use @toolpath/part-server: it is the one place an API key is handled. Types are fine; values ship it to the browser.",
+            },
+            {
+              name: '@toolpath/api',
+              allowTypeImports: true,
+              message:
+                'Only @toolpath/part-server may use the Toolpath SDK at runtime. Types are fine; values ship the SDK to the browser.',
+            },
+            NO_CLAMP_MATH,
+            NO_CLAMP_MATH_UPSTREAM,
+            {
+              name: 'shared/tool-fit',
+              importNames: ['fittingTools'],
+              allowTypeImports: true,
+              message:
+                'Catalog matching runs in client/catalog-matcher.worker.ts, never in route or component code.',
+            },
+            {
+              name: 'shared/judge',
+              importNames: ['judgeTools'],
+              allowTypeImports: true,
+              message:
+                'Catalog matching runs in client/catalog-matcher.worker.ts, never in route or component code.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Where the term enters this package. `clamping.ts` re-exports `clampWanted`
     // from @toolpath/tool-support, which is what it used to declare outright —
     // so it is exempt from NO_CLAMP_MATH_UPSTREAM for the same reason it was
