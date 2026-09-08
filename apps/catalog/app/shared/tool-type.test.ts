@@ -21,14 +21,16 @@ describe('what a tool is, in one phrase', () => {
   })
 
   /**
-   * And the package's own reading of a *neck* — a shoulder narrower than the
-   * cut standing back from the flutes — which is all but disjoint from the
-   * shank rule over the real catalog: a necked tool keeps a full-width shank.
+   * **A neck is not a reduced shank** (Paul, 2026-09-08: "use my reduced shank
+   * rule rather than the old one"). `shankOf` reads a shoulder narrower than
+   * the cut standing back from the flutes — a different population entirely,
+   * 6,378 tools against 7,499 with one tool in both — and it is not the rule
+   * these words are built from. The axis it answers is parked.
    */
-  it('leads with the shank where the neck is thinner than the cut', () => {
+  it('says nothing about the shank of a necked tool whose shank is full width', () => {
     expect(
       typeLabel(tool({ DC: 6, SFDM: 6, LCF: 12, 'shoulder-diameter': 5.5, 'shoulder-length': 30 })),
-    ).toBe('Reduced shank flat end mill')
+    ).toBe('Flat end mill')
     expect(reducedShank(tool({ DC: 6, SFDM: 6, LCF: 12 }))).toBe(false)
   })
 
@@ -38,6 +40,20 @@ describe('what a tool is, in one phrase', () => {
    */
   it('says nothing about the shank where every tool of that form has one', () => {
     expect(typeLabel(tool({ DC: 12, SFDM: 10, LCF: 2 }, 'slot mill'))).toBe('Slot mill')
+  })
+
+  /**
+   * A tap's shank is sized to the tapping chuck, not to the thread it cuts, so
+   * it is under the major diameter on 59% of the taps in the catalog — a phrase
+   * on the majority of a list that tells no tap from another (Paul,
+   * 2026-09-08: "taps should not show reduced shank").
+   */
+  it('says nothing about the shank on a tap', () => {
+    expect(typeLabel(tool({ DC: 9.525, SFDM: 7.938, LCF: 20 }, 'tap right hand'))).toBe(
+      'Tap right hand',
+    )
+    // The reading itself is unchanged; what is done with it is the label's.
+    expect(reducedShank(tool({ DC: 9.525, SFDM: 7.938, LCF: 20 }, 'tap right hand'))).toBe(true)
   })
 
   it('keeps a name the library does not know', () => {

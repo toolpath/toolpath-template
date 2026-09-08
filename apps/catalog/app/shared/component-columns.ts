@@ -34,13 +34,30 @@ export interface ComponentColumn {
 }
 
 /**
- * The nine numbers a vendor publishes, plus what the holder *is*.
+ * What every component row says about which one it is.
+ *
+ * **In the picker with the rest of them** (Paul, 2026-09-08: "I should also see
+ * ALL the columns in the list"). They were drawn outside the column set — four
+ * headers the picker had never heard of — so a list could not be cut down to
+ * the two things somebody was comparing, and the four columns this session
+ * added or renamed were missing from the one place that lists columns.
+ */
+const IDENTITY: ReadonlyArray<ComponentColumn> = [
+  { code: 'catalogNumber', label: 'Catalog number', kind: 'text', default: true },
+  { code: 'brand', label: 'Vendor', kind: 'text', default: true },
+  { code: 'type', label: 'Type', kind: 'text', default: true },
+  { code: 'familyId', label: 'Family', kind: 'text', default: true },
+]
+
+/**
+ * What a holder is, then the nine numbers a vendor publishes.
  *
  * Gauge length, taper, series and clamping lead, because those are what a
  * holder is chosen on; the silhouette dimensions follow, off by default, since
  * they are read when something does not clear rather than when it does.
  */
 export const HOLDER_COLUMNS: ReadonlyArray<ComponentColumn> = [
+  ...IDENTITY,
   { code: 'taper', label: 'Taper', kind: 'text', default: true },
   { code: 'clamping', label: 'Clamping', kind: 'text', default: true },
   { code: 'colletSeries', label: 'Collet series', kind: 'text', default: true },
@@ -57,6 +74,7 @@ export const HOLDER_COLUMNS: ReadonlyArray<ComponentColumn> = [
 ]
 
 export const COLLET_COLUMNS: ReadonlyArray<ComponentColumn> = [
+  ...IDENTITY,
   { code: 'series', label: 'Series', kind: 'text', default: true },
   { code: 'clampMin', label: 'Grips from', kind: 'length', default: true },
   { code: 'clampMax', label: 'Grips to', kind: 'length', default: true },
@@ -107,6 +125,14 @@ export const colletTypeLabel = (collet: Collet): string => `${collet.series} col
 /** The raw value behind a column, for sorting — a number, a word, or nothing. */
 export const holderValue = (holder: Holder, code: string): number | string | null => {
   switch (code) {
+    case 'catalogNumber':
+      return holder.catalogNumber
+    case 'brand':
+      return holder.brand
+    case 'type':
+      return holderTypeLabel(holder)
+    case 'familyId':
+      return familyLabel(holder.familyId)
     case 'taper':
       return holder.taper
     case 'clamping':
@@ -140,6 +166,14 @@ export const holderValue = (holder: Holder, code: string): number | string | nul
 
 export const colletValue = (collet: Collet, code: string): number | string | null => {
   switch (code) {
+    case 'catalogNumber':
+      return collet.catalogNumber
+    case 'brand':
+      return collet.brand
+    case 'type':
+      return colletTypeLabel(collet)
+    case 'familyId':
+      return familyLabel(collet.familyId)
     case 'series':
       return collet.series
     case 'clampMin':

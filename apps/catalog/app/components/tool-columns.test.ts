@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { GEOMETRY_FIELDS } from '@toolpath/catalog-data'
 import { AXES_IN_TOOL_COLUMNS } from 'shared/column-filters'
-import { TAP_COLUMNS, TOOL_COLUMNS, isHolding, isStack } from './part-tool-table'
+import { TAP_COLUMNS, TOOL_COLUMNS, isHolding, isIdentity, isStack } from './part-tool-table'
 
 /**
  * **A column has to have a number behind it.**
@@ -22,6 +22,8 @@ describe('the columns the list offers', () => {
       (column) =>
         !isHolding(column.code) &&
         !isStack(column.code) &&
+        // The four that say which tool this is rather than a number about it.
+        !isIdentity(column.code) &&
         GEOMETRY_FIELDS[column.code] === undefined,
     ).map((column) => column.code)
 
@@ -42,6 +44,10 @@ describe('the columns the list offers', () => {
 describe('the columns a list opens with', () => {
   it('opens with the numbers a tool is chosen on, reach among them', () => {
     expect(TOOL_COLUMNS.filter((column) => column.default).map((column) => column.code)).toEqual([
+      'catalogNumber',
+      'brand',
+      'type',
+      'family',
       'DC',
       'LCF',
       'LBH',
@@ -76,7 +82,8 @@ describe('the columns a tap list offers', () => {
 
   it('offers a number a tap carries, or the holding every list can ask for', () => {
     const unknown = TAP_COLUMNS.filter(
-      (column) => !isHolding(column.code) && !ON_A_TAP.includes(column.code),
+      (column) =>
+        !isHolding(column.code) && !isIdentity(column.code) && !ON_A_TAP.includes(column.code),
     ).map((column) => column.code)
 
     expect(unknown).toEqual([])
@@ -84,6 +91,10 @@ describe('the columns a tap list offers', () => {
 
   it('opens with all of them, and leaves the holding to be asked for', () => {
     expect(TAP_COLUMNS.filter((column) => column.default).map((column) => column.code)).toEqual([
+      'catalogNumber',
+      'brand',
+      'type',
+      'family',
       'DC',
       'LCF',
       'LBH',
@@ -130,5 +141,31 @@ describe('the axes a column header takes over', () => {
     for (const axis of AXES_IN_TOOL_COLUMNS) {
       expect(codes).toContain(axis)
     }
+  })
+})
+
+/**
+ * **Every column is in the picker** (Paul, 2026-09-08: "I should also see ALL
+ * the columns in the list, it is missing some of the ones we changed in this
+ * session"). The four that identify a tool used to be drawn outside the column
+ * set, so the picker could not offer them and a list could not be cut down to
+ * what somebody was actually comparing.
+ */
+describe('what the column picker can reach', () => {
+  it('offers the four that say which tool a row is', () => {
+    for (const code of ['catalogNumber', 'brand', 'type', 'family']) {
+      expect(TOOL_COLUMNS.map((column) => column.code)).toContain(code)
+      expect(TAP_COLUMNS.map((column) => column.code)).toContain(code)
+      expect(isIdentity(code)).toBe(true)
+    }
+  })
+
+  it('leads with them, in the order a row is read', () => {
+    expect(TOOL_COLUMNS.slice(0, 4).map((column) => column.code)).toEqual([
+      'catalogNumber',
+      'brand',
+      'type',
+      'family',
+    ])
   })
 })

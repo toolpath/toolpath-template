@@ -19,6 +19,7 @@ const draw = (
         slot === 'holder' && assembly.holderGuid !== null ? 'BT30ER16060M' : null
       }
       orderedFor={() => null}
+      warningFor={() => null}
       onClear={() => undefined}
       actionsFor={() => []}
       onAdd={() => undefined}
@@ -195,5 +196,36 @@ describe('the tree on screen', () => {
 
     draw(setSlot(defaultAssemblies(false), 'assembly-1', 'tool', 'tool-a'))
     expect(screen.getByRole('button', { name: 'Remove assembly 1' })).toBeInTheDocument()
+  })
+})
+
+/**
+ * **A choice made against the rules has to be visible on the stack it is in**
+ * (Paul, 2026-09-08: "a small warning should show in the tree denoting that I
+ * chose a geometrically incompatible tool"). Drawn exactly like a choice the
+ * rules agreed with, it is a decision nobody can review.
+ */
+describe('a slot filled against the rules', () => {
+  it('marks the slot, with the rule it overrules behind it', () => {
+    draw(held, {
+      warningFor: (_assembly, slot) =>
+        slot === 'holder' ? 'Chosen against the rules: diameter 12 over 10.' : null,
+    })
+
+    const warned = screen.getByRole('img', { name: /Overrides the rules/ })
+    expect(warned).toHaveAttribute('title', 'Chosen against the rules: diameter 12 over 10.')
+  })
+
+  it('says nothing on a slot the rules agreed with', () => {
+    draw(held, { warningFor: () => null })
+
+    expect(screen.queryByRole('img', { name: /Overrides the rules/ })).not.toBeInTheDocument()
+  })
+
+  /** An empty slot has no choice in it, so it has nothing to be wrong about. */
+  it('says nothing on an empty slot, whatever it is asked', () => {
+    draw(defaultAssemblies(false), { warningFor: () => 'never asked' })
+
+    expect(screen.queryByRole('img', { name: /Overrides the rules/ })).not.toBeInTheDocument()
   })
 })

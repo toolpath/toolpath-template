@@ -200,6 +200,25 @@ Opens the group editor, seeded with whatever is already clicked.
   one question, so the box states it rather than spending two controls on it.
   `typeButtons` in `shared/feature-list.ts` is the rule the quick buttons used
   and is kept, unused, for the same reason `each` is.
+- **The worst case**, once there is something in it: every field the group's
+  features are shown by, folded to the hardest of their readings (Paul,
+  2026-09-08). One tool for all of them is a question about the hardest of
+  them — the deepest reach, the tightest corner — and neither of those is
+  readable off the feature boxes one at a time. The strip is drawn the way the
+  feature box draws its own readings, off the same sheet.
+  - Which end is hard is the field's own to say: `GroupBound` in
+    `app/shared/feature-defaults.ts`. A **ceiling** is a limit on the tool, so
+    the smallest in the group binds; a **floor** is a demand on it, so the
+    largest does.
+  - A field with no hard end — two holes of different diameters — says
+    **differs** rather than picking one of them and hiding the other. It has no
+    worst case; it has no one drill.
+  - **Which feature a number came from is not on screen** (Paul, 2026-09-08).
+    It was named beside every number, and the chips above already say what is in
+    the group. It stays in the tooltip — every number carries the features it
+    was folded from, deduplicated, so a group of thirty-nine identical holes
+    says its line once — and `featureTag` on the fold's answer still says it for
+    anything that wants to.
 - The confirm reads **Create group and add tool** (or _…and add tools_ for
   `each`), because that is what pressing it does.
 
@@ -327,6 +346,15 @@ for a figure worth reading, a green tick for a number the rules read and passed.
 The two words used to sit on a second line, which made a failing row taller than
 a passing one.
 
+**The filters outrank the rules, on request, one column at a time.** The
+suggested ranges are written from the same `must` rows that judge the tools, so
+widening one asks for exactly what the rules then remove and the table came back
+empty. Changing a number the geometry set raises a warning **in that column's own
+filter dialog**, with a press that forgives that column's rules and no other; the
+tools it puts back are listed with their marks, and a row picked from them is
+recorded on the stack it goes into. Every filter dialog also closes on a tick.
+`docs/TOOL-ASSEMBLY-TREE.md` § 5a is the rule.
+
 ---
 
 ## 8. The panel beside the table
@@ -403,19 +431,23 @@ true of the work the worker does:
 
 ## 11. Where the rules live
 
-| Rule                                     | File                                    |
-| ---------------------------------------- | --------------------------------------- |
-| what the list holds, names, ids, storage | `app/shared/feature-list.ts`            |
-| what the bottom of the page is asked     | `asked()`, same file                    |
-| a row's answer, and what opens           | `app/shared/recommendations.ts`         |
-| what a click means                       | `app/shared/part-interaction.ts`        |
-| the list on screen                       | `app/components/feature-list-panel.tsx` |
-| building a group                         | `app/components/group-editor.tsx`       |
-| the reading and its thread               | `app/components/selection-panel.tsx`    |
-| what a threaded hole is called           | `threadedName`, `app/shared/threads.ts` |
-| what the panel and the ⓘ dialog call it  | `nameOf`, handed down by `part.tsx`     |
-| the tool table and its marks             | `app/components/part-tool-table.tsx`    |
-| everything wired together                | `app/routes/part.tsx`                   |
+| Rule                                     | File                                             |
+| ---------------------------------------- | ------------------------------------------------ |
+| what the list holds, names, ids, storage | `app/shared/feature-list.ts`                     |
+| what the bottom of the page is asked     | `asked()`, same file                             |
+| a row's answer, and what opens           | `app/shared/recommendations.ts`                  |
+| what a click means                       | `app/shared/part-interaction.ts`                 |
+| the list on screen                       | `app/components/feature-list-panel.tsx`          |
+| building a group                         | `app/components/group-editor.tsx`                |
+| a group's worst case, and whose it is    | `app/shared/group-geometry.ts`                   |
+| the reading and its thread               | `app/components/selection-panel.tsx`             |
+| what a threaded hole is called           | `threadedName`, `app/shared/threads.ts`          |
+| what the panel and the ⓘ dialog call it  | `nameOf`, handed down by `part.tsx`              |
+| the tool table and its marks             | `app/components/part-tool-table.tsx`             |
+| what overruling the rules offers         | `overridableTools`, `shared/tool-fit.ts`         |
+| the warning and its confirm              | `OverrideNotice`, `components/column-filter.tsx` |
+| which slots were filled against them     | `overrides`, `shared/assembly-tree.ts`           |
+| everything wired together                | `app/routes/part.tsx`                            |
 
 Each pure module owns its tests. `tests/on-the-part.spec.ts` walks the paths that
 begin with a click on the part, against the cube fixture — the only fixture that

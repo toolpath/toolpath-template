@@ -1,3 +1,4 @@
+import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { columnsFor, type ComponentKind } from './component-columns'
 import { termAxesFor } from './component-query'
 
@@ -114,16 +115,66 @@ export const AXES_PARKED: ReadonlyArray<string> = [
 /**
  * What the header over a holder or collet column asks.
  *
- * The term axes first — brand and family are fixed columns rather than
- * `columnsFor` entries, and both are narrowed on the words the cell shows —
- * then every length, which is the same rule the filter panel used when it
- * built a range control per length column. A word column nobody filters on,
- * like the type a holder reads as, asks nothing.
+ * The type and the term axes first — type, brand and family are fixed columns
+ * rather than `columnsFor` entries, and each is narrowed on the words its cell
+ * shows — then every length, which is the same rule the filter panel used when
+ * it built a range control per length column.
  */
 export const askOfComponentColumn = (kind: ComponentKind, code: string): ColumnAsk | null => {
-  if (termAxesFor(kind).some((axis) => axis.code === code)) {
+  // The one column a shop arrives at already knowing the answer to — the same
+  // search the tool table's Catalog number column carries.
+  if (code === 'catalogNumber') {
+    return { shape: 'text' }
+  }
+  /**
+   * The type is a column of its own before it is an axis: it is three of a
+   * holder's columns said as one phrase — `BT30 ER11 collet chuck` — and that
+   * phrase is what a shop calls the thing (Paul, 2026-09-08). `termOn` builds
+   * it, so the list a header offers is the words the column shows.
+   */
+  if (code === 'type' || termAxesFor(kind).some((axis) => axis.code === code)) {
     return { shape: 'terms', axis: code }
   }
   const column = columnsFor(kind).find((each) => each.code === code)
   return column?.kind === 'length' ? { shape: 'range', kind: 'length' } : null
+}
+
+/**
+ * A bound in the words the boxes under it are using.
+ *
+ * **A warning about a number has to say the number** (Paul, 2026-09-08: "when I
+ * override a geometry-set filter, it should warn me there"). The filter dialog
+ * says what the geometry asked for before it offers to set it aside, and it has
+ * to say it in the unit the person is reading in and in the shape the operator
+ * they chose is written in — `≤ 8.00 mm`, not `{"max":8}`.
+ *
+ * Here rather than in the dialog because {@link RangeKind} is what decides
+ * whether a number converts at all, and that rule already lives in this file: a
+ * flute count read as a length would offer `4` flutes as `0.157`.
+ */
+export const sayBound = (
+  kind: RangeKind,
+  bound: { readonly min?: number; readonly max?: number },
+  unit: UnitSystem,
+): string => {
+  const word = (value: number): string => {
+    switch (kind) {
+      case 'length':
+        return formatLength(value, unit)
+      case 'deg':
+        return `${value.toFixed(1)}°`
+      case 'ratio':
+        return value.toFixed(1)
+      default:
+        return String(value)
+    }
+  }
+  const { min, max } = bound
+  if (min !== undefined && max !== undefined) {
+    return min === max ? word(min) : `${word(min)} to ${word(max)}`
+  }
+  if (max !== undefined) {
+    return `at most ${word(max)}`
+  }
+  return min === undefined ? 'anything' : `at least ${word(min)}`
 }

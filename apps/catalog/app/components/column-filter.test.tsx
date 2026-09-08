@@ -4,9 +4,13 @@ import { describe, expect, it, vi } from 'vitest'
 import type { UnitSystem } from '@toolpath/tool-support'
 import {
   ColumnPicker,
+  OverrideNotice,
+  OverrideToggle,
   RangeFilter,
+  TermFilter,
   boundFor,
   compareOf,
+  optionsMatching,
   type Bound,
   type Kind,
 } from './column-filter'
@@ -202,5 +206,208 @@ describe('the column picker', () => {
     )
 
     expect(screen.getByRole('button', { name: 'Which columns to show' })).toHaveClass('size-6')
+  })
+})
+
+/**
+ * Narrowing on words: the search over the options, and the button beside it.
+ *
+ * A shop looking for HARVI has eleven families to tick out of hundreds, and
+ * before this it ticked them one at a time down a scrolling list (Paul,
+ * 2026-09-08). The two rules worth pinning are that searching is not choosing —
+ * what the box hides stays chosen — and that the button acts on exactly what
+ * the box is showing.
+ */
+const OPTIONS = [
+  { value: 'kennametal', label: 'Kennametal', count: 12 },
+  { value: 'harvi-i', label: 'HARVI I TE', count: 4 },
+  { value: 'harvi-iii', label: 'HARVI III', count: 7 },
+]
+
+const TermHarness = ({
+  initial = [],
+  onChosen = () => {},
+}: {
+  initial?: ReadonlyArray<string>
+  onChosen?: (values: ReadonlyArray<string>) => void
+}) => {
+  const [chosen, setChosen] = useState<ReadonlyArray<string>>(initial)
+  return (
+    <TermFilter
+      label="Family"
+      options={OPTIONS}
+      chosen={chosen}
+      onChosen={(next) => {
+        setChosen(next)
+        onChosen(next)
+      }}
+    />
+  )
+}
+
+const search = (raw: string) =>
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Search family values' }), {
+    target: { value: raw },
+  })
+
+describe('narrowing on a set of names', () => {
+  it('shows only the options the typed word matches', () => {
+    render(<TermHarness />)
+
+    search('harvi')
+
+    expect(screen.getByRole('checkbox', { name: 'HARVI I TE' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'HARVI III' })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Kennametal' })).not.toBeInTheDocument()
+  })
+
+  it('ticks every option the search is showing, in one press', () => {
+    const onChosen = vi.fn()
+    render(<TermHarness onChosen={onChosen} />)
+
+    search('harvi')
+    fireEvent.click(screen.getByRole('button', { name: 'Select shown (2)' }))
+
+    expect(onChosen).toHaveBeenLastCalledWith(['harvi-i', 'harvi-iii'])
+  })
+
+  /** Searching narrows the options, not the answer: a hidden tick is still a tick. */
+  it('keeps a value chosen once the search stops showing it', () => {
+    render(<TermHarness initial={['kennametal']} />)
+
+    search('harvi')
+    fireEvent.click(screen.getByRole('button', { name: 'Select shown (2)' }))
+    search('')
+
+    expect(screen.getByRole('checkbox', { name: 'Kennametal' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'HARVI III' })).toBeChecked()
+  })
+
+  /** The button says what it will do, and takes back exactly what it gave. */
+  it('turns into Clear shown once everything shown is chosen', () => {
+    const onChosen = vi.fn()
+    render(<TermHarness initial={['kennametal']} onChosen={onChosen} />)
+
+    search('harvi')
+    fireEvent.click(screen.getByRole('button', { name: 'Select shown (2)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear shown' }))
+
+    expect(onChosen).toHaveBeenLastCalledWith(['kennametal'])
+  })
+
+  it('says so when nothing matches, rather than showing an empty box', () => {
+    render(<TermHarness />)
+
+    search('sandvik')
+
+    expect(screen.getByText('Nothing matches that.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select shown (0)' })).toBeDisabled()
+  })
+})
+
+describe('which options a typed word leaves', () => {
+  it('matches the words shown and the value behind them, either case', () => {
+    expect(optionsMatching(OPTIONS, 'HARVI').map((each) => each.value)).toEqual([
+      'harvi-i',
+      'harvi-iii',
+    ])
+    expect(optionsMatching(OPTIONS, 'harvi-iii').map((each) => each.value)).toEqual(['harvi-iii'])
+    expect(optionsMatching(OPTIONS, '  ')).toEqual(OPTIONS)
+  })
+})
+
+/**
+ * **The warning belongs on the filter that caused it, and it asks before it
+ * acts** (Paul, 2026-09-08: "it should recognize if I enter something to
+ * override the rules and warn me to confirm it … when I override a
+ * geometry-set filter, it should warn me there").
+ */
+describe('changing a number the geometry set', () => {
+  const offer = (over: Partial<Parameters<typeof OverrideNotice>[0]['override']> = {}) => ({
+    suggested: { max: 8 } as Bound,
+    available: 3,
+    on: false,
+    onOverride: vi.fn(),
+    say: (bound: Bound) => `at most ${String(bound.max)} mm`,
+    ...over,
+  })
+
+  it("says nothing while the number is still the geometry's", () => {
+    render(<OverrideNotice label="Diameter" bound={{ max: 8 }} override={offer()} />)
+
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+  })
+
+  it('says nothing where no bound is set at all', () => {
+    render(<OverrideNotice label="Diameter" bound={undefined} override={offer()} />)
+
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+  })
+
+  /**
+   * A bound typed where the geometry suggested none is somebody's answer too —
+   * gating on a suggestion left a column the sheet happens not to bound
+   * unoverridable even while its rules held tools off the list.
+   */
+  it('speaks for a column the geometry never bounded', () => {
+    render(
+      <OverrideNotice
+        label="Diameter"
+        bound={{ max: 20 }}
+        override={offer({ suggested: undefined })}
+      />,
+    )
+
+    expect(screen.getByRole('note')).toHaveTextContent('The rules still judge the diameter')
+  })
+
+  it('names the number the geometry asked for, and what is off the list', () => {
+    render(<OverrideNotice label="Diameter" bound={{ max: 20 }} override={offer()} />)
+
+    const note = screen.getByRole('note')
+    expect(note).toHaveTextContent('at most 8 mm')
+    expect(note).toHaveTextContent('3 tools only the diameter rules turn down are off this list')
+  })
+
+  /** Nothing to forgive is not the same as nothing to say. */
+  it('says so where this column alone is holding nothing back', () => {
+    render(
+      <OverrideNotice label="Diameter" bound={{ max: 20 }} override={offer({ available: 0 })} />,
+    )
+
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'Nothing is being held back by the diameter rules alone',
+    )
+  })
+
+  it('says the override is on once it is', () => {
+    render(<OverrideNotice label="Diameter" bound={{ max: 20 }} override={offer({ on: true })} />)
+
+    expect(screen.getByRole('note')).toHaveTextContent('is on: 3 the diameter rules turn down')
+  })
+
+  /**
+   * The press itself is one small control in the dialog's chrome — the number
+   * above it is the dialog's own action, and this is a footnote to it.
+   */
+  it('confirms and un-confirms from the one press', () => {
+    const onOverride = vi.fn()
+    const { rerender } = render(
+      <OverrideToggle label="Diameter" override={offer({ onOverride })} />,
+    )
+
+    const press = screen.getByRole('button', { name: 'Override the diameter rules' })
+    expect(press).toHaveTextContent('Override rules')
+    expect(press).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(press)
+    expect(onOverride).toHaveBeenCalledWith(true)
+
+    rerender(<OverrideToggle label="Diameter" override={offer({ on: true, onOverride })} />)
+    expect(screen.getByRole('button', { name: 'Override the diameter rules' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Override the diameter rules' }))
+    expect(onOverride).toHaveBeenCalledWith(false)
   })
 })

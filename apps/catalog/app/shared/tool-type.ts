@@ -1,4 +1,4 @@
-import { TOOL_FORMS, shankOf } from '@toolpath/catalog-data'
+import { TOOL_FORMS } from '@toolpath/catalog-data'
 
 /**
  * What a tool *is*, in one phrase, with the shank in the name where it is
@@ -28,42 +28,49 @@ export const toolTypeLabel = (toolType: string): string =>
   TOOL_FORMS.find((each) => each.value === normalise(toolType))?.label ?? toolType
 
 /**
- * The forms whose shank is reduced by definition, so saying so adds nothing.
+ * The forms the shank says nothing about, so the phrase is left off them.
  *
  * A slot mill — a keyseat or woodruff cutter — is a disc of teeth on a neck;
  * there is no full-shank one to tell it apart from, and "Reduced shank slot
  * mill" is two words of noise on every one of them (Paul, 2026-09-01).
+ *
+ * **A tap is the same** (Paul, 2026-09-08: "taps should not show reduced
+ * shank"). Its shank is sized to the tapping chuck rather than to the thread
+ * it cuts, so it sits under the major diameter as a matter of course: 6,925 of
+ * the 11,566 taps in the scrape, 59% of them, which is a phrase on the majority
+ * of a list saying nothing that tells one tap from another.
  */
-const SHANK_IS_THE_TYPE: ReadonlySet<string> = new Set(['slot mill'])
+const SHANK_IS_THE_TYPE: ReadonlySet<string> = new Set([
+  'slot mill',
+  'tap',
+  'tap left hand',
+  'tap right hand',
+])
 
 /**
- * Whether the cut is wider than what is behind it, either way that happens.
+ * Whether the shank behind the cut is thinner than the cut.
  *
- * **Two rules, and they are all but disjoint.** `shankOf` is
- * `@toolpath/tool-support`'s reading of a *neck*: a shoulder narrower than the
- * cut, standing further back than the flutes. Paul's rule (2026-09-08) is the
- * *shank*: `SFDM < DC`, a 12 mm cutter on a 10 mm shank. Over the 38,114-tool
- * scrape the first finds 6,378 tools, the second 7,499 — and exactly **one**
- * tool satisfies both, because a necked tool usually keeps a full-width shank
- * behind the neck and a reduced-shank tool states no neck at all.
+ * **Paul's rule, and only his** (2026-09-08: "use my reduced shank rule rather
+ * than the old one"): `SFDM < DC`, a 12 mm cutter on a 10 mm shank.
  *
- * So this is the union: dropping either one would take the phrase off
- * thousands of tools that are exactly what it describes.
+ * The rule it replaces was `shankOf`, `@toolpath/tool-support`'s reading of a
+ * *neck* — a shoulder narrower than the cut, standing back from the flutes —
+ * and the two are all but disjoint over the 38,114-tool scrape: 7,499 tools
+ * against 6,378, with exactly **one** tool satisfying both, because a necked
+ * tool usually keeps a full-width shank behind the neck. So this is a real
+ * change of population and not a refinement: 6,378 necked tools no longer say
+ * "Reduced shank", and of the tools that now do, all but 574 are taps — which
+ * {@link SHANK_IS_THE_TYPE} then leaves alone.
  *
- * **What the shank rule does to taps, said out loud.** 6,925 of the 7,499 are
- * taps — 59% of every tap in the scrape — because a tap's shank is usually
- * under its thread's major diameter. They read `Reduced shank tap right hand`
- * now. That is the rule as it was given, applied everywhere; if it turns out
- * to be noise on a tap the way it is on a slot mill, the fix is one entry in
- * {@link SHANK_IS_THE_TYPE} rather than a second rule.
+ * `shankOf` is untouched and still answers the `shank` axis, which is parked;
+ * this is the reading the words on screen are built from.
  */
 export const reducedShank = (tool: {
   readonly form: string
   readonly geometry: Readonly<Record<string, number>>
 }): boolean => {
   const { DC, SFDM } = tool.geometry
-  const thinner = DC !== undefined && SFDM !== undefined && SFDM < DC - 1e-9
-  return thinner || shankOf(tool) === 'reduced'
+  return DC !== undefined && SFDM !== undefined && SFDM < DC - 1e-9
 }
 
 /**

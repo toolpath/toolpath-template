@@ -10,6 +10,7 @@ import {
   queryFromSearch,
   searchFromQuery,
   searchWithQuery,
+  stillOffered,
   toggleTerm,
   type ToolQuery,
 } from './filter'
@@ -95,6 +96,42 @@ describe('filterTools', () => {
 
     const selected = query({ ranges: { DC: { min: 4, max: 10 } } })
     expect(filterTools(tools, selected).map((each) => each.guid)).toEqual(['b'])
+  })
+
+  it('keeps a tool sitting exactly on either end of the range', () => {
+    const tools = [
+      tool({ guid: 'low', geometry: { DC: 4 } }),
+      tool({ guid: 'high', geometry: { DC: 10 } }),
+    ]
+
+    expect(filterTools(tools, query({ ranges: { DC: { min: 4, max: 10 } } })).map((e) => e.guid)) //
+      .toEqual(['low', 'high'])
+  })
+
+  /**
+   * **`at most` means at most, in whichever unit it was typed in** (Paul,
+   * 2026-09-08). The dataset is millimetres and the box converts what was
+   * typed, so `at most 0.750 in` becomes `19.049999999999997` — a hair under
+   * the `19.05` the catalog stores for a ⌀0.750 in cutter, which then went
+   * missing from its own size. 966 values in a scraped catalog land on the
+   * wrong side of their nominal size that way.
+   */
+  it('keeps a tool a float\u2019s last digit outside the bound it is nominally on', () => {
+    const tools = [tool({ guid: 'three-quarter', geometry: { DC: 19.05 } })]
+
+    expect(
+      filterTools(tools, query({ ranges: { DC: { max: 0.75 * 25.4 } } })).map((each) => each.guid),
+    ).toEqual(['three-quarter'])
+    expect(
+      filterTools(tools, query({ ranges: { DC: { min: 0.75 * 25.4 } } })).map((each) => each.guid),
+    ).toEqual(['three-quarter'])
+  })
+
+  /** And it is slack, not blindness: a size below is still a size below. */
+  it('still excludes a tool that is genuinely outside the bound', () => {
+    const tools = [tool({ guid: 'under', geometry: { DC: 19.04 } })]
+
+    expect(filterTools(tools, query({ ranges: { DC: { min: 19.05 } } }))).toEqual([])
   })
 
   /**
@@ -422,6 +459,56 @@ describe('what each axis has left to offer', () => {
 
     expect(counts.get('form')?.get('drill')).toBe(1)
     expect(counts.get('form')?.get('flat end mill')).toBe(1)
+  })
+})
+
+/**
+ * **A second vendor has to stay reachable** (Paul, 2026-09-08: "all options
+ * other than the one that was enabled are hidden. I should be able to
+ * multi-select options while creating an assembly for a feature").
+ *
+ * The counts a feature's list is measured over are the tools the matcher
+ * judged, and it only judges what the terms already admit — so once a vendor is
+ * ticked, the vendor axis can only count that vendor however the query is
+ * unpicked. What it offered a moment ago is the answer, because a moment ago
+ * the question could still be asked.
+ */
+describe('what an axis keeps offering', () => {
+  const before = new Map([
+    ['Harvey Tool', 4],
+    ['Kennametal', 2],
+    ['WIDIA', 1],
+  ])
+
+  it('offers what it last offered while it is the axis being narrowed', () => {
+    const narrowed = new Map([['Harvey Tool', 4]])
+
+    const offered = stillOffered(narrowed, ['Harvey Tool'], before)
+
+    expect([...offered.keys()]).toEqual(['Harvey Tool', 'Kennametal', 'WIDIA'])
+  })
+
+  /** A count it can still measure is the count it shows: only the rest is memory. */
+  it('takes a fresh count wherever there is one', () => {
+    const narrowed = new Map([['Harvey Tool', 3]])
+
+    const offered = stillOffered(narrowed, ['Harvey Tool'], before)
+
+    expect(offered.get('Harvey Tool')).toBe(3)
+    expect(offered.get('Kennametal')).toBe(2)
+  })
+
+  it('counts fresh the moment the axis is cleared', () => {
+    const narrowed = new Map([['Harvey Tool', 4]])
+
+    expect(stillOffered(narrowed, [], before)).toBe(narrowed)
+  })
+
+  /** Nothing remembered — a filter arrived at through a link — is the counts. */
+  it('offers what it can count where it has no memory', () => {
+    const narrowed = new Map([['Harvey Tool', 4]])
+
+    expect(stillOffered(narrowed, ['Harvey Tool'], undefined)).toBe(narrowed)
   })
 })
 

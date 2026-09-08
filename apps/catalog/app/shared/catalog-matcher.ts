@@ -7,7 +7,13 @@ import { holdable, policyOf, type HoldThresholds } from './holder-choice'
 import { holdableTools, splitHolding } from './holding'
 import { closestMisses, type Format, type Reason, type Verdict } from './judge'
 import { sectionOf } from './section-of'
-import { fittingTools, ruleTally } from './tool-fit'
+import {
+  fittingTools,
+  overridableCount,
+  overridableTally,
+  overridableTools,
+  ruleTally,
+} from './tool-fit'
 import { holeAt } from './hole-mode'
 import { RULES, type Knob } from './rules'
 
@@ -21,6 +27,22 @@ export interface MatchContext {
   readonly holderFilters: HolderFilters
   readonly margins: Margins
   readonly thresholds: HoldThresholds
+  /**
+   * The geometry columns whose rules the person has set aside, by code.
+   *
+   * **A filter overrules the rule it is the same question as, and no other**
+   * (Paul, 2026-09-08: "it should only override for that specific rule, related
+   * to the specific filter"). Widening the Diameter bound and confirming it in
+   * that column's dialog puts `DC` here; a tool the flute-length rows turned
+   * down stays off the list, because nobody looked at that question.
+   *
+   * Part of the context rather than of a demand: it changes what an answer *is*,
+   * so it has to be in the key that owns the answer. `matchKey` leaves it out of
+   * a recommendation batch for the same reason it leaves the unit out — a
+   * one-each pick is never drawn from the removed set, so an override cannot
+   * move it and must not evict its cache entry.
+   */
+  readonly overrides: ReadonlyArray<string>
 }
 
 /** One question in a table request or a recommendation batch. */
@@ -96,6 +118,34 @@ export interface DetailedResult {
    * is why the two things a count *is* used for travel beside it as numbers.
    */
   readonly nearMisses: ReadonlyArray<CompactVerdict>
+  /**
+   * The removed tools the **filters** still admit: what overriding the rules
+   * offers, nearest first.
+   *
+   * Distinct from {@link nearMisses} in both directions. Those are the closest
+   * misses to the *rules*, drawn without the ranges so that a tool a little
+   * outside one can be offered when nothing fits; these are what the person's
+   * own ranges ask for, however far outside a rule they land. `tool-fit.ts`
+   * `overridableTools` is the rule and says why the two cannot be one list.
+   *
+   * Empty until {@link MatchContext.overrides} names a column: nothing is
+   * forgiven that nobody asked to have forgiven.
+   */
+  readonly overridable: ReadonlyArray<CompactVerdict>
+  /**
+   * How many tools each column alone is keeping off the list, forgiven or not.
+   *
+   * What the filter dialog offers before anything is overridden, and the reason
+   * the count is taken here: it is measured over the whole removed set, which
+   * only exists on this side of the boundary.
+   */
+  readonly overridableByCode: Readonly<Record<string, number>>
+  /**
+   * How many {@link overridable} would hold uncapped — what the list says it is
+   * not showing. **No silent caps**: a truncated list that reads as the whole
+   * answer is the defect this number exists to prevent.
+   */
+  readonly overridableCount: number
   /** How many tools the rules removed in all, since {@link nearMisses} is a slice of them. */
   readonly excludedCount: number
   /** How many each rule removed first: what `tightestOf` reads. */
@@ -219,7 +269,9 @@ export const matchKey = (
     // Recommendation verdicts contain only a GUID, so display units cannot affect
     // either the answer or its cache entry.
     context: {
-      ...(kind === 'recommendations' ? { ...context, unit: 'millimeters' } : context),
+      ...(kind === 'recommendations'
+        ? { ...context, unit: 'millimeters', overrides: [] }
+        : { ...context, overrides: [...context.overrides].sort() }),
       features: featuresKey(context.features),
     },
     demands,
@@ -346,6 +398,14 @@ export interface PreparedMatch {
   readonly considered: ReadonlyArray<CatalogTool>
   /** Those of them the filters actually admit — what a row may show. */
   readonly admitted: ReadonlyArray<CatalogTool>
+  /**
+   * The same set by guid, built once for the whole request.
+   *
+   * Every demand asks it twice — once to narrow what fits, once to work out
+   * what an override would offer — and a request carries one demand per feature
+   * row, so building it per demand was a 38,000-entry set per question.
+   */
+  readonly admittedGuids: ReadonlySet<string>
 }
 
 export const prepareMatch = (context: MatchContext, catalog: MatcherCatalog): PreparedMatch => {
@@ -355,7 +415,8 @@ export const prepareMatch = (context: MatchContext, catalog: MatcherCatalog): Pr
   // The same set the old one-pass filter gave: the discrete predicate is
   // idempotent and the holding one is independent of it, so applying the ranges
   // to what is already discretely filtered leaves the ranges as the difference.
-  return { tools, considered, admitted: filterTools(considered, toolQuery) }
+  const admitted = filterTools(considered, toolQuery)
+  return { tools, considered, admitted, admittedGuids: new Set(admitted.map((each) => each.guid)) }
 }
 
 interface DemandMatch {
@@ -384,8 +445,9 @@ const matchDemand = (
     matcherFormat(context.unit),
     context.knobs,
   )
-  const admitted = new Set(prepared.admitted.map((tool) => tool.guid))
-  const narrowed = fitting.fitting.filter((verdict) => admitted.has(verdict.tool.guid))
+  const narrowed = fitting.fitting.filter((verdict) =>
+    prepared.admittedGuids.has(verdict.tool.guid),
+  )
   const reachFeature = context.features.find(
     (feature) => feature.featureTag === (demand.reachTag ?? demand.tags[0]),
   )
@@ -422,6 +484,29 @@ const matchDemand = (
  */
 const NEAR_MISSES = 50
 
+/**
+ * How many of the rules' removals an override may offer.
+ *
+ * The same reasoning as {@link NEAR_MISSES} — the whole removed set is tens of
+ * thousands of verdicts and must not cross the boundary — but **not the same
+ * number, and this is why**:
+ *
+ * It was 200, which is a fill-of-last-resort's cap on a list that is the
+ * answer. Nearest first, so those 200 were the tools that miss the rule by the
+ * least, and asking a 38,000-tool catalog for `diameter at most 0.500 in`
+ * against a pocket that wants 0.400 in filled every slot with ⌀12 mm cutters
+ * and never reached the 663 half-inch ones the filter was typed to find (Paul,
+ * 2026-09-08: "it still doesn't seem to be going up to the bounds — I'm sure
+ * there are 1/2 inch tools with greater than 0.980 inch flute length in this
+ * library"). A cap that hides exactly the end of the range somebody widened
+ * *to* is worse than no override at all.
+ *
+ * So it is the table's own row cap: the list cannot draw more than this
+ * anyway, and what is left out is left out by the same number and said in the
+ * same place as every other truncation on this page.
+ */
+const OVERRIDABLE = 2000
+
 /** Runs the existing detailed table pipeline with only cloneable request inputs. */
 export const detailedMatch = (
   context: MatchContext,
@@ -434,6 +519,19 @@ export const detailedMatch = (
     demandKey: demand.demandKey,
     fitting: matched.fitting.map(compact),
     nearMisses: closestMisses(matched.excluded, NEAR_MISSES).map(compact),
+    overridable: overridableTools(
+      matched.excluded,
+      prepared.admittedGuids,
+      context.overrides,
+      OVERRIDABLE,
+    ).map(compact),
+    overridableByCode: overridableTally(matched.excluded, prepared.admittedGuids),
+    /**
+     * How many the forgiven columns put back in all, so a truncated
+     * {@link overridable} can say what it left out rather than reading as the
+     * whole answer.
+     */
+    overridableCount: overridableCount(matched.excluded, prepared.admittedGuids, context.overrides),
     excludedCount: matched.excluded.length,
     ruleTally: ruleTally(matched.excluded),
     narrowedGuids: matched.narrowed.map((verdict) => verdict.tool.guid),

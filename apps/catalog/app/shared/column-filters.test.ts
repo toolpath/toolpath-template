@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { AXES_IN_TOOL_COLUMNS, askOfComponentColumn, askOfToolColumn } from './column-filters'
+import {
+  AXES_IN_TOOL_COLUMNS,
+  askOfComponentColumn,
+  askOfToolColumn,
+  sayBound,
+} from './column-filters'
 import { columnsFor } from './component-columns'
 import { termAxesFor } from './component-query'
 
@@ -76,11 +81,38 @@ describe('what a holder or collet column asks', () => {
 
   /**
    * The type a holder reads as is its taper, its series and its clamping said
-   * as one phrase — three columns that each ask for themselves, so a fourth
-   * way to ask the same thing would only disagree with them.
+   * as one phrase — and that phrase is what a shop calls the thing, so it is a
+   * list of its own (Paul, 2026-09-08). The three columns behind it still ask
+   * for themselves: one press for every BT30, or one for every BT30 ER11
+   * collet chuck.
    */
-  it('asks nothing of the type a component reads as', () => {
-    expect(askOfComponentColumn('holder', 'type')).toBeNull()
-    expect(askOfComponentColumn('collet', 'type')).toBeNull()
+  it('searches the catalog number, the one answer a shop arrives with', () => {
+    expect(askOfComponentColumn('holder', 'catalogNumber')).toEqual({ shape: 'text' })
+    expect(askOfComponentColumn('collet', 'catalogNumber')).toEqual({ shape: 'text' })
+  })
+
+  it('offers the type a component reads as, as a list', () => {
+    expect(askOfComponentColumn('holder', 'type')).toEqual({ shape: 'terms', axis: 'type' })
+    expect(askOfComponentColumn('collet', 'type')).toEqual({ shape: 'terms', axis: 'type' })
+  })
+})
+
+/**
+ * The words a filter dialog warns with, in the unit being read in — a warning
+ * about a number has to say the number.
+ */
+describe('a bound said in words', () => {
+  it('converts a length and leaves a count alone', () => {
+    expect(sayBound('length', { max: 8 }, 'millimeters')).toBe('at most 8.00 mm')
+    expect(sayBound('count', { min: 4 }, 'inches')).toBe('at least 4')
+  })
+
+  it('says a two-ended bound as a span, and an exact one as the number', () => {
+    expect(sayBound('count', { min: 2, max: 4 }, 'millimeters')).toBe('2 to 4')
+    expect(sayBound('count', { min: 4, max: 4 }, 'millimeters')).toBe('4')
+  })
+
+  it('says a bound with no ends at all rather than nothing', () => {
+    expect(sayBound('length', {}, 'millimeters')).toBe('anything')
   })
 })

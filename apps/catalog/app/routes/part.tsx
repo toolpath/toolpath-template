@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
-import { Badge, Button, Card, Tabs, cn, Panels } from '@toolpath/ui'
+import { Badge, Button, Card, cn, Panels } from '@toolpath/ui'
 import {
   colletsFor,
   colletsForShank,
@@ -58,6 +58,7 @@ import {
   type Results,
 } from 'shared/feature-list'
 import { recommendationRows, type RecommendationAnswer } from 'shared/recommendations'
+import { groupReadings } from 'shared/group-geometry'
 import { usedElsewhere, usesByGuid } from 'shared/component-usage'
 import { toolActionLabel, toolActions, type ToolAction } from 'shared/tool-actions'
 import { featureRow } from 'shared/feature-rows'
@@ -69,7 +70,7 @@ import {
   hiddenByDefault,
   type Holding,
 } from 'components/part-tool-table'
-import { ColumnPicker } from 'components/column-filter'
+import { ColumnPicker, sameBound } from 'components/column-filter'
 import { BUTTON_FILTERS, FACET_AXES } from 'components/filter-panel'
 import { orderedCodes } from 'shared/column-order'
 import { firstBy, keptFirst } from 'shared/tool-order'
@@ -82,7 +83,6 @@ import {
   getTool,
   holders as allHolders,
 } from 'shared/catalog'
-import { useFlag } from 'shared/flags'
 import { useEscape } from 'shared/use-escape'
 import {
   DRAFT_TREE,
@@ -92,6 +92,7 @@ import {
   guidAt,
   defaultAssemblies,
   firstNode,
+  isOverride,
   setSlot,
   heldIn,
   addAssembly,
@@ -134,11 +135,13 @@ import {
   countBy,
   countQuery,
   countsByAxis,
+  stillOffered,
   filterTools,
   queryFromSearch,
   searchWithQuery,
 } from 'shared/filter'
 import { applySuggestions, suggestionsFor } from 'shared/suggest-filters'
+import { askOfToolColumn, sayBound } from 'shared/column-filters'
 import {
   DERIVED_AXES,
   HOLDING_AXES,
@@ -157,7 +160,13 @@ import {
   type HolderOption,
 } from 'shared/holder-choice'
 import { closestMisses, type Format } from 'shared/judge'
-import { cautionedTypes, marksFor, shortfallMarks, testedCodes } from 'shared/tool-marks'
+import {
+  cautionedTypes,
+  marksFor,
+  overrideNote,
+  shortfallMarks,
+  testedCodes,
+} from 'shared/tool-marks'
 import { knobValue, knobsWith } from 'shared/rules'
 import { OrderDialog } from 'components/order-dialog'
 import { closeCandidates, tightestOf } from 'shared/tool-fit'
@@ -174,7 +183,6 @@ import {
   holeAt,
   holeDepthOf,
   makersFor,
-  millsLabel,
   millsShown,
 } from 'shared/hole-mode'
 import { hasSharpCorner } from 'shared/feature-defaults'
@@ -426,14 +434,13 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    */
   const { sheet, commit } = useSetupSheet(report.partId)
   /**
-   * The tool assembly tree, and the way back off it — see the block below,
-   * which is where everything derived from these lives.
+   * The tool assembly tree — see the block below, which is where everything
+   * derived from it lives.
    *
-   * The two hooks sit here, beside the sheet they are the working half of,
-   * because confirming a draft has to carry that draft's tree onto the row it
-   * becomes, and `confirmDraft` is declared long before that block.
+   * The hook sits here, beside the sheet it is the working half of, because
+   * confirming a draft has to carry that draft's tree onto the row it becomes,
+   * and `confirmDraft` is declared long before that block.
    */
-  const [assemblyTree, setAssemblyTree] = useFlag('assemblyTree')
   const {
     trees,
     read: treeNow,
@@ -635,6 +642,24 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   /** The groups standing open in the list. */
   const [openItems, setOpenItems] = useState<ReadonlyArray<string>>([])
 
+  /**
+   * What the group being built measures, at its worst.
+   *
+   * **A group is one tool for all of them**, so the numbers it is chosen
+   * against are the hardest of its features' rather than any one feature's
+   * (Paul, 2026-09-08) — and each says which feature it came from, because that
+   * is the one to take back out when the answer is unacceptable. The fold is
+   * `shared/group-geometry`; the whole part goes in so depth is still measured
+   * from its top.
+   */
+  const draftReadings = useMemo(
+    () =>
+      draft?.kind === 'group'
+        ? groupReadings(keptFeatures(report.features, kept), report.features)
+        : [],
+    [draft?.kind, kept, report.features],
+  )
+
   const selectedItem = useMemo(() => itemNamed(list, selectedId), [list, selectedId])
 
   /**
@@ -804,6 +829,19 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     // Only when the feature or the material changes: re-running on every query
     // edit would put back a filter somebody has just cleared.
   }, [reading, materialGroup])
+
+  /**
+   * What this feature asks of the filters, as a value rather than as a write.
+   *
+   * The ref above exists to tell a stale suggestion from somebody's answer, and
+   * is deliberately not state. The filter dialog needs the same numbers on
+   * screen — "the geometry asked for at most ⌀8.00 mm" — so it reads them
+   * fresh: `suggestionsFor` is pure and this is the same call the effect makes.
+   */
+  const suggestions = useMemo(
+    () => suggestionsFor(reading, materialGroup, report.features),
+    [reading, materialGroup, report.features],
+  )
 
   /** Writing the filters back to the URL, which is where they live. */
   const apply = useCallback(
@@ -1121,6 +1159,37 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     matchTable,
     matchRecommendations,
   } = useCatalogMatcher()
+  /**
+   * The geometry columns whose rules have been set aside, by code.
+   *
+   * **The filters are the last word, one column at a time** (Paul, 2026-09-08:
+   * "I need the ability to override the geometric filters created by the
+   * geometry — for example, I may want to use a larger tool than required …
+   * the override the rules button should be in the filter dialog rather than
+   * always shown, and should only override for that specific rule").
+   *
+   * The suggested ranges are written from the same `must` rows that go on to
+   * judge every tool, so widening one asks for precisely the tools the rules
+   * then remove — and the two together answered a deliberate question with an
+   * empty table. Forgiving a column is confirmed in that column's own dialog,
+   * and forgives that column alone: a tool the flute-length rows also turned
+   * down stays off the list until somebody looks at that question too.
+   *
+   * Per question, and reset when the question changes: tools that do not fit
+   * are not an answer to the next feature.
+   */
+  const [overriding, setOverriding] = useState<ReadonlyArray<string>>([])
+  const overrideOn = useCallback(
+    (code: string, on: boolean) =>
+      setOverriding((current) =>
+        on
+          ? current.includes(code)
+            ? current
+            : [...current, code]
+          : current.filter((each) => each !== code),
+      ),
+    [],
+  )
   const tableContext = useMemo<MatchContext>(
     () => ({
       features: report.features,
@@ -1131,8 +1200,19 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       holderFilters,
       margins,
       thresholds,
+      overrides: overriding,
     }),
-    [report.features, effectiveQuery, knobs, clamping, unit, holderFilters, margins, thresholds],
+    [
+      report.features,
+      effectiveQuery,
+      knobs,
+      clamping,
+      unit,
+      holderFilters,
+      margins,
+      thresholds,
+      overriding,
+    ],
   )
   const tableDemand = useMemo<MatchDemand | null>(() => {
     if (!asking || perFeature) {
@@ -1164,10 +1244,32 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       matchTable(tableContext, [tableDemand])
     }
   }, [matcherReady, matchTable, tableContext, tableDemand])
-  const detailed =
+  const answered =
     tableMatch.status === 'ready' && tableMatch.key === tableKey
       ? (tableMatch.results[0] ?? null)
       : null
+  /**
+   * The answer on screen, which is the last one until the next one lands.
+   *
+   * **A filter must not take the table away** (Paul, 2026-09-08: "when I am
+   * actively creating an assembly for a feature, it still closes after the first
+   * selection"). Narrowing a column rebuilds the matcher's question, and the
+   * table was swapped for the loading skeleton for as long as the worker took —
+   * which unmounts the list, and with it the filter menu the list is holding
+   * open. One tick was the last tick.
+   *
+   * So an answer is kept for as long as the question is the same feature's, and
+   * the list stays on screen under the pending veil below while the next answer
+   * is worked out. A *different* feature is a different question and gets the
+   * skeleton, because last feature's tools under this feature's name is a lie
+   * rather than a stale reading.
+   */
+  const keptAnswer = useRef<{ ask: string; result: DetailedResult } | null>(null)
+  const ask = tableDemand?.demandKey ?? null
+  if (answered !== null && ask !== null) {
+    keptAnswer.current = { ask, result: answered }
+  }
+  const detailed = answered ?? (keptAnswer.current?.ask === ask ? keptAnswer.current.result : null)
   const tableError =
     tableMatch.status === 'error' && tableMatch.key === tableKey ? tableMatch.message : null
   const fitting = useMemo(
@@ -1191,6 +1293,21 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     return fitting.filter((verdict) => kept.has(verdict.tool.guid))
   }, [detailed, fitting])
   const tightest = useMemo(() => tightestOf(detailed?.ruleTally ?? {}), [detailed])
+  useEffect(() => setOverriding([]), [ask])
+  const overridable = useMemo(
+    () => (detailed === null ? [] : rehydrateVerdicts(detailed.overridable, allTools)),
+    [detailed, allTools],
+  )
+  const overrideTools = useMemo(() => overridable.map((verdict) => verdict.tool), [overridable])
+  /** The overridden columns in the words their headers use, for the note above the list. */
+  const overridden = useMemo(
+    () =>
+      overriding
+        .map((code) => TOOL_COLUMNS.find((column) => column.code === code)?.label.toLowerCase())
+        .filter((label): label is string => label !== undefined)
+        .join(' and '),
+    [overriding],
+  )
 
   /** What makes the thread: taps for either tapping mode, mills for milling. */
   /** What the taps are measured against, so the table can say what fell short. */
@@ -1321,6 +1438,29 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * enforces it too (Paul, 2026-08-31, twice).
    */
   const drillsOnly = holeChoice.mode !== 'plain'
+  const listed = useMemo(() => {
+    const shownTools = !asking
+      ? catalogList
+      : /*
+          **What a forgiven column removed goes under what the rules kept, not
+          instead of it.** An override widens the answer rather than replacing
+          it: a shop reaching for a larger cutter still wants to see the ones
+          that fit above it, and the near misses have nothing to stand in for
+          once the list is not empty. `fitting` and `excluded` are disjoint by
+          construction, so no row appears twice.
+        */
+        overrideTools.length > 0
+        ? [...tools, ...overrideTools]
+        : tools.length > 0
+          ? tools
+          : closest
+    if (!drillsOnly) {
+      return shownTools
+    }
+    // Drills lead: a mill that lands on the predrill would otherwise outrank
+    // every drill on the sheet's "closest to the hole diameter" row.
+    return drillsFirst(shownTools.filter((each) => predrillForms.includes(each.form)))
+  }, [asking, catalogList, tools, closest, overrideTools, drillsOnly, predrillForms])
   /**
    * What each axis would leave, counted against every other filter.
    *
@@ -1328,21 +1468,59 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * other vendors' families off the family axis — and it is measured without
    * the axis's own term, so choosing one vendor does not hide the rest
    * (Paul, 2026-09-01).
+   *
+   * **Over the rows the list is actually holding**, which is what "offer what
+   * is there" means. A feature's list has already been answered against the
+   * query — the matcher applied it — so the query is not applied a second time
+   * here: the nearest misses stand in when nothing fits, and they are outside
+   * the query by construction, which counted four rows on screen as nothing to
+   * narrow by. Without a feature the pool is the whole catalog, so there the
+   * query is what makes the counts mean anything.
    */
   const axisCounts = useMemo(
-    () => countsByAxis(asking ? tools : allTools, effectiveQuery, FACET_AXES),
-    [asking, allTools, tools, effectiveQuery],
+    () =>
+      asking
+        ? countsByAxis(listed, EMPTY_QUERY, FACET_AXES)
+        : countsByAxis(allTools, effectiveQuery, FACET_AXES),
+    [asking, allTools, listed, effectiveQuery],
   )
-
-  const listed = useMemo(() => {
-    const shownTools = !asking ? catalogList : tools.length > 0 ? tools : closest
-    if (!drillsOnly) {
-      return shownTools
+  /**
+   * What each axis is offering, which is not always what it can still count.
+   *
+   * `shared/filter.ts` § `stillOffered` has the reason: with a feature on the
+   * screen the counts are measured over what the matcher judged, and the
+   * matcher only judges what the terms already admit — so an axis that has been
+   * narrowed can only report itself, and a second vendor was unreachable. It
+   * keeps offering the list it last had instead. The memory is this feature's:
+   * another question is another set of values, and carrying one over would
+   * offer the last feature's vendors under this one's name.
+   */
+  const offeredAxes = useRef(new Map<string, ReadonlyMap<string, number>>())
+  const askedOf = useRef<string | null>(null)
+  const axisOptions = useMemo(() => {
+    if (askedOf.current !== ask) {
+      askedOf.current = ask
+      offeredAxes.current = new Map()
     }
-    // Drills lead: a mill that lands on the predrill would otherwise outrank
-    // every drill on the sheet's "closest to the hole diameter" row.
-    return drillsFirst(shownTools.filter((each) => predrillForms.includes(each.form)))
-  }, [asking, catalogList, tools, closest, drillsOnly, predrillForms])
+    const offered = new Map<string, ReadonlyMap<string, number>>()
+    for (const axis of FACET_AXES) {
+      const counts = axisCounts.get(axis) ?? new Map<string, number>()
+      offered.set(
+        axis,
+        asking
+          ? stillOffered(counts, query.terms[axis] ?? [], offeredAxes.current.get(axis))
+          : counts,
+      )
+    }
+    offeredAxes.current = offered
+    return offered
+  }, [asking, axisCounts, query.terms, ask])
+
+  /** One axis's values as the pickers read them, however they were arrived at. */
+  const countsOn = useCallback(
+    (axis: string): ReadonlyMap<string, number> => axisOptions.get(axis) ?? countBy(listed, axis),
+    [axisOptions, listed],
+  )
 
   /**
    * A drill on the list brings its own column with it, and takes it away
@@ -1386,6 +1564,59 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * own — so a vendor already chosen still lists the other vendors with what
    * each would bring back, rather than itself and eight zeroes.
    */
+  /**
+   * What a column's dialog offers when its number no longer matches the
+   * geometry's.
+   *
+   * Offered for every range column while a feature is being asked about; what
+   * is *shown* is the dialog's own rule — `column-filter.tsx` §
+   * `overrideOffered` — because whether a number is somebody's own is a
+   * question about the number, and the dialog is holding it. `suggested` is
+   * what the geometry asked for, or nothing where it asked nothing; the count
+   * is the matcher's, measured over the whole removed set, and
+   * `shared/tool-fit.ts` § `overridableTally` says why a tool two columns turn
+   * down is counted under neither.
+   */
+  const overrideFor = useCallback(
+    (code: string) => {
+      if (!asking) {
+        return undefined
+      }
+      const suggested = suggestions.ranges[code]
+      const ask = askOfToolColumn(code)
+      return {
+        suggested,
+        available: detailed?.overridableByCode[code] ?? 0,
+        on: overriding.includes(code),
+        onOverride: (on: boolean) => overrideOn(code, on),
+        say: (bound: { readonly min?: number; readonly max?: number }) =>
+          sayBound(ask?.shape === 'range' ? ask.kind : 'length', bound, unit),
+      }
+    },
+    [asking, suggestions, detailed, overriding, overrideOn, unit],
+  )
+
+  /**
+   * An override that is back on the geometry's own number is not an override.
+   *
+   * Clearing or restoring the bound is the way out of one, and leaving it
+   * standing would keep tools on the list that the filter above them no longer
+   * asks for — with nothing on screen still saying why.
+   */
+  useEffect(() => {
+    setOverriding((current) => {
+      const kept = current.filter((code) => {
+        const bound = query.ranges[code]
+        if (bound === undefined || (bound.min === undefined && bound.max === undefined)) {
+          return false
+        }
+        const suggested = suggestions.ranges[code]
+        return suggested === undefined || !sameBound(bound, suggested)
+      })
+      return kept.length === current.length ? current : kept
+    })
+  }, [query.ranges, suggestions])
+
   const toolFiltering = useMemo(
     () => ({
       search: { value: numberSearch, onChange: setNumberSearch },
@@ -1394,7 +1625,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         onTerm: applyTerm,
         onRange: applyRange,
         options: (axis: string) =>
-          [...(axisCounts.get(axis) ?? countBy(listed, axis))]
+          [...countsOn(axis)]
             .map(([value, count]) => ({
               value,
               // A family is stored as the vendor's line, or as the family id
@@ -1404,9 +1635,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               count,
             }))
             .sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true })),
+        override: overrideFor,
       },
     }),
-    [query, applyTerm, applyRange, axisCounts, listed, numberSearch],
+    [query, applyTerm, applyRange, countsOn, numberSearch, overrideFor],
   )
 
   /**
@@ -1430,8 +1662,24 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     [reading, report.features],
   )
   const byGuid = useMemo(
-    () => new Map([...fitting, ...nearMisses].map((verdict) => [verdict.tool.guid, verdict])),
-    [fitting, nearMisses],
+    () =>
+      new Map(
+        [...fitting, ...nearMisses, ...overridable].map((verdict) => [verdict.tool.guid, verdict]),
+      ),
+    [fitting, nearMisses, overridable],
+  )
+  /**
+   * Whether the rules turned this tool down, whichever list put it on screen.
+   *
+   * **The mark is about the verdict, not about the switch.** The nearest misses
+   * stand in when nothing fits, and they are removed tools too — so a row picked
+   * out of *that* list is as much an override as one picked with the switch on,
+   * and asking which list a row came from would have marked one and not the
+   * other. A tool the rules kept has nothing in `removed` by construction.
+   */
+  const removedByRules = useCallback(
+    (guid: string) => (byGuid.get(guid)?.removed.length ?? 0) > 0,
+    [byGuid],
   )
   const marksOf = useCallback(
     (each: CatalogTool) => {
@@ -1735,31 +1983,15 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     [chosenTool, held, allTools],
   )
   /**
-   * Which half of a threaded feature the **list** is showing: the taps, or the
-   * drills under them.
+   * True while the list is showing the taps rather than the tools.
    *
-   * **Taps first** (Paul, 2026-09-02: "I'd like to have the tabs in the tool
-   * table, showing taps first by default, then the drill tab to the right to
-   * switch to it"). They were two tables stacked and a second pair of tabs in
-   * the panel on the right, which spent the panel twice. The thread is the
-   * decision and the drill follows from it, so the taps are the tab somebody
-   * lands on; the panel then reads whichever tool was clicked, in either tab.
-   */
-  const [pane, setPane] = useState<'drill' | 'tap'>('tap')
-  /**
    * **A threaded hole opens on its taps** (Paul, 2026-09-02: "taps should be
-   * active, which should be the default when a hole is defined as threaded").
-   *
-   * The tab is a state, so a hole read after somebody had flipped to the
-   * drills opened on the drills — and so did a hole that had just been given a
-   * thread. Reading a feature and choosing a thread are both new decisions,
-   * and the tap is the one they start from.
+   * active, which should be the default when a hole is defined as threaded"),
+   * and there is no longer a tab that says otherwise: the pair of stacks in the
+   * tree is the pair of tabs, so which list a threaded hole is showing is the
+   * stack that is open — `tappingNow` — and this is only what it opens on.
    */
-  useEffect(() => {
-    setPane('tap')
-  }, [focused, threadSpec?.name])
-  /** True while the list is showing the taps rather than the tools. */
-  const tapping = threadSpec !== null && pane === 'tap'
+  const tapping = threadSpec !== null
   const tablePending =
     tableMatch.status === 'pending' && tableMatch.key === tableKey && !perFeature && !tapping
 
@@ -1819,8 +2051,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       be shown in the right hand panel").
     */
     const panes = threadPanes(shownRows, tapRows, chosenTool)
-    return (pane === 'tap' ? panes.tap : panes.drill) ?? tool ?? shownRows[0] ?? null
-  }, [chosenTool, threadSpec, tool, shownRows, tapRows, pane])
+    return panes.tap ?? tool ?? shownRows[0] ?? null
+  }, [chosenTool, threadSpec, tool, shownRows, tapRows])
 
   const pick = useCallback(
     (
@@ -2266,55 +2498,16 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
        * **Making the row is not choosing its tools** (Paul, 2026-09-07: "it
        * should also no longer autoselect the tool component row that I click
        * on. I should explicitly confirm each component with the checkmark
-       * icon"). Under the tree a component reaches the bill through the tick
-       * beside it — `confirmSlot` — and nowhere else, so adding a feature
-       * writes the row and stops there.
+       * icon"). A component reaches the bill through the tick beside it in the
+       * tree — `confirmSlot` — and nowhere else, so adding a feature writes the
+       * row and stops there.
        *
        * What this replaced wrote every stack that had a tool in it, which was
        * the same fall-through in a politer form: a stack somebody was still
        * assembling went onto the bill because the row was confirmed around it.
-       *
-       * Below this, confirming falls through to `panelTool` — the head of the
-       * table — which is the rule the tree replaces: a feature got the first
-       * row's tool whether or not anybody had looked at it.
        */
-      if (assemblyTree) {
-        return
-      }
-      if (panelTool === null) {
-        return
-      }
-      /**
-       * **With whatever it is held in** (Paul, 2026-09-02: "if a holder and
-       * collet are selected when a feature or group is confirmed, they should
-       * be added to the BOM"). The holder is chosen on the row or in the panel
-       * beside it and lives in `picked` until something writes it down; this is
-       * one of the two things that write it down.
-       */
-      const held = picked[panelTool.guid]
-      const line = {
-        toolGuid: panelTool.guid,
-        ...(held?.holderGuid ? { holderGuid: held.holderGuid } : {}),
-        ...(held?.colletGuid ? { colletGuid: held.colletGuid } : {}),
-        ...(typeof held?.stickout === 'number' ? { stickout: held.stickout } : {}),
-      }
-      commit(
-        distinctIn(tags).reduce(
-          (current, each) => (each[0] === undefined ? current : addChoice(current, each[0], line)),
-          sheet,
-        ),
-      )
     },
-    [
-      assemblyTree,
-      panelTool,
-      picked,
-      commit,
-      distinctIn,
-      sheet,
-      recommendationAnswers,
-      recommendationDemandKey,
-    ],
+    [commit, distinctIn, sheet, recommendationAnswers, recommendationDemandKey],
   )
 
   /**
@@ -2624,12 +2817,18 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * derivation stop deciding: what is open next is a press in the tree.
    */
   const fillSlot = useCallback(
-    (guid: string | null) => {
+    /**
+     * @param override whether the rules had removed what is going in — carried
+     * from the row that was clicked, because only the table knows which list it
+     * drew the row from, and `assembly-tree` keeps it so the warning outlives
+     * the filters that admitted it.
+     */
+    (guid: string | null, override = false) => {
       if (node === null) {
         return
       }
       selectNode(node)
-      writeTree(setSlot(assemblies, node.assemblyId, node.slot, guid))
+      writeTree(setSlot(assemblies, node.assemblyId, node.slot, guid, override))
     },
     [node, selectNode, assemblies, writeTree],
   )
@@ -2667,10 +2866,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * and two things deciding which list is on screen is how those two stop
    * agreeing.
    */
-  const slotOpen: Slot | null = assemblyTree && !perFeature && node !== null ? node.slot : null
+  const slotOpen: Slot | null = !perFeature && node !== null ? node.slot : null
 
-  /** The list on show, and the plain tool list with the flag off. */
-  const listKind: Slot = assemblyTree ? (slotOpen ?? browsing) : 'tool'
+  /** The list on show: the open slot's, or whichever rack is being read. */
+  const listKind: Slot = slotOpen ?? browsing
 
   /**
    * Pressing one of the three buttons.
@@ -2694,12 +2893,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * Which of the two component lists the table is, and `null` while it is the
    * tools.
    *
-   * `null` too while the tree is off or the question is one per feature — a
-   * group asked for a tool each has no one list of anything, and that notice
-   * outranks everything else.
+   * `null` too while the question is one per feature — a group asked for a tool
+   * each has no one list of anything, and that notice outranks everything else.
    */
-  const componentSlot: Slot | null =
-    assemblyTree && !perFeature && listKind !== 'tool' ? listKind : null
+  const componentSlot: Slot | null = !perFeature && listKind !== 'tool' ? listKind : null
 
   /** A rack being read rather than a slot being answered. */
   const looking = componentSlot !== null && slotOpen === null
@@ -2724,7 +2921,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * the reading that asked for it. What it is drawn *for* has not changed, so
    * this is the condition that block carried, named.
    */
-  const showTree = assemblyTree && !perFeature && node !== null && assembly !== null
+  const showTree = !perFeature && node !== null && assembly !== null
 
   /**
    * The holders on show: what can hold what is already in the stack, narrowed
@@ -2851,11 +3048,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * the cap bites while browsing the catalog rather than while answering a
    * question, which is also where sorting a slice matters least.
    */
-  const tableRows = useMemo(
-    () => (assemblyTree ? treeToolRows : shownRows).slice(0, TABLE_ROW_CAP),
-    [assemblyTree, treeToolRows, shownRows],
-  )
-  const rowsHidden = (assemblyTree ? treeToolRows.length : shownRows.length) - tableRows.length
+  const tableRows = useMemo(() => treeToolRows.slice(0, TABLE_ROW_CAP), [treeToolRows])
+  const rowsHidden = treeToolRows.length - tableRows.length
 
   /** The lines this row already has on the bill, which is what Add and Update compare against. */
   const treeLines = useMemo(
@@ -3059,14 +3253,33 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   )
 
   /**
+   * Why a slot's choice was made against the rules, where it was.
+   *
+   * The fact is the tree's — `assembly-tree` § `overrides` says why it is kept
+   * rather than derived — and the sentence is the matcher's, for as long as the
+   * matcher still holds a verdict about that tool. Once it does not, the fact
+   * still stands and `overrideNote` says less.
+   */
+  const warningFor = useCallback(
+    (each: TreeAssembly, slot: Slot): string | null => {
+      if (!isOverride(each, slot)) {
+        return null
+      }
+      const guid = guidAt(each, slot)
+      return overrideNote(guid === null ? null : (byGuid.get(guid) ?? null))
+    },
+    [byGuid],
+  )
+
+  /**
    * Which list of tools is on show.
    *
-   * **The stack's role decides it under the tree**, where the two tabs decided
-   * it before: a threaded hole's tap stack opens on the taps and its drill
-   * stack on the drills, so the pair of stacks *is* the pair of tabs and there
-   * is no second control that can disagree with the tree.
+   * **The stack's role decides it**, where two tabs decided it before: a
+   * threaded hole's tap stack opens on the taps and its drill stack on the
+   * drills, so the pair of stacks *is* the pair of tabs and there is no second
+   * control that can disagree with the tree.
    */
-  const tappingNow = assemblyTree && assembly !== null ? assembly.role === 'tap' : tapping
+  const tappingNow = assembly !== null ? assembly.role === 'tap' : tapping
 
   /**
    * Which of this row's other stacks a component is standing in, by name.
@@ -3347,8 +3560,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         onUnit={setUnit}
         toolCount={allTools.length}
         onUploadPart={() => setUploadOpen(true)}
-        assemblyTree={assemblyTree}
-        onAssemblyTree={setAssemblyTree}
       />
 
       {/*
@@ -3659,6 +3870,14 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                 }
                                 matching={draftEach.status}
                                 editing={draft.editing !== null}
+                                /*
+                              **What the group measures, at its worst** (Paul,
+                              2026-09-08). The feature box says what one
+                              feature is; a group's is the hardest of its
+                              features', with the feature that set it named.
+                            */
+                                readings={draftReadings}
+                                unit={unit}
                               />
                             ) : reading === null /*
                               The box can now be open for the tree alone — a
@@ -3750,6 +3969,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                 onSelect={selectNode}
                                 labelFor={slotLabelFor}
                                 orderedFor={orderedLabelFor}
+                                warningFor={warningFor}
                                 onClear={clearSlot}
                                 actionsFor={treeActionsFor}
                                 onAdd={() => writeTree(addAssembly(assemblies))}
@@ -3776,40 +3996,21 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                 <Button
                                   size="sm"
                                   /*
-                                **The row the list is already showing** (Paul,
-                                2026-09-02: "I should be able to 'Add this
-                                feature' to select the preselected row — it
-                                makes me reclick the row now"). The table opens
-                                with its first row highlighted and the panel
-                                beside it assembling that very tool, and the
-                                button asked for the click again anyway.
-
-                                "Use this tool" rather than "Add this feature",
-                                because that is what pressing it does — and
-                                because the assembly panel on the right already
-                                has a button called *Add to list*.
-                              */
-                                  /*
-                                    **Under the tree it adds the row and
-                                    nothing else** (Paul, 2026-09-07: "I should
-                                    explicitly confirm each component with the
-                                    checkmark icon"). The tool comes from the
-                                    tick beside it in the tree, so this press
-                                    neither uses the highlighted row nor needs
-                                    one to exist — and a button called "Use this
-                                    tool" that uses none would be the page
-                                    saying something it no longer does.
+                                    **It adds the row and nothing else** (Paul,
+                                    2026-09-07: "I should explicitly confirm
+                                    each component with the checkmark icon").
+                                    The tool comes from the tick beside it in
+                                    the tree, so this press neither uses the
+                                    highlighted row nor needs one to exist — it
+                                    was called "Use this tool" while it took the
+                                    head of the table, which is the rule the
+                                    tree replaced.
                                   */
-                                  disabled={!assemblyTree && panelTool === null}
                                   onClick={draft.editing === null ? addFeature : confirmDraft}
                                 >
-                                  {assemblyTree
-                                    ? draft.editing === null
-                                      ? 'Add this feature'
-                                      : 'Save this feature'
-                                    : draft.editing === null
-                                      ? 'Use this tool'
-                                      : 'Save this tool'}
+                                  {draft.editing === null
+                                    ? 'Add this feature'
+                                    : 'Save this feature'}
                                 </Button>
                               </div>
                             ) : null}
@@ -3913,7 +4114,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         with no feature there is no assembly for a holder to be
                         offered against and the table is the catalog.
                       */}
-                      {assemblyTree && !perFeature
+                      {!perFeature
                         ? SLOTS.map((slot) => {
                             const open = listKind === slot
                             return (
@@ -3967,100 +4168,13 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           })
                         : null}
                       {/*
-                      **Two tabs on the list, taps first** (Paul, 2026-09-02:
-                      "I'd like to have the tabs in the tool table, showing taps
-                      first by default, then the drill tab to the right to
-                      switch to it"). They were two tables stacked, which spent
-                      the panel twice and made the reading order a layout
-                      question. The thread is the decision and the drill follows
-                      from it, so the taps are the tab somebody lands on;
-                      whichever tool is clicked, in either tab, is the one the
-                      panel on the right assembles.
-                    */}
-                      {/*
-                      The tabs are two lists of tools for one hole; the list's
-                      own answers are neither, so they take the plain heading.
-                    */}
-                      {threadSpec === null || perFeature || assemblyTree ? (
-                        <span className="text-zinc-200">{tableTitle}</span>
-                      ) : (
-                        <Tabs
-                          value={pane}
-                          onValueChange={(next) => {
-                            if (next === 'tap' || next === 'drill') {
-                              setPane(next)
-                            }
-                          }}
-                          size="md"
-                          className="border-0"
-                        >
-                          <Tabs.List className="flex items-center gap-1">
-                            {(
-                              [
-                                ['tap', `Taps for ${threadSpec.name}`, makers.made.length],
-                                ['drill', 'Drills', listed.length],
-                              ] as const
-                            ).map(([key, label, many]) => (
-                              <Tabs.Tab
-                                key={key}
-                                value={key}
-                                className="flex items-center gap-1.5 rounded border px-2 py-0.5 text-sm"
-                              >
-                                {label}
-                                <span className="text-2xs text-zinc-500">{many}</span>
-                              </Tabs.Tab>
-                            ))}
-                            {/*
-                          **A hole can be interpolated** (Paul, 2026-09-02: "I
-                          need to be able to use an end mill on a threaded hole
-                          in place of a drill… a quick option in the drills
-                          section to 'Show compatible endmills'"). Beside the
-                          list it changes and nowhere else, because it is a
-                          question about *this* hole's predrill.
-
-                          It presses the filter rather than hiding a list of
-                          its own: the two mill forms go into the type filter,
-                          where the rail shows them and where somebody can take
-                          them off again — the same reason choosing a thread
-                          writes its own forms there (Paul, 2026-08-31).
-                        */}
-                            {pane === 'drill' ? (
-                              <Button
-                                type="button"
-                                variant="muted"
-                                size="sm"
-                                aria-pressed={predrillMills.length > 0}
-                                title={
-                                  predrillMills.length > 0
-                                    ? 'Showing the end mills that can interpolate this predrill, after the drills — press to take them off'
-                                    : 'Also show the flat and bull nose end mills that can interpolate this predrill'
-                                }
-                                onClick={() => {
-                                  const forms = query.terms.form ?? []
-                                  applyTerm(
-                                    'form',
-                                    // Nothing ticked means every form, so turning
-                                    // the mills on has to name the drills and taps
-                                    // as well or the press would hide them.
-                                    formsWithMills(
-                                      forms.length === 0 ? THREADED_FORMS : forms,
-                                      predrillMills.length === 0,
-                                    ),
-                                  )
-                                }}
-                                className={cn(
-                                  'focus-visible:ring-info/60 text-2xs ml-1 rounded border px-2 py-1 transition focus-visible:ring-1 focus-visible:outline-none',
-                                  predrillMills.length > 0
-                                    ? 'border-info/60 bg-info/15 text-info'
-                                    : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
-                                )}
-                              >
-                                {millsLabel(query.terms.form ?? [])}
-                              </Button>
-                            ) : null}
-                          </Tabs.List>
-                        </Tabs>
-                      )}
+                        The heading of whichever list is on screen. A threaded
+                        hole used to put two tabs here — taps, then drills —
+                        and the pair of stacks in the tree is that pair of tabs
+                        now, so there is one title and the stack says which
+                        list it is over.
+                      */}
+                      <span className="text-zinc-200">{tableTitle}</span>
                       {/*
                         **How the thread is made lives over the drills it
                         decides** (Paul, 2026-09-07: "we should no longer show
@@ -4120,11 +4234,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           the other {String(rowsHidden)}
                         </span>
                       ) : null}
-                      {threadSpec !== null || perFeature || assemblyTree ? null : (
-                        <Badge variant={listed.length === 0 ? 'danger' : 'secondary'}>
-                          {listed.length}
-                        </Badge>
-                      )}
                       {tablePending ? (
                         <span
                           role="status"
@@ -4220,6 +4329,32 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                               {fitting.length - narrowed.length} that fit are hidden by the filters
                             </span>
                           ) : null}
+                          {/*
+                            **A live override is said where the list is, and
+                            changed where it was made** (Paul, 2026-09-08: "the
+                            override the rules button should be in the filter
+                            dialog rather than always shown"). This is the note,
+                            not the control: the press is in the column's own
+                            dialog, because that is the rule it overrules.
+                          */}
+                          {overriding.length > 0 && overrideTools.length > 0 ? (
+                            <span
+                              className="text-2xs text-zinc-400"
+                              title="Confirmed in that column's filter. Clearing the filter, or backing it out to what the geometry asked for, puts the rule back."
+                            >
+                              {overrideTools.length} the {overridden} rules turn down are listed
+                              {/*
+                                **No silent caps.** The list cannot draw more
+                                rows than this whether they are overridden or
+                                not, and a truncated answer that reads as the
+                                whole one is what sent somebody looking for
+                                half-inch cutters that were never on it.
+                              */}
+                              {(detailed?.overridableCount ?? 0) > overrideTools.length
+                                ? ` of ${String(detailed?.overridableCount ?? 0)} — narrow the filters to reach the rest`
+                                : ''}
+                            </span>
+                          ) : null}
                           {unheld > 0 ? (
                             <span
                               className="text-2xs text-zinc-500"
@@ -4279,7 +4414,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                             facets={facets}
                             query={query}
                             onQuery={apply}
-                            counts={(key) => axisCounts.get(key) ?? countBy(listed, key)}
+                            counts={countsOn}
                             unit={unit}
                             holding={{ tapers, series: colletSeries }}
                             materialGroup={materialGroup}
@@ -4435,7 +4570,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         that is different about it.
                       */
                         <PartToolTable
-                          tools={assemblyTree ? treeToolRows : tapRows}
+                          tools={treeToolRows}
                           columns={TAP_COLUMNS}
                           /*
                           **The row the panel is reading is the row that looks
@@ -4455,16 +4590,11 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                               : 'No tap of that size in the catalog. The hole can still be drilled.'
                           }
                           unit={unit}
-                          chosen={
-                            assemblyTree ? (assembly?.toolGuid ?? null) : (panelTool?.guid ?? null)
-                          }
+                          chosen={assembly?.toolGuid ?? null}
                           onChoose={(each) => {
                             setChosenTool(each.guid)
-                            if (assemblyTree) {
-                              fillSlot(each.guid)
-                            }
+                            fillSlot(each.guid)
                           }}
-                          holding={assemblyTree ? undefined : holding}
                           inBom={(each) => keptHere.has(each.guid)}
                           keptElsewhere={(each) => bom.has(each.guid) && !keptHere.has(each.guid)}
                           usedOn={(guid) => usedOn(guid)}
@@ -4476,9 +4606,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           // whatever column the list is sorted by.
                           tools={tableRows}
                           unit={unit}
-                          chosen={
-                            assemblyTree ? (assembly?.toolGuid ?? null) : (panelTool?.guid ?? null)
-                          }
+                          chosen={assembly?.toolGuid ?? null}
                           /*
                           **A row in the table lands in the slot that is open**
                           (Paul, 2026-09-07). Under the tree, clicking a tool
@@ -4489,20 +4617,11 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         */
                           onChoose={(each) => {
                             setChosenTool(each.guid)
-                            if (assemblyTree) {
-                              fillSlot(each.guid)
-                            }
+                            fillSlot(each.guid, removedByRules(each.guid))
                           }}
                           hiddenColumns={hiddenColumns}
                           columnOrder={columnOrder}
                           marks={marksOf}
-                          /*
-                          **No holder column under the tree.** The holder is a
-                          slot of the stack with a table of its own; a second
-                          way to set it from a dropdown on the tool row is the
-                          defect the tree exists to remove.
-                        */
-                          holding={assemblyTree ? undefined : holding}
                           /*
                            * Only in hole mode, where a tap section is under it.
                            *
@@ -4614,7 +4733,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
             new is that a holder and a collet get the same panel, and that the
             bill is written from here rather than from a highlighted row.
           */}
-          {assemblyTree && assembly !== null && node !== null ? (
+          {assembly !== null && node !== null ? (
             /*
               `overflow-hidden`, not `auto`: the panel inside is a full-height
               column whose regions scroll themselves, and a scrolling card would

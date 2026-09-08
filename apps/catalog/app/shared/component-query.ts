@@ -1,5 +1,12 @@
 import type { Collet, Holder } from '@toolpath/catalog-data'
-import { familyLabel, valueOf, type ComponentKind } from './component-columns'
+import {
+  colletTypeLabel,
+  familyLabel,
+  holderTypeLabel,
+  valueOf,
+  type ComponentKind,
+} from './component-columns'
+import { withinRange } from './filter'
 
 /**
  * Narrowing a holder or collet list the way the tool list is narrowed.
@@ -54,21 +61,42 @@ export const termAxesFor = (kind: ComponentKind): ReadonlyArray<{ code: string; 
   kind === 'holder' ? HOLDER_TERM_AXES : COLLET_TERM_AXES
 
 export interface ComponentQuery {
+  /**
+   * Free text over the catalog number and the vendor, together.
+   *
+   * **A rack is a list somebody arrives at already knowing the answer to**
+   * (Paul, 2026-09-08: "catalog number needs a text search in holders and
+   * collets as well"). The tool table has had one on its Catalog number column
+   * since the filters moved onto the headings; a holder had to be found by
+   * narrowing, which is no way to check whether the number on a chuck sitting
+   * on the bench is in the crib. The rule is the tool list's, to the letter:
+   * substring, case-insensitive, on the number and the brand at once, because
+   * typing `REGO` means the maker and typing `2600` means the chuck.
+   */
+  readonly text: string
   readonly terms: Readonly<Record<string, ReadonlyArray<string>>>
   readonly bounds: Readonly<Record<string, Bound>>
 }
 
-export const NO_QUERY: ComponentQuery = { terms: {}, bounds: {} }
+export const NO_QUERY: ComponentQuery = { text: '', terms: {}, bounds: {} }
 
 export const isEmptyQuery = (query: ComponentQuery): boolean =>
+  query.text.trim() === '' &&
   Object.values(query.terms).every((values) => values.length === 0) &&
   Object.values(query.bounds).every((bound) => bound.min === undefined && bound.max === undefined)
 
-/** How many narrowings are set, for the badge on the Filters button. */
+/** How many narrowings are set, for the button that clears them. */
 export const countTerms = (query: ComponentQuery): number =>
+  (query.text.trim() === '' ? 0 : 1) +
   Object.values(query.terms).reduce((total, values) => total + values.length, 0) +
   Object.values(query.bounds).filter((bound) => bound.min !== undefined || bound.max !== undefined)
     .length
+
+/** What somebody typed into the catalog-number column. */
+export const setText = (query: ComponentQuery, text: string): ComponentQuery => ({
+  ...query,
+  text,
+})
 
 export const toggleTerm = (query: ComponentQuery, code: string, value: string): ComponentQuery => {
   const had = query.terms[code] ?? []
@@ -128,6 +156,20 @@ export const termOn = (
   if (code === 'familyId') {
     return familyLabel(record.familyId)
   }
+  /**
+   * **What a holder *is*, as one line of a list** (Paul, 2026-09-08: "I should
+   * be able to filter by holder type as a list. Let's add that … same with
+   * collet type").
+   *
+   * `BT30 ER11 collet chuck` is how a shop says it out loud, and it is the
+   * phrase the Type column already shows. The three columns behind it — taper,
+   * collet series, clamping — still ask for themselves, because a shop that
+   * wants every BT30 it owns should not have to tick eleven phrases to get
+   * them; this is the shortcut through all three at once.
+   */
+  if (code === 'type') {
+    return kind === 'holder' ? holderTypeLabel(record as Holder) : colletTypeLabel(record as Collet)
+  }
   const value = valueOf(kind, record, code)
   return typeof value === 'string' ? value : null
 }
@@ -138,10 +180,9 @@ const withinBound = (value: number | string | null, bound: Bound): boolean => {
     // the same rule `matchesFilters` applies to a word.
     return false
   }
-  if (bound.min !== undefined && value < bound.min) {
-    return false
-  }
-  return !(bound.max !== undefined && value > bound.max)
+  // The same inclusive comparison the tool list uses — `filter.ts`
+  // § `BOUND_SLACK` says why `at most` needs a nanometre of room to mean it.
+  return withinRange(value, bound)
 }
 
 export const matchesQuery = (
@@ -149,6 +190,10 @@ export const matchesQuery = (
   record: Holder | Collet,
   query: ComponentQuery,
 ): boolean => {
+  const wanted = query.text.trim().toLowerCase()
+  if (wanted !== '' && !`${record.catalogNumber} ${record.brand}`.toLowerCase().includes(wanted)) {
+    return false
+  }
   for (const [code, values] of Object.entries(query.terms)) {
     if (values.length === 0) {
       continue

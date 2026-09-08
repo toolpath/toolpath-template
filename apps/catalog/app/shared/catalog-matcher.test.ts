@@ -53,6 +53,7 @@ const context = (features: ReadonlyArray<PartFeature>): MatchContext => ({
   holderFilters: { taper: [], colletSeries: [] },
   margins: { radial: 0, axial: 0 },
   thresholds: thresholdsFrom(),
+  overrides: [],
 })
 
 const catalog = { tools: [tool('SMALL', 6), tool('LARGE', 10)], holders: [], collets: [] }
@@ -240,6 +241,88 @@ describe('catalog matcher protocol', () => {
     expect(result.fitting.map((each) => each.toolGuid).sort()).toEqual(['MID', 'SMALL'])
     expect(result.narrowedGuids).toEqual(['MID'])
     expect(result.nearMisses.map((each) => each.toolGuid)).toEqual(['WIDE'])
+  })
+
+  /**
+   * **The filters are the last word** (Paul, 2026-09-08: "I may want to use a
+   * larger tool than required … when I change the filter, it currently shows me
+   * 'no tools match'"). Asking for the 10 mm cutter in an 8 mm pocket is a
+   * question with an answer, and every list the worker sent said nothing.
+   */
+  /** Widened past what the pocket admits: only WIDE is left, and it is removed. */
+  const widened = {
+    ...context([pocket('pocket-1')]),
+    query: { text: '', terms: {}, ranges: { DC: { min: 9 } } },
+  }
+
+  it('counts what each column alone is holding back, before anything is overridden', () => {
+    const result = detailedMatch(widened, { demandKey: 'one', tags: ['pocket-1'] }, wide)
+
+    expect(result.narrowedGuids).toEqual([])
+    expect(result.heldGuids).toEqual([])
+    // The offer the Diameter dialog makes, measured over the whole removed set.
+    expect(result.overridableByCode).toEqual({ DC: 1 })
+    // And nothing is forgiven that nobody asked to have forgiven.
+    expect(result.overridable).toEqual([])
+  })
+
+  it('sends the removed tools a forgiven column puts back, with their verdicts', () => {
+    const result = detailedMatch(
+      { ...widened, overrides: ['DC'] },
+      { demandKey: 'one', tags: ['pocket-1'] },
+      wide,
+    )
+
+    expect(result.overridable.map((each) => each.toolGuid)).toEqual(['WIDE'])
+    // With its verdict, so the table can still say which rule it overrules.
+    expect(result.overridable[0]?.removed.length).toBeGreaterThan(0)
+  })
+
+  /**
+   * **A filter overrules the rule it is the same question as, and no other**
+   * (Paul, 2026-09-08). Forgiving the flute length says nothing about a tool
+   * the diameter rows turned down.
+   */
+  it('forgives only the column that was overridden', () => {
+    const result = detailedMatch(
+      { ...widened, overrides: ['LCF'] },
+      { demandKey: 'one', tags: ['pocket-1'] },
+      wide,
+    )
+
+    expect(result.overridable).toEqual([])
+  })
+
+  it('offers nothing to override where the filters admit nothing the rules removed', () => {
+    const feature = pocket('pocket-1')
+    const input = {
+      ...context([feature]),
+      query: { text: '', terms: {}, ranges: { DC: { min: 7, max: 7 } } },
+      overrides: ['DC'],
+    }
+    const result = detailedMatch(input, { demandKey: 'one', tags: [feature.featureTag] }, wide)
+
+    // MID fits, so there is nothing being kept from the person by the rules —
+    // WIDE is outside their own range and is a near miss rather than an
+    // override.
+    expect(result.overridable).toEqual([])
+    expect(result.overridableByCode).toEqual({})
+    expect(result.nearMisses.map((each) => each.toolGuid)).toEqual(['WIDE'])
+  })
+
+  /**
+   * **An override must not evict a recommendation** — the same reasoning that
+   * keeps the display unit out of a one-each key: a pick is never drawn from the
+   * removed set, so an override cannot move it.
+   */
+  it('leaves an override out of a recommendation key and in a table key', () => {
+    const demands = [{ demandKey: 'one', tags: ['pocket-1'] }]
+    const forgiven = { ...widened, overrides: ['DC'] }
+
+    expect(matchKey('recommendations', forgiven, demands)).toBe(
+      matchKey('recommendations', widened, demands),
+    )
+    expect(matchKey('table', forgiven, demands)).not.toBe(matchKey('table', widened, demands))
   })
 
   it('sends the closest misses with the whole removed set as a count and a tally', () => {

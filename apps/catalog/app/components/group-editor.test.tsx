@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { GroupEditor } from './group-editor'
+import type { GroupReading } from 'shared/group-geometry'
 
 const nameOf = (tag: string): string => (tag.startsWith('hole') ? 'Through Hole' : 'Pocket')
 
@@ -15,6 +16,7 @@ const show = (props: Partial<Parameters<typeof GroupEditor>[0]> = {}) => {
       tags={['hole-1', 'pocket-1']}
       results="all"
       nameOf={nameOf}
+      unit="millimeters"
       picked
       {...handlers}
       {...props}
@@ -102,11 +104,109 @@ describe('building a group', () => {
     ).toBeInTheDocument()
   })
 
+  /**
+   * **Escape backs out of the box, the same as Cancel** (Paul, 2026-09-08).
+   * The draft had no answer of its own, so the press fell through to the page
+   * underneath, which dropped the reading and left the group open — the only
+   * way out of it was the mouse.
+   */
+  it('backs out on Escape', () => {
+    const { onCancel } = show()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
   /** An edit says it is one, in the heading and on the button. */
   it('says whether it is making a group or changing one', () => {
     show({ editing: true })
 
     expect(screen.getByText('Edit group')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save group' })).toBeInTheDocument()
+  })
+})
+
+/**
+ * **A group is one tool for all of them**, so the box says what that tool is up
+ * against: the hardest of the group's readings, and the feature that set it
+ * (Paul, 2026-09-08). The fold is `shared/group-geometry`, tested there; what
+ * this pins is that the panel says both halves of it.
+ */
+describe('what the group measures', () => {
+  const reading = (over: Partial<GroupReading>): GroupReading => ({
+    name: 'depth below top',
+    unit: 'mm',
+    icon: 'depthBelowTop',
+    bound: 'floor',
+    value: 40,
+    featureTag: 'hole-1',
+    per: [
+      { featureTag: 'hole-1', value: 40 },
+      { featureTag: 'pocket-1', value: 20 },
+    ],
+    ...over,
+  })
+
+  it('shows the worst case of the group', () => {
+    show({ readings: [reading({})] })
+
+    expect(screen.getByText('Worst case in the group')).toBeInTheDocument()
+    expect(screen.getByText('40.00 mm')).toBeInTheDocument()
+    expect(screen.getByText('depth below top')).toBeInTheDocument()
+  })
+
+  /**
+   * **The feature it came from is not on screen** (Paul, 2026-09-08). The chips
+   * above already say what is in the group, so naming one beside every number
+   * said it again; the tooltip below still traces it.
+   */
+  it('does not name the feature beside the number', () => {
+    show({ readings: [reading({})] })
+
+    // The chips above still name it; what came off is the name beside the
+    // number, so the label is the field and nothing else.
+    const label = screen.getByText('depth below top')
+    expect(label.tagName).toBe('DT')
+    expect(label.querySelector('span')).toBeNull()
+    expect(screen.getByText('40.00 mm').closest('div')).toHaveAttribute(
+      'title',
+      'Through Hole 40.00 mm · Pocket 20.00 mm',
+    )
+  })
+
+  /**
+   * A field with no hard end to it — two holes of different diameters — has no
+   * worst case, so the box says they differ rather than showing one of them.
+   */
+  it('says a field differs rather than showing one side of it', () => {
+    show({
+      readings: [
+        reading({
+          name: 'hole diameter',
+          icon: 'diameter',
+          bound: 'match',
+          value: null,
+          featureTag: null,
+          per: [
+            { featureTag: 'hole-1', value: 6 },
+            { featureTag: 'pocket-1', value: 8 },
+          ],
+        }),
+      ],
+    })
+
+    expect(screen.getByText('differs')).toBeInTheDocument()
+    expect(screen.getByText('hole diameter').closest('div')).toHaveAttribute(
+      'title',
+      'Through Hole 6.00 mm · Pocket 8.00 mm',
+    )
+  })
+
+  /** Nothing measured is no section: an empty strip reads as a failed measurement. */
+  it('shows no section while the group has nothing to measure', () => {
+    show()
+
+    expect(screen.queryByText('Worst case in the group')).toBeNull()
   })
 })

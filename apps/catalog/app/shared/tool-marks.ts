@@ -33,6 +33,19 @@ const CODES: Readonly<Record<string, string>> = {
   'shoulder diameter': 'shoulder-diameter',
 }
 
+/**
+ * Which column a rule is about, or nothing where no column shows it.
+ *
+ * **A filter can only overrule a rule it is the same question as.** Widening
+ * the Diameter bound sets aside the diameter rows of the sheet and nothing
+ * else; a tool the *flute length* rows turned down is still turned down, and a
+ * tool removed for being the wrong kind of tool altogether was never a
+ * question a column asked. `tool-fit.ts` § `overridableTools` is what reads
+ * this, and answering `null` is what keeps those two out of an override.
+ */
+export const columnOfRule = (rule: Rule | null): string | null =>
+  rule === null || rule.test.kind === 'rank' ? null : (CODES[rule.test.field] ?? null)
+
 export type Mark =
   | {
       readonly ok: true
@@ -424,4 +437,25 @@ export const shortfallMarks = (
                   'Pulled out as far as its shank allows, it still does not reach the bottom of the hole.',
           },
   }
+}
+
+/**
+ * What a tree row says when somebody put a tool there the rules had removed.
+ *
+ * **The words are the rules' own** (Paul, 2026-09-08: "a small warning should
+ * show in the tree denoting that I chose a geometrically incompatible tool").
+ * A warning that only says "incompatible" tells a shop something it already
+ * knew — it widened the filter on purpose; what it needs back is which rule it
+ * overruled and by how much, which is the same sentence the red mark in the
+ * table carried.
+ *
+ * The fallback is not a defect: a verdict only exists while the tool is in an
+ * answer, and a stack outlives the question it was built under. The choice was
+ * still made against the rules, so the warning still stands — with less to say.
+ */
+export const overrideNote = (verdict: Verdict | null): string => {
+  const said = (verdict?.removed ?? []).map((reason) => reason.text).filter((text) => text !== '')
+  return said.length === 0
+    ? 'Chosen against the rules for this feature.'
+    : `Chosen against the rules for this feature: ${said.join('; ')}.`
 }

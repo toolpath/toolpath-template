@@ -217,7 +217,17 @@ always somebody's preference, and always visible and reversible.
   publishes (2026-09-08). `type` is the form with the shank in its words —
   `Reduced shank bull nose end mill` — and `family` is the vendor's product
   line, or the family under it where the vendor names no line. Each replaced a
-  pair of axes a shop had to answer twice.
+  pair of axes a shop had to answer twice. A holder and a collet have a `type`
+  of the same kind: `BT30 ER11 collet chuck`, the shortcut through taper,
+  clamping and series at once.
+- **A reduced shank is `SFDM < DC`** and nothing else (Paul, 2026-09-08) — the
+  shank behind the cut is thinner than the cut. It is _not_ `shankOf`, the
+  package's reading of a neck standing back from the flutes: over the scrape
+  those two find 7,499 tools and 6,378 tools with exactly one tool in both, so
+  which one the words are built from is a decision rather than a detail.
+  Taps and slot mills are left out of the phrase — a tap's shank is sized to
+  the chuck, and a slot mill has no full-shank version to be told apart from —
+  which leaves 126 tools, all of them mills, reading `Reduced shank …`.
 - **What is behind them still runs.** `form`, `shank`, `familyId`,
   `productLine`, `taper` and `colletSeries` are all still matched, still read
   off a URL, and two of them are still written by the app itself — they simply
@@ -258,7 +268,8 @@ always somebody's preference, and always visible and reversible.
   header that shows them, with a funnel that is drawn whether or not it is set
   and filled when it is. A filter written anywhere else has to name the thing it
   narrows; a filter on the header is already pointing at it.
-- **One button is left: the part's material.** It is not a column and is not
+- **One button is left: the part's material**, in the top right beside the
+  column picker rather than on a row of its own (Paul, 2026-09-08). It is not a column and is not
   going to be one — it is a property of the _part_, which is why it both
   narrows the list and orders it. Everything else went onto a column or off the
   page (Paul, 2026-09-08: "I don't love how the filters are hidden behind the
@@ -285,6 +296,44 @@ always somebody's preference, and always visible and reversible.
   a scroll container on both axes, so a menu positioned inside a header cell is
   clipped at the header's own edge — which is why the first pair of header
   filters here was written and never wired up.
+- **It stays up until somebody presses off it** (Paul, 2026-09-08: "the filter
+  options clear immediately when I make a selection … I'll often want to
+  multi-select in these dialogs"). Ticking a value, choosing an operator and
+  typing a number all leave the menu where it is; a press anywhere else, or
+  Escape, puts it away. The menu is therefore the **table's** rather than the
+  heading's: a virtualized header is thrown away and built again on every render
+  of the list it stands over — the kit hands `react-window` an
+  `innerElementType` it builds inline — so a menu a heading held open closed
+  itself on the one press it exists for. `components/column-filter.tsx` holds
+  the rule and `tests/on-the-part.spec.ts` is the sensor. The funnel opens on
+  the press rather than on the click for the same reason: a `click` needs the
+  press and the release on one element, and the header does not survive between
+  them while the matcher is answering.
+- **A list of words has a box over it, and a button beside the box** (Paul,
+  2026-09-08). Every filter that narrows on words — the tool list's Vendor, Type
+  and Family; a holder's Vendor, Type, Family, Taper, Clamping and Collet
+  series; a collet's Vendor, Type, Family and Series — opens with a search over
+  its own options and a **Select shown** beside it. Family runs to hundreds of
+  values, so a list of ticks alone is a list nobody reaches the bottom of; the
+  search narrows the options and the button ticks every option it is showing, so
+  one vendor's whole product line is one press rather than eleven. **Searching
+  is not choosing**: a value ticked and then hidden by the next word typed is
+  still a value the shop asked for, and comes back ticked when the box is
+  cleared. The button turns into **Clear shown** once everything on screen is
+  ticked, and takes back exactly what it gave — nothing chosen off-screen moves.
+  `components/column-filter.tsx` § `optionsMatching` is the rule and
+  `components/column-filter.test.tsx` the sensor. The catalog number stays a
+  plain text box: it narrows the rows, not a list of options.
+- **An axis that has been narrowed keeps offering what it last offered.** With a
+  feature on screen the counts are measured over the rows the matcher answered
+  with, and the matcher only judges what the terms already admit — so the moment
+  one vendor is ticked, no other vendor's tools have been judged for that
+  feature and the axis can only report itself. `shared/filter.ts` §
+  `stillOffered` remembers the list from the last moment the question could be
+  answered, so a second value is one press away; clearing the axis asks it
+  again. The counts themselves are over **the rows the list is holding**, near
+  misses included — a picker saying "nothing to narrow by" over four rows on
+  screen was the same rule broken at the other end.
 
 > **Open questions**
 >
@@ -399,9 +448,15 @@ the order the rules rank them, with a mark on every number the rules read.
   vendor, type and family as checkbox lists, the catalog number as a search. The
   two holding cells ask nothing: they _set_ the holder and collet on that row
   rather than holding a value to narrow on.
-- **Four fixed columns**: catalog number, vendor, type, family — the same four
-  every holder and collet row carries. Type says the shank where the shank is
-  narrower than the cut; family says the vendor's line where it names one.
+- **Four columns say which tool a row is**: catalog number, vendor, type,
+  family — the same four every holder and collet row carries, asking the same
+  questions on all three lists. Type says the shank where the shank is narrower
+  than the cut; family says the vendor's line where it names one; the catalog
+  number is a search over the number and the vendor together.
+- **They are in the column picker with the rest** (Paul, 2026-09-08: "I should
+  also see ALL the columns in the list"). Nothing is drawn outside the column
+  set any more, so every column can be hidden and dragged — which is also what
+  keeps the picker honest about what a list holds.
 - **A heading shows both of the things it can do**: a pair of faint chevrons
   saying it sorts, a funnel saying it narrows. The kit draws an arrow only on
   the column already sorted, so every other heading used to be a word with no

@@ -8,13 +8,8 @@ import {
 } from '@toolpath/part-contracts/measurements'
 import { ThreadPicker } from './thread-picker'
 import type { HoleMode, ThreadSpec } from 'shared/threads'
-import {
-  UNIT_ABBREVIATION,
-  type UnitSystem,
-  convertLength,
-  decimalsFor,
-} from '@toolpath/tool-support'
-import { defaultsFor, readingsFor, type Reading } from 'shared/feature-defaults'
+import { type UnitSystem } from '@toolpath/tool-support'
+import { defaultsFor, readingText, readingsFor } from 'shared/feature-defaults'
 import { featureRow } from 'shared/feature-rows'
 import { KindIcon, MeasurementIcon } from './feature-icons'
 import { CatalogComboboxButton } from './catalog-combobox-button'
@@ -154,22 +149,6 @@ export const SelectionPanel = ({
     return ld ? [...kept, ld] : kept
   })()
 
-  const shown = (reading: Reading): string => {
-    if (typeof reading.value === 'string') {
-      return reading.value
-    }
-    switch (reading.unit) {
-      case 'mm':
-        return `${convertLength(reading.value, 'millimeters', unit).toFixed(decimalsFor(unit))} ${UNIT_ABBREVIATION[unit]}`
-      case 'deg':
-        return `${reading.value.toFixed(1)}°`
-      case 'ratio':
-        return reading.value.toFixed(2)
-      default:
-        return String(reading.value)
-    }
-  }
-
   return (
     <div className="flex flex-col gap-1.5">
       {/* **The field is drawn before it has an answer.** An empty panel that
@@ -276,7 +255,7 @@ export const SelectionPanel = ({
               <span className="shrink-0 text-zinc-600">
                 <MeasurementIcon measurement={each.icon} />
               </span>
-              <dd className="font-mono text-xs text-zinc-100">{shown(each)}</dd>
+              <dd className="font-mono text-xs text-zinc-100">{readingText(each, unit)}</dd>
               <dt className="text-2xs text-zinc-500">{each.name}</dt>
             </div>
           ))}

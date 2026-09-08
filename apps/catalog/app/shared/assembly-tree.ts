@@ -86,6 +86,30 @@ export interface TreeAssembly {
    * kept beside an empty bill means anyway.
    */
   readonly orderedTool?: string | null
+  /**
+   * The slots holding something the rules had removed for this feature.
+   *
+   * **An override has to be visible on the stack it is in** (Paul, 2026-09-08:
+   * "I should be able to change the filter, see incompatible tools, and add
+   * them … a small warning should show in the tree denoting that I chose a
+   * geometrically incompatible tool"). The filters are the last word — a shop
+   * running a larger cutter than the geometry asks for is making a decision,
+   * not a mistake — but a decision taken against the rules and then drawn
+   * exactly like one taken with them is a decision nobody can review.
+   *
+   * Written here rather than derived, and that is the point. What the rules say
+   * about a tool is only known while that tool is in an answer, and an answer
+   * is a question about *these* filters: clearing the range that admitted the
+   * cutter would take the tool out of the removed list it was picked from and
+   * the warning with it. The override is a fact about the choice somebody made,
+   * so it is kept with the choice.
+   *
+   * Absent on every tree stored before the field existed, and on one read back
+   * off the bill — a line carries a tool, not why it was picked — both of which
+   * read as "nothing was overridden", which is what a tree with no record of
+   * one means.
+   */
+  readonly overrides?: ReadonlyArray<Slot>
 }
 
 /** Which slot of which assembly is being filled — what the table below is a list of. */
@@ -100,6 +124,14 @@ export const sameNode = (a: TreeNode | null, b: TreeNode | null): boolean =>
 /** What a slot is called on this assembly: a tool slot wears its role's name. */
 export const slotLabel = (assembly: TreeAssembly, slot: Slot): string =>
   slot === 'tool' ? ROLE_LABEL[assembly.role] : SLOT_LABEL[slot]
+
+/** Whether this slot was filled against the rules, rather than by them. */
+export const isOverride = (assembly: TreeAssembly, slot: Slot): boolean =>
+  (assembly.overrides ?? []).includes(slot)
+
+/** Whether anything in this stack was, which is what one card has to say. */
+export const hasOverride = (assembly: TreeAssembly): boolean =>
+  (assembly.overrides ?? []).length > 0
 
 /** What a slot holds, by guid, or nothing. */
 export const guidAt = (assembly: TreeAssembly, slot: Slot): string | null =>
@@ -301,6 +333,24 @@ export const removeAssembly = (
 }
 
 /**
+ * The overrides a stack is left with once one slot is written.
+ *
+ * The slot's own mark follows what is going into it, and a holder change takes
+ * the collet's with it for the same reason it takes the collet: the collet is
+ * gone, so a warning about it is about nothing.
+ */
+const overridesAfter = (
+  assembly: TreeAssembly,
+  slot: Slot,
+  override: boolean,
+): ReadonlyArray<Slot> => {
+  const kept = (assembly.overrides ?? []).filter(
+    (each) => each !== slot && !(slot === 'holder' && each === 'collet'),
+  )
+  return override ? [...kept, slot] : kept
+}
+
+/**
  * One slot filled — or emptied, with `null`.
  *
  * **A holder change clears the collet under it.** A collet is a mechanical
@@ -313,18 +363,29 @@ export const setSlot = (
   id: string,
   slot: Slot,
   guid: string | null,
+  /**
+   * Whether what is going in was chosen against the rules — {@link
+   * TreeAssembly.overrides}.
+   *
+   * A parameter of the write rather than a mark applied afterwards, because
+   * every way a slot changes has to settle it: filling it with a tool that
+   * fits, or clearing it, takes the warning off, and a warning left behind by
+   * the choice it was about is worse than no warning at all.
+   */
+  override = false,
 ): Array<TreeAssembly> =>
   assemblies.map((each) => {
     if (each.id !== id) {
       return each
     }
+    const overrides = overridesAfter(each, slot, override)
     if (slot === 'tool') {
-      return { ...each, toolGuid: guid }
+      return { ...each, toolGuid: guid, overrides }
     }
     if (slot === 'holder') {
-      return { ...each, holderGuid: guid, colletGuid: null }
+      return { ...each, holderGuid: guid, colletGuid: null, overrides }
     }
-    return { ...each, colletGuid: guid }
+    return { ...each, colletGuid: guid, overrides }
   })
 
 /**
@@ -369,6 +430,9 @@ export const restoreAssembly = (
           holderGuid: line.holderGuid ?? null,
           colletGuid: line.colletGuid ?? null,
           orderedTool: line.toolGuid,
+          // Put back to the line the bill holds, so nothing in it is an
+          // unreviewed choice of this session's any more.
+          overrides: [],
         }
       : each,
   )
@@ -552,7 +616,12 @@ const isAssembly = (value: unknown): value is TreeAssembly => {
     // "not on the order list" — the honest answer for a tree with no line.
     (assembly.orderedTool === undefined ||
       assembly.orderedTool === null ||
-      typeof assembly.orderedTool === 'string')
+      typeof assembly.orderedTool === 'string') &&
+    // Absent on every tree stored before the field existed, which reads as
+    // nothing overridden — see `TreeAssembly.overrides`.
+    (assembly.overrides === undefined ||
+      (Array.isArray(assembly.overrides) &&
+        assembly.overrides.every((slot) => SLOTS.includes(slot))))
   )
 }
 

@@ -31,6 +31,7 @@ const context: MatchContext = {
   holderFilters: { taper: [], colletSeries: [] },
   margins: { radial: 0, axial: 0 },
   thresholds: thresholdsFrom(),
+  overrides: [],
 }
 
 afterEach(() => {

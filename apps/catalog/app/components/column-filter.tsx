@@ -1,12 +1,14 @@
-import { Checkbox, Combobox, IconButton, Input, cn } from '@toolpath/ui'
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { Button, Checkbox, Combobox, IconButton, Input, cn } from '@toolpath/ui'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import {
+  CheckIcon,
   DotsSixVerticalIcon,
   FunnelIcon,
   FunnelSimpleIcon,
   PencilSimpleIcon,
 } from '@phosphor-icons/react'
+import { Chip } from './chip'
 import {
   UNIT_ABBREVIATION,
   type UnitSystem,
@@ -98,7 +100,7 @@ const sameEnd = (a: number | undefined, b: number | undefined): boolean =>
   a === undefined || b === undefined ? a === b : Math.abs(a - b) < 1e-9
 
 /** Whether two bounds ask the same thing, allowing for a float's last digit. */
-const sameBound = (a: Bound | undefined, b: Bound | undefined): boolean => {
+export const sameBound = (a: Bound | undefined, b: Bound | undefined): boolean => {
   if (a === undefined || b === undefined) {
     return a === b
   }
@@ -257,36 +259,188 @@ export const RangeFilter = ({ label, bound, onBound, unit, kind }: RangeFilterPr
 }
 
 /**
- * The popover a column header opens, drawn over the page rather than in the table.
+ * What a column offers when the number in it no longer matches the geometry's.
+ *
+ * **The warning belongs on the filter that caused it, and it asks before it
+ * acts** (Paul, 2026-09-08: "it should recognize if I enter something to
+ * override the rules and warn me to confirm it … when I override a
+ * geometry-set filter, it should warn me there").
+ *
+ * The suggested bound was written from the same `must` rows that go on to judge
+ * every tool, so changing it asks for precisely what the rules then remove.
+ * That is a decision a shop is entitled to make — a larger cutter than the
+ * geometry needs is an ordinary thing to run — and it is not one to make by
+ * accident, so the change is what raises the warning and a press is what acts
+ * on it. **This column only:** forgiving the diameter says nothing about the
+ * flute length, and the count is the tools this column alone is holding back.
+ */
+export interface ColumnOverride {
+  /** What the geometry asked for here, or nothing where it asked nothing. */
+  readonly suggested: Bound | undefined
+  /** How many tools only this column's rules are keeping off the list. */
+  readonly available: number
+  readonly on: boolean
+  readonly onOverride: (on: boolean) => void
+  /** The suggested bound in the words the boxes above are using. */
+  readonly say: (bound: Bound) => string
+}
+
+/**
+ * Whether this column has a number of somebody's own in it.
+ *
+ * **A filter is somebody's answer the moment it is not the geometry's.** Typing
+ * a bound where the geometry suggested one is the case this started from; typing
+ * one where it suggested nothing is the same act, and gating on a suggestion
+ * meant a column the sheet happens not to bound could never be overruled at all
+ * even while its rules were holding tools off the list.
+ *
+ * So: a bound is set, and it is not simply the suggestion left untouched. With
+ * no bound at all there is nothing to overrule — the rules are the only thing
+ * narrowing that number, which is the ordinary state of the page.
+ */
+export const overrideOffered = (
+  bound: Bound | undefined,
+  override: ColumnOverride | undefined,
+): override is ColumnOverride =>
+  override !== undefined &&
+  compareOf(bound) !== 'any' &&
+  !(override.suggested !== undefined && sameBound(bound, override.suggested))
+
+/**
+ * The press, beside the tick that closes the filter.
+ *
+ * **Small, and one thing** (Paul, 2026-09-08: "the button should be smaller —
+ * it should say basically override rules next to the check mark icon and
+ * nothing else"). A full-width primary button inside the dialog read as the
+ * dialog's main action, which it is not: the main action is the number above
+ * it. This is the same `Chip` every other on-or-off control on this page is,
+ * and what it is about is in the sentence underneath.
+ */
+export const OverrideToggle = ({
+  label,
+  override,
+}: {
+  readonly label: string
+  readonly override: ColumnOverride
+}) => (
+  <Chip
+    pressed={override.on}
+    onClick={() => override.onOverride(!override.on)}
+    label={`Override the ${label.toLowerCase()} rules`}
+    title={`List the ${String(override.available)} tools only the ${label.toLowerCase()} rules are keeping off this list. They are marked, and so is any assembly one goes into.`}
+  >
+    Override rules
+  </Chip>
+)
+
+/**
+ * The sentence under the boxes: what the geometry asked for, and what changing
+ * it does not do.
+ *
+ * **Quiet** (Paul, 2026-09-08: "the colouring on the messaging should be less
+ * dramatic and not yellow"). A shop running a larger cutter than the geometry
+ * needs is doing an ordinary thing; an alarm-coloured panel around it said it
+ * had done something wrong. It reads as a footnote to the number above it, and
+ * the one thing that is not a footnote — the press — is in the chrome.
+ */
+export const OverrideNotice = ({
+  label,
+  bound,
+  override,
+}: {
+  readonly label: string
+  readonly bound: Bound | undefined
+  readonly override: ColumnOverride
+}) => {
+  const { suggested, available, on, say } = override
+  if (!overrideOffered(bound, override)) {
+    return null
+  }
+  const named = label.toLowerCase()
+  return (
+    <p
+      role="note"
+      data-column-override
+      className="text-2xs mt-2 max-w-64 border-l border-zinc-700 pl-2 leading-snug text-zinc-400"
+    >
+      {suggested === undefined
+        ? `The rules still judge the ${named} whatever this says.`
+        : `The geometry asked for ${say(suggested)}. Changing it does not change the rules.`}{' '}
+      {available === 0 ? (
+        <>Nothing is being held back by the {named} rules alone.</>
+      ) : on ? (
+        <>
+          <span className="text-zinc-300">Override rules</span> is on: {available} the {named} rules
+          turn down are listed, marked.
+        </>
+      ) : (
+        <>
+          {available} tools only the {named} rules turn down are off this list —{' '}
+          <span className="text-zinc-300">Override rules</span> lists them.
+        </>
+      )}
+    </p>
+  )
+}
+
+/**
+ * The box a column's funnel opens, drawn over the page and away from the table.
  *
  * **A menu inside the table is a menu nobody can read.** The kit's table is a
  * scroll container on both axes, so a box positioned inside a header cell is
  * clipped at the header's own edge — which is why a filter on a header could
- * not be built out of an absolutely positioned `div` and why the first pair
- * here went unused. This is a portal, placed against the button that opened it
- * and kept inside the window, so a filter on the last column opens leftwards
- * instead of off the screen.
+ * not be built out of an absolutely positioned `div`. This is a portal, placed
+ * against the funnel that opened it and kept inside the window, so a filter on
+ * the last column opens leftwards instead of off the screen.
+ *
+ * **It is rendered by the table, not by the heading** (Paul, 2026-09-08: "the
+ * filter options clear immediately when I make a selection … they should stay
+ * active until I click outside of them"). A virtualized table hands
+ * `react-window` an `innerElementType` it builds inline, so every render of the
+ * list reaches React as a new component type and the whole inner tree — the
+ * header row with it — is thrown away and built again. A menu held open by a
+ * heading therefore closed itself on the press that narrowed the list, which is
+ * the one press it exists for: a second vendor could not be ticked, a number
+ * could not be typed past its first digit. Nothing about that is fixable from
+ * inside a header cell, so what has to survive lives outside one.
  */
-const HeaderMenu = ({
+export const FilterMenu = ({
   label,
-  anchor,
+  code,
+  anchors,
   align,
+  onClose,
+  action,
   children,
 }: {
   readonly label: string
-  readonly anchor: HTMLElement | null
-  /** Which edge of the button the menu lines up with. */
+  /** The column, which is how the funnel to measure against is found. */
+  readonly code: string
+  /** The table this menu belongs to, so two lists' funnels are never confused. */
+  readonly anchors: RefObject<HTMLElement | null>
+  /** Which edge of the funnel the menu lines up with. */
   readonly align: 'left' | 'right'
+  readonly onClose: () => void
+  /** One control in the chrome beside the tick, where the filter offers one. */
+  readonly action?: ReactNode
   readonly children: ReactNode
 }) => {
   const box = useRef<HTMLDivElement>(null)
   const [at, setAt] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
 
   useLayoutEffect(() => {
-    if (anchor === null) {
-      return
-    }
     const place = () => {
+      // Found rather than held: the funnel is inside a header the table rebuilds
+      // under this menu, so the element measured a moment ago is not the one on
+      // screen now.
+      const anchor = anchors.current?.querySelector<HTMLElement>(`[data-column-funnel="${code}"]`)
+      if (anchor === undefined || anchor === null || anchor.checkVisibility?.() === false) {
+        // The column is not on screen any more — taken off by the column
+        // picker, or behind whichever list the table switched to. A menu
+        // standing over nothing is one nothing can be read back off.
+        onClose()
+        return
+      }
       const button = anchor.getBoundingClientRect()
       const width = box.current?.getBoundingClientRect().width ?? 0
       const wanted = align === 'right' ? button.right - width : button.left
@@ -304,7 +458,36 @@ const HeaderMenu = ({
       window.removeEventListener('resize', place)
       window.removeEventListener('scroll', place, true)
     }
-  }, [anchor, align])
+  }, [anchors, code, align, onClose])
+
+  useEffect(() => {
+    const onDown = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null
+      if (target === null || box.current?.contains(target) === true) {
+        return
+      }
+      // A press on a funnel is that button's own business: it opens its column
+      // or closes this one, and closing here first would undo its own press.
+      if (target.closest('[data-column-funnel]') !== null) {
+        return
+      }
+      /*
+        **A dropdown opened from inside this menu is inside it.** The kit draws
+        a `Combobox` popover in a portal of its own, so choosing "≥ at least"
+        for a range read as a press on the page and shut the filter before the
+        box to type in had been drawn.
+      */
+      if (target.closest('[data-base-ui-portal]') !== null) {
+        return
+      }
+      onClose()
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [onClose])
+
+  // Escape puts it away as well, without going back to find the header.
+  useEscape(true, onClose)
 
   return createPortal(
     <div
@@ -315,7 +498,28 @@ const HeaderMenu = ({
       style={{ top: at.top, left: at.left }}
       className="fixed z-50 rounded-lg border border-zinc-800 bg-zinc-950 p-2 shadow-xl"
     >
-      <p className="text-2xs mb-1.5 tracking-wide text-zinc-500 uppercase">{label}</p>
+      {/*
+        **Every filter has a way out that is not a guess** (Paul, 2026-09-08: "I
+        should have a check box icon to confirm filters on every filter, which
+        just closes it saved at the current state"). A filter commits as it is
+        typed, so there is nothing left to save — what was missing was somewhere
+        to say *done* other than a click on the page, which is the one gesture
+        that is indistinguishable from a misclick.
+      */}
+      <div className="mb-1.5 flex items-center gap-2">
+        <p className="text-2xs flex-1 tracking-wide text-zinc-500 uppercase">{label}</p>
+        {action}
+        <IconButton
+          size="md"
+          variant="muted"
+          aria-label={`Done filtering by ${label}`}
+          title="Done — keep this filter and close"
+          onClick={onClose}
+          className="text-info !size-5 rounded border-0 bg-transparent hover:bg-zinc-800 [&_svg]:!size-3"
+        >
+          <CheckIcon aria-hidden="true" weight="bold" />
+        </IconButton>
+      </div>
       {children}
     </div>,
     document.body,
@@ -323,7 +527,7 @@ const HeaderMenu = ({
 }
 
 /**
- * The funnel on a column header, and what it opens.
+ * The funnel on a column header, which says whether the column narrows.
  *
  * Always drawn, filled when the column is narrowing the list: a filter nobody
  * can see is a filter nobody can find their way back out of, and the funnel is
@@ -332,126 +536,173 @@ const HeaderMenu = ({
  * Every press inside it is kept off the header, because the header is the sort:
  * a click that both opened the filter and re-sorted the table is one click
  * doing two things nobody asked for.
+ *
+ * Whether it is open is the **table's** to remember, for the reason
+ * `FilterMenu` gives: this button does not outlive one press of itself.
+ *
+ * **It opens on the press rather than on the click**, for the same reason. A
+ * `click` is only fired where the press and the release land on the same
+ * element, and the header this button stands in is thrown away and built again
+ * whenever the list re-renders — so a press while the matcher was answering
+ * released onto a different button and no click was ever fired. The press is
+ * the whole gesture; the keyboard has no press, so `detail === 0` — Enter or
+ * Space on a focused button — is taken from the click instead.
  */
-export const HeaderFilter = ({
+export const FilterFunnel = ({
+  code,
   label,
   set,
-  align = 'left',
-  children,
+  open,
+  onToggle,
 }: {
+  readonly code: string
   readonly label: string
   readonly set: boolean
-  readonly align?: 'left' | 'right'
-  readonly children: ReactNode
-}) => {
-  const [open, setOpen] = useState(false)
-  const mine = useRef<HTMLSpanElement>(null)
-  const anchor = useRef<HTMLSpanElement>(null)
-
-  useEffect(() => {
-    if (!open) {
-      return
-    }
-    const onDown = (event: PointerEvent) => {
-      const target = event.target as Node
-      if (
-        !mine.current?.contains(target) &&
-        !document.querySelector('[data-column-filter-menu]')?.contains(target)
-      ) {
-        setOpen(false)
+  readonly open: boolean
+  readonly onToggle: () => void
+}) => (
+  <span
+    data-column-funnel={code}
+    className="inline-flex items-center"
+    onClick={(event) => event.stopPropagation()}
+    onMouseDown={(event) => event.stopPropagation()}
+    style={{ pointerEvents: 'auto' }}
+  >
+    <IconButton
+      size="md"
+      variant="muted"
+      aria-label={`Filter by ${label}`}
+      aria-expanded={open}
+      title={set ? `Filtered by ${label}` : `Filter by ${label}`}
+      onPointerDown={onToggle}
+      onClick={(event) => {
+        if (event.detail === 0) {
+          onToggle()
+        }
+      }}
+      /*
+        **The table turns pointer events off inside a button.** Its own
+        stylesheet says `button * { pointer-events: none }` so that a click
+        anywhere in a sortable heading counts as a press on the heading —
+        which swallowed every press on this funnel, sorting the column
+        instead of opening the filter. An inline style is what beats it,
+        the same way the kit's own `HeaderCellInteractive` does.
+      */
+      style={{ pointerEvents: 'auto' }}
+      className={
+        set
+          ? 'text-info rounded p-0.5 hover:bg-zinc-800'
+          : 'rounded p-0.5 text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300'
       }
-    }
-    document.addEventListener('pointerdown', onDown)
-    return () => document.removeEventListener('pointerdown', onDown)
-  }, [open])
-
-  // Escape puts it away as well, without going back to find the header.
-  useEscape(open, () => setOpen(false))
-
-  return (
-    <span
-      ref={mine}
-      className="inline-flex items-center"
-      onClick={(event) => event.stopPropagation()}
-      onMouseDown={(event) => event.stopPropagation()}
     >
-      <span ref={anchor} className="inline-flex" style={{ pointerEvents: 'auto' }}>
-        <IconButton
-          size="md"
-          variant="muted"
-          aria-label={`Filter by ${label}`}
-          aria-expanded={open}
-          title={set ? `Filtered by ${label}` : `Filter by ${label}`}
-          onClick={() => setOpen(!open)}
-          /*
-            **The table turns pointer events off inside a button.** Its own
-            stylesheet says `button * { pointer-events: none }` so that a click
-            anywhere in a sortable heading counts as a press on the heading —
-            which swallowed every press on this funnel, sorting the column
-            instead of opening the filter. An inline style is what beats it,
-            the same way the kit's own `HeaderCellInteractive` does.
-          */
-          style={{ pointerEvents: 'auto' }}
-          className={
-            set
-              ? 'text-info rounded p-0.5 hover:bg-zinc-800'
-              : 'rounded p-0.5 text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300'
-          }
-        >
-          {set ? <FunnelIcon weight="fill" /> : <FunnelSimpleIcon />}
-        </IconButton>
-      </span>
-      {open ? (
-        <HeaderMenu label={label} anchor={anchor.current} align={align}>
-          {children}
-        </HeaderMenu>
-      ) : null}
-    </span>
+      {set ? <FunnelIcon weight="fill" /> : <FunnelSimpleIcon />}
+    </IconButton>
+  </span>
+)
+
+/**
+ * Which of a term filter's options a typed word leaves.
+ *
+ * Substring, case-insensitive, on the words the list shows rather than on the
+ * value behind them: a holder's type option reads `BT30 ER11 collet chuck` over
+ * a value nobody has ever seen, so matching the value would answer `ER11` with
+ * nothing. The value is matched as well, because a vendor's own code is
+ * sometimes the only thing shorter than the phrase.
+ */
+export const optionsMatching = <Option extends { value: string; label: string }>(
+  options: ReadonlyArray<Option>,
+  search: string,
+): ReadonlyArray<Option> => {
+  const wanted = search.trim().toLowerCase()
+  if (wanted === '') {
+    return options
+  }
+  return options.filter(
+    (option) =>
+      option.label.toLowerCase().includes(wanted) || option.value.toLowerCase().includes(wanted),
   )
 }
 
 /**
- * A column header that narrows on its own number.
- *
- * In the header rather than in a panel above the table, because the question is
- * about *that column*: a filter written somewhere else has to name the thing it
- * narrows, and a filter on the header is already pointing at it.
- */
-export const ColumnFilter = ({ label, bound, onBound, unit, kind }: RangeFilterProps) => (
-  <HeaderFilter label={label} set={compareOf(bound) !== 'any'} align="right">
-    <RangeFilter label={label} bound={bound} onBound={onBound} unit={unit} kind={kind} />
-  </HeaderFilter>
-)
-
-/**
- * A column header that filters on a set of names rather than a number.
+ * Narrowing on a set of names rather than on a number.
  *
  * The Vendor and Type columns, and every word a holder or a collet is picked
  * on. Offered as checkboxes over what the list currently holds, with a count
  * beside each, so a value that would empty the list can be told from a rare one
- * before it is pressed.
+ * before it is pressed. **Several of them, one after another**: the menu is the
+ * table's and stays where it is until somebody presses off it.
+ *
+ * **A list of ticks is unusable once the axis is long** (Paul, 2026-09-08).
+ * Family runs to hundreds of values and Type to dozens, so the box at the top
+ * narrows the options themselves, and the button beside it ticks every option
+ * the box is showing — which is how `HARVI` becomes one filter rather than
+ * eleven presses down a scrolling list. Searching is not narrowing: what it
+ * hides stays chosen, because a value ticked and then scrolled out of sight by
+ * a second word is still a value the shop asked for.
  */
-export const TermColumnFilter = ({
+export const TermFilter = ({
   label,
   options,
   chosen,
   onChosen,
 }: {
+  /** The column, which is what the search box says it searches. */
   readonly label: string
   readonly options: ReadonlyArray<{ value: string; label: string; count: number }>
   readonly chosen: ReadonlyArray<string>
   readonly onChosen: (values: ReadonlyArray<string>) => void
 }) => {
+  const [search, setSearch] = useState('')
+  const shown = optionsMatching(options, search)
+  const values = shown.map((option) => option.value)
+  /** Whether the button takes the shown options back off, which is its words. */
+  const all = values.length > 0 && values.every((value) => chosen.includes(value))
+
   const toggle = (value: string) =>
     onChosen(chosen.includes(value) ? chosen.filter((each) => each !== value) : [...chosen, value])
 
+  const toggleShown = () =>
+    onChosen(
+      all
+        ? chosen.filter((each) => !values.includes(each))
+        : [...chosen, ...values.filter((value) => !chosen.includes(value))],
+    )
+
   return (
-    <HeaderFilter label={label} set={chosen.length > 0}>
-      <div className="max-h-72 min-w-44 overflow-y-auto">
+    <div className="min-w-44">
+      {options.length === 0 ? null : (
+        <div className="mb-1.5 flex items-center gap-1.5">
+          <Input
+            id={`term-filter-search-${label}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}
+            name="term-filter-search"
+            type="search"
+            value={search}
+            onValueChange={(next) => setSearch(next ?? '')}
+            placeholder="Search"
+            aria-label={`Search ${label.toLowerCase()} values`}
+            variant="ghost"
+            size="md"
+            className="h-8 w-40 rounded border border-zinc-800 px-2 font-sans text-zinc-100 normal-case"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="muted"
+            disabled={shown.length === 0}
+            onClick={toggleShown}
+            className="text-2xs shrink-0 rounded px-1.5 py-1 whitespace-nowrap normal-case"
+          >
+            {all ? 'Clear shown' : `Select shown (${shown.length})`}
+          </Button>
+        </div>
+      )}
+      <div className="max-h-72 overflow-y-auto">
         {options.length === 0 ? (
           <p className="text-2xs px-2 py-1.5 text-zinc-600">Nothing to narrow by.</p>
+        ) : shown.length === 0 ? (
+          <p className="text-2xs px-2 py-1.5 text-zinc-600">Nothing matches that.</p>
         ) : (
-          options.map((option) => (
+          shown.map((option) => (
             <div
               key={option.value}
               className="text-2xs flex cursor-pointer items-center gap-2 px-2 py-1 whitespace-nowrap normal-case hover:bg-zinc-900"
@@ -471,12 +722,12 @@ export const TermColumnFilter = ({
           ))
         )}
       </div>
-    </HeaderFilter>
+    </div>
   )
 }
 
 /**
- * A column header that narrows on what somebody types.
+ * Narrowing on what somebody types.
  *
  * The catalog number, which is the one column a shop arrives at already knowing
  * the answer to. It matches the number and the vendor together, so typing
@@ -484,7 +735,7 @@ export const TermColumnFilter = ({
  * the column it reads rather than in a search box above a table with a Catalog
  * number heading two inches below it.
  */
-export const TextColumnFilter = ({
+export const TextFilter = ({
   label,
   value,
   onValue,
@@ -493,20 +744,18 @@ export const TextColumnFilter = ({
   readonly value: string
   readonly onValue: (value: string) => void
 }) => (
-  <HeaderFilter label={label} set={value.trim() !== ''}>
-    <Input
-      id="column-filter-text"
-      name="column-filter-text"
-      type="search"
-      value={value}
-      onValueChange={(next) => onValue(next ?? '')}
-      placeholder={label}
-      aria-label={`Search by ${label.toLowerCase()}`}
-      variant="ghost"
-      size="md"
-      className="h-8 w-40 rounded border border-zinc-800 px-2 font-sans text-zinc-100 normal-case"
-    />
-  </HeaderFilter>
+  <Input
+    id="column-filter-text"
+    name="column-filter-text"
+    type="search"
+    value={value}
+    onValueChange={(next) => onValue(next ?? '')}
+    placeholder={label}
+    aria-label={`Search by ${label.toLowerCase()}`}
+    variant="ghost"
+    size="md"
+    className="h-8 w-40 rounded border border-zinc-800 px-2 font-sans text-zinc-100 normal-case"
+  />
 )
 
 /**

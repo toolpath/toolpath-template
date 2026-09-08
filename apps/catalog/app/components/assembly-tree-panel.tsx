@@ -1,4 +1,4 @@
-import { PlusIcon, TrashIcon, XIcon } from '@phosphor-icons/react'
+import { PlusIcon, TrashIcon, WarningIcon, XIcon } from '@phosphor-icons/react'
 import { Button, IconButton, cn } from '@toolpath/ui'
 import {
   SLOTS,
@@ -58,6 +58,21 @@ export interface AssemblyTreePanelProps {
   readonly orderedFor: (assembly: TreeAssembly, slot: Slot) => string | null
   readonly onClear: (assemblyId: string, slot: Slot) => void
   /**
+   * Why this slot holds something the rules turned down, or null where nothing
+   * is wrong with it.
+   *
+   * **A choice made against the rules has to say so where the choice is**
+   * (Paul, 2026-09-08: "a small warning should show in the tree denoting that I
+   * chose a geometrically incompatible tool"). The table below is where the
+   * rules are argued with — a widened filter, a red column, a row picked
+   * anyway — and that argument is over the moment the list is narrowed again.
+   * The stack is what survives it, so the stack is where the warning belongs.
+   *
+   * The route resolves the words, off `TreeAssembly.overrides` and whatever the
+   * matcher can still say about the tool; this draws what comes back.
+   */
+  readonly warningFor: (assembly: TreeAssembly, slot: Slot) => string | null
+  /**
    * What this stack offers, drawn under the components it is about.
    *
    * **One button for the full assembly, and its label is the change** (Paul,
@@ -89,6 +104,7 @@ const SlotRow = ({
   selected,
   label,
   ordered,
+  warning,
   onSelect,
   onClear,
 }: {
@@ -101,6 +117,8 @@ const SlotRow = ({
    * holds now — and null where there is nothing to say.
    */
   ordered: string | null
+  /** Why the rules turned this choice down, where somebody made it anyway. */
+  warning: string | null
   onSelect: () => void
   onClear: () => void
 }) => (
@@ -170,6 +188,22 @@ const SlotRow = ({
       >
         {label ?? '—'}
       </span>
+      {/*
+        **Small, and on the row it is about.** The rules are advice a shop is
+        allowed to overrule, so this is a caution rather than a fault: one glyph
+        in the colour the page already uses for "allowed, and here is what you
+        allowed", with the rule's own sentence behind it on hover.
+      */}
+      {warning === null ? null : (
+        <span
+          role="img"
+          aria-label={`Overrides the rules: ${warning}`}
+          title={warning}
+          className="shrink-0 text-amber-400"
+        >
+          <WarningIcon aria-hidden="true" className="size-3" weight="fill" />
+        </span>
+      )}
     </Button>
     {label === null ? null : (
       <IconButton
@@ -205,6 +239,7 @@ const StackRows = ({
   selected,
   labelFor,
   orderedFor,
+  warningFor,
   onSelect,
   onClear,
 }: {
@@ -212,6 +247,7 @@ const StackRows = ({
   selected: TreeNode | null
   labelFor: (assembly: TreeAssembly, slot: Slot) => string | null
   orderedFor: (assembly: TreeAssembly, slot: Slot) => string | null
+  warningFor: (assembly: TreeAssembly, slot: Slot) => string | null
   onSelect: (node: TreeNode) => void
   onClear: (assemblyId: string, slot: Slot) => void
 }) => {
@@ -223,6 +259,7 @@ const StackRows = ({
       selected={sameNode(selected, { assemblyId: assembly.id, slot })}
       label={guidAt(assembly, slot) === null ? null : labelFor(assembly, slot)}
       ordered={orderedFor(assembly, slot)}
+      warning={guidAt(assembly, slot) === null ? null : warningFor(assembly, slot)}
       onSelect={() => onSelect({ assemblyId: assembly.id, slot })}
       onClear={() => onClear(assembly.id, slot)}
     />
@@ -244,6 +281,7 @@ export const AssemblyTreePanel = ({
   onSelect,
   labelFor,
   orderedFor,
+  warningFor,
   onClear,
   actionsFor,
   onAdd,
@@ -312,6 +350,7 @@ export const AssemblyTreePanel = ({
               selected={selected}
               labelFor={labelFor}
               orderedFor={orderedFor}
+              warningFor={warningFor}
               onSelect={onSelect}
               onClear={onClear}
             />
@@ -337,6 +376,7 @@ export const AssemblyTreePanel = ({
                   selected={selected}
                   labelFor={labelFor}
                   orderedFor={orderedFor}
+                  warningFor={warningFor}
                   onSelect={onSelect}
                   onClear={onClear}
                 />

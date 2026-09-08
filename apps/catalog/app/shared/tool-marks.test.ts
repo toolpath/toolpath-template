@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { CatalogTool } from '@toolpath/catalog-data'
 import type { PartFeature } from '@toolpath/part-contracts'
 import { judgeTools } from './judge'
-import { marksFor, shortfallMarks, testedCodes } from './tool-marks'
+import type { Rule } from './rules'
+import { columnOfRule, marksFor, overrideNote, shortfallMarks, testedCodes } from './tool-marks'
 
 const tool = (
   catalogNumber: string,
@@ -377,5 +378,58 @@ describe('what stops a tap reaching', () => {
 
   it('says nothing where there is no depth to reach', () => {
     expect(shortfallMarks(tap({ DC: 6, LCF: 2 }), null, format)).toEqual({})
+  })
+})
+
+describe('what a tree row says about a choice made against the rules', () => {
+  it("gives back the rules' own sentences, so the warning names what was overruled", () => {
+    const note = overrideNote({
+      tool: {} as CatalogTool,
+      removed: [{ rule: null, text: 'diameter 12 over 10 largest tool diameter' }],
+      warned: [],
+      demoted: [],
+      key: [],
+      readings: [],
+    })
+
+    expect(note).toContain('diameter 12 over 10 largest tool diameter')
+  })
+
+  /**
+   * A stack outlives the question it was built under, so the fact stands with
+   * less to say rather than falling silent.
+   */
+  it('still says the choice was made against the rules with no verdict left', () => {
+    expect(overrideNote(null)).toBe('Chosen against the rules for this feature.')
+  })
+})
+
+/**
+ * **A filter can only overrule a rule it is the same question as** (Paul,
+ * 2026-09-08: "it should only override for that specific rule, related to the
+ * specific filter"). `tool-fit.ts` § `overridableTools` reads this, and a null
+ * is what keeps a tool removed for being the wrong kind of tool out of every
+ * column's override.
+ */
+describe('which column a rule is about', () => {
+  const bound = (field: string): Rule =>
+    ({
+      line: 1,
+      stage: 'tool',
+      level: 'must',
+      toolTypes: ['*'],
+      test: { kind: 'bound', field, operator: '<=', base: { kind: 'feature' } },
+      text: field,
+      note: '',
+    }) as unknown as Rule
+
+  it('names the geometry column a bound is written in', () => {
+    expect(columnOfRule(bound('diameter'))).toBe('DC')
+    expect(columnOfRule(bound('flute length past the corner'))).toBe('LCF')
+  })
+
+  it('answers nothing for a removal no column asks about', () => {
+    expect(columnOfRule(null)).toBeNull()
+    expect(columnOfRule(bound('something the sheet does not name'))).toBeNull()
   })
 })

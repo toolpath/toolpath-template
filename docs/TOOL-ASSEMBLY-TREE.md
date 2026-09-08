@@ -1,6 +1,8 @@
 # The tool assembly tree
 
-_The shape behind the `assemblyTree` flag, as of `paul/interactions`, 2026-09-07._
+_The shape of the page, as of `paul/interactions`. Behind the `assemblyTree`
+flag from 2026-09-07; the flag came out on 2026-09-08 and this is the only
+shape there is._
 
 The page asked one question — **which tool cuts this feature** — and hung the
 rest of the answer off it. A holder was a dropdown in a column on the tool's own
@@ -193,7 +195,7 @@ as new and default to plain"). `forThread` reconciles the two on every read —
 and never touches a stack somebody has put a component in, because that is work
 rather than an opening position.
 
-The tap/drill **tabs are gone under the flag**. A stack's `role` is what says
+The tap/drill **tabs are gone**. A stack's `role` is what says
 which list its tool slot opens, so the two stacks _are_ the two tabs and there
 is no second control that can disagree with the tree.
 
@@ -228,7 +230,7 @@ with no button to press at all. `carryDraftTree` moves the stacks onto the id th
 row is given.
 
 **Making the row writes no lines of its own.** `billFor` returns without writing
-under the flag, so what reaches the order list is the assembly whose button was
+a line, so what reaches the order list is the assembly whose button was
 pressed and no other — the fall-through that gave a new feature the head of the
 tool table is gone, and so is the version of it that wrote every stack with a
 tool in it because the row was confirmed around them.
@@ -289,22 +291,38 @@ back.
 
 `app/shared/component-columns.ts` and `app/shared/component-query.ts`.
 
-Fixed columns, as on the tool table: **catalog number, vendor, type, family**.
-A holder's type is the words a shop uses — `BT30 ER16 collet chuck`. A family
-has no record in the toolholding data, so the id is shown as words rather than
-under a name this repository invented for it.
+Four columns say which one a row is, as on the tool table: **catalog number,
+vendor, type, family**. A holder's type is the words a shop uses — `BT30 ER16
+collet chuck`. A family has no record in the toolholding data, so the id is
+shown as words rather than under a name this repository invented for it. All
+four are in the column picker with the rest (2026-09-08): nothing is drawn
+outside the column set, so any of them can be hidden or dragged.
 
 Toggleable columns are the vendor's own nine numbers: gauge length, projection,
 nose Ø and length, body Ø and length, flange Ø, bore Ø, collet protrusion, plus
 taper, clamping, series and contact. A collet's are series, grip range and grip
 length.
 
-Filters are two kinds and they are different questions:
+Every one of them is asked on the heading of the column that shows it
+(2026-09-08); a holder list has no filter buttons of its own, because every
+question about a holder is a question about one of its columns.
 
-- **terms**, on words — brand, taper, clamping, series, contact, family. Several
-  values on an axis are an _or_; several axes are an _and_.
+Filters are three kinds and they are different questions:
+
+- **text**, on the catalog number and the vendor together — `REGO` means the
+  maker and `2600` means the chuck, and neither is worth a second box. A rack
+  is a list somebody often arrives at already knowing the answer to (Paul,
+  2026-09-08).
+- **terms**, on words — type, brand, taper, clamping, series, contact, family.
+  Several values on an axis are an _or_; several axes are an _and_.
 - **bounds**, on numbers — gauge length at most 80 mm. Millimetres, whatever the
   box was typed in.
+
+**Type is a list, and it is the shortcut through three columns** (Paul,
+2026-09-08: "I should be able to filter by holder type as a list … same with
+collet type"). `BT30 ER11 collet chuck` is one line of it, and taper, clamping
+and collet series still ask for themselves underneath: one press for every BT30
+in the rack, or one for every BT30 ER11 collet chuck in it.
 
 A record that states nothing on a constrained axis is **refused**, not passed:
 a series filter must not match a shrink-fit chuck, and a gauge-length bound must
@@ -380,52 +398,150 @@ What changed is where a line comes from:
   that silently drops a collet somebody chose is what that line prevents.
 - **A row's tags all get the line.** A bolt circle of eight identical holes is
   one row and eight tags; the sheet is keyed by tag, so one press writes eight.
-- **A tree read back off the bill.** A part answered before this shape existed,
-  or with the flag off, has lines and no tree; `treeFromLines` opens on those, so
-  switching the flag on does not read as work lost.
+- **A tree read back off the bill.** A part answered before this shape existed
+  has lines and no tree; `treeFromLines` opens on those, so nothing answered
+  under the old panel reads as work lost.
 
 **A holder on its own is not orderable**, and the panel says so rather than
 offering a button that would write half a line.
 
-## 6. The flag
+## 5a. Overruling the rules, one column at a time
 
-`app/shared/flags.ts`, and the **Tool tree** chip in the header.
+**The filters are the last word** (Paul, 2026-09-08: "I need the ability to
+override the geometric filters created by the geometry — for example, I may
+want to use a larger tool than required. When I change the filter, it currently
+shows me 'no tools match'").
 
-On by default: a flag that ships off is a trial that never happens. Kept per
-browser under `tool-catalog.flags`, read in an effect rather than during render
-because the page is server rendered.
+Two things narrow the tool list and they come from the same place. `rules.csv`
+judges each tool against the feature, and `suggest-filters.ts` writes the `must`
+bounds of those same rules into the filter controls as ranges. So widening one
+of those ranges asks for precisely the tools the rules go on to remove, and the
+answer was an empty table with the reason two panels away.
 
-Rolling back is one press. Nothing is lost by it — the sheet is the same sheet,
-and the tree is still in storage when the flag goes back on.
+**The press is in the column's own dialog, not in the chrome** (Paul,
+2026-09-08: "the override the rules button should be in the filter dialog rather
+than always shown, and should only override for that specific rule … it should
+recognize if I enter something to override the rules and warn me to confirm
+it"). A control over the whole list would forgive rules nobody looked at; the
+Diameter dialog forgives the diameter rows and nothing else.
 
-**Every Playwright spec states which shape it is about.** `openCube` takes the
-flags, defaulting to `assemblyTree: false`, so the specs written for the panel
-this replaces keep testing that panel and the tree has its own.
+What happens, in order:
+
+1. **A number of somebody's own raises the note.** `OverrideNotice`
+   (`app/components/column-filter.tsx`) appears once the column holds a bound
+   that is not simply the suggestion left untouched — including one typed on a
+   column the sheet never bounded, because that is the same act and gating on a
+   suggestion left such a column unoverridable while its rules held tools off
+   the list. It says what the geometry asked for —
+   in the unit being read in, through `sayBound` in `shared/column-filters.ts`.
+   Quiet, in the page's ordinary text colour (Paul, 2026-09-08: "the colouring
+   on the messaging should be less dramatic and not yellow"): running a larger
+   cutter than the geometry needs is an ordinary thing to do, and an alarm
+   around it said it was a mistake.
+2. **A press confirms it** — `OverrideToggle`, one small chip in the dialog's
+   chrome beside the tick, saying _Override rules_ and nothing else (Paul,
+   2026-09-08). A full-width button under the boxes read as the dialog's main
+   action, which is the number above it. The count is
+   `overridableTally` (`app/shared/tool-fit.ts`), measured over the whole
+   removed set in the worker, and counts only the tools this column **alone**
+   is holding back: one turned down on both its diameter and its flute length
+   is not brought back by forgiving either, so promising it under both would
+   promise a row that never appears.
+3. **The matcher answers the narrower question.** `MatchContext.overrides` names
+   the forgiven columns; `overridableTools` returns the removed verdicts the
+   filters admit **whose every reason belongs to a forgiven column**. A tool
+   removed for being the wrong kind of tool has no column at all — `columnOfRule`
+   in `shared/tool-marks.ts` answers `null` — so no filter can forgive it.
+   `matchKey` leaves the overrides out of a recommendation batch, the way it
+   already leaves the display unit out: a one-each pick is never drawn from the
+   removed set.
+4. **The rows appear under the ones that fit**, with the same red marks on the
+   same columns; the chrome says a note, not a control — and says how many were
+   left out where the cap bites. The cap is the table's own row cap, not a
+   smaller one: at 200 it was nearest-first, so asking a 38,000-tool catalog for
+   `diameter at most 0.500 in` against a pocket wanting 0.400 in filled every
+   slot with ⌀12 mm cutters and never reached the 663 half-inch ones the filter
+   had been typed to find (Paul, 2026-09-08). A cap that hides the end of the
+   range somebody widened _to_ is worse than no override at all.
+5. **The stack records it.** `TreeAssembly.overrides` names the slots filled with
+   something the rules removed, and `assembly-tree-panel` draws a caution glyph
+   on those rows with the rule's own sentence behind it (`overrideNote`). Kept
+   rather than derived: a verdict exists only while the tool is in an answer,
+   and clearing the range that admitted the cutter would take the warning with
+   it. Filling that slot with something that fits, clearing it, or backing the
+   stack out to the bill's line all take the mark off.
+6. **Backing the number out ends the override.** A bound that is the geometry's
+   own again forgives nothing, so the route drops that column; a different
+   feature drops all of them.
+
+**A row is an override by its verdict, not by which list drew it.** The nearest
+misses stand in when nothing fits and they are removed tools too, so picking one
+of those is the same decision and gets the same mark.
+
+**And every filter now closes on a tick** (Paul, 2026-09-08: "I should have a
+check box icon to confirm filters on every filter, which just closes it saved at
+the current state"). A filter commits as it is typed, so the tick saves nothing
+— what was missing was somewhere to say _done_ other than a click on the page,
+which is the one gesture indistinguishable from a misclick. It is on
+`FilterMenu`, so all three lists have it.
+
+Not built: the bill says nothing about it. A line on the setup sheet carries a
+tool, not why it was picked, so a tree read back off the bill by `treeFromLines`
+comes back with nothing overridden. The tree itself is kept in the browser and
+does carry it.
+
+## 6. The flag, and its removal
+
+It shipped behind `assemblyTree` on 2026-09-07 — on by default, one press in the
+header to go back — because it replaces enough of the page at once that "put it
+back the way it was" had to be cheaper than a revert.
+
+**It came out on 2026-09-08** (Paul: "things are working well with the Tool Tree
+flag enabled … the flag should now be removed"). `app/shared/flags.ts`, its test,
+the **Tool tree** chip and the `assemblyTree` props on `AppHeader` are gone,
+every branch was taken on its tree side, and the panel it replaced went with it:
+no `holding` dropdowns on a tool row, no tap/drill tabs, no count badge beside
+the list heading, and `Use this tool` is `Add this feature`.
+
+What went with it that had no home under the tree: the **Show compatible end
+mills** press, which lived inside the drill tab and so had already been
+unreachable whenever the flag was on. The filter it pressed —
+`formsWithMills` — is untouched and still reachable from the type filter.
+
+`openCube` no longer takes flags: there is one shape, so a spec says nothing and
+gets it.
 
 ## 7. Where the rules live
 
-| Rule                                              | File                                          |
-| ------------------------------------------------- | --------------------------------------------- |
-| what a tree holds, its slots, its storage         | `app/shared/assembly-tree.ts`                 |
-| what a threaded hole starts with                  | `defaultAssemblies`, same file                |
-| the stacks following the thread on the hole read  | `forThread`, same file                        |
-| how the stacks nest, and their drawing order      | `treeRows`, same file                         |
-| what narrows what                                 | `app/shared/assembly-narrowing.ts`            |
-| what a stack offers, and its button's words       | `app/shared/assembly-actions.ts`              |
-| what a whole assembly offers, over all its stacks | `groupActions`, same file                     |
-| which stacks make up one assembly                 | `treeGroups` / `stacksOf`, `assembly-tree.ts` |
-| what the bill already holds for a stack           | `savedFor`, same file                         |
-| putting a stack back to the bill's line           | `restoreAssembly`, `assembly-tree.ts`         |
-| what a stack is called, and where a part stands   | `assemblyName` / `heldIn`, same file          |
-| the columns a holder and a collet are read on     | `app/shared/component-columns.ts`             |
-| narrowing a rack by brand, type, family, a number | `app/shared/component-query.ts`               |
-| the flag, and the way back                        | `app/shared/flags.ts`                         |
-| which of the three lists the table is             | `listKind` / `chooseList`, `routes/part.tsx`  |
-| the tree on screen                                | `app/components/assembly-tree-panel.tsx`      |
-| the holder and collet tables                      | `app/components/component-table.tsx`          |
-| their filters                                     | `app/components/component-filters.tsx`        |
-| the component being read                          | `app/components/assembly-panel.tsx`           |
-| everything wired together                         | `app/routes/part.tsx`                         |
+| Rule                                              | File                                             |
+| ------------------------------------------------- | ------------------------------------------------ |
+| what a tree holds, its slots, its storage         | `app/shared/assembly-tree.ts`                    |
+| what a threaded hole starts with                  | `defaultAssemblies`, same file                   |
+| the stacks following the thread on the hole read  | `forThread`, same file                           |
+| how the stacks nest, and their drawing order      | `treeRows`, same file                            |
+| what narrows what                                 | `app/shared/assembly-narrowing.ts`               |
+| what a stack offers, and its button's words       | `app/shared/assembly-actions.ts`                 |
+| what overruling the rules offers                  | `overridableTools`, `app/shared/tool-fit.ts`     |
+| how many each column alone holds back             | `overridableTally`, same file                    |
+| which column a rule is about                      | `columnOfRule`, `app/shared/tool-marks.ts`       |
+| the note a changed filter raises                  | `OverrideNotice`, `components/column-filter.tsx` |
+| the press that confirms it                        | `OverrideToggle`, same file                      |
+| `at most` meaning at most across a unit change    | `BOUND_SLACK`, `app/shared/filter.ts`            |
+| which slots were filled against the rules         | `overrides`, `assembly-tree.ts`                  |
+| the words a warning says                          | `overrideNote`, `app/shared/tool-marks.ts`       |
+| what a whole assembly offers, over all its stacks | `groupActions`, same file                        |
+| which stacks make up one assembly                 | `treeGroups` / `stacksOf`, `assembly-tree.ts`    |
+| what the bill already holds for a stack           | `savedFor`, same file                            |
+| putting a stack back to the bill's line           | `restoreAssembly`, `assembly-tree.ts`            |
+| what a stack is called, and where a part stands   | `assemblyName` / `heldIn`, same file             |
+| the columns a holder and a collet are read on     | `app/shared/component-columns.ts`                |
+| narrowing a rack by brand, type, family, a number | `app/shared/component-query.ts`                  |
+| which of the three lists the table is             | `listKind` / `chooseList`, `routes/part.tsx`     |
+| the tree on screen                                | `app/components/assembly-tree-panel.tsx`         |
+| the holder and collet tables                      | `app/components/component-table.tsx`             |
+| their filters                                     | `app/components/component-filters.tsx`           |
+| the component being read                          | `app/components/assembly-panel.tsx`              |
+| everything wired together                         | `app/routes/part.tsx`                            |
 
 Each pure module owns its tests. The tree's own end-to-end coverage is the
 `the tool assembly tree` block in `tests/on-the-part.spec.ts`, against the cube
@@ -449,6 +565,8 @@ crib, which is the claim.
   badge, all of which are about a _tool_; threading a row type through them would
   have put every one behind a conditional to gain a shared shell. If a third
   kind of component ever wants a table, extract then.
-- **The holder column on the tool table is off under the tree**, deliberately: a
-  second way to set the holder is the defect the tree exists to remove. It is
-  still there with the flag off.
+- **The tool table is handed no `holding`**, deliberately: the holder is a slot
+  of the stack with a table of its own, and a second way to set it from a
+  dropdown on the tool row is the defect the tree exists to remove. The prop is
+  still on `PartToolTable` — the component's own tests cover it — and the part
+  page passes it from nowhere.

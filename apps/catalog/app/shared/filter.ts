@@ -118,22 +118,39 @@ const matchesTerms = (tool: CatalogTool, terms: ToolQuery['terms']): boolean =>
  * nobody knows is the answer a machinist cannot use — a missing field is not a
  * small one.
  */
+/**
+ * How close to a bound still counts as on it.
+ *
+ * **`at most` means at most, in whichever unit it was typed in** (Paul,
+ * 2026-09-08: "the At Most, At Least, etc. filters are not working as 'or equal
+ * to', which they should be"). The dataset is millimetres and a shop reading in
+ * inches types inches, so the bound is converted before it is compared — and
+ * `0.75 × 25.4` is `19.049999999999997`, a hair under the `19.05` the catalog
+ * stores for that very tool. 966 values in a scraped catalog sit on the wrong
+ * side of their own nominal size that way, so a ⌀0.750 in cutter was missing
+ * from `at most 0.750 in`.
+ *
+ * A nanometre, which is four orders of magnitude finer than the tightest step
+ * between two sizes in any catalog here — so it can forgive a float's last
+ * digit without ever admitting a tool a shop would call a different size.
+ */
+export const BOUND_SLACK = 1e-6
+
+/** Whether a millimetre value is inside a bound, `at most` meaning at most. */
+export const withinRange = (
+  value: number,
+  bound: { readonly min?: number; readonly max?: number },
+): boolean =>
+  !(bound.min !== undefined && value < bound.min - BOUND_SLACK) &&
+  !(bound.max !== undefined && value > bound.max + BOUND_SLACK)
+
 const matchesRanges = (tool: CatalogTool, ranges: ToolQuery['ranges']): boolean =>
   Object.entries(ranges).every(([key, bound]) => {
     if (bound.min === undefined && bound.max === undefined) {
       return true
     }
     const value = tool.geometry[key]
-    if (value === undefined) {
-      return false
-    }
-    if (bound.min !== undefined && value < bound.min) {
-      return false
-    }
-    if (bound.max !== undefined && value > bound.max) {
-      return false
-    }
-    return true
+    return value === undefined ? false : withinRange(value, bound)
   })
 
 /** Pure, and the whole of the search: the same function the tests run on literals. */
@@ -388,6 +405,39 @@ const withoutTerm = (query: ToolQuery, key: string): ToolQuery => {
  * hold it. The vendor axis itself still counts every vendor, so a second one
  * can still be added.
  */
+/**
+ * What an axis offers while it is the axis being narrowed.
+ *
+ * **A second vendor has to stay reachable** (Paul, 2026-09-08: "all options
+ * other than the one that was enabled are hidden. I should be able to
+ * multi-select options while creating an assembly for a feature").
+ *
+ * With no feature on the screen the counts are measured over the whole catalog
+ * minus the axis's own term, so every vendor is still on the list and
+ * `countsByAxis` is the whole answer. With a feature they are measured over the
+ * tools the matcher answered with — and the matcher only judges what the terms
+ * already admit (`shared/catalog-matcher.ts` says why: judging the whole
+ * catalog per demand cost 340 ms against 65). So the moment one vendor is
+ * ticked, no other vendor's tools have been judged for that feature and the
+ * axis can only report itself.
+ *
+ * The way out is memory rather than more work. An axis with nothing chosen is
+ * counted fresh; while it *is* chosen it keeps offering the list it last had —
+ * this feature's own values, from the last moment the question could be
+ * answered — with a fresh count wherever one can still be measured. Clearing
+ * the axis asks the question again.
+ */
+export const stillOffered = (
+  counts: ReadonlyMap<string, number>,
+  chosen: ReadonlyArray<string>,
+  before: ReadonlyMap<string, number> | undefined,
+): ReadonlyMap<string, number> => {
+  if (chosen.length === 0 || before === undefined) {
+    return counts
+  }
+  return new Map([...before].map(([value, count]) => [value, counts.get(value) ?? count]))
+}
+
 export const countsByAxis = (
   tools: ReadonlyArray<CatalogTool>,
   query: ToolQuery,
