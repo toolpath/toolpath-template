@@ -68,8 +68,6 @@ const show = (props: Partial<Parameters<typeof FeatureListPanel>[0]> = {}) => {
   const handlers = {
     onSelect: vi.fn(),
     onOpen: vi.fn(),
-    onAddFeature: vi.fn(),
-    onAddGroup: vi.fn(),
     onEdit: vi.fn(),
     onRemove: vi.fn(),
   }
@@ -80,7 +78,6 @@ const show = (props: Partial<Parameters<typeof FeatureListPanel>[0]> = {}) => {
       open={[]}
       nameOf={nameOf}
       directionOf={() => '+Z'}
-      addingFeature={false}
       unit="millimeters"
       {...handlers}
       {...props}
@@ -144,51 +141,36 @@ describe('the list of what has been asked about', () => {
   })
 
   /**
-   * **Two buttons, not one that asks** (Paul, 2026-09-02: "it should show
-   * buttons for Add Feature or Add Group, not the weird combined one"). A `+`
-   * that opened a menu of two hid both of them until it was pressed.
+   * **The three ways to add are not in here** (Paul, 2026-09-08: they live over
+   * the part now — `components/add-bar.tsx`, tested there). An empty list draws
+   * nothing at all, because there is nothing on it yet.
    */
-  it('offers both on show, without a menu in between', () => {
-    const { onAddGroup } = show()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Add group' }))
-
-    expect(screen.getByRole('button', { name: 'Add feature' })).toBeInTheDocument()
-    expect(onAddGroup).toHaveBeenCalled()
-  })
-
-  /**
-   * **Pressable, then asking** (Paul, 2026-09-02: "Add feature is greyed out by
-   * default, which makes it confusing — it should be clickable, then just
-   * prompt you to click on the part"). Disabled, it read as broken rather than
-   * as waiting for the one thing it needs.
-   */
-  it('asks for a face rather than refusing to be pressed', () => {
-    const { onAddFeature } = show()
-
-    const add = screen.getByRole('button', { name: 'Add feature' })
-    expect(add).toBeEnabled()
-    fireEvent.click(add)
-
-    expect(onAddFeature).toHaveBeenCalled()
-  })
-
-  it('says what it is waiting for once it has been pressed', () => {
-    show({ addingFeature: true })
-
-    expect(screen.getByText(/Click a face on the part, then press Add feature/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Add feature' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-  })
-
-  /** An empty list is the two buttons and nothing else: there is nothing to draw yet. */
   it('draws no list at all until something is on it', () => {
     show({ items: [] })
 
     expect(screen.queryByRole('list', { name: /Features/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Add group' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^\+ /u })).not.toBeInTheDocument()
+  })
+
+  /**
+   * **A tool assembly the part needs and no feature asked for** (Paul,
+   * 2026-09-08). It is a row like any other — it can be selected and removed —
+   * and it says on the row that it answers no feature, because a stack against
+   * a feature nobody can see any more looks exactly the same otherwise.
+   */
+  it('draws a part-level assembly as a row that says it has no feature', () => {
+    const { onEdit } = show({
+      items: [{ kind: 'assembly', id: 'assembly-2', tags: [] }],
+    })
+
+    expect(screen.getByRole('button', { name: 'Tool assembly 2' })).toBeInTheDocument()
+    expect(screen.getByText('no feature')).toBeInTheDocument()
+
+    // Nothing to edit: it holds no features for an editor to ask about.
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Tool assembly 2' }))
+    expect(screen.getByRole('menuitem', { name: 'Remove' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /^Edit/ })).not.toBeInTheDocument()
+    expect(onEdit).not.toHaveBeenCalled()
   })
 
   /**

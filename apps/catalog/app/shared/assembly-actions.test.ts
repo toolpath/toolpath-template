@@ -117,7 +117,9 @@ describe('a feature that is not a row yet', () => {
       note under it, because it is the half somebody would not expect.
     */
     expect(offered[0]?.label).toBe('Add to order list')
-    expect(offered[0]?.note).toContain('feature list')
+    // The list is headed *Order list* since 2026-09-08, so the note names it
+    // as the list rather than as the feature list.
+    expect(offered[0]?.note).toContain('to the list as well')
   })
 
   it('says group in the note where a group is what would be created', () => {
@@ -352,7 +354,19 @@ describe('what a whole assembly offers', () => {
   it('makes the feature and writes the assembly in one press', () => {
     const [first] = offered([tap, drill], [], false)
     expect(first?.kind).toBe('confirm')
-    expect(first?.note).toContain('feature list')
+    expect(first?.note).toContain('to the list as well')
+  })
+
+  /**
+   * **A tool assembly the part needs is named for itself** (Paul, 2026-09-08).
+   * It answers no feature, so "adds the feature to the list" would be the one
+   * sentence it cannot say — and it is a draft until this press precisely
+   * because an assembly with nothing on the order list is a row about nothing.
+   */
+  it('names the tool assembly it would make, where there is no feature', () => {
+    const [first] = groupActions([stack()], [], false, 'assembly')
+    expect(first?.kind).toBe('confirm')
+    expect(first?.note).toContain('tool assembly')
   })
 
   it('offers the way off the list once every stack of it is on there', () => {

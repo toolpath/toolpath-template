@@ -380,10 +380,26 @@ describe('changing a number the geometry set', () => {
     )
   })
 
-  it('says the override is on once it is', () => {
+  it('says the override is on, and what turning it off puts back', () => {
     render(<OverrideNotice label="Diameter" bound={{ max: 20 }} override={offer({ on: true })} />)
 
-    expect(screen.getByRole('note')).toHaveTextContent('is on: 3 the diameter rules turn down')
+    const note = screen.getByRole('note')
+    expect(note).toHaveTextContent('is on: 3 the diameter rules turn down')
+    // The number and the forgiveness are one decision — see `overrideFor` in
+    // the part route.
+    expect(note).toHaveTextContent('Turning it off puts the diameter back to at most 8 mm')
+  })
+
+  it('says a column the geometry never bounded goes back to no bound at all', () => {
+    render(
+      <OverrideNotice
+        label="Diameter"
+        bound={{ max: 20 }}
+        override={offer({ on: true, suggested: undefined })}
+      />,
+    )
+
+    expect(screen.getByRole('note')).toHaveTextContent('back to no bound at all')
   })
 
   /**

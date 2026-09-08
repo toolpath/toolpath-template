@@ -139,6 +139,14 @@ this assembly`, because a rack is narrowed to what fits a stack only while
   because `orientationFor` reads the box it is given, and it took the switch
   away the moment somebody looked at a holder.
 
+**And an assembly need not answer a feature at all** (Paul, 2026-09-08). _+
+Tool Assembly_, over the top-left of the part, makes a row of its own that holds
+no features: the same tree, the same three slots, the same table under it and the
+same one press onto the order list — with the catalog rather than a feature's
+matched list in it, because there is nothing to judge a tool against.
+`docs/FEATURE-LIST.md` § 1 is the model, and the bill says _no feature_ where it
+would otherwise name what the tool machines.
+
 ## 2. What a feature starts with
 
 `defaultAssemblies` in `app/shared/assembly-tree.ts`.
@@ -470,9 +478,14 @@ What happens, in order:
    and clearing the range that admitted the cutter would take the warning with
    it. Filling that slot with something that fits, clearing it, or backing the
    stack out to the bill's line all take the mark off.
-6. **Backing the number out ends the override.** A bound that is the geometry's
-   own again forgives nothing, so the route drops that column; a different
-   feature drops all of them.
+6. **The number and the forgiveness are one decision, both ways.** Backing the
+   bound out to the geometry's own ends the override, and turning the override
+   off puts that bound back — cleared, where the geometry asked for nothing,
+   which is equally its answer (Paul, 2026-09-08: "if override rules is off, it
+   should go back to the filter defined by the geometry"). Dropping only the
+   forgiveness left the widened bound standing over a list the rules then
+   emptied: the dead end this control exists to remove, reached by pressing the
+   control. A different feature drops all of them.
 
 **A row is an override by its verdict, not by which list drew it.** The nearest
 misses stand in when nothing fits and they are removed tools too, so picking one

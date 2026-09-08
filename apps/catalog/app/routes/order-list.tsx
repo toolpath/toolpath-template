@@ -19,6 +19,7 @@ import {
   type Component,
   type SetupSheet,
 } from 'shared/setup-sheet'
+import { isAssemblyKey } from 'shared/feature-list'
 import { fusionLibrary } from 'shared/fusion-library'
 import { saveInBrowser } from 'shared/save-file'
 import { recallPart } from 'shared/part-session'
@@ -352,7 +353,18 @@ const Bom = () => {
     for (const [featureTag, kept] of Object.entries(sheet.choices)) {
       for (const choice of kept) {
         const feature = features.find((each) => each.featureTag === featureTag)
-        const named = featureTag === '*' ? 'the whole part' : (feature?.featureType ?? featureTag)
+        /*
+          **A part-level assembly says so** (Paul, 2026-09-08). Its lines are
+          kept under the row's own id rather than a feature tag — it answers no
+          feature — and printing that id at somebody buying tools would be a
+          row key on a bill. `isAssemblyKey` is the rule, in `feature-list.ts`
+          where the id is minted.
+        */
+        const named = isAssemblyKey(featureTag)
+          ? 'no feature'
+          : featureTag === '*'
+            ? 'the whole part'
+            : (feature?.featureType ?? featureTag)
         const tool = allTools.find((each) => each.guid === choice.toolGuid)
         /**
          * **The two ways a shop reads this list.**

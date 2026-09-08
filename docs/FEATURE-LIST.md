@@ -27,10 +27,24 @@ A list holds **items**, in the order they were added. New items go on the end;
 an edit lands where the row already was, so the list never jumps under a
 right-click.
 
-| Kind      | Holds                              | Extra                      |
-| --------- | ---------------------------------- | -------------------------- |
-| `feature` | one decision — usually one feature | —                          |
-| `group`   | several, chosen together           | `results: 'all' \| 'each'` |
+| Kind       | Holds                              | Extra                      |
+| ---------- | ---------------------------------- | -------------------------- |
+| `feature`  | one decision — usually one feature | —                          |
+| `group`    | several, chosen together           | `results: 'all' \| 'each'` |
+| `assembly` | **no feature at all**              | —                          |
+
+**A part-level assembly is the third kind** (Paul, 2026-09-08: "the tool
+assembly will not be tied to a specific feature or group, it will just exist at
+the part level"). A shop buys tools for reasons the part cannot state — a facing
+mill for the first op, a spare collet — and every way onto the order list ran
+through a feature. It holds no tags, so it is never painted on the part and asks
+the tool table nothing; it is built in the same tree, with the same three slots,
+the same tables and the same one press onto the bill.
+
+**Its lines are keyed by its own id**, `sheetKeysOf` — the sheet is keyed by
+feature tag and it has none, so it stands for itself. `isAssemblyKey` is what
+lets the order list say _no feature_ rather than print a row id at somebody
+buying tools.
 
 **Either kind can hold more than one tool.** A hole is a spot drill and a drill;
 a pocket is a rougher and a finisher. The sheet has always kept a feature's
@@ -67,7 +81,9 @@ option` in `tests/on-the-part.spec.ts` as the pair to turn back over.
   a random suffix makes a component test that renders twice fail differently
   each run.
 - **Names are derived**, never typed: `4 × Through Hole`,
-  `Pocket + 2 × Through Hole`, `Pocket + Through Hole + 2 more`. A name somebody
+  `Pocket + 2 × Through Hole`, `Pocket + Through Hole + 2 more`. A part-level
+  assembly is `Tool assembly 2`, off its own id: there is nothing else to name
+  it after until it has a tool in it. A name somebody
   has to invent for every group is a name most groups will not get.
 - **A thread is part of the name** (Paul, 2026-09-08: "once a thread is applied
   to a hole, the feature should be named '<thread spec> <type of hole> Hole'").
@@ -119,6 +135,12 @@ Four things can be true at once, and the order they win in is the whole rule.
 | 2   | a row selected in the list         | the item's tags  | the item's  | tools, or the per-feature notice |
 | 3   | a face previewed on the part       | its hole group   | `all`       | tools that cut it                |
 | 4   | none of the above                  | nothing          | `all`       | every tool in the catalog        |
+
+A **part-level assembly row asks nothing** and falls to row 4 on purpose: it has
+no features, so there is nothing to judge a tool against — the table under it is
+the catalog, the two racks are the crib, and the tree beside it is what is being
+decided. It is the one case where a row is selected and `asking` is false, so
+`treeKey` names it explicitly.
 
 A **draft with nothing in it yet is asking nothing** and falls through to 4: the
 panel would otherwise have to answer "these no features", and what it answered
@@ -175,18 +197,54 @@ have the page answering the same question twice.
 
 ## 4. Adding
 
-Two buttons, always visible, never a menu between you and them.
+Three buttons, always visible, never a menu between you and them —
+`app/components/add-bar.tsx`, and **over the top-left of the part** rather than
+in the list (Paul, 2026-09-08: "move the add feature, add group, and add tool
+assembly buttons so they are always at the top left of the part viewer"). They
+were the last thing inside the Features card, which is the one place they cannot
+be relied on to be: the list fills the space it has and then scrolls, so on a
+long list all three were below the fold. They are named for what they make —
+**+ Feature**, **+ Group**, **+ Tool Assembly** — because the `+` is the verb.
 
-### Add feature
+The row is as wide as its buttons and only they take the pointer: an invisible
+box over the canvas carrying `pointer-events: auto` is a curtain, which is what
+`tests/on-the-part.spec.ts` § _at a laptop width_ exists for.
+
+### + Feature
 
 - Pressed with **nothing being read**, it asks: _"Click a face on the part, then
-  press Add feature."_ It is never disabled — greyed out, it read as broken
-  rather than as waiting.
+  press + Feature."_ It is never disabled — greyed out, it read as broken rather
+  than as waiting.
 - Pressed with a face being read, the reading is what gets added.
 - The confirm sits under what it is confirming: **Use this tool** / **Cancel**,
   below the reading in the feature box.
 
-### Add group
+### + Tool Assembly
+
+Opens an empty `TOOL` / `HOLDER` / `COLLET` tree with the catalog under it, and
+puts down whatever was being read — a face left selected under a stack for the
+whole part would have the page answering a question the stack is not about.
+
+**It is a draft until it is ordered** (Paul, 2026-09-08: "if I don't add anything
+to the order list when creating a tool assembly, the command was cancelled and
+the empty tool assembly row should not show"). A feature is a question worth
+keeping on the list with no tool against it yet; a part-level assembly _is_ its
+order, so an empty one is a row about nothing.
+
+- The press under the stack — **Add to order list**, the `confirm` action
+  `assembly-actions` already offers a question that is not a row yet — makes the
+  row and writes the lines in one go, under the id `pendingAssemblyId` minted
+  before the row exists so the two cannot disagree about where they wrote.
+- **Cancel**, under the tree, drops the stacks and the draft and leaves nothing
+  behind — and so does **Escape** (Paul, 2026-09-08: "escape key should also get
+  me out of tool assembly dialog"). It is the newest thing on the page and it
+  answers no feature, so there is nothing underneath for the press to walk out
+  to; `escapeRef` in `routes/part.tsx` takes it before the reducer's own
+  outward step.
+- **Remove from order list** takes the row with it, for the same reason: the
+  assembly is the order.
+
+### + Group
 
 Opens the group editor, seeded with whatever is already clicked.
 
@@ -260,7 +318,12 @@ table — see §8.
 
 Glyph, name, and — for a group — what it wants back (`one for all` / `one each`)
 and how many features it stands for (`×16`). A feature row shows its way up
-instead.
+instead, and a part-level assembly says **no feature**, because a stack answering
+nothing looks exactly like one answering a feature nobody can see any more.
+
+**The heading over it says _Order list_** (Paul, 2026-09-08). Every row on it is
+a thing being ordered, and nothing reaches the bill except because a row here put
+it there; the page in the header is the same list read the other way round.
 
 ### The answers under it
 
@@ -286,7 +349,9 @@ one.
 
 ### Right-click
 
-**Edit…** and **Remove**, fixed to the window at the click point. Positioned
+**Edit…** and **Remove**, fixed to the window at the click point. A part-level
+assembly is offered **Remove** alone: it holds no features, so there is nothing
+an editor could ask about. Positioned
 inside the list it was clipped by the list's own scroll, so the menu for a row
 near the bottom opened where nobody could reach it — the very thing the scroll
 was supposed to make safe.
@@ -296,10 +361,15 @@ An edit that drops features drops their lines too.
 
 ### Layout
 
+- **The rows stand on the part, not in a box** (Paul, 2026-09-08: "make the list
+  rows sit on top of the 3d viewer rather than in the box"). The card around
+  them was a solid panel the width of the list whether the list was one row or
+  twelve, covering the part with its own ground to say nothing. Each row carries
+  just enough ground of its own to be read; the column they stand in takes no
+  pointer at all, and the `<ul>` takes it for its own rows.
 - The list **fills the space it has, then scrolls**: `max-h-full` is the top of
   the tool table, because the overlay is floored to the viewer and the viewer
-  stops where the table starts. The Add buttons and the reading below stay
-  pinned.
+  stops where the table starts.
 - The **editor is a card of its own beside the list**, and decides where it goes
   by itself: a wrapping column stacks the two while the pair is shorter than the
   viewer, and moves the editor into a column to the right the moment it is not.
@@ -330,6 +400,8 @@ nobody had asked anything about yet.
 | What is asked            | Heading                         | Contents                       |
 | ------------------------ | ------------------------------- | ------------------------------ |
 | nothing                  | Every tool in the catalog       | the filtered catalog           |
+| a part-level assembly    | Tool assembly 2 — no feature    | the filtered catalog           |
+| one being built          | New tool assembly — no feature  | the filtered catalog           |
 | a feature                | Cuts the _pocket_               | what fits it, then near misses |
 | a group, `all`           | Cuts every feature in the group | what fits all of them          |
 | a group or draft, `each` | One tool per feature            | the notice, not a list         |
@@ -435,6 +507,8 @@ true of the work the worker does:
 | ---------------------------------------- | ------------------------------------------------ |
 | what the list holds, names, ids, storage | `app/shared/feature-list.ts`                     |
 | what the bottom of the page is asked     | `asked()`, same file                             |
+| which key a row's lines are kept under   | `sheetKeysOf`, same file                         |
+| the three presses that grow the list     | `app/components/add-bar.tsx`                     |
 | a row's answer, and what opens           | `app/shared/recommendations.ts`                  |
 | what a click means                       | `app/shared/part-interaction.ts`                 |
 | the list on screen                       | `app/components/feature-list-panel.tsx`          |

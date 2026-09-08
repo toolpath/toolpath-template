@@ -1,17 +1,11 @@
 import { Button, IconButton, Menu, cn } from '@toolpath/ui'
 import type { ReactNode } from 'react'
-import {
-  CaretDownIcon,
-  CaretRightIcon,
-  FolderIcon,
-  FolderOpenIcon,
-  PlusIcon,
-} from '@phosphor-icons/react'
+import { CaretDownIcon, CaretRightIcon, FolderIcon, FolderOpenIcon } from '@phosphor-icons/react'
 import { formatGeometry } from 'shared/geometry'
 import type { UnitSystem } from '@toolpath/tool-support'
 import { labelOf, type ListItem } from 'shared/feature-list'
 import type { Pick, RecommendationRow } from 'shared/recommendations'
-import { ToolTypeIcon } from './tool-icons'
+import { HolderIcon, ToolTypeIcon } from './tool-icons'
 
 /**
  * The features somebody has asked about, as a list they built.
@@ -63,18 +57,14 @@ export interface FeatureListPanelProps {
   readonly iconOf?: (tag: string) => ReactNode
   /** Which way up a feature is cut, for the corner of its row. */
   readonly directionOf?: (tag: string) => string | null
-  readonly onAddFeature: () => void
-  readonly onAddGroup: () => void
   /**
-   * Whether *Add feature* is waiting for a face to be clicked.
-   *
-   * The button was disabled until something was read, which read as broken
-   * rather than as waiting (Paul, 2026-09-02: "Add feature is greyed out by
-   * default, which makes it confusing — it should be clickable, then just
-   * prompt you to click on the part"). It is always pressable now, and this is
-   * the state pressing it puts the panel in.
+   * **The three presses that grow the list are not in it** (Paul, 2026-09-08:
+   * "move the add feature, add group, and add tool assembly buttons so they are
+   * always at the top left of the part viewer"). They sat under the rows, which
+   * put them below the fold on any list long enough to scroll — the one state
+   * where somebody most wants to add another. `components/add-bar.tsx` is where
+   * they live now; this panel is the list and nothing else.
    */
-  readonly addingFeature: boolean
   readonly onEdit: (id: string) => void
   readonly onRemove: (id: string) => void
 }
@@ -208,9 +198,6 @@ export const FeatureListPanel = ({
   nameOf,
   iconOf,
   directionOf,
-  onAddFeature,
-  onAddGroup,
-  addingFeature,
   onEdit,
   onRemove,
 }: FeatureListPanelProps) => {
@@ -233,7 +220,15 @@ export const FeatureListPanel = ({
           scroll inside whatever it is given.
         */
         <ul
-          className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto"
+          /*
+            **The rows take the pointer; the column they stand in does not**
+            (Paul, 2026-09-08: "make the list rows sit on top of the 3d viewer
+            rather than in the box"). With the card gone this is the only thing
+            over the canvas that is meant to be clicked, and an invisible box
+            carrying `pointer-events: auto` is a curtain — the defect
+            `tests/on-the-part.spec.ts` § "at a laptop width" exists for.
+          */
+          className="pointer-events-auto flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto"
           aria-label="Features being asked about"
         >
           {items.map((item) => {
@@ -242,7 +237,13 @@ export const FeatureListPanel = ({
             const opened = open.includes(item.id)
             const label = labelOf(item, nameOf)
             return (
-              <li key={item.id} className="relative">
+              /*
+                **Each row is its own plate.** Standing on the part rather than
+                in a panel, a row has whatever the part is painted in behind it
+                — so it carries just enough ground of its own to be read, which
+                is a row on the viewer rather than a box around the list.
+              */
+              <li key={item.id} className="relative rounded bg-zinc-950/75">
                 <Menu context>
                   <Menu.Trigger>
                     <div
@@ -291,6 +292,10 @@ export const FeatureListPanel = ({
                             ) : (
                               <FolderIcon />
                             )
+                          ) : item.kind === 'assembly' ? (
+                            /* No feature to draw, so it wears what it is: a
+                               stack in a holder. */
+                            <HolderIcon />
                           ) : (
                             (iconOf?.(item.tags[0] ?? '') ?? null)
                           )}
@@ -317,6 +322,17 @@ export const FeatureListPanel = ({
                           >
                             {RESULT_LABEL[item.results]}
                           </span>
+                        ) : item.kind === 'assembly' ? (
+                          /* **It says what it is on the row** (Paul,
+                             2026-09-08). A stack that answers no feature looks
+                             exactly like one that answers a feature nobody can
+                             see any more, and the two are different things. */
+                          <span
+                            className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-zinc-400"
+                            title="A tool assembly for the part, not for a feature"
+                          >
+                            no feature
+                          </span>
                         ) : (
                           <span className="text-2xs shrink-0 font-mono text-zinc-500">
                             {directionOf?.(item.tags[0] ?? '') ?? ''}
@@ -334,9 +350,14 @@ export const FeatureListPanel = ({
                     </div>
                   </Menu.Trigger>
                   <Menu.Popover>
-                    <Menu.Item onClick={() => onEdit(item.id)}>
-                      Edit {item.kind === 'group' ? 'group' : 'feature'}…
-                    </Menu.Item>
+                    {/* An assembly has no features to pick, so there is nothing
+                        an editor could ask about: it is built in its own tree
+                        and removed here. */}
+                    {item.kind === 'assembly' ? null : (
+                      <Menu.Item onClick={() => onEdit(item.id)}>
+                        Edit {item.kind === 'group' ? 'group' : 'feature'}…
+                      </Menu.Item>
+                    )}
                     <Menu.Item variant="danger" onClick={() => onRemove(item.id)}>
                       Remove
                     </Menu.Item>
@@ -407,48 +428,6 @@ export const FeatureListPanel = ({
           })}
         </ul>
       )}
-
-      {/*
-        **Two buttons, not one that asks** (Paul, 2026-09-02: "it should show
-        buttons for Add Feature or Add Group, not the weird combined one"). A
-        `+` that opened a menu of two put a popover between somebody and the
-        two things they could do, and hid both of them until it was pressed.
-        There are two things; there are two buttons.
-      */}
-      <div className="flex items-center gap-1">
-        <Button
-          type="button"
-          variant="muted"
-          size="sm"
-          aria-pressed={addingFeature}
-          title="Add the feature being read"
-          onClick={onAddFeature}
-          className={cn(
-            'focus-visible:ring-info/60 flex flex-1 items-center justify-center gap-1 rounded border border-dashed px-2 py-1 text-xs transition focus-visible:ring-1 focus-visible:outline-none',
-            addingFeature
-              ? 'border-info/60 bg-info/15 text-info'
-              : 'border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-200',
-          )}
-        >
-          <PlusIcon aria-hidden="true" />
-          Add feature
-        </Button>
-        <Button
-          type="button"
-          variant="muted"
-          size="sm"
-          onClick={onAddGroup}
-          className="focus-visible:ring-info/60 flex flex-1 items-center justify-center gap-1 rounded border border-dashed border-zinc-800 px-2 py-1 text-xs text-zinc-500 transition hover:border-zinc-700 hover:text-zinc-200 focus-visible:ring-1 focus-visible:outline-none"
-        >
-          <PlusIcon aria-hidden="true" />
-          Add group
-        </Button>
-      </div>
-      {/* Pressed with nothing being read, the button asks for the one thing it
-          needs rather than refusing to be pressed. */}
-      {addingFeature ? (
-        <p className="text-2xs text-info">Click a face on the part, then press Add feature.</p>
-      ) : null}
     </div>
   )
 }

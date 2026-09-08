@@ -1,5 +1,5 @@
 import type { CatalogTool } from '@toolpath/catalog-data'
-import { groupLabel, labelOf, type ListItem } from './feature-list'
+import { groupLabel, labelOf, sheetKeysOf, type ListItem } from './feature-list'
 
 /**
  * The list, answered a row at a time.
@@ -152,7 +152,13 @@ export const recommendationRows = (
         children,
       }
     }
-    const answer = answers.get(demandKey(item.tags)) ?? 'pending'
+    /*
+      Keyed by what the row's lines are keyed by — `sheetKeysOf` — so a
+      part-level assembly, which holds no tags at all, is answered with what is
+      in *it* rather than with whatever `demandKey([])` happens to hash to. For
+      a feature or a group the keys are the tags, so nothing else moves.
+    */
+    const answer = answers.get(demandKey(sheetKeysOf(item))) ?? 'pending'
     const picked = typeof answer === 'object' ? answer : null
     return {
       id: item.id,

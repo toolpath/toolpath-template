@@ -11,11 +11,13 @@ import type { PartFeature } from '@toolpath/part-contracts'
  * list is that set made explicit and given a shape: a row per thing asked
  * about, and a group is one row that holds several (Paul, 2026-09-02).
  *
- * Two kinds, because a shop asks two different questions:
+ * Three kinds, because a shop asks three different questions:
  *
  * - a **feature** — this hole, this pocket. What tool cuts it.
  * - a **group** — these six. Either *one* tool that cuts all six, or the best
  *   tool for each of them, which is {@link Results}.
+ * - an **assembly** — a stack the part needs and no feature asked for (Paul,
+ *   2026-09-08). It holds no features at all; see {@link AssemblyItem}.
  *
  * Pure, and here rather than in the route, because every rule about what the
  * list holds and what it is asking is a sentence somebody can be wrong about.
@@ -46,7 +48,54 @@ export interface GroupItem {
   readonly results: Results
 }
 
-export type ListItem = FeatureItem | GroupItem
+/**
+ * A tool assembly of the part's own, answering no feature (Paul, 2026-09-08:
+ * "the tool assembly will not be tied to a specific feature or group, it will
+ * just exist at the part level").
+ *
+ * A shop puts a tool on the order list for reasons the part cannot state — a
+ * facing mill for the first op, a spare collet — and every way onto that list
+ * ran through a feature. This is the third row kind: it holds no tags, it is
+ * never painted on the part, and the tools it is answered with are whatever
+ * somebody built in its tree.
+ *
+ * `tags` is empty and stays empty, so nothing that reads a row's features has
+ * to know this kind exists. What it *does* need is a key on the setup sheet,
+ * which is {@link sheetKeysOf} — its own id, because it stands for itself.
+ */
+export interface AssemblyItem {
+  readonly kind: 'assembly'
+  readonly id: string
+  /** Always empty: a part-level assembly stands for no feature. */
+  readonly tags: ReadonlyArray<string>
+}
+
+export type ListItem = FeatureItem | GroupItem | AssemblyItem
+
+/**
+ * The keys this row's lines are kept under on the setup sheet.
+ *
+ * A feature or a group is keyed by the features it holds — the sheet has been
+ * keyed by feature tag since 2026-08-10, and a bolt circle of eight holes
+ * writes eight of them. A part-level assembly holds none, so it is keyed by its
+ * own id: it is the thing being ordered, and there is nothing else to key it
+ * by.
+ *
+ * One function rather than `item.tags[0]` at each call site, because a row with
+ * no tags reading the *focused* feature's lines is how a part-level assembly
+ * would quietly order itself against whatever face was last clicked.
+ */
+export const sheetKeysOf = (item: ListItem): ReadonlyArray<string> =>
+  item.kind === 'assembly' ? [item.id] : item.tags
+
+/**
+ * Whether a sheet key is a part-level assembly's rather than a feature's.
+ *
+ * Ids are arithmetic (`assembly-3`) and a feature tag is the kernel's, so the
+ * two cannot collide. The order list asks this to say *no feature* where it
+ * would otherwise print a row id at somebody buying tools.
+ */
+export const isAssemblyKey = (key: string): boolean => /^assembly-\d+$/.test(key)
 
 /**
  * The next id for a kind, read off the list rather than invented.
@@ -115,12 +164,22 @@ export const groupLabel = (names: ReadonlyArray<string>): string => {
  * `nameOf` is handed in because reading a feature's own name needs the
  * measurements reader and the part's regions, which are the route's to hold.
  */
-export const labelOf = (item: ListItem, nameOf: (tag: string) => string): string =>
-  item.kind === 'feature'
+export const labelOf = (item: ListItem, nameOf: (tag: string) => string): string => {
+  if (item.kind === 'assembly') {
+    /*
+      Numbered off its own id, the rule `groupLabel` already follows: an
+      assembly answering no feature has nothing to be named after until it has
+      a tool in it, and a name somebody has to invent for every one of them is
+      a name most of them will not get.
+    */
+    return `Tool assembly ${item.id.split('-')[1] ?? ''}`.trim()
+  }
+  return item.kind === 'feature'
     ? item.tags[0] === undefined
       ? 'Feature'
       : nameOf(item.tags[0])
     : groupLabel(item.tags.map(nameOf))
+}
 
 /**
  * The quick buttons a group editor offers: every kind of feature on the part,
@@ -199,6 +258,16 @@ export const asked = ({
   if (draft && draft.tags.length > 0) {
     return { tags: draft.tags, results: draft.results, summary: false }
   }
+  /**
+   * **A part-level assembly asks nothing.** It has no features, so there is
+   * nothing to judge a tool against: the table under it is the catalog, the
+   * three racks are the crib, and what is being decided is which of them goes
+   * into the stack. Falling through to `selected.tags` would have said the same
+   * thing with an empty array, but only by accident — this says it.
+   */
+  if (selected?.kind === 'assembly') {
+    return { tags: [], results: 'all', summary: true }
+  }
   if (selected) {
     return {
       tags: selected.tags,
@@ -238,11 +307,11 @@ const isItem = (value: unknown): value is ListItem => {
   }
   const item = value as ListItem
   return (
-    (item.kind === 'feature' || item.kind === 'group') &&
+    (item.kind === 'feature' || item.kind === 'group' || item.kind === 'assembly') &&
     typeof item.id === 'string' &&
     Array.isArray(item.tags) &&
     item.tags.every((tag) => typeof tag === 'string') &&
-    (item.kind === 'feature' || item.results === 'all' || item.results === 'each')
+    (item.kind !== 'group' || item.results === 'all' || item.results === 'each')
   )
 }
 

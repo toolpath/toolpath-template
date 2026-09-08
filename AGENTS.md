@@ -203,7 +203,15 @@ application unless that application says otherwise.
   **The feature list is what drives the page** (Paul, 2026-09-02): a click on
   the part adds a row, a row is what the tool table is being asked about, and a
   tool reaches the bill only because a row put it there — there is no second
-  place to add one. `shared/feature-list.ts` is the model and
+  place to add one. It is headed **Order list** and its rows stand on the part
+  rather than in a card, and **a row can answer no feature at all** (Paul,
+  2026-09-08): _+ Tool Assembly_ makes a part-level stack, keyed on the setup
+  sheet by its own id rather than by a feature tag — and it is a draft until the
+  press under it puts it on the order list, because an assembly nobody ordered is
+  a row about nothing. The three presses that grow
+  the list — _+ Feature_, _+ Group_, _+ Tool Assembly_ — live over the top-left
+  of the viewer in `components/add-bar.tsx`, not in the list.
+  `shared/feature-list.ts` is the model and
   `components/feature-list-panel.tsx` the list on screen;
   `docs/FEATURE-LIST.md` is the spec, including _Where the rules live_ for
   which file owns which rule and _Not built_ for what is deliberately absent.
@@ -248,7 +256,9 @@ application unless that application says otherwise.
 | Question                                        | Module                                               |
 | ----------------------------------------------- | ---------------------------------------------------- |
 | what the list holds, its names, ids, storage    | `app/shared/feature-list.ts`                         |
+| which key a row's lines reach the bill under    | `sheetKeysOf`, same file                             |
 | which of four things the page is being asked    | `asked()`, same file                                 |
+| the three presses over the part that add a row  | `app/components/add-bar.tsx`                         |
 | a row's answer, and what it opens to            | `app/shared/recommendations.ts`                      |
 | what the panel offers for the tool it shows     | `app/shared/tool-actions.ts`                         |
 | what fills the tool table, and the cache        | `app/shared/catalog-matcher.ts`                      |

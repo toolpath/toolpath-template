@@ -327,7 +327,11 @@ export const OverrideToggle = ({
     pressed={override.on}
     onClick={() => override.onOverride(!override.on)}
     label={`Override the ${label.toLowerCase()} rules`}
-    title={`List the ${String(override.available)} tools only the ${label.toLowerCase()} rules are keeping off this list. They are marked, and so is any assembly one goes into.`}
+    title={
+      override.on
+        ? `Put the ${label.toLowerCase()} back to what the geometry asked for, and take those ${String(override.available)} off the list.`
+        : `List the ${String(override.available)} tools only the ${label.toLowerCase()} rules are keeping off this list. They are marked, and so is any assembly one goes into.`
+    }
   >
     Override rules
   </Chip>
@@ -371,7 +375,8 @@ export const OverrideNotice = ({
       ) : on ? (
         <>
           <span className="text-zinc-300">Override rules</span> is on: {available} the {named} rules
-          turn down are listed, marked.
+          turn down are listed, marked. Turning it off puts the {named} back to{' '}
+          {suggested === undefined ? 'no bound at all' : say(suggested)}.
         </>
       ) : (
         <>
