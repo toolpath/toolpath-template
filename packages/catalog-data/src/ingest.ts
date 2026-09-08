@@ -6,6 +6,7 @@ import {
   MATERIAL_GROUPS,
   type CatalogTool,
   type Provenance,
+  type ThreadMethod,
   type ToolInput,
   type ToolType,
 } from './types.js'
@@ -72,6 +73,20 @@ export interface ScrapedTool
      */
     Partial<Pick<ToolRecord, 'productLine'>> {
   readonly materialNumber?: string | null
+  /**
+   * Whether a tap cuts its thread or forms it, as the record states it.
+   *
+   * **Declared here rather than picked, and only until the scraper ships it.**
+   * Every other shared field is `Pick<ToolRecord, …>` so that a shape moving
+   * upstream fails `check-types` here — see this interface's own note. This one
+   * cannot be, because `@toolpath/tool-scraper` 2.3.0 is what is installed and
+   * its `ToolRecord` has no such field; picking it would not compile.
+   *
+   * When 2.4.0 is installed, delete this member and add `'threadMethod'` to
+   * the `Pick` above — the types are the same, and the seam goes back to being
+   * checked against the producer. `scrape.ts` carries the matching change.
+   */
+  readonly threadMethod?: ThreadMethod | null
   /**
    * What the tool is, where the vendor's own page says it outright.
    *
@@ -323,6 +338,12 @@ const toolFrom = (
     // written before the scraper recorded one says `undefined`, and that is
     // the same silence as a vendor who names no line.
     productLine: scraped.productLine ?? null,
+    // Carried, never inferred. A store scraped before the scraper recorded the
+    // fact says `undefined` for every tap it holds, and that silence is not
+    // `cutting` — see `CatalogTool.threadMethod`. Nothing here looks at
+    // `toolType`, because a non-tap that somehow states one is the scraper's
+    // bug to refuse, not this seam's to hide.
+    threadMethod: scraped.threadMethod ?? null,
     productLink: scraped.productLink ?? null,
     provenance:
       stated === null

@@ -136,6 +136,15 @@ for (const tool of document.tools) {
   brandsByProductLine.set(line, brands)
 }
 
+/**
+ * A family as a shop reads it: the vendor's own title, or the value itself.
+ *
+ * The value being either a family id or a product line — one axis since
+ * 2026-09-08 — so the fallback is what a line names itself. A family with no
+ * page fetched keeps its id, which is what the picker has always shown.
+ */
+export const familyName = (value: string): string => getFamily(value)?.name ?? value
+
 export const brandsOfFamily = (id: string): ReadonlyArray<string> => {
   const family = familiesById.get(id)
   return family === undefined ? [] : [family.brand]

@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from 'react'
-import { TOOL_FORMS, shankOf } from '@toolpath/catalog-data'
+import { normalise, typeLabel } from 'shared/tool-type'
 
 /**
  * A drawing of every kind of tool the library holds, and of how many flutes it
@@ -421,14 +421,6 @@ const BY_TYPE: Record<string, (props: IconProps) => ReactElement> = {
   tap: TapRightHand,
 }
 
-/** Lower case, and one space between words, so `Bull_nose-mill` finds its drawing. */
-const normalise = (toolType: string): string =>
-  toolType
-    .toLowerCase()
-    .replace(/[-_/]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-
 export const ToolTypeIcon = ({ toolType, className }: { toolType: string; className?: string }) => {
   const Icon = BY_TYPE[normalise(toolType)] ?? Generic
   return <Icon className={className} />
@@ -437,35 +429,12 @@ export const ToolTypeIcon = ({ toolType, className }: { toolType: string; classN
 /** Whether this application has a drawing for a name, rather than a fallback. */
 export const hasToolTypeIcon = (toolType: string): boolean => normalise(toolType) in BY_TYPE
 
-/** What a name is called in the library's vocabulary, where it has a proper one. */
-export const toolTypeLabel = (toolType: string): string =>
-  TOOL_FORMS.find((each) => each.value === normalise(toolType))?.label ?? toolType
-
 /**
- * The forms whose shank is reduced by definition, so saying so adds nothing.
- *
- * A slot mill — a keyseat or woodruff cutter — is a disc of teeth on a neck;
- * there is no full-shank one to tell it apart from, and "Reduced shank slot
- * mill" is two words of noise on every one of them (Paul, 2026-09-01). The
- * shank facet still reads `reduced`, because it is: what changes is only
- * whether the label says a thing its own name already said.
+ * What a tool is, as words — the rule itself is `shared/tool-type.ts`, because
+ * the Type column and the Type filter are the same question and the phrase has
+ * to be built once.
  */
-const SHANK_IS_THE_TYPE: ReadonlySet<string> = new Set(['slot mill'])
+export { toolTypeLabel } from 'shared/tool-type'
 
-/**
- * What a tool is, in its own words, with the shank in the name where it is
- * reduced: "Reduced shank bull nose end mill". Paul's call (2026-08-30) — a
- * neck is not a kind of tool, but it is the first thing a shop wants to know
- * about one, so it leads. Except where every tool of that form has one; see
- * {@link SHANK_IS_THE_TYPE}.
- */
-export const formLabel = (tool: {
-  readonly form: string
-  readonly geometry: Readonly<Record<string, number>>
-}): string => {
-  const form = normalise(tool.form)
-  const label = toolTypeLabel(tool.form)
-  return shankOf(tool) === 'reduced' && !SHANK_IS_THE_TYPE.has(form)
-    ? `Reduced shank ${label.toLowerCase()}`
-    : label
-}
+/** What a tool is, in its own words, with the shank in the name where it is reduced. */
+export const formLabel = typeLabel

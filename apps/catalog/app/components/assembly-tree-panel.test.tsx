@@ -45,6 +45,65 @@ describe('the tree on screen', () => {
     expect(screen.getByRole('button', { name: /^DRILL for/ })).toBeInTheDocument()
   })
 
+  /**
+   * **The drill is a slot of the tap, not a card beside it** (Paul, 2026-09-08:
+   * "Top level: Tap / Second Level: Tap Holder / Second Level: Tap Collet /
+   * Second Level: Tap Drill / Third Level (under Tap Drill): Drill Holder").
+   * Which drill to run follows from which tap was chosen, so the two are one
+   * assembly: one heading over them, one press under them, and the drill's own
+   * holding indented beneath the drill rather than beside the tap's.
+   */
+  it('asks one press about the tap and the drill together', () => {
+    const actionsFor = vi.fn((_stacks: ReadonlyArray<TreeAssembly>) => [
+      { key: 'add', label: 'Add to order list', onClick: () => undefined },
+    ])
+    draw(defaultAssemblies(true), { actionsFor })
+
+    expect(actionsFor).toHaveBeenCalledTimes(1)
+    expect(actionsFor.mock.calls[0]?.[0].map((stack) => stack.id)).toEqual([
+      'assembly-1',
+      'assembly-2',
+    ])
+    expect(screen.getAllByRole('button', { name: 'Add to order list' })).toHaveLength(1)
+    // Each stack keeps its own holding, told apart by the stack the row names.
+    expect(screen.getByRole('button', { name: 'HOLDER for assembly-1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'HOLDER for assembly-2' })).toBeInTheDocument()
+  })
+
+  /**
+   * **The levels have to be told apart** (Paul, 2026-09-08: "it needs to be
+   * clear that the tap holder and tap collet go with the tap, and the drill is
+   * separate from them and has sublevels"). Six rows at one indent read as six
+   * things of equal rank.
+   */
+  it('keeps the drill and its holding out of the tap’s', () => {
+    const { container } = draw(defaultAssemblies(true))
+    const branch = container.querySelector('[data-assembly-branch="assembly-2"]')
+
+    expect(branch).not.toBeNull()
+    // Everything of the drill's is inside its own branch …
+    expect(branch).toContainElement(screen.getByRole('button', { name: 'DRILL for assembly-2' }))
+    expect(branch).toContainElement(screen.getByRole('button', { name: 'HOLDER for assembly-2' }))
+    expect(branch).toContainElement(screen.getByRole('button', { name: 'COLLET for assembly-2' }))
+    // … and nothing of the tap's is.
+    expect(branch).not.toContainElement(
+      screen.getByRole('button', { name: 'HOLDER for assembly-1' }),
+    )
+    expect(branch).not.toContainElement(
+      screen.getByRole('button', { name: 'COLLET for assembly-1' }),
+    )
+  })
+
+  /**
+   * **The trash takes the whole assembly** (Paul, 2026-09-08). A tap removed on
+   * its own leaves a drill hanging under nothing.
+   */
+  it('offers one way to remove a threaded hole’s assembly, not two', () => {
+    draw(setSlot(defaultAssemblies(true), 'assembly-1', 'tool', 'tap-a'))
+
+    expect(screen.getAllByRole('button', { name: /^Remove assembly/ })).toHaveLength(1)
+  })
+
   it('shows what a slot holds, and an em dash where nothing is chosen', () => {
     draw(held)
 
@@ -73,17 +132,17 @@ describe('the tree on screen', () => {
   })
 
   /**
-   * **One button per assembly, and its label is the change** (Paul, 2026-09-07:
-   * "I should just have an 'add to order list' button (or update, context
-   * aware), at the top level of each tool assembly"). What is offered is
-   * `shared/assembly-actions`; what this draws is one press per stack, with
-   * whatever else it moves said under it.
+   * **One button for the full assembly, and its label is the change** (Paul,
+   * 2026-09-07: "I should just have an 'add to order list' button (or update,
+   * context aware), at the top level of each tool assembly"). What is offered
+   * is `shared/assembly-actions`; what this draws is one press per assembly,
+   * with whatever else it moves said under it.
    */
-  it('draws what a stack offers, under the stack it is about', () => {
+  it('draws what an assembly offers, under the components it is about', () => {
     const onClick = vi.fn()
     draw(held, {
-      actionsFor: (assembly) =>
-        assembly.id === 'assembly-1'
+      actionsFor: (stacks) =>
+        stacks[0]?.id === 'assembly-1'
           ? [{ key: 'add', label: 'Add to order list', onClick, note: 'The collet comes off.' }]
           : [],
     })

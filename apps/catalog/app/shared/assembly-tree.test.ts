@@ -14,12 +14,15 @@ import {
   linesOf,
   nextAssemblyId,
   readTrees,
+  groupOf,
   removeAssembly,
   restoreAssembly,
   sameNode,
   setSlot,
   slotLabel,
+  stacksOf,
   treeFromLines,
+  treeGroups,
   treeRows,
   writeTrees,
   type TreeAssembly,
@@ -116,6 +119,23 @@ describe('how the stacks nest', () => {
     expect(treeRows([emptyAssembly('assembly-1', 'drill')])[0]?.depth).toBe(0)
   })
 
+  /**
+   * **A group is one assembly** (Paul, 2026-09-08: "there should only be one
+   * 'add to order list' button for the full assembly"), so the tap and the
+   * drill under it come back as one thing to press a button about.
+   */
+  it('gathers a threaded hole into one group', () => {
+    const groups = treeGroups(defaultAssemblies(true))
+    expect(groups).toHaveLength(1)
+    expect(stacksOf(groups[0]!).map((each) => each.role)).toEqual(['tap', 'drill'])
+  })
+
+  it('finds the group a stack stands in, child or root', () => {
+    const made = defaultAssemblies(true)
+    expect(groupOf(made, 'assembly-2')?.root.role).toBe('tap')
+    expect(groupOf(made, 'nothing')).toBeNull()
+  })
+
   /** Drawn tap-first even where the bill happens to hold the drill first. */
   it('draws the tap before the drill it predrills', () => {
     const back = [emptyAssembly('assembly-1', 'drill'), emptyAssembly('assembly-2', 'tap')]
@@ -163,8 +183,24 @@ describe('filling a slot', () => {
 
 describe('removing', () => {
   it('takes the stack off', () => {
-    expect(removeAssembly(defaultAssemblies(true), 'assembly-1').map((each) => each.id)).toEqual([
-      'assembly-2',
+    const three = addAssembly(defaultAssemblies(false))
+    expect(removeAssembly(three, 'assembly-1').map((each) => each.id)).toEqual(['assembly-2'])
+  })
+
+  /**
+   * **The trash takes the whole assembly** (Paul, 2026-09-08). A tap taken off
+   * on its own leaves a drill hanging under nothing, which the next read turns
+   * into a stack of its own: a hole drilled for a thread nobody is cutting.
+   */
+  it('takes the drill with the tap it hangs under', () => {
+    const made = removeAssembly(addAssembly(defaultAssemblies(true)), 'assembly-1')
+    expect(made.map((each) => each.role)).toEqual(['cut'])
+  })
+
+  /** And removing the drill leaves the tap: what hangs under it is nothing. */
+  it('leaves the tap when the drill goes', () => {
+    expect(removeAssembly(defaultAssemblies(true), 'assembly-2').map((each) => each.role)).toEqual([
+      'tap',
     ])
   })
 

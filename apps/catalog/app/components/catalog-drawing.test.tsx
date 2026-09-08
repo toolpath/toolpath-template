@@ -19,6 +19,7 @@ const tool: CatalogTool = {
   geometry: { DC: 3, LCF: 8, OAL: 50, RE: 0, NOF: 4, SFDM: 6 },
   materialGroups: ['P'],
   productLine: null,
+  threadMethod: null,
   productLink: null,
   provenance: {},
 }

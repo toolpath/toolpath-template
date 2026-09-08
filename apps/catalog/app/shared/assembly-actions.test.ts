@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   assemblyActions,
+  groupActions,
   holdingChanges,
   lineOf,
   nothingToConfirm,
@@ -299,5 +300,96 @@ describe('the line the bill holds for a stack', () => {
 
   it('holds none for a stack with no tool', () => {
     expect(savedFor(stack({ toolGuid: null }), [{ toolGuid: 'tool-a' }])).toBeNull()
+  })
+})
+
+/**
+ * **One press for the full assembly** (Paul, 2026-09-08: "there should only be
+ * one 'add to order list' button for the full assembly"). A threaded hole is a
+ * tap with the drill that predrills it hanging under it, and it carried a press
+ * per stack — two buttons for one decision, and a tap orderable on its own with
+ * no hole under it to cut the thread in.
+ */
+describe('what a whole assembly offers', () => {
+  const tap = stack({ id: 'assembly-1', role: 'tap', toolGuid: 'tap-a', colletGuid: 'collet-a' })
+  const drill = stack({
+    id: 'assembly-2',
+    role: 'drill',
+    toolGuid: 'drill-a',
+    holderGuid: 'holder-b',
+    colletGuid: 'collet-b',
+  })
+  const named: Record<string, string> = {
+    'tap-a': 'A0101001.5037',
+    'tap-b': 'A0101001.6000',
+    'drill-a': 'TE239744.0225',
+    'holder-a': 'BT30-ER11-110DT',
+    'holder-b': 'BT30-ER11-60M',
+    'holder-c': 'BT30-ER16-100DT',
+  }
+  const nameOf = (guid: string) => named[guid] ?? null
+  const offered = (
+    stacks: ReadonlyArray<TreeAssembly>,
+    onSheet: ReadonlyArray<Choice>,
+    onList = true,
+  ) => groupActions(stacks, onSheet, onList, 'feature', nameOf)
+
+  /** A group of one is a stack, and every label it has ever said is unchanged. */
+  it('is the stack’s own rule where there is only one stack', () => {
+    expect(groupActions([stack()], [])).toEqual(assemblyActions(stack(), []))
+  })
+
+  it('offers one press for the tap and the drill together', () => {
+    expect(offered([tap, drill], []).map((each) => each.kind)).toEqual(['add'])
+  })
+
+  it('offers nothing where no stack of it has a tool', () => {
+    expect(
+      offered([emptyAssembly('assembly-1', 'tap'), emptyAssembly('assembly-2', 'drill')], []),
+    ).toEqual([])
+  })
+
+  it('makes the feature and writes the assembly in one press', () => {
+    const [first] = offered([tap, drill], [], false)
+    expect(first?.kind).toBe('confirm')
+    expect(first?.note).toContain('feature list')
+  })
+
+  it('offers the way off the list once every stack of it is on there', () => {
+    const on = [lineOf(tap)!, lineOf(drill)!]
+    expect(offered([tap, drill], on).map((each) => each.kind)).toEqual(['remove'])
+  })
+
+  /**
+   * A drill chosen for a thread that was ordered without one is an addition to
+   * the assembly, not a change to it — and the sentence names which stack.
+   */
+  it('names the stack a change is about', () => {
+    const on = [lineOf(tap)!]
+    const [first] = offered([tap, drill], on)
+    expect(first?.kind).toBe('update')
+    expect(first?.label).toBe('Add drill TE239744.0225')
+  })
+
+  it('says the tap’s holder change on the button and the drill’s under it', () => {
+    const on = [lineOf(tap)!, lineOf(drill)!]
+    const moved = [
+      { ...tap, holderGuid: 'holder-c' },
+      { ...drill, holderGuid: 'holder-a' },
+    ]
+    const [first, second] = offered(moved, on)
+    expect(first?.label).toBe('TAP: Change holder from BT30-ER11-110DT to BT30-ER16-100DT')
+    expect(first?.note).toContain('DRILL: Change holder from BT30-ER11-60M to BT30-ER11-110DT')
+    // And the way back out of it, exactly where the change is.
+    expect(second?.kind).toBe('revert')
+  })
+
+  it('reads a swapped cutter in an ordered assembly as a replacement', () => {
+    const on = [lineOf(tap)!, lineOf(drill)!]
+    // `orderedTool` is the link back to the line: what the press wrote there.
+    const swapped = [{ ...tap, toolGuid: 'tap-b', orderedTool: 'tap-a' }, drill]
+    const [first] = offered(swapped, on)
+    expect(first?.kind).toBe('replace')
+    expect(first?.label).toBe('Replace A0101001.5037 with A0101001.6000')
   })
 })

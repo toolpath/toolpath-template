@@ -33,6 +33,7 @@ const tool = (over: Partial<CatalogTool> & Pick<CatalogTool, 'guid'>): CatalogTo
   geometry: { DC: 6, LCF: 20, OAL: 60, SFDM: 6, RE: 0 },
   materialGroups: ['P'],
   productLine: null,
+  threadMethod: null,
   productLink: null,
   provenance: {},
   ...over,

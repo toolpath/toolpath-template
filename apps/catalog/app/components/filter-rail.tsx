@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { CaretRightIcon, XIcon } from '@phosphor-icons/react'
 import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import type { ToolQuery } from 'shared/filter'
+import { useEscape } from 'shared/use-escape'
 import { FilterPanel, QUICK_FILTERS, type FilterPanelProps } from './filter-panel'
 
 /**
@@ -138,18 +139,18 @@ export const RailBubble = ({
         setOpen(false)
       }
     }
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpen(false)
-      }
-    }
     document.addEventListener('pointerdown', onDown)
-    document.addEventListener('keydown', onKey)
     return () => {
       document.removeEventListener('pointerdown', onDown)
-      document.removeEventListener('keydown', onKey)
     }
   }, [open])
+
+  /*
+    Escape puts the panel away — through the stack rather than a listener of
+    its own, because the page answers Escape too. Both fired on one press, so
+    closing a filter panel also dropped the reading behind it.
+  */
+  useEscape(open, () => setOpen(false))
 
   return (
     <div ref={mine} data-rail-item className="group pointer-events-auto relative">

@@ -18,9 +18,15 @@ import { Button, Combobox, Table, cn } from '@toolpath/ui'
 import type { CatalogTool, Holder } from '@toolpath/catalog-data'
 import type { UnitSystem } from '@toolpath/tool-support'
 import { formatGeometry } from 'shared/geometry'
+import { askOfToolColumn } from 'shared/column-filters'
+import { familyName } from 'shared/catalog'
+import { typeLabel } from 'shared/tool-type'
+import type { ToolQuery } from 'shared/filter'
 import type { Mark } from 'shared/tool-marks'
 import { orderedCodes } from 'shared/column-order'
-import { ToolTypeIcon, formLabel } from './tool-icons'
+import { ToolTypeIcon } from './tool-icons'
+import { ColumnHeading, SORT_ICON } from './column-heading'
+import type { Bound } from './column-filter'
 import { CatalogComboboxButton } from './catalog-combobox-button'
 
 export interface PartToolColumn {
@@ -96,8 +102,19 @@ export interface Holding {
   ) => void
 }
 
+/**
+ * A tool as the table sorts it.
+ *
+ * **A sort key has to be a field on the row**, the same rule `ComponentTable`
+ * keeps: the kit sorts by reading `row[sortKey]`, so the two phrases this
+ * catalog builds — the type with its shank, the family with its product line —
+ * are carried on the row as the words the cells show. Sorting by Type and
+ * reading the Type column then cannot disagree about what a tool is.
+ */
 interface TableTool extends CatalogTool {
   readonly id: string
+  readonly type: string
+  readonly family: string
 }
 
 interface Selection {
@@ -316,6 +333,37 @@ const GeometryCell = ({
   )
 }
 
+/**
+ * The filters the headers ask, and where the answers go.
+ *
+ * Handed in whole rather than one callback per column: which column asks what
+ * is `shared/column-filters.ts`'s rule, and the table reads it there so that
+ * the tool list, the holder list and the collet list cannot disagree about it.
+ * Absent — a list nothing is being narrowed on — the headings still sort and
+ * carry no funnel.
+ */
+export interface ToolColumnFiltering {
+  /** The catalog-number search, which every list of tools narrows on. */
+  readonly search: { readonly value: string; readonly onChange: (value: string) => void }
+  /**
+   * The tool query, where the rows are drawn from it.
+   *
+   * **A tap list is not.** Its rows come from the thread — `makersFor` sweeps
+   * the whole catalog for taps that cut it — so the tool filters do not reach
+   * it, and a funnel on its Vendor heading would be a control that changes
+   * nothing. Left out, those headings sort and say nothing else.
+   */
+  readonly catalog?: {
+    readonly query: ToolQuery
+    readonly onTerm: (axis: string, values: ReadonlyArray<string>) => void
+    readonly onRange: (code: string, bound: Bound | undefined) => void
+    /** What an axis has among the tools on show, with how many wear each. */
+    readonly options: (
+      axis: string,
+    ) => ReadonlyArray<{ readonly value: string; readonly label: string; readonly count: number }>
+  }
+}
+
 export interface PartToolTableProps {
   readonly tools: ReadonlyArray<CatalogTool>
   readonly unit: UnitSystem
@@ -337,6 +385,7 @@ export interface PartToolTableProps {
    */
   readonly usedOn?: (guid: string) => { readonly label: string; readonly title: string } | null
   readonly empty?: ReactNode
+  readonly filtering?: ToolColumnFiltering
   /** Test-only escape hatch for jsdom, where virtual rows cannot measure themselves. */
   readonly virtualized?: boolean
 }
@@ -356,10 +405,17 @@ export const PartToolTable = ({
   keptElsewhere,
   usedOn,
   empty,
+  filtering,
   virtualized = true,
 }: PartToolTableProps) => {
   const data = useMemo<Array<TableTool>>(
-    () => tools.map((tool) => ({ ...tool, id: tool.guid })),
+    () =>
+      tools.map((tool) => ({
+        ...tool,
+        id: tool.guid,
+        type: typeLabel(tool),
+        family: familyName(tool.productLine ?? tool.familyId),
+      })),
     [tools],
   )
   const shown = useMemo(
@@ -398,21 +454,78 @@ export const PartToolTable = ({
     }
   }, [selectedRows.id, tools, chosen, onChoose])
 
+  /**
+   * One heading, with the two things it can do: sort, and narrow.
+   *
+   * The filter it opens is whatever `askOfToolColumn` says the column asks —
+   * words for the Vendor and Type columns, a number for every geometry code,
+   * what somebody types for the catalog number, and nothing at all for the
+   * holder and collet cells, which set a choice rather than hold a value.
+   */
+  const heading = (code: string, label: string): ReactNode => {
+    if (filtering === undefined) {
+      return <ColumnHeading label={label} />
+    }
+    const ask = askOfToolColumn(code)
+    const catalog = filtering.catalog
+    if (ask?.shape === 'text') {
+      return (
+        <ColumnHeading
+          label={label}
+          ask={ask}
+          text={filtering.search.value}
+          onText={filtering.search.onChange}
+        />
+      )
+    }
+    if (catalog === undefined) {
+      return <ColumnHeading label={label} />
+    }
+    const axis = ask !== null && ask.shape === 'terms' ? ask.axis : null
+    return (
+      <ColumnHeading
+        label={label}
+        ask={ask}
+        unit={unit}
+        bound={catalog.query.ranges[code]}
+        onBound={(bound) => catalog.onRange(code, bound)}
+        options={axis === null ? undefined : catalog.options(axis)}
+        chosen={axis === null ? undefined : (catalog.query.terms[axis] ?? [])}
+        onChosen={axis === null ? undefined : (values) => catalog.onTerm(axis, values)}
+      />
+    )
+  }
+
   const header = (
     <Table.HeaderRow>
-      <Table.HeaderCell sortKey="catalogNumber" width={flexibleColumnWidth('10rem')}>
-        Catalog number
+      <Table.HeaderCell
+        sortKey="catalogNumber"
+        sortIcon={SORT_ICON}
+        width={flexibleColumnWidth('10rem')}
+      >
+        {heading('catalogNumber', 'Catalog number')}
       </Table.HeaderCell>
-      <Table.HeaderCell sortKey="brand" width={flexibleColumnWidth('7rem')}>
-        Vendor
+      <Table.HeaderCell sortKey="brand" sortIcon={SORT_ICON} width={flexibleColumnWidth('7rem')}>
+        {heading('brand', 'Vendor')}
       </Table.HeaderCell>
-      <Table.HeaderCell sortKey="form" width={flexibleColumnWidth('12rem')}>
-        Type
+      <Table.HeaderCell sortKey="type" sortIcon={SORT_ICON} width={flexibleColumnWidth('12rem')}>
+        {heading('type', 'Type')}
+      </Table.HeaderCell>
+      {/*
+        **The family is a column** (Paul, 2026-09-08: "product line and family
+        are the same and need to be rolled into one Family field. This should
+        be a column in tools"). Fixed, like the other three and like the four
+        every holder and collet row carries: it is what a tool *is*, not a
+        number about it.
+      */}
+      <Table.HeaderCell sortKey="family" sortIcon={SORT_ICON} width={flexibleColumnWidth('9rem')}>
+        {heading('family', 'Family')}
       </Table.HeaderCell>
       {shown.map((column) => (
         <Table.HeaderCell
           key={column.code}
           sortKey={column.code}
+          sortIcon={SORT_ICON}
           sortFn={(rows) =>
             rows.sort((left, right) => {
               const a = (left as TableTool).geometry[column.code]
@@ -425,7 +538,7 @@ export const PartToolTable = ({
           }
           width={flexibleColumnWidth(isHolding(column.code) ? '10rem' : '6rem')}
         >
-          {column.label}
+          {heading(column.code, column.label)}
         </Table.HeaderCell>
       ))}
     </Table.HeaderRow>
@@ -504,12 +617,17 @@ export const PartToolTable = ({
                 <Table.Cell>
                   <span
                     className="flex min-w-0 items-center gap-1.5 text-zinc-300"
-                    title={formLabel(tool)}
+                    title={tool.type}
                   >
                     <span className="shrink-0 text-zinc-500">
                       <ToolTypeIcon toolType={tool.form} />
                     </span>
-                    <span className="truncate">{formLabel(tool)}</span>
+                    <span className="truncate">{tool.type}</span>
+                  </span>
+                </Table.Cell>
+                <Table.Cell>
+                  <span className="truncate text-zinc-400" title={tool.family}>
+                    {tool.family}
                   </span>
                 </Table.Cell>
                 {shown.map((column) => (
@@ -535,47 +653,52 @@ export const PartToolTable = ({
   )
 }
 
+/**
+ * The chrome over the list: what is narrowing it, and the way to stop.
+ *
+ * **The filters were behind a button, over a table whose headers said the same
+ * words** (Paul, 2026-09-08). Everything a column names is asked on that
+ * column's own header now; what is left is what no column shows — the part's
+ * material, a family, a product line, a shank, and the crib's own holder and
+ * collet — and those stay on show rather than going back behind a press.
+ *
+ * The count is every narrowing there is, the headers' included, because a
+ * filter set on a column somebody has since hidden is otherwise a short list
+ * with no visible reason for it.
+ */
 export const ToolTableToolbar = ({
   filters,
   actions,
   onClear,
+  set,
 }: {
-  filters: ReactNode
+  /** The questions no column asks. Absent for a list whose columns ask them all. */
+  filters?: ReactNode
   actions?: ReactNode
   onClear: () => void
-}) => {
-  const [open, setOpen] = useState(false)
-
-  return (
-    <>
-      <div data-part-tool-table-toolbar className="flex items-center justify-end gap-1">
+  /** How many questions are narrowing the list, in a header or on a button. */
+  set: number
+}) => (
+  <>
+    <div className="flex items-center justify-end gap-1">
+      {set === 0 ? null : (
         <Button
           type="button"
           size="sm"
           variant="secondary"
-          aria-expanded={open}
-          title="Open filters. Right-click to clear all filters."
-          onClick={() => setOpen(!open)}
-          onContextMenu={(event) => {
-            event.preventDefault()
-            onClear()
-          }}
+          title="Clear every filter, including the ones set in a column header"
+          onClick={onClear}
           className="rounded border border-zinc-800 px-2 py-1 text-xs text-zinc-300 hover:border-zinc-700"
         >
-          Filters
+          Clear {set} filter{set === 1 ? '' : 's'}
         </Button>
+      )}
+    </div>
+    {actions}
+    {filters === undefined ? null : (
+      <div data-part-tool-table-toolbar className="col-span-full flex flex-wrap items-center gap-1">
+        {filters}
       </div>
-      {actions}
-      {open ? (
-        <div
-          data-tool-table-popover
-          role="dialog"
-          aria-label="Filters"
-          className="col-span-full rounded-lg border border-zinc-800 bg-zinc-950 p-2"
-        >
-          {filters}
-        </div>
-      ) : null}
-    </>
-  )
-}
+    )}
+  </>
+)

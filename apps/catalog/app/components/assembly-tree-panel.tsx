@@ -7,7 +7,8 @@ import {
   isEmpty,
   sameNode,
   slotLabel,
-  treeRows,
+  stacksOf,
+  treeGroups,
   type Slot,
   type TreeAssembly,
   type TreeNode,
@@ -59,13 +60,14 @@ export interface AssemblyTreePanelProps {
   /**
    * What this stack offers, drawn under the components it is about.
    *
-   * **One button per assembly, and its label is the change** (Paul, 2026-09-07:
-   * "I should just have an 'add to order list' button (or update, context
-   * aware), at the top level of each tool assembly"). The rule is
-   * `shared/assembly-actions`; the route resolves the names and does the
-   * writing, and this draws what comes back.
+   * **One button for the full assembly, and its label is the change** (Paul,
+   * 2026-09-08: "there should only be one 'add to order list' button for the
+   * full assembly"). It is handed every stack of the group — a tap and the
+   * drill under it are one thing to order — and the rule is
+   * `shared/assembly-actions` `groupActions`; the route resolves the names and
+   * does the writing, and this draws what comes back.
    */
-  readonly actionsFor: (assembly: TreeAssembly) => ReadonlyArray<AssemblyRowAction>
+  readonly actionsFor: (stacks: ReadonlyArray<TreeAssembly>) => ReadonlyArray<AssemblyRowAction>
   readonly onAdd: () => void
   readonly onRemove: (assemblyId: string) => void
   /** What the tree is for, drawn above it. */
@@ -129,7 +131,17 @@ const SlotRow = ({
           label === null ? 'border border-zinc-600' : 'bg-emerald-400',
         )}
       />
-      <span className="w-14 shrink-0 font-semibold tracking-wide text-zinc-500">
+      {/*
+        The row that heads a stack is the tool, and it reads as the head: the
+        holding under it is what it is held by, not two more things of the same
+        rank (Paul, 2026-09-08).
+      */}
+      <span
+        className={cn(
+          'w-14 shrink-0 font-semibold tracking-wide',
+          slot === 'tool' ? 'text-zinc-300' : 'text-zinc-500',
+        )}
+      >
         {slotLabel(assembly, slot)}
       </span>
       {/*
@@ -174,6 +186,58 @@ const SlotRow = ({
   </div>
 )
 
+/** The two slots a tool is held by, drawn under the tool rather than beside it. */
+const HOLDING: ReadonlyArray<Slot> = SLOTS.filter((slot) => slot !== 'tool')
+
+/**
+ * One stack: the tool, and the holding indented under it.
+ *
+ * **The levels have to be told apart** (Paul, 2026-09-08: "it needs to be clear
+ * that the tap holder and tap collet go with the tap, and the drill is separate
+ * from them and has sublevels"). Six rows at one indent read as six things of
+ * equal rank, so a tap's holder and a drill sat at the same distance from the
+ * left as the drill itself. The holding hangs off the tool it holds, behind a
+ * rule that says so, and the tap and the drill are drawn by this one function
+ * so the two can never be indented differently.
+ */
+const StackRows = ({
+  assembly,
+  selected,
+  labelFor,
+  orderedFor,
+  onSelect,
+  onClear,
+}: {
+  assembly: TreeAssembly
+  selected: TreeNode | null
+  labelFor: (assembly: TreeAssembly, slot: Slot) => string | null
+  orderedFor: (assembly: TreeAssembly, slot: Slot) => string | null
+  onSelect: (node: TreeNode) => void
+  onClear: (assemblyId: string, slot: Slot) => void
+}) => {
+  const rowFor = (slot: Slot) => (
+    <SlotRow
+      key={slot}
+      assembly={assembly}
+      slot={slot}
+      selected={sameNode(selected, { assemblyId: assembly.id, slot })}
+      label={guidAt(assembly, slot) === null ? null : labelFor(assembly, slot)}
+      ordered={orderedFor(assembly, slot)}
+      onSelect={() => onSelect({ assemblyId: assembly.id, slot })}
+      onClear={() => onClear(assembly.id, slot)}
+    />
+  )
+
+  return (
+    <div className="flex flex-col gap-1">
+      {rowFor('tool')}
+      <div className="ml-3 flex flex-col gap-1 border-l border-zinc-800 pl-2">
+        {HOLDING.map(rowFor)}
+      </div>
+    </div>
+  )
+}
+
 export const AssemblyTreePanel = ({
   assemblies,
   selected,
@@ -209,36 +273,33 @@ export const AssemblyTreePanel = ({
       {confirmed ? null : <p className="text-2xs text-amber-300">not on the list yet</p>}
     </div>
 
-    {treeRows(assemblies).map(({ assembly, depth }) => {
-      const index = assemblies.indexOf(assembly)
+    {treeGroups(assemblies).map((group) => {
+      const stacks = stacksOf(group)
+      const index = assemblies.indexOf(group.root)
       return (
-        <div
-          key={assembly.id}
-          /*
-          **A drill hangs under the tap it predrills** (Paul, 2026-09-07). Two
-          bordered cards side by side say the tap and the drill are two answers
-          of equal rank; the thread is the decision and the hole under it
-          follows from which tap was chosen, so the drill is indented into it
-          and carries its own holder and collet at the depth below that.
-        */
-          className={cn('rounded border border-zinc-800', depth > 0 ? 'ml-3' : '')}
-        >
+        <div key={group.root.id} className="rounded border border-zinc-800">
           <div className="flex items-center gap-1 border-b border-zinc-800 px-2 py-1">
             <span className="text-2xs flex-1 font-semibold tracking-wide text-zinc-400 uppercase">
               {/*
-              `assemblyName` rather than a name invented here: a table row badges
-              a component with the stack it is standing in, and two places
-              naming the same stack is how those two end up disagreeing.
-            */}
-              {assemblyName(assemblies, assembly)}
+                `assemblyName` rather than a name invented here: a table row badges
+                a component with the stack it is standing in, and two places
+                naming the same stack is how those two end up disagreeing.
+              */}
+              {assemblyName(assemblies, group.root)}
             </span>
-            {assemblies.length > 1 || !isEmpty(assembly) ? (
+            {/*
+              **The trash takes the whole assembly** (Paul, 2026-09-08). A tap
+              removed on its own leaves a drill hanging under nothing, which the
+              next read makes a stack of its own: a hole drilled for a thread
+              nobody is cutting.
+            */}
+            {treeGroups(assemblies).length > 1 || !stacks.every(isEmpty) ? (
               <IconButton
                 variant="muted"
                 size="sm"
                 aria-label={`Remove assembly ${String(index + 1)}`}
                 title="Remove this assembly"
-                onClick={() => onRemove(assembly.id)}
+                onClick={() => onRemove(group.root.id)}
                 className="!size-5 border-0 bg-transparent text-zinc-600 hover:text-danger [&_svg]:!size-3"
               >
                 <TrashIcon aria-hidden="true" />
@@ -246,31 +307,53 @@ export const AssemblyTreePanel = ({
             ) : null}
           </div>
           <div className="flex flex-col gap-1 p-1">
-            {SLOTS.map((slot) => (
-              <SlotRow
-                key={slot}
-                assembly={assembly}
-                slot={slot}
-                selected={sameNode(selected, { assemblyId: assembly.id, slot })}
-                label={guidAt(assembly, slot) === null ? null : labelFor(assembly, slot)}
-                ordered={orderedFor(assembly, slot)}
-                onSelect={() => onSelect({ assemblyId: assembly.id, slot })}
-                onClear={() => onClear(assembly.id, slot)}
-              />
+            <StackRows
+              assembly={group.root}
+              selected={selected}
+              labelFor={labelFor}
+              orderedFor={orderedFor}
+              onSelect={onSelect}
+              onClear={onClear}
+            />
+
+            {/*
+              **The drill is a branch of the tap, not a fourth slot of it**
+              (Paul, 2026-09-08: "the drill is separate from them and has
+              sublevels", and 2026-09-07: "Second Level: Tap Drill / Third Level
+              (under Tap Drill): Drill Holder"). It starts where the tap's
+              holding starts, because which drill to run follows from which tap
+              was chosen — and it is boxed, because everything inside it is the
+              drill's rather than the tap's, which one more indent on its own
+              was not enough to say.
+            */}
+            {group.under.map((child) => (
+              <div
+                key={child.id}
+                data-assembly-branch={child.id}
+                className="ml-3 rounded border border-zinc-800/80 bg-zinc-900/40 p-1"
+              >
+                <StackRows
+                  assembly={child}
+                  selected={selected}
+                  labelFor={labelFor}
+                  orderedFor={orderedFor}
+                  onSelect={onSelect}
+                  onClear={onClear}
+                />
+              </div>
             ))}
 
             {/*
-              **What this stack would put on the order list, and what it would
-              change** (Paul, 2026-09-07: "I should just have an 'add to order
-              list' button (or update, context aware), at the top level of each
-              tool assembly"). One press for the assembly rather than one per
-              component: the tool, the holder and the collet are one line on the
-              sheet and one thing a shop orders.
+              **One press for the whole assembly** (Paul, 2026-09-08: "there
+              should only be one 'add to order list' button for the full
+              assembly"). Every component of it — the tap, its holding, the
+              drill under it and its holding — is one thing a shop orders, and
+              a tap orderable without the hole it threads is half a decision.
 
               Under the components rather than in the header: it is a sentence
-              about all three, and it is as wide as the sentence needs.
+              about all of them, and it is as wide as the sentence needs.
             */}
-            {actionsFor(assembly).map((action) => (
+            {actionsFor(stacks).map((action) => (
               <div key={action.key} className="flex flex-col gap-0.5">
                 <Button
                   type="button"

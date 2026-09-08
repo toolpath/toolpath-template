@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Button, Card } from '@toolpath/ui'
 import { CAD_EXTENSIONS } from '@toolpath/part-contracts'
 import type { UploadStatus } from 'client/use-part-upload'
+import { useEscape } from 'shared/use-escape'
 
 export interface ReplacementAnalysis {
   readonly message: string
@@ -47,6 +48,10 @@ export const PartUploadOverlay = ({
         : status === 'starting-analysis'
           ? 'Starting analysis…'
           : null)
+
+  // Escape backs out of the uploader wherever Cancel would — never mid-upload,
+  // where there is nothing to go back to yet.
+  useEscape(onClose !== undefined && !busy, () => onClose?.())
 
   const choose = (file: File | undefined) => {
     if (file) {

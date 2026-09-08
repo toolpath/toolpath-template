@@ -3,7 +3,13 @@ import { boundFamilies } from '@toolpath/tool-scraper/registry'
 import { describe, expect, it } from 'vitest'
 
 import { statedForm } from './forms.js'
-import { familyTitle, reachable, sharedDescription, threadSystemOf } from './scrape.js'
+import {
+  familyTitle,
+  reachable,
+  sharedDescription,
+  threadMethodOf,
+  threadSystemOf,
+} from './scrape.js'
 
 /**
  * The rules this package holds *about* the scraper's family table.
@@ -205,5 +211,43 @@ describe('the name a vendor states once for a whole family', () => {
   it('is nothing where the vendor publishes none', () => {
     expect(sharedDescription([record(''), record('')])).toBeNull()
     expect(sharedDescription([])).toBeNull()
+  })
+})
+
+/**
+ * The carry-through for `@toolpath/tool-scraper` 2.4.0's `threadMethod`,
+ * written against 2.3.0 — see `threadMethodOf`'s own note for why it reads the
+ * field through a widened view rather than off `ToolRecord`.
+ *
+ * These pin the two things that shim must not get wrong. When 2.4.0 is
+ * installed and the cast goes, they keep passing unchanged, which is how the
+ * seam is checked either side of the upgrade.
+ */
+describe('whether a tap cuts its thread or forms it', () => {
+  const record = (over: Record<string, unknown>): ToolRecord =>
+    ({ guid: 'g', catalogNumber: 'c', ...over }) as unknown as ToolRecord
+
+  it('carries the two values the record states', () => {
+    expect(threadMethodOf(record({ threadMethod: 'cutting' }))).toBe('cutting')
+    expect(threadMethodOf(record({ threadMethod: 'forming' }))).toBe('forming')
+  })
+
+  /**
+   * A record from 2.3.0 has no such key, and every tap in the committed scrape
+   * is one. Reading that silence as `cutting` would send a form tap's hole to a
+   * tool that cannot use it, so the default is `null` and never a method.
+   */
+  it('is null where the record states none, and never defaults to cutting', () => {
+    expect(threadMethodOf(record({}))).toBeNull()
+    expect(threadMethodOf(record({ threadMethod: null }))).toBeNull()
+  })
+
+  /**
+   * The shim's own risk: it reads an untyped field, so a value the union has no
+   * word for must not reach the catalog as one. Refused rather than carried.
+   */
+  it('refuses a value this catalog has no word for', () => {
+    expect(threadMethodOf(record({ threadMethod: 'rolling' }))).toBeNull()
+    expect(threadMethodOf(record({ threadMethod: 7 }))).toBeNull()
   })
 })

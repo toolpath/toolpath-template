@@ -101,6 +101,7 @@ export const FeatureDetails = ({
   regions,
   unit,
   siblings = 1,
+  name,
 }: {
   readonly features: ReadonlyArray<PartFeature>
   /** The whole part, so depth can be measured from its top. */
@@ -109,6 +110,16 @@ export const FeatureDetails = ({
   readonly unit: UnitSystem
   /** Identical holes this one stands for, so the heading can say how many. */
   readonly siblings?: number
+  /**
+   * What the feature is called, where the route can say.
+   *
+   * **A thread is part of the name** (Paul, 2026-09-08: "once a thread is
+   * selected, anywhere that feature is used should show the new name"). The
+   * summary is the kernel's, and a thread is a reading somebody made on top of
+   * it, so the dialog headed an M8×1.25 hole `Blind Hole` while the row behind
+   * it said otherwise. The kernel's own word stands in without one.
+   */
+  readonly name?: string
 }) => {
   const feature = features[0]
 
@@ -128,7 +139,7 @@ export const FeatureDetails = ({
       <header className="flex flex-col gap-1.5">
         <h2 className="font-heading flex flex-wrap items-center gap-2 text-lg leading-tight font-bold text-zinc-100">
           <KindIcon featureType={feature.featureType} kind={kindOf(feature)} />
-          {summary.type}
+          {name ?? summary.type}
           {siblings > 1 ? (
             <span
               className="rounded bg-zinc-800 px-1.5 py-0.5 text-sm font-semibold text-zinc-200"

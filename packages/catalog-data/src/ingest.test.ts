@@ -367,6 +367,35 @@ describe('the vendor’s product line', () => {
   })
 })
 
+describe('whether a tap cuts its thread or forms it', () => {
+  it('reaches the catalog as the record stated it', () => {
+    const { catalog } = ingest(
+      scrape({
+        families: [
+          family({
+            tools: [
+              tool({ threadMethod: 'cutting' }),
+              tool({ guid: '11111111-1111-5111-8111-111111111102', threadMethod: 'forming' }),
+            ],
+          }),
+        ],
+      }),
+    )
+    expect(catalog.tools.map((each) => each.threadMethod)).toEqual(['cutting', 'forming'])
+  })
+
+  /**
+   * The one that matters. Every tap in a store scraped before
+   * `@toolpath/tool-scraper` 2.4.0 arrives with no such key, and reading that
+   * as `cutting` would hand a form tap's hole to a tool that cannot use it —
+   * the failure this field exists to prevent. Silence stays silence.
+   */
+  it('is null where the store predates the field, and never cutting by default', () => {
+    const { catalog } = ingest(scrape({ families: [family({ tools: [tool({})] })] }))
+    expect(catalog.tools[0]?.threadMethod).toBeNull()
+  })
+})
+
 describe('one part the vendor published under two of its own facets', () => {
   const OTHER = '11111111-1111-5111-8111-111111111102'
 

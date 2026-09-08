@@ -36,10 +36,10 @@ FEATURE LIST         │ FEATURE PANEL        │  (the part)   │  ASSEMBLY
                      │   ● TAP    M8×1.25   │               │  [drawing]
                      │   ○ HOLDER   —       │               │
                      │   ○ COLLET   —       │               │  [the
-                     │  [Add to order list] │               │   vendor's
-                     │   ▾ DRILL            │               │   fields]
-                     │     ○ DRILL  —       │               │
-                     │    [Add to order …]  │               │
+                     │   ○ DRILL    —       │               │   vendor's
+                     │     ○ HOLDER   —     │               │   fields]
+                     │     ○ COLLET   —     │               │
+                     │  [Add to order list] │               │
                      │ + Add assembly       │               │
 ─────────────────────┴──────────────────────┴───────────────┤
 TOOL / HOLDER / COLLET TABLE                                │
@@ -63,9 +63,12 @@ Catalog no │ Vendor │ Type │ …                              │
   wrong the moment it carried a tree that grows as stacks are added.
 - **The table is whichever list the open slot asks for** — tools, holders or
   collets — with the same sorting, the same column picker, the same column
-  order and the same Filters button.
+  order and filters asked the same way: on the heading of the column that shows
+  the value (2026-09-08). A holder list has no filter buttons at all, because
+  every question about a holder — its brand, taper, clamping, series, contact,
+  family, and each of its nine lengths — is a question about one of its columns.
 - **Three buttons in the table's chrome say which list it is**, dressed like the
-  Filters button beside them, the open one lit (Paul, 2026-09-07: "I want the
+  buttons beside them, the open one lit (Paul, 2026-09-07: "I want the
   table tabs for tools, holders, and collets back, just as buttons like the
   filters button. The one that is active should be highlighted"). They went
   through a full-width tab row and then through being removed altogether — what
@@ -104,13 +107,18 @@ this assembly`, because a rack is narrowed to what fits a stack only while
   stands for a slot the line has nothing in; a stack that is not on the order
   list at all says nothing on any row, because "not on the list yet" is the
   stack's own state.
-- **One button per stack, under the components it is about** (Paul, 2026-09-07:
-  "I should just have an 'add to order list' button (or update, context aware),
-  at the top level of each tool assembly"). It writes the whole assembly — tool,
-  holder and collet are one line on the sheet and one thing a shop orders — and
-  its label is the change: _Add to order list_, _Change holder from A to B_,
-  _Remove from order list_. Every stack carries its own, so a threaded hole's tap
-  and its drill are ordered separately.
+- **One button per assembly, under the components it is about** (Paul,
+  2026-09-07: "I should just have an 'add to order list' button (or update,
+  context aware), at the top level of each tool assembly"). It writes the whole
+  assembly — tool, holder and collet are one line on the sheet and one thing a
+  shop orders — and its label is the change: _Add to order list_, _Change holder
+  from A to B_, _Remove from order list_. **A threaded hole is one press, not
+  two** (Paul, 2026-09-08: "there should only be one 'add to order list' button
+  for the full assembly"): the drill hangs under the tap, so the tap, its
+  holding, the drill and the drill's holding go on the list together. A tap
+  orderable on its own is a thread with no hole under it to cut. A sentence per
+  stack that moved, the first on the button and the rest under it, each naming
+  the stack it is about — `TAP: Change holder from A to B`.
 - **The panel on the right is the component being read**, and nothing else. It
   had the buttons, a table away from the stack they described; it does **not**
   list the stack either, because one component list on each side of the table
@@ -145,16 +153,37 @@ to one question; the thread is the decision, and the hole under it follows from
 which tap was chosen. `treeRows` is the nesting and the drawing order:
 
 ```
-TAP
-  HOLDER
-  COLLET
-  DRILL
-    HOLDER
-    COLLET
+● TAP        A0101001.5037
+  │ ○ HOLDER   —
+  │ ○ COLLET   —
+  ┌─────────────────────┐
+  │ ○ DRILL     —       │
+  │   │ ○ HOLDER  —     │
+  │   │ ○ COLLET  —     │
+  └─────────────────────┘
+  [ Add to order list ]
 ```
 
+**The drill is a slot of the tap, not a card beside it** (Paul, 2026-09-08).
+Both were drawn as bordered cards with a heading and a press each, which reads
+as two answers of equal rank to one question. There is one card, one heading,
+and one button under all six rows.
+
+**And the three levels are told apart** (Paul, 2026-09-08: "it needs to be clear
+that the tap holder and tap collet go with the tap, and the drill is separate
+from them and has sublevels"). Six rows at one indent read as six things of
+equal rank, so a tap's holder sat the same distance from the left as the drill.
+Three things say the levels now: the holding is indented under the tool it holds
+behind a rule, the tool row that heads a stack wears the brighter label, and the
+drill's branch is boxed — because everything inside it is the drill's rather
+than the tap's, which one more indent on its own did not say. `StackRows` draws
+the tap and the drill alike, so the two can never be indented differently, and
+`components/assembly-tree-panel.test.tsx` holds the levels apart by requiring
+every row of the drill to be inside its branch and no row of the tap's to be.
+
 Every other stack is a root of its own, in the order it was added, so a pocket's
-rougher and finisher stay siblings.
+rougher and finisher stay siblings — and two roots are two assemblies with a
+press each. `treeGroups` is the gathering, and `stacksOf` what one press writes.
 
 **And the roles follow the thread, not the storage.** A tree is kept in the
 browser and the thread a hole is read for is not, so a tap stack outlived the
@@ -247,7 +276,7 @@ Two lists per component, and the difference matters:
 - the **pool** is what can hold what is already in the stack;
 - the **rows** are the pool narrowed by the filters somebody set.
 
-The filter panel offers values off the **pool**. Offering them off the rows
+The column headers offer values off the **pool**. Offering them off the rows
 would take every other brand off the list the moment one brand was picked — a
 filter that can be set and never unset from the panel that set it.
 
@@ -375,26 +404,28 @@ this replaces keep testing that panel and the tree has its own.
 
 ## 7. Where the rules live
 
-| Rule                                              | File                                         |
-| ------------------------------------------------- | -------------------------------------------- |
-| what a tree holds, its slots, its storage         | `app/shared/assembly-tree.ts`                |
-| what a threaded hole starts with                  | `defaultAssemblies`, same file               |
-| the stacks following the thread on the hole read  | `forThread`, same file                       |
-| how the stacks nest, and their drawing order      | `treeRows`, same file                        |
-| what narrows what                                 | `app/shared/assembly-narrowing.ts`           |
-| what a stack offers, and its button's words       | `app/shared/assembly-actions.ts`             |
-| what the bill already holds for a stack           | `savedFor`, same file                        |
-| putting a stack back to the bill's line           | `restoreAssembly`, `assembly-tree.ts`        |
-| what a stack is called, and where a part stands   | `assemblyName` / `heldIn`, same file         |
-| the columns a holder and a collet are read on     | `app/shared/component-columns.ts`            |
-| narrowing a rack by brand, type, family, a number | `app/shared/component-query.ts`              |
-| the flag, and the way back                        | `app/shared/flags.ts`                        |
-| which of the three lists the table is             | `listKind` / `chooseList`, `routes/part.tsx` |
-| the tree on screen                                | `app/components/assembly-tree-panel.tsx`     |
-| the holder and collet tables                      | `app/components/component-table.tsx`         |
-| their filters                                     | `app/components/component-filters.tsx`       |
-| the component being read                          | `app/components/assembly-panel.tsx`          |
-| everything wired together                         | `app/routes/part.tsx`                        |
+| Rule                                              | File                                          |
+| ------------------------------------------------- | --------------------------------------------- |
+| what a tree holds, its slots, its storage         | `app/shared/assembly-tree.ts`                 |
+| what a threaded hole starts with                  | `defaultAssemblies`, same file                |
+| the stacks following the thread on the hole read  | `forThread`, same file                        |
+| how the stacks nest, and their drawing order      | `treeRows`, same file                         |
+| what narrows what                                 | `app/shared/assembly-narrowing.ts`            |
+| what a stack offers, and its button's words       | `app/shared/assembly-actions.ts`              |
+| what a whole assembly offers, over all its stacks | `groupActions`, same file                     |
+| which stacks make up one assembly                 | `treeGroups` / `stacksOf`, `assembly-tree.ts` |
+| what the bill already holds for a stack           | `savedFor`, same file                         |
+| putting a stack back to the bill's line           | `restoreAssembly`, `assembly-tree.ts`         |
+| what a stack is called, and where a part stands   | `assemblyName` / `heldIn`, same file          |
+| the columns a holder and a collet are read on     | `app/shared/component-columns.ts`             |
+| narrowing a rack by brand, type, family, a number | `app/shared/component-query.ts`               |
+| the flag, and the way back                        | `app/shared/flags.ts`                         |
+| which of the three lists the table is             | `listKind` / `chooseList`, `routes/part.tsx`  |
+| the tree on screen                                | `app/components/assembly-tree-panel.tsx`      |
+| the holder and collet tables                      | `app/components/component-table.tsx`          |
+| their filters                                     | `app/components/component-filters.tsx`        |
+| the component being read                          | `app/components/assembly-panel.tsx`           |
+| everything wired together                         | `app/routes/part.tsx`                         |
 
 Each pure module owns its tests. The tree's own end-to-end coverage is the
 `the tool assembly tree` block in `tests/on-the-part.spec.ts`, against the cube
@@ -405,6 +436,10 @@ crib, which is the claim.
 
 - **A stickout is not a slot.** It is a number on a line rather than a component
   to pick, and it is still set where it was.
+- **The drill has no trash of its own.** The one on the assembly's heading takes
+  the tap and the drill together, because a tap removed on its own leaves a
+  drill hanging under nothing — which the next read makes a stack of its own: a
+  hole drilled for a thread nobody is cutting.
 - **The tree does not reorder.** Stacks stay in the order they were added, the
   way the feature list does — the one exception is a threaded hole read back off
   a bill, where `treeFromLines` puts the tap first however the lines are ordered,

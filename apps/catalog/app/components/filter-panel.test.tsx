@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { EMPTY_QUERY } from 'shared/filter'
-import { FilterPanel } from './filter-panel'
+import { AXES_IN_TOOL_COLUMNS, AXES_PARKED } from 'shared/column-filters'
+import { BUTTON_FILTERS, FilterPanel, QUICK_FILTERS } from './filter-panel'
 
 /**
  * Whose each family is, without the bundled dataset.
@@ -291,5 +292,48 @@ describe('the table filter toolbar', () => {
       screen.getByRole('searchbox', { name: 'Search by catalog number' }).parentElement,
     ).toHaveClass('w-32')
     expect(document.querySelector('[data-filter-toolbar]')).toHaveClass('flex', 'flex-wrap')
+  })
+})
+
+/**
+ * **A question asked in two places is a question with two answers.**
+ *
+ * Vendor was a tile picker in the filter popover *and* a column headed Vendor;
+ * Diameter was a range in that popover *and* a column headed Diameter (Paul,
+ * 2026-09-08). The columns ask them now, so the button row must not — and the
+ * rest were either rolled into a column or parked with their rule still
+ * running. This is the sensor that keeps the three lists from overlapping, and
+ * from between them losing a question altogether.
+ */
+describe('what is left on a button', () => {
+  it('keeps only the questions no column asks', () => {
+    for (const key of BUTTON_FILTERS) {
+      expect(AXES_IN_TOOL_COLUMNS).not.toContain(key)
+      expect(AXES_PARKED).not.toContain(key)
+    }
+  })
+
+  /**
+   * A quick filter that is neither shown, nor asked by a column, nor parked on
+   * purpose is one that has quietly disappeared off the page.
+   */
+  it('accounts for every question the panel knows', () => {
+    for (const filter of QUICK_FILTERS) {
+      const placed =
+        BUTTON_FILTERS.includes(filter.key) ||
+        AXES_IN_TOOL_COLUMNS.includes(filter.key) ||
+        AXES_PARKED.includes(filter.key)
+
+      expect({ key: filter.key, placed }).toEqual({ key: filter.key, placed: true })
+    }
+  })
+
+  /**
+   * The part's material, and nothing else (Paul, 2026-09-08). It is not a
+   * column and is not going to be one: it is a property of the part, which is
+   * why it both narrows the list and orders it.
+   */
+  it('is the part material alone', () => {
+    expect([...BUTTON_FILTERS]).toEqual(['materialGroups'])
   })
 })

@@ -76,6 +76,25 @@ export const toggleTerm = (query: ComponentQuery, code: string, value: string): 
   return { ...query, terms: { ...query.terms, [code]: next } }
 }
 
+/**
+ * One axis set to a list of values at once, which is what a column header hands
+ * back: the checkboxes in it are one control over the whole axis, and toggling
+ * them one at a time would write a query per tick.
+ */
+export const setTerm = (
+  query: ComponentQuery,
+  code: string,
+  values: ReadonlyArray<string>,
+): ComponentQuery => {
+  const terms = { ...query.terms }
+  if (values.length === 0) {
+    delete terms[code]
+  } else {
+    terms[code] = [...values]
+  }
+  return { ...query, terms }
+}
+
 export const setBound = (
   query: ComponentQuery,
   code: string,

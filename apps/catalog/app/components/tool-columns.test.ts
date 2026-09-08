@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { GEOMETRY_FIELDS } from '@toolpath/catalog-data'
+import { AXES_IN_TOOL_COLUMNS } from 'shared/column-filters'
 import { TAP_COLUMNS, TOOL_COLUMNS, isHolding, isStack } from './part-tool-table'
 
 /**
@@ -108,5 +109,26 @@ describe('the columns a tap list offers', () => {
     expect(label('DC')).toBe('Thread diameter')
     expect(label('LCF')).toBe('Thread length')
     expect(label('LBH')).toBe('Below holder')
+  })
+})
+
+/**
+ * **A filter moved onto a header has to have a header to move onto.**
+ *
+ * `AXES_IN_TOOL_COLUMNS` is what takes a question off the button row, and it is
+ * stated by hand because `app/shared` may not import a component. This is the
+ * sensor that keeps it honest: an axis named there with no column to ask it is
+ * a filter that has disappeared from the page entirely.
+ */
+describe('the axes a column header takes over', () => {
+  /** The four every tool row carries, drawn whatever the column picker says. */
+  const FIXED = ['catalogNumber', 'brand', 'type', 'family']
+
+  it('names a column of the tool table', () => {
+    const codes = [...FIXED, ...TOOL_COLUMNS.map((column) => column.code)]
+
+    for (const axis of AXES_IN_TOOL_COLUMNS) {
+      expect(codes).toContain(axis)
+    }
   })
 })

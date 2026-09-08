@@ -11,6 +11,7 @@ const tool: CatalogTool = {
   materialNumber: '6694846',
   toolType: 'endmill',
   productLine: null,
+  threadMethod: null,
   form: 'flat end mill',
   unitSystem: 'millimeters',
   geometry: { DC: 12.7, NOF: 4, SIG: 140, ZEFP: 2 },

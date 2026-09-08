@@ -60,12 +60,12 @@ _"Can one end mill do all of these?" — the question worth answering before
 quoting._
 
 1. Press **Add group**.
-2. Click the faces on the part, or press a quick button — _Wall 16_ adds every
-   wall at once. Click a face again to take it out.
-3. Leave _One tool for all of them_ selected.
-4. The table below is already showing only what cuts _every_ feature in the
+2. Click the faces on the part. Click a face again to take it out. Every group
+   asks the one question — one tool for all of them — so the box says so rather
+   than offering it (Paul, 2026-09-08).
+3. The table below is already showing only what cuts _every_ feature in the
    group. If it is empty, no single tool does it.
-5. Press **Create group and add tool**.
+4. Press **Create group and add tool**.
 
 ### 4 · Let it choose, for a mixed group
 
@@ -210,9 +210,18 @@ always somebody's preference, and always visible and reversible.
 
 ### What they are
 
-- **One query object** — free text, discrete _terms_ (vendor, family, product
-  line, type, material, shank, flutes), and continuous _ranges_ in millimetres.
-  It is the only thing that decides which tools are on screen.
+- **One query object** — free text, discrete _terms_ (vendor, type, family,
+  material, flutes), and continuous _ranges_ in millimetres. It is the only
+  thing that decides which tools are on screen.
+- **Two of those terms are phrases this catalog builds**, not facets a vendor
+  publishes (2026-09-08). `type` is the form with the shank in its words —
+  `Reduced shank bull nose end mill` — and `family` is the vendor's product
+  line, or the family under it where the vendor names no line. Each replaced a
+  pair of axes a shop had to answer twice.
+- **What is behind them still runs.** `form`, `shank`, `familyId`,
+  `productLine`, `taper` and `colletSeries` are all still matched, still read
+  off a URL, and two of them are still written by the app itself — they simply
+  have no control on the page. `AXES_PARKED` is the list, with a reason each.
 - **It lives in the URL.** A filtered view is a view you can send to a
   colleague; that only works if it round-trips through the query string without
   loss.
@@ -242,39 +251,60 @@ always somebody's preference, and always visible and reversible.
   rail is the last word, so anything the app decides for you is somewhere you
   can undo it.
 
-### Where they live — and where they should
+### Where they live (2026-09-08)
 
-- Today: a rail of **bubbles** down the left of the part, plus filters on four
-  column headers (diameter, flute length, flutes, type) that _hand over_ to the
-  rail rather than opening a second control for the same question.
-- **Decided: the filters move into the tool table.** A filter is a question
-  about a column, and a control that sits somewhere else has to name the thing
-  it narrows; a control on the header is already pointing at it. This also gives
-  the part back the space the rail takes.
-- **The vehicle is already in flight.** `docs/PART-TOOL-TABLE-PLAN.md` replaces
-  the hand-built table with `@toolpath/ui`'s `Table`; that is where the header
-  filters will live, so the two pieces of work are one.
+- **A question about a column is asked on that column's heading.** The vendor,
+  the type, the catalog number and every geometry code are narrowed from the
+  header that shows them, with a funnel that is drawn whether or not it is set
+  and filled when it is. A filter written anywhere else has to name the thing it
+  narrows; a filter on the header is already pointing at it.
+- **One button is left: the part's material.** It is not a column and is not
+  going to be one — it is a property of the _part_, which is why it both
+  narrows the list and orders it. Everything else went onto a column or off the
+  page (Paul, 2026-09-08: "I don't love how the filters are hidden behind the
+  button right now, especially with so many also being column headers", then
+  "we can remove the remaining clamping, floor radius, collet, and holder
+  filters. Keep the rule on the back end but hide them for now").
+- **Rolled in, not dropped.** The shank became part of the type's words and the
+  product line became part of the family's, so two pairs of controls became two
+  columns. The holder, the collet, the clamping length and the floor allowance
+  are hidden with their rules intact: the crib still holds with its own tapers,
+  and the sheet's clamping and floor values still decide what fits.
+- **One list decides which is which.** `app/shared/column-filters.ts` says what
+  each column asks; `BUTTON_FILTERS` is every quick filter that list does not
+  claim. A question asked in a header _and_ on a button is the defect, and
+  `components/filter-panel.test.tsx` is the sensor against it.
+- **A header narrows; the buttons can widen.** The Type heading offers the forms
+  the list currently holds, so it cannot offer a value that empties the list.
+  Asking for a form this catalog does not hold is not a question a header can
+  ask — and was not worth keeping a second Type control to answer.
+- **The count is beside the Clear.** Every narrowing is counted in the chrome,
+  the headers' included, because a filter set on a column somebody has since
+  hidden is otherwise a short list with nothing pointing at why.
+- **The menu is drawn over the page, not inside the table.** The kit's table is
+  a scroll container on both axes, so a menu positioned inside a header cell is
+  clipped at the header's own edge — which is why the first pair of header
+  filters here was written and never wired up.
 
 > **Open questions**
 >
-> - **What happens to the axes with no column?** Vendor, family, product line,
->   part material, holder and collet do not correspond to a column. Do they
->   become a "more filters" control in the table's chrome, a much smaller rail,
->   or move somewhere else entirely?
-> - **Does a feature's suggestion still announce itself?** The bubbles light up
->   when a feature fills them in, which is how somebody notices the app narrowed
->   their list. Column headers need an equivalent, or the narrowing becomes
->   invisible.
-> - **Part material is a property of the part, not of the list.** It currently
->   sits with the filters. Should it move next to the part, where it is asked
+> - **Does a feature's suggestion still announce itself?** The buttons say what
+>   they are set to, so a suggestion that fills one is readable. A suggestion
+>   that fills a _header_ is a funnel on a column that may be hidden; the count
+>   beside Clear is the only sign, which may not be enough.
+> - **Part material is a property of the part, not of the list.** It is still
+>   the first of the buttons. Should it move next to the part, where it is asked
 >   once?
 
 **Where it lives**
 
 - `app/shared/filter.ts` — the query, what it matches, and the per-axis counts
 - `app/components/filter-panel.tsx` — `QUICK_FILTERS` and `FACET_AXES` — every axis and its values
-- `app/components/filter-rail.tsx` — the bubbles down the left of the part
-- `app/components/column-filter.tsx` — the header filters, and the compare operators
+- `app/shared/column-filters.ts` — which column asks which filter, and what is parked
+- `app/shared/tool-type.ts` — what a tool is in one phrase, shank and all
+- `app/components/column-filter.tsx` — the header filters, their menu, and the compare operators
+- `app/components/column-heading.tsx` — a heading's two marks: it sorts, and it narrows
+- `app/components/filter-rail.tsx` — the bubbles down the left of the part (unused)
 - `app/shared/suggest-filters.ts` — what a chosen feature and material fill in
 - `app/shared/holding.ts` — the crib axes — taper and collet series
 
@@ -365,18 +395,28 @@ the order the rules rank them, with a mark on every number the rules read.
 
 ### Filters in the table
 
-- **Column headers filter their own column** — diameter, flute length, flutes as
-  ranges; type as a checkbox list. See §1 for the decision to move the rest here.
-- **The type checkboxes narrow, they do not widen.** They offer what the table
-  currently holds; widening is the filter panel's job.
+- **Every column header filters its own column** — the geometry codes as ranges,
+  vendor, type and family as checkbox lists, the catalog number as a search. The
+  two holding cells ask nothing: they _set_ the holder and collet on that row
+  rather than holding a value to narrow on.
+- **Four fixed columns**: catalog number, vendor, type, family — the same four
+  every holder and collet row carries. Type says the shank where the shank is
+  narrower than the cut; family says the vendor's line where it names one.
+- **A heading shows both of the things it can do**: a pair of faint chevrons
+  saying it sorts, a funnel saying it narrows. The kit draws an arrow only on
+  the column already sorted, so every other heading used to be a word with no
+  sign that pressing it did anything.
+- **The checkbox lists narrow, they do not widen.** They offer what the table
+  currently holds, counted, so a value that would empty the list can be told
+  from a rare one before it is pressed.
 - **The catalog-number box** narrows on number and brand together.
+- **A press inside a filter is not a press on the header.** Opening or using a
+  filter must not also re-sort the column it is standing on.
 - **Columns are yours** — hidden, shown and reordered per list; taps and drills
   keep separate sets.
 
 > **Open questions**
 >
-> - **Where do the non-column filters go?** The blocker on moving the rail into
->   the table — see §1.
 > - **Should a near miss be selectable?** Today it is: the first row is
 >   highlighted even when nothing fits, so _Add tool_ will put a tool the rules
 >   refused onto the bill. That may be right — shops overrule rules — but

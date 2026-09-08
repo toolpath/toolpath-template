@@ -37,6 +37,7 @@ const tool = (shank = 6): CatalogTool => ({
   geometry: { DC: shank, LCF: 13, OAL: 57, SFDM: shank, LBH: 19 },
   materialGroups: ['P'],
   productLine: null,
+  threadMethod: null,
   productLink: null,
   provenance: {},
 })

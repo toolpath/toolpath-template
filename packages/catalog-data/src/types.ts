@@ -42,6 +42,21 @@ export type { UnitSystem } from '@toolpath/tool-support'
 export type ToolType = 'chamfer' | 'drill' | 'endmill' | 'reamer' | 'tap' | 'other'
 
 /**
+ * How a tap makes its thread: by cutting the metal away, or by displacing it.
+ *
+ * **Not a `ToolForm`.** The form vocabulary is Fusion's, and Fusion has no
+ * form-tap type, so this rides beside `form` rather than becoming two more
+ * values in it — `@toolpath/tool-scraper`'s own decision, kept here so the two
+ * vocabularies do not have to be reconciled later.
+ *
+ * The difference is a hole size, not a preference: a form tap wants a hole four
+ * tenths *bigger* than a cut tap on an M6, because it pushes the metal up into
+ * the crest instead of cutting it out. Offering one for the other's hole is a
+ * broken tap.
+ */
+export type ThreadMethod = 'cutting' | 'forming'
+
+/**
  * Where a stated fact came from.
  *
  * The scraper carries this per constant and it survives into the catalog for
@@ -218,6 +233,24 @@ export interface CatalogTool {
    * `''` would read as a line with no name.
    */
   readonly productLine: string | null
+  /**
+   * Whether a tap cuts its thread or forms it — `null` on every tool that is
+   * not a tap, and on a tap nobody has labelled yet.
+   *
+   * **Three states again, the {@link CatalogTool.materialGroups} rule.** A
+   * `null` here is silence, not "cutting": a store scraped before
+   * `@toolpath/tool-scraper` 2.4.0 recorded the fact holds no label for any of
+   * its taps, and reading that silence as a cut tap would send a form tap's
+   * hole to a tool that cannot use it. A caller that filters on this must
+   * decide what it does with the unlabelled ones rather than have that decided
+   * for it here.
+   *
+   * **The vendor's, never derived.** Kennametal states it in its `newTapType`
+   * facet and EMUGE in the category it titles `Machine taps`; nothing in the
+   * geometry distinguishes the two, so a tap this catalog cannot trace to one
+   * of those stays `null`.
+   */
+  readonly threadMethod: ThreadMethod | null
   /** The vendor's page for this tool, where the vendor publishes one. */
   readonly productLink: string | null
   /** Which geometry values are the vendor's, and which this pipeline decided. */
@@ -337,5 +370,22 @@ export interface Catalog {
  * carries the old spelling in `families[].unitSystem`, `tools[].unitSystem` and
  * the `unitSystem` facet, and reading one as a 9 would silently give every tool
  * a unit system this vocabulary has no word for.
+ *
+ * **10 is owed, and deliberately not taken yet.** `threadMethod` is in the
+ * shape as of this change, but no scraped store holds a value for it: the
+ * label arrives with `@toolpath/tool-scraper` 2.4.0, which is not published,
+ * and every tap in an existing store stays `null` until its families are
+ * scraped again. Adding a field nothing fills is readable at 9 — an unaware
+ * reader ignores it, an aware one reads the silence the `productLine` rule
+ * already defines — so a bump now would buy nothing and cost something:
+ * `dataset-source.ts` refuses a version-mismatched `scrape-out/catalog.json`
+ * and falls back to the nine-tool sample, so bumping ahead of the re-scrape
+ * would quietly empty a working build.
+ *
+ * Take the bump **with** the re-scrape, for the reason 6 took one: a labelled
+ * store and an unlabelled one are both version 9 and nothing tells them apart,
+ * which is the same ambiguity `productLine` bumped to escape. Re-ingest the
+ * store rather than rebuild — `rebuild.mjs` works forwards from a built
+ * dataset and would only write `null` again.
  */
 export const CATALOG_VERSION = 9

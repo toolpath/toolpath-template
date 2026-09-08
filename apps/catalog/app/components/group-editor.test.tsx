@@ -6,9 +6,7 @@ const nameOf = (tag: string): string => (tag.startsWith('hole') ? 'Through Hole'
 
 const show = (props: Partial<Parameters<typeof GroupEditor>[0]> = {}) => {
   const handlers = {
-    onResults: vi.fn(),
     onDrop: vi.fn(),
-    onAddAll: vi.fn(),
     onConfirm: vi.fn(),
     onCancel: vi.fn(),
   }
@@ -16,10 +14,6 @@ const show = (props: Partial<Parameters<typeof GroupEditor>[0]> = {}) => {
     <GroupEditor
       tags={['hole-1', 'pocket-1']}
       results="all"
-      types={[
-        { name: 'Through Hole', tags: ['hole-1', 'hole-2', 'hole-3'] },
-        { name: 'Pocket', tags: ['pocket-1'] },
-      ]}
       nameOf={nameOf}
       picked
       {...handlers}
@@ -34,7 +28,9 @@ describe('building a group', () => {
   it('says how features get in, and shows what is in already', () => {
     show()
 
-    expect(screen.getByText(/Click the features on the part/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/Select a feature on the part to add it to the group/),
+    ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Take Through Hole out of the group' }),
     ).toBeInTheDocument()
@@ -49,35 +45,23 @@ describe('building a group', () => {
   })
 
   /**
-   * **Every hole on the part, in one press** (Paul, 2026-09-02: "quick buttons
-   * to select all of a type of features"). Twelve clicked one at a time is
-   * twelve chances to miss one.
+   * **A group asks one question, so the box no longer offers one** (Paul,
+   * 2026-09-08). Every group is *one tool for all of them*, and the note says
+   * so where the radio pair used to be. What is parked is only the offer: the
+   * model still has `each`, a group already saved as one still answers, and
+   * the confirm still reads its words off `results`.
    */
-  it('adds every feature of a kind in one press, and says how many that is', () => {
-    const { onAddAll } = show()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Add every Through Hole — 3 of them' }))
-
-    expect(onAddAll).toHaveBeenCalledWith(['hole-1', 'hole-2', 'hole-3'])
-  })
-
-  /**
-   * The result option is the whole reason a group is a thing rather than a
-   * multiple selection: one tool that cuts all of them, or the best for each.
-   *
-   * **Only the first of those is offered** (Paul, 2026-09-07: *the best tool
-   * for each* is parked). The model still has `each` — a group already saved
-   * as one still answers — so what this pins is that the box no longer offers
-   * it, which is the whole of the change and the whole of undoing it.
-   */
-  it('offers the one question a group can ask, and not the parked one', () => {
+  it('says what a group answers instead of offering the only choice there is', () => {
     show()
 
-    const all = screen.getByRole('button', { name: /One tool for all of them/ })
-    expect(all).toHaveAttribute('aria-pressed', 'true')
-    expect(all).toHaveClass('w-full')
-    expect(all.firstElementChild).toHaveClass('w-full', 'justify-start', 'text-left')
+    expect(
+      screen.getByText(
+        'Select a feature on the part to add it to the group. The Tool Catalog will find tools compatible with all features in the group.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /One tool for all of them/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /The best tool for each/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Add every/ })).toBeNull()
   })
 
   /** A group of nothing is not a group, so the way out of an empty draft is Cancel. */

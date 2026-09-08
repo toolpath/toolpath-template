@@ -7,7 +7,9 @@ import {
   PartToolTable,
   TOOL_COLUMNS,
   ToolTableToolbar,
+  type ToolColumnFiltering,
 } from './part-tool-table'
+import { EMPTY_QUERY } from 'shared/filter'
 
 const first: CatalogTool = {
   guid: 'first',
@@ -18,6 +20,7 @@ const first: CatalogTool = {
   materialNumber: '20',
   toolType: 'endmill',
   productLine: null,
+  threadMethod: null,
   form: 'flat end mill',
   unitSystem: 'millimeters',
   geometry: { DC: 20, LCF: 40 },
@@ -147,23 +150,116 @@ describe('PartToolTable', () => {
   })
 })
 
+/**
+ * **The filters are not behind a button any more** (Paul, 2026-09-08: "I don't
+ * love how the filters are hidden behind the button right now, especially with
+ * so many also being column headers").
+ */
 describe('ToolTableToolbar', () => {
-  it('opens the filters inline without adding a second settings panel', () => {
-    render(<ToolTableToolbar filters={<span>Catalog filters</span>} onClear={() => {}} />)
+  it('shows the questions no column asks, without a press', () => {
+    render(<ToolTableToolbar filters={<span>Catalog filters</span>} onClear={() => {}} set={0} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
     expect(screen.getByText('Catalog filters')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Filters' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Matching settings' })).not.toBeInTheDocument()
   })
 
-  it('clears filters from the Filters button context menu', () => {
+  /**
+   * A filter set in a column header somebody then hides has nothing on screen
+   * pointing at it. The count is what says the list is narrowed, and the button
+   * under it is the way back to the whole list.
+   */
+  it('counts every narrowing, the headers included, and clears them', () => {
     const onClear = vi.fn()
-    render(<ToolTableToolbar filters={<span>Catalog filters</span>} onClear={onClear} />)
+    render(<ToolTableToolbar filters={<span>Catalog filters</span>} onClear={onClear} set={3} />)
 
-    const button = screen.getByRole('button', { name: 'Filters' })
-    expect(button).toHaveAttribute('title', 'Open filters. Right-click to clear all filters.')
-    fireEvent.contextMenu(button)
+    const button = screen.getByRole('button', { name: 'Clear 3 filters' })
+    fireEvent.click(button)
 
     expect(onClear).toHaveBeenCalledOnce()
+  })
+
+  it('says nothing about filters while none are set', () => {
+    render(<ToolTableToolbar filters={<span>Catalog filters</span>} onClear={() => {}} set={0} />)
+
+    expect(screen.queryByRole('button', { name: /Clear/ })).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * **A column that names a value is where that value is narrowed.**
+ *
+ * Vendor, Type and every geometry code were a popover of controls saying the
+ * same words as the headings under it. The heading asks now, and the funnel on
+ * it is what says so before it is pressed.
+ */
+describe('the filters a heading asks', () => {
+  const filtering = (
+    over: Partial<NonNullable<ToolColumnFiltering['catalog']>> = {},
+  ): ToolColumnFiltering => ({
+    search: { value: '', onChange: vi.fn() },
+    catalog: {
+      query: EMPTY_QUERY,
+      onTerm: vi.fn(),
+      onRange: vi.fn(),
+      options: () => [{ value: 'Acme', label: 'Acme', count: 2 }],
+      ...over,
+    },
+  })
+
+  it('narrows the vendor from the Vendor heading', async () => {
+    const onTerm = vi.fn()
+    show({ filtering: filtering({ onTerm }) })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter by Vendor' }))
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Acme' }))
+
+    expect(onTerm).toHaveBeenCalledWith('brand', ['Acme'])
+  })
+
+  /**
+   * The header is the sort, so a press inside the filter must not also re-sort
+   * the column it is standing on.
+   */
+  it('does not sort the column the filter was opened from', async () => {
+    show({ filtering: filtering() })
+
+    expect(tableRows()[0]).toHaveTextContent('T-20')
+    fireEvent.click(screen.getByRole('button', { name: 'Filter by Diameter' }))
+    fireEvent.click(await screen.findByRole('group', { name: 'Diameter' }))
+
+    expect(tableRows()[0]).toHaveTextContent('T-20')
+  })
+
+  /** The two cells that set a choice rather than hold a value ask nothing. */
+  it('leaves the holder and collet cells alone', () => {
+    show({
+      filtering: filtering(),
+      hiddenColumns: [],
+      columnOrder: ['DC', 'holder', 'collet'],
+      columns: TOOL_COLUMNS,
+    })
+
+    expect(screen.queryByRole('button', { name: 'Filter by Holder' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Filter by Collet' })).not.toBeInTheDocument()
+  })
+
+  /**
+   * A tap list is swept out of the catalog by its thread, so the tool filters
+   * never reach it. It narrows on its catalog number, and its other headings
+   * sort rather than offering a control that would change nothing.
+   */
+  it('offers only the search where the rows do not come from the query', () => {
+    show({ filtering: { search: { value: '', onChange: vi.fn() } } })
+
+    expect(screen.getByRole('button', { name: 'Filter by Catalog number' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Filter by Vendor' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Filter by Diameter' })).not.toBeInTheDocument()
+  })
+
+  it('asks nothing at all where the list is not being narrowed', () => {
+    show()
+
+    expect(screen.queryByRole('button', { name: /^Filter by/ })).not.toBeInTheDocument()
   })
 })

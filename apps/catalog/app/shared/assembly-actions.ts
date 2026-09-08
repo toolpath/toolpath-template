@@ -1,5 +1,5 @@
 import type { Choice } from './setup-sheet'
-import { isEmpty, type TreeAssembly } from './assembly-tree'
+import { ROLE_LABEL, isEmpty, type TreeAssembly } from './assembly-tree'
 
 /**
  * What a stack offers, under the stack itself in the tree.
@@ -310,5 +310,122 @@ export const assemblyActions = (
   return [
     ...(sameLine(had, line) ? [] : [updateAction(changes, nameOf), revertAction(changes, nameOf)]),
     { kind: 'remove', label: 'Remove from order list', danger: true },
+  ]
+}
+
+/* --------------------------- one press per assembly ------------------------ */
+
+/**
+ * One stack's difference from the bill, in words, for a button about several.
+ *
+ * Every sentence wears the stack's own name, because "Change holder from A to
+ * B" under a tap and a drill is a sentence with two possible subjects. A stack
+ * the bill has nothing for at all is an addition rather than a change — the
+ * drill somebody chose for a thread that was already ordered without one.
+ */
+const groupSaid = (
+  stack: TreeAssembly,
+  had: Choice | null,
+  line: Choice,
+  nameOf: NameOf,
+): Array<string> => {
+  const named = ROLE_LABEL[stack.role]
+  if (had === null) {
+    const tool = nameOf(line.toolGuid)
+    return [tool === null ? `Add the ${named.toLowerCase()}` : `Add ${named.toLowerCase()} ${tool}`]
+  }
+  const changes = holdingChanges(had, line)
+  const holding = changes.map((change) => `${named}: ${said(change, nameOf)}`)
+  if (had.toolGuid === line.toolGuid) {
+    return holding
+  }
+  const from = nameOf(had.toolGuid)
+  const to = nameOf(line.toolGuid)
+  return [
+    from === null || to === null
+      ? `Replace the ${named.toLowerCase()} on the order list`
+      : `Replace ${from} with ${to}`,
+    ...holding,
+  ]
+}
+
+/**
+ * What a whole assembly offers — the stack and whatever hangs under it.
+ *
+ * **One button for the full assembly** (Paul, 2026-09-08: "there should only be
+ * one 'add to order list' button for the full assembly"). A threaded hole is a
+ * tap with the drill that predrills it underneath, and it carried a press per
+ * stack: two buttons for one decision, and a tap orderable on its own with no
+ * hole under it to cut the thread in. The group is the thing a shop orders, so
+ * the group is what the press is about.
+ *
+ * A group of one is a stack, and `assemblyActions` is the whole rule for it —
+ * every label a single stack has ever said is unchanged. What is new is the
+ * fold over more than one:
+ *
+ * | The group                                    | Offered                     |
+ * | -------------------------------------------- | --------------------------- |
+ * | no tool anywhere in it                       | nothing to confirm          |
+ * | not a row on the list yet                    | **Add to order list**       |
+ * | no stack of it on the bill                   | **Add to order list**       |
+ * | every stack on the bill, unchanged           | **Remove from order list**  |
+ * | any stack changed, added or swapped          | the first change, and Cancel|
+ *
+ * The label is the first change and the rest are said under it, the shape a
+ * single stack already uses for the collet a holder drags with it. Each
+ * sentence names the stack it is about — `Change TAP holder from A to B` —
+ * because with two stacks under one button, *which* one moved is the first
+ * thing to say.
+ */
+export const groupActions = (
+  stacks: ReadonlyArray<TreeAssembly>,
+  onSheet: ReadonlyArray<Choice>,
+  onList = true,
+  subject: 'feature' | 'group' = 'feature',
+  nameOf: NameOf = () => null,
+): Array<AssemblyAction> => {
+  const [only, ...rest] = stacks
+  if (only === undefined) {
+    return []
+  }
+  if (rest.length === 0) {
+    return assemblyActions(only, onSheet, onList, subject, nameOf)
+  }
+  const parts = stacks.flatMap((stack) => {
+    const line = lineOf(stack)
+    return line === null ? [] : [{ stack, line, had: savedFor(stack, onSheet) }]
+  })
+  if (parts.length === 0) {
+    return []
+  }
+  if (!onList) {
+    return [
+      {
+        kind: 'confirm',
+        label: 'Add to order list',
+        note: `Adds the ${subject} to the feature list as well — it is not on it yet.`,
+      },
+    ]
+  }
+  if (parts.every((part) => part.had === null)) {
+    return [{ kind: 'add', label: 'Add to order list' }]
+  }
+  const moved = parts.flatMap((part) =>
+    part.had === null || !sameLine(part.had, part.line) ? [part] : [],
+  )
+  if (moved.length === 0) {
+    return [{ kind: 'remove', label: 'Remove from order list', danger: true }]
+  }
+  const said = moved.flatMap((part) => groupSaid(part.stack, part.had, part.line, nameOf))
+  const [first, ...others] = said
+  return [
+    {
+      kind: moved.some((part) => part.had !== null && part.had.toolGuid !== part.line.toolGuid)
+        ? 'replace'
+        : 'update',
+      label: first ?? 'Update the order list',
+      ...(others.length === 0 ? {} : { note: others.join(' ') }),
+    },
+    { kind: 'revert', quiet: true, label: 'Cancel' },
   ]
 }

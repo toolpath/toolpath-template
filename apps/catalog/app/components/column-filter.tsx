@@ -1,5 +1,6 @@
 import { Checkbox, Combobox, IconButton, Input, cn } from '@toolpath/ui'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import {
   DotsSixVerticalIcon,
   FunnelIcon,
@@ -13,6 +14,7 @@ import {
   decimalsFor,
 } from '@toolpath/tool-support'
 import { movedBy, movedTo } from 'shared/column-order'
+import { useEscape } from 'shared/use-escape'
 import { CatalogComboboxButton } from './catalog-combobox-button'
 
 /**
@@ -255,26 +257,107 @@ export const RangeFilter = ({ label, bound, onBound, unit, kind }: RangeFilterPr
 }
 
 /**
- * A column header that can be filtered on, opened from the header itself.
+ * The popover a column header opens, drawn over the page rather than in the table.
  *
- * In the header rather than in a panel above the table, because the question is
- * about *that column*: a filter written somewhere else has to name the thing it
- * narrows, and a filter on the header is already pointing at it.
+ * **A menu inside the table is a menu nobody can read.** The kit's table is a
+ * scroll container on both axes, so a box positioned inside a header cell is
+ * clipped at the header's own edge — which is why a filter on a header could
+ * not be built out of an absolutely positioned `div` and why the first pair
+ * here went unused. This is a portal, placed against the button that opened it
+ * and kept inside the window, so a filter on the last column opens leftwards
+ * instead of off the screen.
  */
-export const ColumnFilter = ({ label, bound, onBound, unit, kind }: RangeFilterProps) => {
-  const [open, setOpen] = useState(false)
+const HeaderMenu = ({
+  label,
+  anchor,
+  align,
+  children,
+}: {
+  readonly label: string
+  readonly anchor: HTMLElement | null
+  /** Which edge of the button the menu lines up with. */
+  readonly align: 'left' | 'right'
+  readonly children: ReactNode
+}) => {
   const box = useRef<HTMLDivElement>(null)
-  const set = compareOf(bound) !== 'any'
+  const [at, setAt] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
 
-  // A pointer down anywhere else closes it. Without this the only way to put an
-  // open column filter away is to press its own header again, which nobody
-  // does — they click the next thing.
+  useLayoutEffect(() => {
+    if (anchor === null) {
+      return
+    }
+    const place = () => {
+      const button = anchor.getBoundingClientRect()
+      const width = box.current?.getBoundingClientRect().width ?? 0
+      const wanted = align === 'right' ? button.right - width : button.left
+      setAt({
+        top: button.bottom + 4,
+        left: Math.max(8, Math.min(wanted, window.innerWidth - width - 8)),
+      })
+    }
+    place()
+    window.addEventListener('resize', place)
+    // Capturing, so the table scrolling under an open menu moves it with the
+    // header it belongs to rather than leaving it behind over the rows.
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [anchor, align])
+
+  return createPortal(
+    <div
+      ref={box}
+      role="group"
+      aria-label={label}
+      data-column-filter-menu
+      style={{ top: at.top, left: at.left }}
+      className="fixed z-50 rounded-lg border border-zinc-800 bg-zinc-950 p-2 shadow-xl"
+    >
+      <p className="text-2xs mb-1.5 tracking-wide text-zinc-500 uppercase">{label}</p>
+      {children}
+    </div>,
+    document.body,
+  )
+}
+
+/**
+ * The funnel on a column header, and what it opens.
+ *
+ * Always drawn, filled when the column is narrowing the list: a filter nobody
+ * can see is a filter nobody can find their way back out of, and the funnel is
+ * the whole of the answer to "why is this list so short".
+ *
+ * Every press inside it is kept off the header, because the header is the sort:
+ * a click that both opened the filter and re-sorted the table is one click
+ * doing two things nobody asked for.
+ */
+export const HeaderFilter = ({
+  label,
+  set,
+  align = 'left',
+  children,
+}: {
+  readonly label: string
+  readonly set: boolean
+  readonly align?: 'left' | 'right'
+  readonly children: ReactNode
+}) => {
+  const [open, setOpen] = useState(false)
+  const mine = useRef<HTMLSpanElement>(null)
+  const anchor = useRef<HTMLSpanElement>(null)
+
   useEffect(() => {
     if (!open) {
       return
     }
     const onDown = (event: PointerEvent) => {
-      if (!box.current?.contains(event.target as Node)) {
+      const target = event.target as Node
+      if (
+        !mine.current?.contains(target) &&
+        !document.querySelector('[data-column-filter-menu]')?.contains(target)
+      ) {
         setOpen(false)
       }
     }
@@ -282,41 +365,71 @@ export const ColumnFilter = ({ label, bound, onBound, unit, kind }: RangeFilterP
     return () => document.removeEventListener('pointerdown', onDown)
   }, [open])
 
-  return (
-    <div ref={box} className="relative inline-flex items-center justify-end gap-1">
-      <span>{label}</span>
-      <IconButton
-        size="md"
-        variant="muted"
-        aria-label={`Filter by ${label}`}
-        aria-expanded={open}
-        title={set ? `Filtered by ${label}` : `Filter by ${label}`}
-        onClick={() => setOpen(!open)}
-        className={
-          set
-            ? 'text-info rounded p-0.5 hover:bg-zinc-800'
-            : 'rounded p-0.5 text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300'
-        }
-      >
-        {set ? <FunnelIcon weight="fill" /> : <FunnelSimpleIcon />}
-      </IconButton>
+  // Escape puts it away as well, without going back to find the header.
+  useEscape(open, () => setOpen(false))
 
+  return (
+    <span
+      ref={mine}
+      className="inline-flex items-center"
+      onClick={(event) => event.stopPropagation()}
+      onMouseDown={(event) => event.stopPropagation()}
+    >
+      <span ref={anchor} className="inline-flex" style={{ pointerEvents: 'auto' }}>
+        <IconButton
+          size="md"
+          variant="muted"
+          aria-label={`Filter by ${label}`}
+          aria-expanded={open}
+          title={set ? `Filtered by ${label}` : `Filter by ${label}`}
+          onClick={() => setOpen(!open)}
+          /*
+            **The table turns pointer events off inside a button.** Its own
+            stylesheet says `button * { pointer-events: none }` so that a click
+            anywhere in a sortable heading counts as a press on the heading —
+            which swallowed every press on this funnel, sorting the column
+            instead of opening the filter. An inline style is what beats it,
+            the same way the kit's own `HeaderCellInteractive` does.
+          */
+          style={{ pointerEvents: 'auto' }}
+          className={
+            set
+              ? 'text-info rounded p-0.5 hover:bg-zinc-800'
+              : 'rounded p-0.5 text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300'
+          }
+        >
+          {set ? <FunnelIcon weight="fill" /> : <FunnelSimpleIcon />}
+        </IconButton>
+      </span>
       {open ? (
-        <div className="absolute top-full right-0 z-30 mt-1 rounded-lg border border-zinc-800 bg-zinc-950 p-2 shadow-xl">
-          <p className="text-2xs mb-1.5 tracking-wide text-zinc-500 uppercase">{label}</p>
-          <RangeFilter label={label} bound={bound} onBound={onBound} unit={unit} kind={kind} />
-        </div>
+        <HeaderMenu label={label} anchor={anchor.current} align={align}>
+          {children}
+        </HeaderMenu>
       ) : null}
-    </div>
+    </span>
   )
 }
 
 /**
+ * A column header that narrows on its own number.
+ *
+ * In the header rather than in a panel above the table, because the question is
+ * about *that column*: a filter written somewhere else has to name the thing it
+ * narrows, and a filter on the header is already pointing at it.
+ */
+export const ColumnFilter = ({ label, bound, onBound, unit, kind }: RangeFilterProps) => (
+  <HeaderFilter label={label} set={compareOf(bound) !== 'any'} align="right">
+    <RangeFilter label={label} bound={bound} onBound={onBound} unit={unit} kind={kind} />
+  </HeaderFilter>
+)
+
+/**
  * A column header that filters on a set of names rather than a number.
  *
- * The Type column: the form a tool is, in the library's words. Offered as
- * checkboxes over what the table currently holds, so it narrows a list rather
- * than widening one — widening is the panel's job, which offers every form.
+ * The Vendor and Type columns, and every word a holder or a collet is picked
+ * on. Offered as checkboxes over what the list currently holds, with a count
+ * beside each, so a value that would empty the list can be told from a rare one
+ * before it is pressed.
  */
 export const TermColumnFilter = ({
   label,
@@ -329,78 +442,72 @@ export const TermColumnFilter = ({
   readonly chosen: ReadonlyArray<string>
   readonly onChosen: (values: ReadonlyArray<string>) => void
 }) => {
-  const [open, setOpen] = useState(false)
-  const box = useRef<HTMLDivElement>(null)
-  const set = chosen.length > 0
-
-  useEffect(() => {
-    if (!open) {
-      return
-    }
-    const onDown = (event: PointerEvent) => {
-      if (!box.current?.contains(event.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('pointerdown', onDown)
-    return () => document.removeEventListener('pointerdown', onDown)
-  }, [open])
-
   const toggle = (value: string) =>
     onChosen(chosen.includes(value) ? chosen.filter((each) => each !== value) : [...chosen, value])
 
   return (
-    <div ref={box} className="relative inline-flex items-center gap-1">
-      <span>{label}</span>
-      <IconButton
-        size="md"
-        variant="muted"
-        aria-label={`Filter by ${label}`}
-        aria-expanded={open}
-        title={set ? `Filtered by ${label}` : `Filter by ${label}`}
-        onClick={() => setOpen(!open)}
-        className={
-          set
-            ? 'text-info rounded p-0.5 hover:bg-zinc-800'
-            : 'rounded p-0.5 text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300'
-        }
-      >
-        {set ? <FunnelIcon weight="fill" /> : <FunnelSimpleIcon />}
-      </IconButton>
-
-      {open ? (
-        <div
-          role="group"
-          aria-label={label}
-          className="absolute top-full left-0 z-30 mt-1 min-w-44 rounded-lg border border-zinc-800 bg-zinc-950 py-1 shadow-xl"
-        >
-          {options.length === 0 ? (
-            <p className="text-2xs px-2 py-1.5 text-zinc-600">Nothing to narrow by.</p>
-          ) : (
-            options.map((option) => (
-              <div
-                key={option.value}
-                className="text-2xs flex cursor-pointer items-center gap-2 px-2 py-1 whitespace-nowrap normal-case hover:bg-zinc-900"
-              >
-                <Checkbox
-                  name={`term-filter-${option.value}`}
-                  checked={chosen.includes(option.value)}
-                  onChange={() => toggle(option.value)}
-                  size="sm"
-                  aria-label={option.label}
-                />
-                <span className="text-zinc-200">{option.label}</span>
-                <span className="ml-auto pl-3 font-mono tabular-nums text-zinc-600">
-                  {option.count}
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-      ) : null}
-    </div>
+    <HeaderFilter label={label} set={chosen.length > 0}>
+      <div className="max-h-72 min-w-44 overflow-y-auto">
+        {options.length === 0 ? (
+          <p className="text-2xs px-2 py-1.5 text-zinc-600">Nothing to narrow by.</p>
+        ) : (
+          options.map((option) => (
+            <div
+              key={option.value}
+              className="text-2xs flex cursor-pointer items-center gap-2 px-2 py-1 whitespace-nowrap normal-case hover:bg-zinc-900"
+            >
+              <Checkbox
+                name={`term-filter-${option.value}`}
+                checked={chosen.includes(option.value)}
+                onChange={() => toggle(option.value)}
+                size="sm"
+                aria-label={option.label}
+              />
+              <span className="text-zinc-200">{option.label}</span>
+              <span className="ml-auto pl-3 font-mono tabular-nums text-zinc-600">
+                {option.count}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+    </HeaderFilter>
   )
 }
+
+/**
+ * A column header that narrows on what somebody types.
+ *
+ * The catalog number, which is the one column a shop arrives at already knowing
+ * the answer to. It matches the number and the vendor together, so typing
+ * `widia` finds the maker and typing `TDMX` finds the family, and it lives on
+ * the column it reads rather than in a search box above a table with a Catalog
+ * number heading two inches below it.
+ */
+export const TextColumnFilter = ({
+  label,
+  value,
+  onValue,
+}: {
+  readonly label: string
+  readonly value: string
+  readonly onValue: (value: string) => void
+}) => (
+  <HeaderFilter label={label} set={value.trim() !== ''}>
+    <Input
+      id="column-filter-text"
+      name="column-filter-text"
+      type="search"
+      value={value}
+      onValueChange={(next) => onValue(next ?? '')}
+      placeholder={label}
+      aria-label={`Search by ${label.toLowerCase()}`}
+      variant="ghost"
+      size="md"
+      className="h-8 w-40 rounded border border-zinc-800 px-2 font-sans text-zinc-100 normal-case"
+    />
+  </HeaderFilter>
+)
 
 /**
  * Which columns are drawn, and in what order.
@@ -452,6 +559,9 @@ export const ColumnPicker = ({
     document.addEventListener('pointerdown', onDown)
     return () => document.removeEventListener('pointerdown', onDown)
   }, [open])
+
+  // Escape puts it away as well, without going back to find the header.
+  useEscape(open, () => setOpen(false))
 
   return (
     <div ref={box} className="relative">

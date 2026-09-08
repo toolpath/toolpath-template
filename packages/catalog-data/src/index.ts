@@ -8,6 +8,7 @@ export {
   type Provenance,
   type RangeAxis,
   type TermAxis,
+  type ThreadMethod,
   type ToolFamily,
   MATERIAL_GROUPS,
   type ToolType,

@@ -4,6 +4,7 @@ import { colletsFor, isOnSize, type CatalogTool, type Collet } from '@toolpath/c
 import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { collets as allCollets } from 'shared/catalog'
 import { describeGrade, type HolderOption } from 'shared/holder-choice'
+import { useEscape } from 'shared/use-escape'
 import { ToolTypeIcon, formLabel } from './tool-icons'
 import { CatalogComboboxButton } from './catalog-combobox-button'
 
@@ -84,6 +85,9 @@ export const OrderDialog = ({
   const [colletGuid, setColletGuid] = useState<string | null>(chosenCollet)
   const collet = collets.find((each) => each.guid === colletGuid) ?? chosen?.collet ?? null
   const trouble = chosen === null ? null : troubleWith(chosen)
+
+  // Escape puts the question down, the same as a press outside it or Cancel.
+  useEscape(true, onCancel)
 
   return (
     <div

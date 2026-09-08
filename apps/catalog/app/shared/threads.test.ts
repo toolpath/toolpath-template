@@ -6,6 +6,7 @@ import {
   makerOf,
   minorOf,
   threadNamed,
+  threadedName,
   threadsFor,
   THREADS,
 } from './threads'
@@ -190,5 +191,28 @@ describe('what a reading is called', () => {
     expect(readLabel('tap drill')).toBe('tap drill')
     expect(readLabel('nominal')).toBe('nominal diameter')
     expect(readLabel('minor')).toBe('minor diameter')
+  })
+})
+
+/**
+ * **A threaded hole is not called what a plain one is** (Paul, 2026-09-08:
+ * "once a thread is applied to a hole, the feature should be named '<thread
+ * spec> <type of hole> Hole'"). Forty-two rows reading `Blind Hole` say nothing
+ * about the one fact that decides every tool under them.
+ */
+describe('what a threaded hole is called', () => {
+  const spec = threadNamed('M8×1.25')
+
+  it('puts the spec in front of the hole the kernel reported', () => {
+    expect(threadedName('Blind Hole', spec)).toBe('M8×1.25 Blind Hole')
+  })
+
+  it('leaves a plain hole exactly as it was', () => {
+    expect(threadedName('Blind Hole', null)).toBe('Blind Hole')
+  })
+
+  /** The kind is kept whatever it is: the spec is a prefix, not a replacement. */
+  it('keeps whatever the feature is called', () => {
+    expect(threadedName('Through Hole', spec)).toBe('M8×1.25 Through Hole')
   })
 })

@@ -14,6 +14,7 @@ const tool = (over: Partial<CatalogTool> & Pick<CatalogTool, 'guid'>): CatalogTo
   geometry: { DC: 5, NOF: 4 },
   materialGroups: ['P'],
   productLine: null,
+  threadMethod: null,
   productLink: null,
   provenance: {},
   ...over,
@@ -102,5 +103,37 @@ describe('the product-line axis', () => {
   it('is not offered at all where nothing states one', () => {
     const facets = facetsFor([tool({ guid: 'a' }), tool({ guid: 'b' })])
     expect(facets.terms.find((each) => each.key === 'productLine')).toBeUndefined()
+  })
+})
+
+describe('the thread method axis', () => {
+  it('counts the taps the vendor labelled, and leaves the unlabelled out', () => {
+    const facets = facetsFor([
+      tool({ guid: 'a', toolType: 'tap', threadMethod: 'cutting' }),
+      tool({ guid: 'b', toolType: 'tap', threadMethod: 'cutting' }),
+      tool({ guid: 'c', toolType: 'tap', threadMethod: 'forming' }),
+      tool({ guid: 'd', toolType: 'tap', threadMethod: null }),
+      tool({ guid: 'e', toolType: 'endmill', threadMethod: null }),
+    ])
+
+    const axis = facets.terms.find((each) => each.key === 'threadMethod')
+    expect(axis?.label).toBe('Thread method')
+    expect(axis?.values).toEqual([
+      { value: 'cutting', count: 2 },
+      { value: 'forming', count: 1 },
+    ])
+  })
+
+  /**
+   * A catalog scraped before the label exists offers no such filter, rather
+   * than one whose every value is empty. Which is also the state Paul's
+   * 38,114-tool scrape is in until its tap families are scraped again.
+   */
+  it('is not offered at all where no tap is labelled', () => {
+    const facets = facetsFor([
+      tool({ guid: 'a', toolType: 'tap' }),
+      tool({ guid: 'b', toolType: 'tap' }),
+    ])
+    expect(facets.terms.find((each) => each.key === 'threadMethod')).toBeUndefined()
   })
 })

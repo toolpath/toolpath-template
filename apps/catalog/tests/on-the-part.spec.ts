@@ -237,21 +237,53 @@ test('a click on nothing answers the open question, then puts the reading down',
   await expect(field(page)).toBeHidden()
 })
 
+/**
+ * **Nothing is behind a Filters button any more** (Paul, 2026-09-08). What a
+ * column shows is narrowed on that column's own heading, and the part's
+ * material — the one question that is about the part rather than the list — is
+ * the button beside them. The holder, the collet, the clamping length and the
+ * floor allowance came off the page the same day, with every rule behind them
+ * still running.
+ */
 test('the filter toolbar exposes the catalog filter controls', async ({ page }) => {
   await openCube(page)
 
-  await page.getByRole('button', { name: 'Filters' }).click()
-  const filters = page.getByRole('dialog', { name: 'Filters' })
-  await expect(filters.getByRole('button', { name: 'Type' })).toBeVisible()
-  await expect(filters.getByRole('button', { name: 'Flutes' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Filters' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Part material' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Filter by Type', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Filter by Family', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Filter by Flutes', exact: true })).toBeVisible()
+
+  for (const gone of ['Holder', 'Collet', 'Shank', 'Product line', 'Floor radius', 'Clamping']) {
+    await expect(page.getByRole('button', { name: gone, exact: true })).toHaveCount(0)
+  }
+})
+
+/**
+ * **Escape backs out of what is open, and out of that only.**
+ *
+ * The filters had no answer to Escape at all — the only way out was the button
+ * that opened them — while the page answered every press by putting the
+ * reading down. Now the layers are a stack (`shared/use-escape.ts`): the
+ * newest thing on the screen takes the press, and the reading behind it stays.
+ */
+test('Escape closes the filters and leaves the reading alone', async ({ page }) => {
+  await ready(page)
+
+  await page.getByRole('button', { name: 'Filter by Vendor', exact: true }).click()
+  const filters = page.getByRole('group', { name: 'Vendor' })
+  await expect(filters).toBeVisible()
+
+  await page.keyboard.press('Escape')
+
+  await expect(filters).toBeHidden()
+  await expect(field(page)).toBeVisible()
 })
 
 test('part material narrows the tool table', async ({ page }) => {
   const before = await page.locator('[data-row-index]').count()
-  await page.getByRole('button', { name: 'Filters' }).click()
-  const filters = page.getByRole('dialog', { name: 'Filters' })
-  await filters.getByRole('button', { name: 'Part material' }).click()
-  const materials = filters.getByRole('group', { name: 'Part material' })
+  await page.getByRole('button', { name: 'Part material' }).click()
+  const materials = page.getByRole('group', { name: 'Part material' })
   await materials.getByRole('button', { name: /M · Stainless/ }).click()
 
   await expect(async () => {
@@ -414,18 +446,20 @@ test('never says a holder does not grip the shank', async ({ page }) => {
  * and the ones in the catalog were behind a "more".
  */
 test('the vendor picker lists what is in the catalog, and nothing else', async ({ page }) => {
-  await page.getByRole('button', { name: 'Filters' }).click()
-  const filters = page.getByRole('dialog', { name: 'Filters' })
-  await filters.getByRole('button', { name: 'Vendor' }).click()
-  const picker = filters.getByRole('group', { name: 'Vendor' })
+  await page.getByRole('button', { name: 'Filter by Vendor', exact: true }).click()
+  const picker = page.getByRole('group', { name: 'Vendor' })
   await expect(picker).toBeVisible()
-  const menuBox = await filters.locator('[data-tool-filter-menu]').boundingBox()
-  const chromeBox = await page.locator('[data-list-chrome]').boundingBox()
+  /*
+    **The menu is drawn over the page, not inside the table.** The kit's table
+    is a scroll container on both axes, so a menu positioned inside a header
+    cell is clipped at the header's own edge; it is placed against the button
+    that opened it and kept inside the window instead.
+  */
+  const menuBox = await picker.boundingBox()
   expect(menuBox).not.toBeNull()
-  expect(chromeBox).not.toBeNull()
-  expect(menuBox!.x).toBeGreaterThanOrEqual(chromeBox!.x)
-  expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(chromeBox!.x + chromeBox!.width)
-  await expect(picker.getByRole('button', { name: 'Kennametal' })).toBeVisible()
+  expect(menuBox!.x).toBeGreaterThanOrEqual(0)
+  expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width)
+  await expect(picker.getByRole('checkbox', { name: 'Kennametal' })).toBeVisible()
   await expect(page.getByText('Not in this catalog yet')).toHaveCount(0)
 })
 
@@ -448,21 +482,46 @@ test('filters open inline from the tool table, below the viewer', async ({ page 
     true,
   )
 
-  await page.getByRole('button', { name: 'Filters' }).click()
-  const filters = page.getByRole('dialog', { name: 'Filters' })
-  await expect(filters).toBeVisible()
-  await expect(filters.getByRole('button', { name: 'Vendor' })).toBeVisible()
-  await filters.getByRole('button', { name: 'Vendor' }).click()
-  await expect(filters.getByRole('group', { name: 'Vendor' })).toBeVisible()
-  await filters.getByRole('button', { name: 'Type' }).click()
-  const types = filters.getByRole('group', { name: 'Type' })
-  await expect(types).toBeVisible()
-  await expect(types.getByRole('button', { name: 'Circle segment taper' })).toBeVisible()
-  await expect(types.getByRole('button', { name: 'Counter sink' })).toBeVisible()
-
+  // What no column shows is on the toolbar, answerable without a press first.
+  await expect(toolbar.getByRole('button', { name: 'Part material' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Matching settings' })).toHaveCount(0)
-  await expect(filters.getByRole('button', { name: 'Floor radius' })).toBeVisible()
-  await expect(filters.getByRole('button', { name: 'Clamping' })).toBeVisible()
+
+  /*
+    What a column *does* show is asked on that column, and offered over what
+    the list holds: a heading narrows the rows under it, where the panel used
+    to offer every form the library names whether this catalog had one or not.
+
+    **The shank is part of the phrase**, not a filter beside it (Paul,
+    2026-09-08): the sample's ⌀9.525 tap on a ⌀7.938 shank is a reduced shank
+    tap, and reads as one wherever it is named.
+  */
+  await page.getByRole('button', { name: 'Filter by Type', exact: true }).click()
+  const types = page.getByRole('group', { name: 'Type' })
+  await expect(types).toBeVisible()
+  await expect(types.getByRole('checkbox', { name: 'Drill' })).toBeVisible()
+  await expect(types.getByRole('checkbox', { name: 'Reduced shank tap right hand' })).toBeVisible()
+  await expect(types.getByRole('checkbox', { name: 'Circle segment taper' })).toHaveCount(0)
+})
+
+/**
+ * **One grouping, one column** (Paul, 2026-09-08: "product line and family are
+ * the same and need to be rolled into one Family field. This should be a
+ * column in tools"). The vendor's line where it names one, the family under it
+ * where it does not.
+ */
+test('the family is a column, and the column is the filter', async ({ page }) => {
+  await openCube(page)
+
+  await expect(page.getByRole('columnheader', { name: /Family/ })).toBeVisible()
+  await expect(page.getByRole('gridcell', { name: 'Sample HP Series' }).first()).toBeVisible()
+
+  await page.getByRole('button', { name: 'Filter by Family', exact: true }).click()
+  const families = page.getByRole('group', { name: 'Family' })
+  await expect(families.getByRole('checkbox', { name: 'Sample HP Series' })).toBeVisible()
+  // The taps name no line, so they answer under the family's own title.
+  await expect(
+    families.getByRole('checkbox', { name: 'Sample inch spiral-flute taps' }),
+  ).toBeVisible()
 })
 
 /**
@@ -490,9 +549,9 @@ test('a click previews and asks, and the list answers for itself', async ({ page
   const list = page.getByRole('list', { name: 'Features being asked about' })
   await expect(list).toBeVisible()
   await expect(list.getByRole('listitem')).toHaveCount(1)
-  // The number search lives with the rest of the filters, not in a second
-  // toolbar row above the table.
-  await page.getByRole('button', { name: 'Filters' }).click()
+  // The number search is the Catalog number column's own filter, not a box in
+  // a second toolbar row above the table.
+  await page.getByRole('button', { name: 'Filter by Catalog number', exact: true }).click()
   await expect(page.getByRole('searchbox', { name: 'Search by catalog number' })).toBeVisible()
   await expect(page.getByText(/^Cuts the /)).toBeVisible()
 })
@@ -509,15 +568,32 @@ test('offers both ways in, and asks for a face rather than refusing', async ({ p
   await page.getByRole('button', { name: 'Add group' }).click()
 
   await expect(page.getByText('New group')).toBeVisible()
-  // The one question a group asks while *the best tool for each* is parked
-  // (Paul, 2026-09-07), and it is pressed from the start.
-  await expect(page.getByRole('button', { name: /One tool for all of them/ })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  )
+  // **The only question a group asks is stated, not offered** (Paul,
+  // 2026-09-08): *one tool for all of them* is what every group means, so the
+  // note says it and neither it nor the quick buttons are controls any more.
+  await expect(page.getByText(/find tools compatible with all features in the group/)).toBeVisible()
+  await expect(page.getByRole('button', { name: /One tool for all of them/ })).toBeHidden()
   await expect(page.getByRole('button', { name: /The best tool for each/ })).toBeHidden()
+  await expect(page.getByRole('button', { name: /^Add every/ })).toBeHidden()
   await expect(page.getByRole('button', { name: /^Create group and add tools?$/ })).toBeDisabled()
 })
+
+/**
+ * The one feature a group built by clicking has in it, by the name the page
+ * gives it.
+ *
+ * **The quick buttons are gone** (Paul, 2026-09-08), so a group here is built
+ * the way the editor now says it is: the face clicked on the part. Which
+ * reading that face resolves to is the kernel's business — the cube's centre
+ * reads as a profile as readily as a face — so the name is read off the chip
+ * rather than assumed, and every later assertion uses what the page said.
+ */
+const inTheGroup = async (page: Page): Promise<string> => {
+  const chip = page.getByRole('button', { name: /^Take .+ out of the group$/ })
+  await expect(chip).toBeVisible()
+  const label = (await chip.getAttribute('aria-label')) ?? ''
+  return label.replace(/^Take /, '').replace(/ out of the group$/, '')
+}
 
 /**
  * **The list is the work, so it survives a reload** (Paul, 2026-09-02: "we need
@@ -528,11 +604,14 @@ test('offers both ways in, and asks for a face rather than refusing', async ({ p
  * had chosen for it stayed on the bill and on the part.
  */
 test('keeps the list across a reload', async ({ page }) => {
+  // **The features are picked on the part** now that the quick buttons are off
+  // the editor (Paul, 2026-09-08): the face already clicked seeds the draft,
+  // which is the mechanism the box now says is the only one.
+  await ready(page)
   await page.getByRole('button', { name: 'Add group' }).click()
-  await page.getByRole('button', { name: /Add every Face/ }).click()
-  // One tool for all of them is the only question a group asks while *the best
-  // tool for each* is parked (Paul, 2026-09-07), so the group is finished the
-  // way that one is: by picking a tool out of the list below it.
+  const named = await inTheGroup(page)
+  // One tool for all of them is what every group asks (Paul, 2026-09-08), so
+  // the group is finished by picking a tool out of the list below it.
   await page
     .getByRole('grid')
     .getByRole('row')
@@ -546,7 +625,7 @@ test('keeps the list across a reload', async ({ page }) => {
   await page.reload()
 
   await expect(list.getByRole('listitem')).toHaveCount(1)
-  await expect(list.getByText('4 × Face')).toBeVisible()
+  await expect(list.getByText(named)).toBeVisible()
 })
 
 /**
@@ -607,11 +686,13 @@ test('takes a removed row off the bill as well as off the list', async ({ page }
  * `components/group-editor.tsx` is what makes this test runnable again.
  */
 test.skip('a group answers per its result option', async ({ page }) => {
+  await ready(page)
   await page.getByRole('button', { name: 'Add group' }).click()
 
   await expect(page.getByText('New group')).toBeVisible()
-  // The committed sample catalog has matching tools for its planar faces.
-  await page.getByRole('button', { name: /Add every Face/ }).click()
+  // The committed sample catalog has matching tools for its planar faces, and
+  // the face is picked on the part (Paul, 2026-09-08, taking the quick buttons
+  // off): `ready` above is what put it in.
 
   // A group asked for one tool *each* shows no list at all: the question is one
   // per feature, and the answers arrive when the group does (Paul, same day).
@@ -623,7 +704,7 @@ test.skip('a group answers per its result option', async ({ page }) => {
   const list = page.getByRole('list', { name: 'Features being asked about' })
   await expect(list.getByRole('listitem')).toHaveCount(1)
   await expect(list.getByText('one each')).toBeVisible()
-  await list.getByRole('button', { name: /Open 4 × Face/ }).click()
+  await list.getByRole('button', { name: /^Open / }).click()
   await expect(list.getByRole('button', { name: / for Face/ }).first()).toBeVisible()
 })
 
@@ -634,8 +715,9 @@ test.skip('a group answers per its result option', async ({ page }) => {
  * below waits to be asked — it never falls back to the catalog.
  */
 test('presses the tool under a row for everything that fits it', async ({ page }) => {
+  await ready(page)
   await page.getByRole('button', { name: 'Add group' }).click()
-  await page.getByRole('button', { name: /Add every Face/ }).click()
+  const named = await inTheGroup(page)
   await page
     .getByRole('grid')
     .getByRole('row')
@@ -648,13 +730,13 @@ test('presses the tool under a row for everything that fits it', async ({ page }
   // answer is the way back in.
   await expect(page.getByText('Cuts every feature in the group')).toBeVisible()
   const list = page.getByRole('list', { name: 'Features being asked about' })
-  await list.getByRole('button', { name: '4 × Face', exact: true }).click()
+  await list.getByRole('button', { name: named, exact: true }).click()
   await expect(page.getByText('Every tool in the catalog')).toBeVisible()
 
   await list.getByRole('button', { name: / for / }).click()
 
   await expect(page.getByText('Cuts every feature in the group')).toBeVisible()
-  await page.getByRole('button', { name: 'Filters' }).click()
+  await page.getByRole('button', { name: 'Filter by Catalog number', exact: true }).click()
   await expect(page.getByRole('searchbox', { name: 'Search by catalog number' })).toBeVisible()
 })
 
@@ -963,11 +1045,12 @@ test.describe('the tool assembly tree', () => {
   })
 
   /**
-   * **A threaded hole is two orders.** Each stack carries its own press, which
-   * is what the panel on the right could never do: it spoke for whichever slot
-   * happened to be selected.
+   * **Every assembly carries its own press**, which is what the panel on the
+   * right could never do: it spoke for whichever slot happened to be selected.
+   * One press for the whole of it — a threaded hole's tap and the drill under
+   * it are one thing to order (Paul, 2026-09-08).
    */
-  test('gives every stack in the tree its own button', async ({ page }) => {
+  test('gives every assembly in the tree its own button', async ({ page }) => {
     await ready(page)
     await page.getByRole('button', { name: 'Add feature' }).click()
     const tree = await buildStack(page)

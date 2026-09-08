@@ -41,6 +41,8 @@ const endmill = (guid, catalogNumber, dc, lcf, oal, re, nof, dmm) => ({
   // leave `null`: a catalog holds both, and the facet has to count only the
   // named ones.
   productLine: 'Sample HP Series',
+  // Not a tap, so it makes no thread at all — the field's third state.
+  threadMethod: null,
   productLink: null,
   provenance: {
     DC: 'vendor-stated',
@@ -64,6 +66,8 @@ const drill = (guid, catalogNumber, dc, lcf, oal, sig, dmm) => ({
   geometry: { DC: dc, LCF: lcf, OAL: oal, SIG: sig, SFDM: dmm },
   materialGroups: ['P', 'M', 'K'],
   productLine: 'Sample Deep-Hole Series',
+  // Not a tap, so it makes no thread at all — the field's third state.
+  threadMethod: null,
   productLink: null,
   // The point angle is a family constant here rather than a per-part column,
   // which is exactly the kind of fact that has to be marked as derived.
@@ -76,7 +80,7 @@ const drill = (guid, catalogNumber, dc, lcf, oal, sig, dmm) => ({
   },
 })
 
-const tap = (guid, catalogNumber, dc, lcf, oal, nof, dmm, materialGroups) => ({
+const tap = (guid, catalogNumber, dc, lcf, oal, nof, dmm, materialGroups, threadMethod) => ({
   guid,
   familyId: 'sample-inch-taps',
   brand: 'WIDIA',
@@ -95,6 +99,10 @@ const tap = (guid, catalogNumber, dc, lcf, oal, nof, dmm, materialGroups) => ({
   materialGroups,
   // No line: the vendor names none, which is not the same as an unnamed one.
   productLine: null,
+  // One of each, because the two are not interchangeable: a form tap wants a
+  // bigger hole than a cut tap of the same size, so a sample that held only
+  // one of them would let a reader treat the field as decorative.
+  threadMethod,
   productLink: null,
   provenance: {
     DC: 'vendor-stated',
@@ -203,7 +211,17 @@ const catalog = buildCatalog({
       unitSystem: 'inches',
       source: null,
       tools: [
-        tap('33333333-3333-5333-8333-333333333301', 'VTSFT0250', 6.35, 15.875, 63.5, 3, 6.35, []),
+        tap(
+          '33333333-3333-5333-8333-333333333301',
+          'VTSFT0250',
+          6.35,
+          15.875,
+          63.5,
+          3,
+          6.35,
+          [],
+          'cutting',
+        ),
         tap(
           '33333333-3333-5333-8333-333333333302',
           'VTSFT0375',
@@ -213,6 +231,7 @@ const catalog = buildCatalog({
           3,
           7.938,
           null,
+          'forming',
         ),
       ],
     },

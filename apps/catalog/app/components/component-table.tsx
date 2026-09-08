@@ -21,6 +21,9 @@ import {
   type ComponentColumn,
   type ComponentKind,
 } from 'shared/component-columns'
+import { askOfComponentColumn } from 'shared/column-filters'
+import { setBound, setTerm, type ComponentQuery } from 'shared/component-query'
+import { ColumnHeading, SORT_ICON } from './column-heading'
 
 /**
  * A rack of holders, or a drawer of collets, read as a table.
@@ -40,6 +43,24 @@ import {
  * shared shell. The four columns every component has — number, vendor, type,
  * family — are fixed here for the same reason they are fixed there.
  */
+
+/**
+ * The filters a holder or collet list is narrowed by, all of them in a header.
+ *
+ * **Every question about a component is a question about a column of it** — a
+ * taper, a clamping, a series, a gauge length — so this list has no filter
+ * buttons of its own at all: the popover they used to live in said the same
+ * words as the headings two inches below it (Paul, 2026-09-08). Which header
+ * asks what is `shared/column-filters.ts`, the same rule the tool table reads.
+ */
+export interface ComponentColumnFiltering {
+  readonly query: ComponentQuery
+  readonly onQuery: (query: ComponentQuery) => void
+  /** What an axis has among the records this list could show, and how many. */
+  readonly options: (
+    code: string,
+  ) => ReadonlyArray<{ readonly value: string; readonly count: number }>
+}
 
 export interface ComponentTableProps {
   readonly kind: ComponentKind
@@ -79,6 +100,7 @@ export interface ComponentTableProps {
    */
   readonly usedOn?: (guid: string) => { readonly label: string; readonly title: string } | null
   readonly empty?: ReactNode
+  readonly filtering?: ComponentColumnFiltering
   /** Test-only escape hatch for jsdom, where virtual rows cannot measure themselves. */
   readonly virtualized?: boolean
 }
@@ -138,6 +160,7 @@ export const ComponentTable = ({
   onFeature,
   usedOn,
   empty,
+  filtering,
   virtualized = true,
 }: ComponentTableProps) => {
   const data = useMemo<Array<Row>>(
@@ -192,19 +215,54 @@ export const ComponentTable = ({
     }
   }, [selectedRows.id, chosen, onChoose])
 
+  /**
+   * One heading, with the two things it can do: sort, and narrow.
+   *
+   * The type a holder reads as is the only heading that asks nothing — it is
+   * three of the other columns said as one phrase, so narrowing on it would be
+   * a fourth way to ask what Taper, Clamping and Collet series already ask.
+   */
+  const heading = (code: string, label: string): ReactNode => {
+    if (filtering === undefined) {
+      return <ColumnHeading label={label} />
+    }
+    const ask = askOfComponentColumn(kind, code)
+    const axis = ask !== null && ask.shape === 'terms' ? ask.axis : null
+    return (
+      <ColumnHeading
+        label={label}
+        ask={ask}
+        unit={unit}
+        bound={filtering.query.bounds[code]}
+        onBound={(bound) => filtering.onQuery(setBound(filtering.query, code, bound))}
+        options={
+          axis === null
+            ? undefined
+            : filtering.options(axis).map((option) => ({ ...option, label: option.value }))
+        }
+        chosen={axis === null ? undefined : (filtering.query.terms[axis] ?? [])}
+        onChosen={
+          axis === null
+            ? undefined
+            : (values) => filtering.onQuery(setTerm(filtering.query, axis, values))
+        }
+      />
+    )
+  }
+
   const header = (
     <Table.HeaderRow>
-      <Table.HeaderCell sortKey="catalogNumber" width={flexible('10rem')}>
-        Catalog number
+      <Table.HeaderCell sortKey="catalogNumber" sortIcon={SORT_ICON} width={flexible('10rem')}>
+        {heading('catalogNumber', 'Catalog number')}
       </Table.HeaderCell>
-      <Table.HeaderCell sortKey="brand" width={flexible('7rem')}>
-        Vendor
+      <Table.HeaderCell sortKey="brand" sortIcon={SORT_ICON} width={flexible('7rem')}>
+        {heading('brand', 'Vendor')}
       </Table.HeaderCell>
-      <Table.HeaderCell sortKey="type" width={flexible('11rem')}>
-        Type
+      <Table.HeaderCell sortKey="type" sortIcon={SORT_ICON} width={flexible('11rem')}>
+        {heading('type', 'Type')}
       </Table.HeaderCell>
-      <Table.HeaderCell sortKey="familyId" width={flexible('9rem')}>
-        Family
+      <Table.HeaderCell sortKey="familyId" sortIcon={SORT_ICON} width={flexible('9rem')}>
+        {heading('familyId', 'Family')}
       </Table.HeaderCell>
       {shown.map((column) => (
         <Table.HeaderCell
@@ -225,9 +283,10 @@ export const ComponentTable = ({
               return String(a).localeCompare(String(b), 'en', { numeric: true })
             })
           }
+          sortIcon={SORT_ICON}
           width={flexible('6rem')}
         >
-          {column.label}
+          {heading(column.code, column.label)}
         </Table.HeaderCell>
       ))}
     </Table.HeaderRow>

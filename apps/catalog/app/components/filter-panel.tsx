@@ -15,11 +15,11 @@ import { MATERIAL_GROUPS, TOOL_FORMS } from '@toolpath/catalog-data'
 import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { brandsOfFamily, brandsOfProductLine, getFamily } from 'shared/catalog'
 import { toggleTerm, type ToolQuery } from 'shared/filter'
+import { AXES_IN_TOOL_COLUMNS, AXES_PARKED } from 'shared/column-filters'
+import { useEscape } from 'shared/use-escape'
 import { Chip, ChipGroup } from './chip'
 import { RangeFilter, type Bound, type Kind } from './column-filter'
-import { ClampingLengthFields } from './clamping-length'
 import { DrillDeviationFields } from './drill-deviation'
-import { FloorAllowanceFields } from './floor-allowance'
 import {
   ColletIcon,
   FluteLengthIcon,
@@ -173,11 +173,11 @@ const Monogram = ({ brand }: { brand: string }) => (
  */
 export const FACET_AXES: ReadonlyArray<string> = [
   'brand',
-  'familyId',
-  'productLine',
-  'form',
+  // The two phrases this catalog builds rather than facets a vendor publishes:
+  // the type with its shank in it, and the family with its product line.
+  'type',
+  'family',
   'materialGroups',
-  'shank',
   'NOF',
 ]
 
@@ -317,6 +317,23 @@ export const QUICK_FILTERS: ReadonlyArray<QuickFilter> = [
   },
 ]
 
+/**
+ * The questions still asked on a button — the part's material, and nothing
+ * else (Paul, 2026-09-08).
+ *
+ * Everything a column shows is asked on that column's heading, and asking it
+ * twice is the defect `shared/column-filters.ts` exists to prevent. What is
+ * left over is either a column's now — the vendor, the type with its shank,
+ * the family with its product line, the numbers — or parked with its rule
+ * still running underneath: `AXES_PARKED`.
+ *
+ * The material is not a column and is not going to be one: it is a property of
+ * the *part*, which is also why it both filters the list and orders it.
+ */
+export const BUTTON_FILTERS: ReadonlyArray<string> = QUICK_FILTERS.filter(
+  (filter) => !AXES_IN_TOOL_COLUMNS.includes(filter.key) && !AXES_PARKED.includes(filter.key),
+).map((filter) => filter.key)
+
 export interface FilterPanelProps {
   readonly facets: Facets
   readonly query: ToolQuery
@@ -351,18 +368,17 @@ export interface FilterPanelProps {
   readonly compact?: boolean
   /** Render every filter as a compact control for the list chrome. */
   readonly toolbar?: boolean
-  /** Matching thresholds shown with the other compact filter controls. */
+  /**
+   * Matching thresholds shown with the other compact filter controls.
+   *
+   * **The floor allowance and the clamping length are off the page** (Paul,
+   * 2026-09-08: "we can remove the remaining clamping, floor radius, collet,
+   * and holder filters. Keep the rule on the back end but hide them for now").
+   * Both still decide what fits — the sheet's values are what the matching
+   * reads — they are simply not asked here any more, so the props are gone
+   * rather than passed and ignored.
+   */
   readonly matching?: {
-    readonly floor: {
-      readonly value: number
-      readonly onChange: (millimetres: number) => void
-      readonly sheetValue: number
-    }
-    readonly clamping: {
-      readonly rule: Parameters<typeof ClampingLengthFields>[0]['rule']
-      readonly onChange: Parameters<typeof ClampingLengthFields>[0]['onChange']
-      readonly sheet: number
-    }
     readonly drill?: {
       readonly over: number
       readonly under: number
@@ -593,7 +609,7 @@ const ToolbarOptions = ({
   )
 }
 
-/** Closes a popover on a pointer down anywhere outside it. */
+/** Closes a popover on a pointer down anywhere outside it, or on Escape. */
 const useCloseOnOutside = (open: boolean, close: () => void) => {
   const box = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -608,6 +624,7 @@ const useCloseOnOutside = (open: boolean, close: () => void) => {
     document.addEventListener('pointerdown', onDown)
     return () => document.removeEventListener('pointerdown', onDown)
   }, [open, close])
+  useEscape(open, close)
   return box
 }
 
@@ -1244,72 +1261,29 @@ export const FilterPanel = ({
   }
 
   const renderMatchingFilter = (): ReactNode => {
-    if (matchingFilters === undefined) {
+    if (matchingFilters?.drill === undefined) {
       return null
     }
-    const floorChanged = matchingFilters.floor.value > matchingFilters.floor.sheetValue
-    const clampingChanged =
-      !matchingFilters.clamping.rule.vendorSpec ||
-      matchingFilters.clamping.rule.perDiameter !== matchingFilters.clamping.sheet
-    const drillChanged =
-      matchingFilters.drill !== undefined &&
-      (matchingFilters.drill.over !== matchingFilters.drill.sheet.over ||
-        matchingFilters.drill.under !== matchingFilters.drill.sheet.under)
+    const drill = matchingFilters.drill
+    const changed = drill.over !== drill.sheet.over || drill.under !== drill.sheet.under
     return (
-      <>
-        <ToolbarFilter
-          icon={<CircleIcon />}
-          label="Floor radius"
-          summary={floorChanged ? formatLength(matchingFilters.floor.value, unit) : 'Any'}
-          open={openToolbarFilter === 'floor-radius'}
-          onOpen={() =>
-            setOpenToolbarFilter(openToolbarFilter === 'floor-radius' ? null : 'floor-radius')
-          }
-        >
-          <FloorAllowanceFields
-            value={matchingFilters.floor.value}
-            onChange={matchingFilters.floor.onChange}
-            sheetValue={matchingFilters.floor.sheetValue}
-            unit={unit}
-          />
-        </ToolbarFilter>
-        <ToolbarFilter
-          icon={<HolderIcon />}
-          label="Clamping"
-          summary={
-            clampingChanged ? `${String(matchingFilters.clamping.rule.perDiameter)}×D` : 'Any'
-          }
-          open={openToolbarFilter === 'clamping'}
-          onOpen={() => setOpenToolbarFilter(openToolbarFilter === 'clamping' ? null : 'clamping')}
-        >
-          <ClampingLengthFields
-            rule={matchingFilters.clamping.rule}
-            onChange={matchingFilters.clamping.onChange}
-            sheet={matchingFilters.clamping.sheet}
-          />
-        </ToolbarFilter>
-        {matchingFilters.drill === undefined ? null : (
-          <ToolbarFilter
-            icon={<CircleIcon />}
-            label="Drill deviation"
-            summary={drillChanged ? 'Set' : 'Any'}
-            open={openToolbarFilter === 'drill-deviation'}
-            onOpen={() =>
-              setOpenToolbarFilter(
-                openToolbarFilter === 'drill-deviation' ? null : 'drill-deviation',
-              )
-            }
-          >
-            <DrillDeviationFields
-              over={matchingFilters.drill.over}
-              under={matchingFilters.drill.under}
-              onChange={matchingFilters.drill.onChange}
-              sheet={matchingFilters.drill.sheet}
-              unit={unit}
-            />
-          </ToolbarFilter>
-        )}
-      </>
+      <ToolbarFilter
+        icon={<CircleIcon />}
+        label="Drill deviation"
+        summary={changed ? 'Set' : 'Any'}
+        open={openToolbarFilter === 'drill-deviation'}
+        onOpen={() =>
+          setOpenToolbarFilter(openToolbarFilter === 'drill-deviation' ? null : 'drill-deviation')
+        }
+      >
+        <DrillDeviationFields
+          over={drill.over}
+          under={drill.under}
+          onChange={drill.onChange}
+          sheet={drill.sheet}
+          unit={unit}
+        />
+      </ToolbarFilter>
     )
   }
 

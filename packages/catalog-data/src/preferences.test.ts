@@ -23,6 +23,7 @@ const tool = (guid: string, materialGroups: ReadonlyArray<string> = []): Catalog
     geometry: { DC: 6 },
     materialGroups,
     productLine: null,
+    threadMethod: null,
     productLink: null,
     provenance: {},
   }) as CatalogTool

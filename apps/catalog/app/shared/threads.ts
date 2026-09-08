@@ -328,6 +328,23 @@ export const threadNamed = (
 ): ThreadSpec | null => specs.find((each) => each.name === name) ?? null
 
 /**
+ * What a hole is called once a thread has been applied to it.
+ *
+ * **A threaded hole is not called what a plain one is** (Paul, 2026-09-08: "once
+ * a thread is applied to a hole, the feature should be named '<thread spec>
+ * <type of hole> Hole'"). The list said `Blind Hole` whether the hole was a
+ * clearance hole or an M8×1.25 — the one fact that decides which tool cuts it,
+ * kept in a combobox somebody had to select the row to read.
+ *
+ * The kernel's own name for the hole is kept and the spec goes in front of it,
+ * so `Blind Hole` becomes `M8×1.25 Blind Hole` and the row still says what kind
+ * of hole it is. Plain holes are unchanged: a spec is the whole of what makes a
+ * hole threaded, which is the same test the rest of the page uses for it.
+ */
+export const threadedName = (name: string, spec: ThreadSpec | null): string =>
+  spec === null ? name : `${spec.name} ${name}`
+
+/**
  * How the thread gets made, which decides the hole it starts from.
  *
  * A shop drills a different size for each (Paul, 2026-08-31), and the

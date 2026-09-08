@@ -19,15 +19,16 @@ import type { Choice } from './setup-sheet'
  *   ● TOOL              ● TAP
  *   ○ HOLDER            ○ HOLDER
  *   ○ COLLET            ○ COLLET
- * + Add assembly        ▾ Drill
- *                         ● DRILL …
+ * + Add assembly        ○ DRILL …
  *                         ○ HOLDER
  *                         ○ COLLET
  * ```
  *
  * The drill hangs *under* the tap it predrills rather than beside it: the
  * thread is the decision and the hole under it follows from which tap was
- * chosen (Paul, 2026-09-07). `treeRows` is that nesting.
+ * chosen (Paul, 2026-09-07). `treeRows` is that nesting, `treeGroups` the
+ * assembly it makes — one card, and **one press for the whole of it** (Paul,
+ * 2026-09-08).
  *
  * Pure, and here rather than in the route, for the reason every other rule on
  * this page is: what a slot holds, what a threaded hole starts with, and how a
@@ -207,21 +208,34 @@ const tapFor = (assemblies: ReadonlyArray<TreeAssembly>, at: number): number | n
   return anywhere === -1 ? null : anywhere
 }
 
+/** A root stack and whatever hangs under it — one assembly, drawn as one card. */
+export interface TreeGroup {
+  readonly root: TreeAssembly
+  /** The drill under a tap; empty for every ordinary stack. */
+  readonly under: ReadonlyArray<TreeAssembly>
+}
+
 /**
- * The stacks in the order they are drawn, each with how deep it hangs.
+ * The stacks gathered into the assemblies they make up.
  *
  * **The drill belongs to the tap** (Paul, 2026-09-07: "the drill is dependent
  * on the tap, but both the drill and the tap may have their own holder and
  * collet — so it needs to be Tap / Tap holder / Tap collet / Drill / Drill
- * holder / Drill collet"). The two were drawn as stacks of equal rank, which
+ * holder / Drill collet"). The two were drawn as cards of equal rank, which
  * says they are two answers to one question rather than one answer that takes
  * two tools in an order: the thread is the decision and the hole under it
  * follows from which tap was chosen.
  *
- * Every other stack is a root, in the order it was added. `+ Add assembly`
- * still adds a `cut` stack, so a rougher and a finisher stay siblings.
+ * **And a group is one thing to order** (Paul, 2026-09-08: "there should only
+ * be one 'add to order list' button for the full assembly"). A tap that cuts a
+ * thread the drill under it never made is not half an order, it is a mistake,
+ * so the press is the group's rather than each stack's — `assembly-actions`
+ * `groupActions` is what it offers.
+ *
+ * Every other stack is a root with nothing under it, in the order it was added,
+ * so a pocket's rougher and finisher stay siblings.
  */
-export const treeRows = (assemblies: ReadonlyArray<TreeAssembly>): Array<TreeRow> => {
+export const treeGroups = (assemblies: ReadonlyArray<TreeAssembly>): Array<TreeGroup> => {
   const under = new Map<number, Array<TreeAssembly>>()
   const roots: Array<{ readonly at: number; readonly assembly: TreeAssembly }> = []
   assemblies.forEach((assembly, at) => {
@@ -237,23 +251,52 @@ export const treeRows = (assemblies: ReadonlyArray<TreeAssembly>): Array<TreeRow
       under.set(tap, [assembly])
     }
   })
-  return roots.flatMap((root) => [
-    { assembly: root.assembly, depth: 0 },
-    ...(under.get(root.at) ?? []).map((assembly) => ({ assembly, depth: 1 })),
-  ])
+  return roots.map((root) => ({ root: root.assembly, under: under.get(root.at) ?? [] }))
 }
+
+/** The group a stack stands in, root or child alike. */
+export const groupOf = (assemblies: ReadonlyArray<TreeAssembly>, id: string): TreeGroup | null =>
+  treeGroups(assemblies).find(
+    (group) => group.root.id === id || group.under.some((each) => each.id === id),
+  ) ?? null
+
+/** Every stack of a group, root first — what one button writes and one trash takes off. */
+export const stacksOf = (group: TreeGroup): Array<TreeAssembly> => [group.root, ...group.under]
+
+/**
+ * The stacks in the order they are drawn, each with how deep it hangs.
+ *
+ * 0 for a root, 1 for the drill hanging under the tap it predrills.
+ */
+export const treeRows = (assemblies: ReadonlyArray<TreeAssembly>): Array<TreeRow> =>
+  treeGroups(assemblies).flatMap((group) => [
+    { assembly: group.root, depth: 0 },
+    ...group.under.map((assembly) => ({ assembly, depth: 1 })),
+  ])
 
 export const addAssembly = (
   assemblies: ReadonlyArray<TreeAssembly>,
   role: Role = 'cut',
 ): Array<TreeAssembly> => [...assemblies, emptyAssembly(nextAssemblyId(assemblies), role)]
 
-/** Never the last one: a feature with no assembly has nothing to click. */
+/**
+ * One assembly off the tree — the stack and whatever hangs under it.
+ *
+ * **The trash is the group's, because the group is the assembly** (Paul,
+ * 2026-09-08). A tap taken off on its own leaves a drill hanging under nothing,
+ * which the next read turns into a stack of its own: a hole to drill for a
+ * thread nobody is cutting. Whatever hangs under the stack goes with it; a
+ * stack that is somebody's child takes nothing but itself.
+ *
+ * Never the last one: a feature with no assembly has nothing to click.
+ */
 export const removeAssembly = (
   assemblies: ReadonlyArray<TreeAssembly>,
   id: string,
 ): Array<TreeAssembly> => {
-  const left = assemblies.filter((each) => each.id !== id)
+  const group = treeGroups(assemblies).find((each) => each.root.id === id)
+  const off = new Set(group === undefined ? [id] : stacksOf(group).map((each) => each.id))
+  const left = assemblies.filter((each) => !off.has(each.id))
   return left.length === 0 ? assemblies.map((each) => emptyAssembly(each.id, each.role)) : left
 }
 

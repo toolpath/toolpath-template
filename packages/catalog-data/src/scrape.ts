@@ -49,6 +49,7 @@ import { createHolderApi, measureHolder } from '@toolpath/tool-scraper/node'
 
 import { statedForm } from './forms.js'
 import type { ScrapedCollet, ScrapedFamily, ScrapedHolder, ScrapedTool } from './ingest.js'
+import type { ThreadMethod } from './types.js'
 
 /**
  * Running the vendors' scrapers, and handing their records to the ingest.
@@ -343,6 +344,27 @@ export const sharedDescription = (records: ReadonlyArray<ToolRecord>): string | 
  * whose part-number column was renamed fails by name instead of minting every
  * guid off an empty string.
  */
+/**
+ * Whether the record says a tap cuts its thread or forms it.
+ *
+ * **This exists only because the installed scraper is 2.3.0.** `threadMethod`
+ * lands on `ToolRecord` in 2.4.0 (upstream `feat(tool-scraper): record whether
+ * a tap cuts its thread or forms it`), and until that version is installed
+ * `record.threadMethod` does not type-check. Reading it through a widened view
+ * lets the carry-through be written, tested and reviewed now, and it starts
+ * returning real labels the moment the dependency moves — no code change, only
+ * a re-scrape.
+ *
+ * **Delete this when 2.4.0 is installed** and inline `record.threadMethod`.
+ * Keeping the cast past that point would defeat the seam's own rule that an
+ * upstream shape change fails `check-types` here; `ingest.ts` carries the
+ * matching note on `ScrapedTool`.
+ */
+export const threadMethodOf = (record: ToolRecord): ThreadMethod | null => {
+  const stated = (record as ToolRecord & { readonly threadMethod?: unknown }).threadMethod
+  return stated === 'cutting' || stated === 'forming' ? stated : null
+}
+
 export const scrapeOne = async (
   fetcher: Fetcher,
   csvName: string,
@@ -363,6 +385,7 @@ export const scrapeOne = async (
     geometry: record.geometry,
     materialGroups: record.materialGroups,
     productLine: record.productLine,
+    threadMethod: threadMethodOf(record),
     productLink: productLink(record.brand, record.materialNumber),
   }))
 

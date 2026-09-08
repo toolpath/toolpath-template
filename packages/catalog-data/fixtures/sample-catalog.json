@@ -64,6 +64,7 @@
         "M"
       ],
       "productLine": "Sample HP Series",
+      "threadMethod": null,
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -102,6 +103,7 @@
         "M"
       ],
       "productLine": "Sample HP Series",
+      "threadMethod": null,
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -140,6 +142,7 @@
         "M"
       ],
       "productLine": "Sample HP Series",
+      "threadMethod": null,
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -178,6 +181,7 @@
         "M"
       ],
       "productLine": "Sample HP Series",
+      "threadMethod": null,
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -216,6 +220,7 @@
         "K"
       ],
       "productLine": "Sample Deep-Hole Series",
+      "threadMethod": null,
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -253,6 +258,7 @@
         "K"
       ],
       "productLine": "Sample Deep-Hole Series",
+      "threadMethod": null,
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -290,6 +296,7 @@
         "K"
       ],
       "productLine": "Sample Deep-Hole Series",
+      "threadMethod": null,
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -324,6 +331,7 @@
       },
       "materialGroups": [],
       "productLine": null,
+      "threadMethod": "cutting",
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -358,6 +366,7 @@
       },
       "materialGroups": null,
       "productLine": null,
+      "threadMethod": "forming",
       "productLink": null,
       "provenance": {
         "DC": "vendor-stated",
@@ -664,6 +673,20 @@
           {
             "value": "Sample HP Series",
             "count": 4
+          }
+        ]
+      },
+      {
+        "key": "threadMethod",
+        "label": "Thread method",
+        "values": [
+          {
+            "value": "cutting",
+            "count": 1
+          },
+          {
+            "value": "forming",
+            "count": 1
           }
         ]
       },

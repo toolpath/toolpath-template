@@ -26,6 +26,18 @@ export interface SelectionPanelProps {
   readonly features: ReadonlyArray<PartFeature>
   readonly regions: ReadonlyArray<{ idx: number; shapeKind: string }>
   readonly unit: UnitSystem
+  /**
+   * What a reading is called, where the route can say.
+   *
+   * **A thread is part of the name** (Paul, 2026-09-08: "once a thread is
+   * selected, anywhere that feature is used should show the new name"). The
+   * panel named a reading off `featureRow` and the list named it through the
+   * route's `nameOf`, so the row said `#4-40 UNC Blind Hole` and the panel
+   * above it said `Blind Hole` about the same hole. The thread is kept per
+   * feature by the route, so the route is the only place that can answer this;
+   * without one, the kernel's own kind stands in.
+   */
+  readonly nameOf?: (featureTag: string) => string
   /** Identical holes this one stands for, so the field can say how many. */
   readonly siblings: number
   readonly onInfo: () => void
@@ -87,6 +99,7 @@ const Swatch = ({ colour, hidden = false }: { colour: string | null; hidden?: bo
 
 export const SelectionPanel = ({
   feature,
+  nameOf,
   features,
   regions,
   unit,
@@ -114,6 +127,10 @@ export const SelectionPanel = ({
   const asking = ways.size > 1 && !chose
   const rows = feature ? measurements({ feature, features, regions, unit }) : []
   const row = feature ? featureRow({ feature, features, regions, unit }) : null
+
+  /** What one reading is called — the route's rule, or the kernel's kind. */
+  const named = (each: PartFeature): string =>
+    nameOf?.(each.featureTag) ?? featureRow({ feature: each, features, regions, unit }).type
 
   /**
    * What the strip shows is the datasheet's to say.
@@ -184,11 +201,7 @@ export const SelectionPanel = ({
                       onRead(next.featureTag)
                     }
                   }}
-                  itemToStringLabel={(each) =>
-                    asking
-                      ? 'Select a direction'
-                      : featureRow({ feature: each, features, regions, unit }).type
-                  }
+                  itemToStringLabel={(each) => (asking ? 'Select a direction' : named(each))}
                   size="sm"
                   variant="ghost"
                 >
@@ -201,9 +214,7 @@ export const SelectionPanel = ({
                       {candidates.map((each) => (
                         <Combobox.Item key={each.featureTag} value={each}>
                           <Swatch colour={colourOf?.(each) ?? null} />
-                          <span className="min-w-0 flex-1 truncate">
-                            {featureRow({ feature: each, features, regions, unit }).type}
-                          </span>
+                          <span className="min-w-0 flex-1 truncate">{named(each)}</span>
                           <span className="text-2xs shrink-0 font-mono text-zinc-500">
                             {featureRow({ feature: each, features, regions, unit }).direction}
                           </span>
@@ -215,7 +226,7 @@ export const SelectionPanel = ({
                 </Combobox>
               </div>
             ) : (
-              <span className="truncate text-sm font-semibold text-zinc-100">{row.type}</span>
+              <span className="truncate text-sm font-semibold text-zinc-100">{named(feature)}</span>
             )}
             {siblings > 1 ? (
               <span
@@ -231,7 +242,7 @@ export const SelectionPanel = ({
             <IconButton
               size="md"
               variant="muted"
-              aria-label={`What Toolpath measured about ${row.type}`}
+              aria-label={`What Toolpath measured about ${named(feature)}`}
               title="Everything Toolpath measured"
               onClick={onInfo}
               className="shrink-0 rounded p-0.5 text-zinc-500 hover:text-zinc-200"

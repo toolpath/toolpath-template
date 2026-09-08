@@ -16,6 +16,7 @@ const tool = (
   geometry: { DC: 5, OAL: 50, LCF: 12, NOF: 4, RE: 0.5, SFDM: 6 },
   materialGroups: ['P'],
   productLine: null,
+  threadMethod: null,
   productLink: null,
   provenance: { DC: 'vendor-stated' },
   ...over,

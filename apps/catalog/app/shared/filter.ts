@@ -1,4 +1,5 @@
 import { shankOf, type CatalogTool } from '@toolpath/catalog-data'
+import { typeLabel } from './tool-type'
 
 /**
  * A selection, and the only thing that decides which tools are on screen.
@@ -62,6 +63,25 @@ const termValue = (tool: CatalogTool, key: string): string | null => {
       return tool.familyId
     case 'productLine':
       return tool.productLine
+    /**
+     * **One question where there were two** (Paul, 2026-09-08: "product line
+     * and family are the same and need to be rolled into one Family field").
+     * A vendor's line spans its families and a family belongs to a line; a
+     * shop reading either was reading the same grouping under two headings.
+     * The line is the answer where a vendor names one, and the family id
+     * where it does not — the id being what the Family column then reads out
+     * under the vendor's own title.
+     */
+    case 'family':
+      return tool.productLine ?? tool.familyId
+    /**
+     * **The type, with the shank rolled into it** (Paul, 2026-09-08). The
+     * value is the phrase the Type column shows, built by `typeLabel`, so a
+     * row and the filter that names it cannot disagree. `form` and `shank`
+     * still stand behind it: the rules and the suggestions write those.
+     */
+    case 'type':
+      return typeLabel(tool)
     /**
      * **Not a geometry code.** The shank is the catalog's own reading of the
      * shoulder — `shankOf` — and without this case it fell through to
@@ -147,6 +167,21 @@ export const countBy = (
   }
   return counts
 }
+
+/**
+ * How many narrowings are set, for the button that clears them.
+ *
+ * One per axis rather than one per value: a vendor filter holding three brands
+ * is one question somebody asked, and the button beside the table says how many
+ * questions are narrowing the list — including the ones asked in a column
+ * header, which is where a filter on a hidden column would otherwise be
+ * invisible.
+ */
+export const countQuery = (query: ToolQuery): number =>
+  (query.text.trim() === '' ? 0 : 1) +
+  Object.values(query.terms).filter((values) => values.length > 0).length +
+  Object.values(query.ranges).filter((bound) => bound.min !== undefined || bound.max !== undefined)
+    .length
 
 const RANGE_PARAM = /^(min|max)\.(.+)$/
 

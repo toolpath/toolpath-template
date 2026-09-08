@@ -22,6 +22,7 @@ const tool = (over: Partial<CatalogTool> & Pick<CatalogTool, 'guid'>): CatalogTo
   materialNumber: '6694846',
   toolType: 'endmill',
   productLine: null,
+  threadMethod: null,
   form: 'flat end mill',
   unitSystem: 'millimeters',
   geometry: { DC: 5, NOF: 4, RE: 0.5 },
@@ -458,5 +459,52 @@ describe('the product line', () => {
       ['GOdrill™', 1],
       ['KenCut™ FF', 1],
     ])
+  })
+})
+
+/**
+ * **Two axes rolled into one apiece** (Paul, 2026-09-08).
+ *
+ * The type carries the shank in its words, and the family carries the vendor's
+ * product line, because a shop reading either pair was reading one grouping
+ * under two headings. Both are matched on the phrase the column shows, so a
+ * row and the filter that names it cannot disagree.
+ */
+describe('the type and the family, as one axis each', () => {
+  const plain = tool({ guid: 'plain', geometry: { DC: 6, SFDM: 6, LCF: 12 } })
+  const necked = tool({
+    guid: 'necked',
+    form: 'bull nose end mill',
+    geometry: { DC: 12, SFDM: 10, LCF: 20 },
+  })
+  const line = tool({ guid: 'line', productLine: 'KenCut FF' })
+
+  it('narrows the type on the phrase the column shows', () => {
+    expect(
+      filterTools(
+        [plain, necked],
+        query({ terms: { type: ['Reduced shank bull nose end mill'] } }),
+      ),
+    ).toEqual([necked])
+    expect(filterTools([plain, necked], query({ terms: { type: ['Flat end mill'] } }))).toEqual([
+      plain,
+    ])
+  })
+
+  /** The line where a vendor names one, the family id where it names none. */
+  it('narrows the family on the line, or on the family under it', () => {
+    expect(filterTools([plain, line], query({ terms: { family: ['KenCut FF'] } }))).toEqual([line])
+    expect(filterTools([plain, line], query({ terms: { family: ['vhm-endmills'] } }))).toEqual([
+      plain,
+    ])
+  })
+
+  it('counts them the same way every other axis is counted', () => {
+    expect(countBy([plain, necked], 'type')).toEqual(
+      new Map([
+        ['Flat end mill', 1],
+        ['Reduced shank bull nose end mill', 1],
+      ]),
+    )
   })
 })

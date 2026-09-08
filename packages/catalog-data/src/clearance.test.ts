@@ -30,6 +30,7 @@ const tool = (over: Partial<CatalogTool['geometry']> = {}): CatalogTool => ({
   geometry: { DC: 6, LCF: 13, OAL: 57, SFDM: 6, ...over },
   materialGroups: ['P'],
   productLine: null,
+  threadMethod: null,
   productLink: null,
   provenance: {},
 })

@@ -24,6 +24,13 @@ const TERM_AXES: ReadonlyArray<{
   // on, which `familyId` cannot. A tool whose vendor names none carries no
   // value and counts under nothing, the `materialGroups` rule.
   { key: 'productLine', label: 'Product line', of: (tool) => tool.productLine ?? null },
+  // Cut or form is the question a threaded hole actually turns on — the two
+  // want different drills — and it is the vendor's stated fact rather than
+  // anything derivable, so it is an axis rather than a rule. An unlabelled tap
+  // carries no value and counts under nothing, the `materialGroups` rule: a
+  // catalog whose taps predate the label offers no such filter at all, which is
+  // the honest answer to "which of these forms threads?" when nobody has said.
+  { key: 'threadMethod', label: 'Thread method', of: (tool) => tool.threadMethod },
   {
     key: 'NOF',
     label: 'Flutes',

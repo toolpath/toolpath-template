@@ -1,38 +1,38 @@
 import { XIcon } from '@phosphor-icons/react'
-import { Button, cn } from '@toolpath/ui'
-import { Chip } from './chip'
+import { Button } from '@toolpath/ui'
 import type { Results } from 'shared/feature-list'
 
 /**
- * Building a group: which features are in it, and what it should answer.
+ * Building a group: which features are in it.
  *
  * **The features are picked on the part**, with the mechanism that already
  * exists — a click is a click, and a group is what several of them add up to
- * (Paul, 2026-09-02). What this box adds is the two things a click cannot say:
- * "all of these at once", which is the quick buttons, and what the group is
- * being asked for, which is the only thing about a group that is not simply
- * its contents.
+ * (Paul, 2026-09-02).
  *
- * The result option is the whole reason a group is a thing rather than a
- * multiple selection:
+ * **A group asks one question, so it no longer offers one** (Paul, 2026-09-08).
+ * Every group is *one tool for all of them* — a tool that cuts every feature in
+ * it — which is the answer worth knowing before a job is quoted, so the box
+ * says that in its note rather than spending a control on the only choice
+ * there is. *The best tool for each* is parked (Paul, 2026-09-07) and the model
+ * behind it is untouched: `Results` still has `each`, a group already saved as
+ * one still answers and still opens, and this editor still reads `results` for
+ * the words on its confirm.
  *
- * - **one for all** — a tool that cuts every feature in the group. Six holes
- *   of five sizes have one drill between them or they have none, and that is
- *   the answer worth knowing before a job is quoted.
- * - **one each** — the best tool for each of them, which is six answers in a
- *   row that opens. **Parked** (Paul, 2026-09-07): the option is off the box
- *   for the time being, so *one for all* is the only question offered. See
- *   {@link CHOICES}.
+ * **The quick buttons came off with it** (Paul, 2026-09-08). Every feature of a
+ * kind in one press was `typeButtons` in `shared/feature-list.ts`, which stands
+ * unused for the same reason `each` does — putting the section back is what
+ * restores it.
  */
 export interface GroupEditorProps {
-  /** What is in the group as it stands — clicked on the part, or added by kind. */
+  /** What is in the group as it stands, clicked on the part. */
   readonly tags: ReadonlyArray<string>
+  /**
+   * What the group is being asked for. Every group made here is `all`; a group
+   * saved as `each` before that option was parked still reads back as one, and
+   * this is what the confirm's words are chosen from.
+   */
   readonly results: Results
-  readonly onResults: (results: Results) => void
   readonly onDrop: (tag: string) => void
-  /** Every kind of feature on the part, with the tags of that kind. */
-  readonly types: ReadonlyArray<{ readonly name: string; readonly tags: ReadonlyArray<string> }>
-  readonly onAddAll: (tags: ReadonlyArray<string>) => void
   readonly nameOf: (tag: string) => string
   readonly onConfirm: () => void
   readonly onCancel: () => void
@@ -52,28 +52,10 @@ export interface GroupEditorProps {
   readonly matching?: 'idle' | 'pending' | 'error' | 'nothing-fits' | 'ready'
 }
 
-/**
- * **_The best tool for each_ is parked** (Paul, 2026-09-07): the option is off
- * the editor for the time being, so a group asks the one question it has left.
- * Everything behind it is untouched — `Results` still has `each`, a group
- * already saved as one still answers and still opens, and putting the entry
- * back in this list is the whole of restoring it.
- */
-const CHOICES: ReadonlyArray<{ value: Results; label: string; note: string }> = [
-  {
-    value: 'all',
-    label: 'One tool for all of them',
-    note: 'Only tools that can cut every feature in the group.',
-  },
-]
-
 export const GroupEditor = ({
   tags,
   results,
-  onResults,
   onDrop,
-  types,
-  onAddAll,
   nameOf,
   onConfirm,
   onCancel,
@@ -86,9 +68,14 @@ export const GroupEditor = ({
       {editing ? 'Edit group' : 'New group'}
     </span>
 
+    {/*
+      **The note is what the box used to say with a control** (Paul,
+      2026-09-08). One tool for all of them is the only question a group asks,
+      so the sentence that used to sit under a radio says it instead.
+    */}
     <p className="text-2xs text-zinc-500">
-      Click the features on the part — click one again to take it out, and use its arrow to say
-      which way up it is cut.
+      Select a feature on the part to add it to the group. The Tool Catalog will find tools
+      compatible with all features in the group.
     </p>
 
     {/* What is in it, each with the way out. Empty says so rather than
@@ -103,8 +90,8 @@ export const GroupEditor = ({
         still making the create group option go off the screen"). Thirty holes
         is thirty chips, which is a form taller than the window whatever the
         box is allowed to spill over. The chips are the part of it that grows
-        without bound, so the cap goes there and the quick buttons, the result
-        options and the confirm stay where they were put.
+        without bound, so the cap goes there and the note above and the confirm
+        below stay where they were put.
 
         The one scrollbar this panel has, and it is inside a control rather
         than around the box: what has to stay readable at a glance is what the
@@ -128,61 +115,6 @@ export const GroupEditor = ({
         ))}
       </ul>
     )}
-
-    {/*
-      **Every hole on the part, in one press** (Paul, 2026-09-02: "quick buttons
-      to select all of a type of features"). Twelve holes clicked one at a time
-      is twelve chances to miss one, and "all the through holes" is the question
-      somebody actually has.
-    */}
-    {types.length === 0 ? null : (
-      <div className="flex flex-col gap-1">
-        <span className="text-2xs text-zinc-500">Add every…</span>
-        <div className="flex flex-wrap gap-1">
-          {types.map((type) => (
-            <Chip
-              key={type.name}
-              onClick={() => onAddAll(type.tags)}
-              label={`Add every ${type.name} — ${String(type.tags.length)} of them`}
-              title={`Add all ${String(type.tags.length)} to the group`}
-            >
-              {type.name}
-              <span className="text-zinc-500">{type.tags.length}</span>
-            </Chip>
-          ))}
-        </div>
-      </div>
-    )}
-
-    <fieldset className="flex flex-col gap-1">
-      <legend className="text-2xs mb-1 text-zinc-500">Results</legend>
-      {CHOICES.map((choice) => (
-        <Button
-          key={choice.value}
-          type="button"
-          variant="muted"
-          size="sm"
-          full
-          aria-pressed={results === choice.value}
-          onClick={() => onResults(choice.value)}
-          className={cn(
-            'flex min-h-10 cursor-pointer items-start justify-start gap-2 rounded border px-1.5 py-1 text-left transition',
-            results === choice.value
-              ? 'border-info/60 bg-info/15'
-              : 'border-zinc-800 hover:border-zinc-700',
-          )}
-        >
-          <span className="flex min-w-0 flex-col">
-            <span
-              className={cn('text-2xs', results === choice.value ? 'text-info' : 'text-zinc-300')}
-            >
-              {choice.label}
-            </span>
-            <span className="text-2xs text-zinc-500">{choice.note}</span>
-          </span>
-        </Button>
-      ))}
-    </fieldset>
 
     <div className="flex items-center gap-1.5">
       <Button size="sm" variant="secondary" onClick={onCancel}>

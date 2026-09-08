@@ -253,7 +253,9 @@ Every request has a monotonic `requestId`:
 
 Batch/debounce rapid changes by approximately one animation frame or a short
 timeout. “Add every Wall” must produce one latest batch request, not sixteen
-sequential requests. Do not delay ordinary single clicks long enough to make
+sequential requests. (The quick buttons came off the group editor on
+2026-09-08 — see `docs/FEATURE-LIST.md` — so the burst this plan measures is
+now sixteen clicks on the part rather than one press.) Do not delay ordinary single clicks long enough to make
 the UI feel inert.
 
 ## Route integration

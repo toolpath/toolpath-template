@@ -129,6 +129,11 @@ export const labelOf = (item: ListItem, nameOf: (tag: string) => string): string
  * Commonest first — a part with twelve holes and one boss is a part somebody
  * wants "all twelve holes" from, and a list ordered by the kernel's own
  * reporting order buries it.
+ *
+ * **Nothing on screen calls this** (Paul, 2026-09-08: take the *Add every…*
+ * section off the group editor). The rule is kept and tested here rather than
+ * deleted, because putting that section back in `components/group-editor.tsx`
+ * is the whole of restoring it — the same shape as the parked `each` result.
  */
 export const typeButtons = (
   features: ReadonlyArray<PartFeature>,

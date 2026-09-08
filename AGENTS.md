@@ -191,8 +191,9 @@ application unless that application says otherwise.
   chosen first and narrows the rest. The table is whichever list the open
   slot asks for — three buttons in its chrome switch it, each counting its own
   list, and with no feature they read the three catalogs — and picking a row
-  there fills that slot without walking on to the next one. **Each stack carries one context-aware button** — _Add to order list_, _Change holder from
-  A to B_, _Remove from order list_ — and that press is the only way a component
+  there fills that slot without walking on to the next one. **Each assembly carries one context-aware button** — _Add to order list_, _Change holder from
+  A to B_, _Remove from order list_ — covering every stack of it, so a threaded
+  hole's tap and the drill under it are one press — and that press is the only way a component
   reaches the bill: picking a row in a table selects it into the stack and
   nothing more. `docs/TOOL-ASSEMBLY-TREE.md` is the spec, including
   _Where the rules live_ and _Not built_. `openCube` in the Playwright fixture
@@ -252,10 +253,13 @@ application unless that application says otherwise.
 | what fills the tool table, and the cache        | `app/shared/catalog-matcher.ts`         |
 | the same work, off the UI thread                | `app/client/catalog-matcher.worker.ts`  |
 | what a click on the part means                  | `app/shared/part-interaction.ts`        |
+| which layer one press of Escape reaches         | `app/shared/use-escape.ts`              |
 | a feature's assemblies, its slots, its storage  | `app/shared/assembly-tree.ts`           |
 | what narrows what when any part is chosen first | `app/shared/assembly-narrowing.ts`      |
 | what a stack offers, and its button's words     | `app/shared/assembly-actions.ts`        |
 | reading and filtering a holder or a collet      | `app/shared/component-columns.ts`       |
+| which column header asks which filter           | `app/shared/column-filters.ts`          |
+| what a tool is, in one phrase with its shank    | `app/shared/tool-type.ts`               |
 | the shapes being tried out, and the way back    | `app/shared/flags.ts`                   |
 | the list, its answers and its right-click       | `app/components/feature-list-panel.tsx` |
 | building a group                                | `app/components/group-editor.tsx`       |

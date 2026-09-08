@@ -52,11 +52,12 @@ The whole reason a group is a thing rather than a multiple selection:
   none, and that is the answer worth knowing before a job is quoted.
 - **`each` — the best tool for each.** A result per feature, whether or not one
   tool covers them all. **Parked, 2026-09-07** (Paul: take it off groups for the
-  time being). It is off the group editor only — `CHOICES` in
-  `components/group-editor.tsx` no longer lists it — and everything behind it
-  stands: `Results` still has `each`, a group already saved as one still answers
-  per feature and still opens, and `routes/part.tsx` still runs the per-feature
-  recommendations. Restoring the option is putting that one entry back, with
+  time being), and on **2026-09-08** the result options came off the editor
+  altogether: with one question left there was nothing to choose between, so the
+  box states it in its note instead. Everything behind it stands: `Results`
+  still has `each`, a group already saved as one still answers per feature and
+  still opens, and `routes/part.tsx` still runs the per-feature recommendations.
+  Restoring the option is putting the fieldset and its choices back, with
   `group-editor.test.tsx` and the skipped `a group answers per its result
 option` in `tests/on-the-part.spec.ts` as the pair to turn back over.
 
@@ -68,6 +69,30 @@ option` in `tests/on-the-part.spec.ts` as the pair to turn back over.
 - **Names are derived**, never typed: `4 × Through Hole`,
   `Pocket + 2 × Through Hole`, `Pocket + Through Hole + 2 more`. A name somebody
   has to invent for every group is a name most groups will not get.
+- **A thread is part of the name** (Paul, 2026-09-08: "once a thread is applied
+  to a hole, the feature should be named '<thread spec> <type of hole> Hole'").
+  `Blind Hole` becomes `M8×1.25 Blind Hole` the moment a spec is chosen on the
+  reading, and `42 × M8×1.25 Blind Hole` for the row that holds forty-two of
+  them. The kernel's own word for the hole is kept and the spec goes in front of
+  it, so the row still says what kind of hole it is. `threadedName` in
+  `app/shared/threads.ts` is the rule; the route's `kindOf` is the kernel's kind
+  on its own, which is what the icon is picked by — a thread in front of it is a
+  word `BY_KIND` has never heard of.
+- **And it is the name everywhere the feature is named** (Paul, 2026-09-08:
+  "once a thread is selected, anywhere that feature is used should show the new
+  name"). The list named a row through the route's `nameOf` while the panel over
+  it named the same hole off `featureRow`, so a row reading `#4-40 UNC Blind
+Hole` sat under a heading reading `Blind Hole`. `SelectionPanel` and
+  `FeatureDetails` take the name from the route now — the thread is kept there
+  and nowhere else, so nothing downstream can work it out — and each falls back
+  to the kernel's own kind where a caller has no threads to report. The table's
+  heading and the order dialog under it read `Cuts the #4-40 UNC blind hole`
+  through `namedInline`, which lowercases the kind and leaves the spec alone:
+  `#4-40 unc` is not how a shop writes it.
+- **And the thread is the group's**, not the clicked hole's. Identical holes are
+  one decision (`part-interaction.ts` § `groupOf`) and the demands a thread
+  writes already went to the whole group; keeping the choice against the one tag
+  that was clicked left the row named after a plain hole.
 
 ### Persistence
 
@@ -102,9 +127,9 @@ with was the whole catalog.
 Two derived facts the page reads constantly:
 
 - **`asking`** — anything at all is being asked (rows 1–3). Not "is a reading
-  focused": a group picked out with the quick buttons focuses nothing, and a
-  list gated on the focus fell back to the catalog while the page had a
-  perfectly good question in front of it.
+  focused": a group can focus nothing — the quick buttons used to leave it that
+  way, and an edited group still does — and a list gated on the focus fell back
+  to the catalog while the page had a perfectly good question in front of it.
 - **`perFeature`** — `asking` and results are `each`. There is no single list to
   show: the question is one per feature.
 
@@ -169,10 +194,12 @@ Opens the group editor, seeded with whatever is already clicked.
 - **Chips** show what is in, each with a way out. Capped at about four rows and
   scrolling — thirty holes is thirty chips, which is a form taller than the
   window.
-- **Quick buttons** add every feature of a kind at once (`Wall 16`, `Face 4`,
-  `Profile 4`), commonest first. Twelve holes clicked one at a time is twelve
-  chances to miss one.
-- **Results** is the radio pair above the confirm.
+- **The note** says what a group is for: select a feature on the part to add it,
+  and the catalog finds tools compatible with all of them. **The quick buttons
+  and the result options are gone** (Paul, 2026-09-08) — every group asks the
+  one question, so the box states it rather than spending two controls on it.
+  `typeButtons` in `shared/feature-list.ts` is the rule the quick buttons used
+  and is kept, unused, for the same reason `each` is.
 - The confirm reads **Create group and add tool** (or _…and add tools_ for
   `each`), because that is what pressing it does.
 
@@ -385,6 +412,8 @@ true of the work the worker does:
 | the list on screen                       | `app/components/feature-list-panel.tsx` |
 | building a group                         | `app/components/group-editor.tsx`       |
 | the reading and its thread               | `app/components/selection-panel.tsx`    |
+| what a threaded hole is called           | `threadedName`, `app/shared/threads.ts` |
+| what the panel and the ⓘ dialog call it  | `nameOf`, handed down by `part.tsx`     |
 | the tool table and its marks             | `app/components/part-tool-table.tsx`    |
 | everything wired together                | `app/routes/part.tsx`                   |
 

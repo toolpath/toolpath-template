@@ -53,7 +53,6 @@ import {
   nextId,
   removeItem,
   replaceItem,
-  typeButtons,
   useFeatureList,
   type ListItem,
   type Results,
@@ -71,18 +70,20 @@ import {
   type Holding,
 } from 'components/part-tool-table'
 import { ColumnPicker } from 'components/column-filter'
-import { FACET_AXES } from 'components/filter-panel'
+import { BUTTON_FILTERS, FACET_AXES } from 'components/filter-panel'
 import { orderedCodes } from 'shared/column-order'
 import { firstBy, keptFirst } from 'shared/tool-order'
 import {
   allTools as catalogTools,
   collets as allCollets,
   facets,
+  familyName,
   getProfile,
   getTool,
   holders as allHolders,
 } from 'shared/catalog'
 import { useFlag } from 'shared/flags'
+import { useEscape } from 'shared/use-escape'
 import {
   DRAFT_TREE,
   assemblyNamed,
@@ -104,7 +105,7 @@ import {
   type TreeAssembly,
   type TreeNode,
 } from 'shared/assembly-tree'
-import { assemblyActions, lineOf, nothingToConfirm, savedFor } from 'shared/assembly-actions'
+import { groupActions, lineOf, nothingToConfirm, savedFor } from 'shared/assembly-actions'
 import {
   byShank,
   holdersToOffer,
@@ -117,15 +118,21 @@ import {
   HOLDER_COLUMNS,
   hiddenByDefault as hiddenComponentColumns,
 } from 'shared/component-columns'
-import { NO_QUERY, filterComponents, type ComponentQuery } from 'shared/component-query'
+import {
+  NO_QUERY,
+  countTerms,
+  filterComponents,
+  optionsOn,
+  type ComponentQuery,
+} from 'shared/component-query'
 import { AssemblyTreePanel } from 'components/assembly-tree-panel'
 import { AssemblyPanel } from 'components/assembly-panel'
 import { ComponentTable } from 'components/component-table'
-import { ComponentFilters } from 'components/component-filters'
 import { CLAMPING_KNOB, withClampingLength, type ClampingRule } from 'shared/clamping-length'
 import {
   EMPTY_QUERY,
   countBy,
+  countQuery,
   countsByAxis,
   filterTools,
   queryFromSearch,
@@ -172,7 +179,7 @@ import {
 } from 'shared/hole-mode'
 import { hasSharpCorner } from 'shared/feature-defaults'
 import { threadPanes } from 'shared/thread-panes'
-import { drillFor, minorOf, type HoleMode, type ThreadSpec } from 'shared/threads'
+import { drillFor, minorOf, threadedName, type HoleMode, type ThreadSpec } from 'shared/threads'
 import { useCatalogMatcher } from 'client/catalog-matcher'
 import {
   matchKey,
@@ -320,6 +327,20 @@ const ReplacementProgress = ({
  * tool's numbers. A fixed grid makes the application decide which of those
  * matters most, and it is never the same answer twice.
  */
+/**
+ * A key press the page must keep its hands off.
+ *
+ * Anything being typed into keeps its own keys, and so does the tool table:
+ * its search box and its column filters answer for themselves.
+ */
+const busyTyping = (event: KeyboardEvent): boolean => {
+  const target = event.target as HTMLElement | null
+  const typing =
+    target?.isContentEditable === true ||
+    ['INPUT', 'SELECT', 'TEXTAREA'].includes(target?.tagName ?? '')
+  return typing || target?.closest('[data-part-tool-table]') != null
+}
+
 /**
  * Whether a holder option has a silhouette to draw.
  *
@@ -485,7 +506,22 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   }, [report, jobId])
 
   /**
-   * Escape and the arrow keys belong to the page, not to a panel.
+   * Escape belongs to the page **only while nothing is open over it**.
+   *
+   * `useEscape` is a stack and the page is the bottom of it, so a dialog or a
+   * filter panel opened over the part takes the press instead. Both used to
+   * fire on one press, which put the panel away *and* dropped the reading
+   * behind it.
+   */
+  useEscape(true, (event) => {
+    if (busyTyping(event)) {
+      return
+    }
+    escapeRef.current()
+  })
+
+  /**
+   * The arrow keys belong to the page, not to a panel.
    *
    * On the document because the 3D canvas takes focus the moment somebody
    * touches the part: a handler on a wrapper only fires once they have clicked
@@ -497,18 +533,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    */
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null
-      const typing =
-        target?.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(target?.tagName ?? '')
-      if (typing || target?.closest('[data-part-tool-table]')) {
+      if (busyTyping(event)) {
         return
       }
 
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        escapeRef.current()
-        return
-      }
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault()
         stepRef.current(event.key === 'ArrowDown' ? 1 : -1)
@@ -669,6 +697,13 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       ...HOLDING_AXES,
       // What this catalog reads off a tool rather than what a vendor states.
       ...DERIVED_AXES,
+      // The two the columns ask, both of them phrases this catalog builds
+      // rather than facets a vendor publishes: the type with its shank, and
+      // the family with its product line. An axis the page does not declare is
+      // dropped as somebody else's query parameter, which is how a filter set
+      // in a header would fail to survive a reload.
+      'type',
+      'family',
     ],
     [],
   )
@@ -1345,6 +1380,48 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   }, [listed, numberSearch])
 
   /**
+   * What the tool table's own headings ask, and where their answers go.
+   *
+   * The counts are the panel's — measured against every filter but the axis's
+   * own — so a vendor already chosen still lists the other vendors with what
+   * each would bring back, rather than itself and eight zeroes.
+   */
+  const toolFiltering = useMemo(
+    () => ({
+      search: { value: numberSearch, onChange: setNumberSearch },
+      catalog: {
+        query,
+        onTerm: applyTerm,
+        onRange: applyRange,
+        options: (axis: string) =>
+          [...(axisCounts.get(axis) ?? countBy(listed, axis))]
+            .map(([value, count]) => ({
+              value,
+              // A family is stored as the vendor's line, or as the family id
+              // where it names none, and read out under the vendor's own
+              // title. Everything else is already the words the cells show.
+              label: axis === 'family' ? familyName(value) : value,
+              count,
+            }))
+            .sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true })),
+      },
+    }),
+    [query, applyTerm, applyRange, axisCounts, listed, numberSearch],
+  )
+
+  /**
+   * The taps narrow on their catalog number and nothing else.
+   *
+   * They are swept out of the whole catalog by the thread — the tool filters
+   * never reach `makersFor` — so a funnel on the tap list's Vendor heading
+   * would be a control that changes nothing. Its headings sort instead.
+   */
+  const tapFiltering = useMemo(
+    () => ({ search: { value: numberSearch, onChange: setNumberSearch } }),
+    [numberSearch],
+  )
+
+  /**
    * What the rules said about each tool, column by column — a tick on what
    * they read and passed, the field that failed in red, three words for why.
    */
@@ -1794,8 +1871,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     [report.features],
   )
 
-  /** What one feature is called, drawn with, and cut from — the list's three columns. */
-  const nameOf = useCallback(
+  /** What kind of feature this is, as the kernel reports it — before any thread. */
+  const kindOf = useCallback(
     (featureTag: string) => {
       const feature = report.features.find((each) => each.featureTag === featureTag)
       return feature
@@ -1804,14 +1881,49 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     },
     [report.features, report.regions, unit],
   )
+
+  /**
+   * What one feature is called, drawn with, and cut from — the list's three
+   * columns.
+   *
+   * **A thread is part of the name** (Paul, 2026-09-08: "once a thread is
+   * applied to a hole, the feature should be named '<thread spec> <type of
+   * hole> Hole'"). Forty-two holes read as `Blind Hole` whether they were
+   * clearance holes or M8×1.25, and which of the two decides every tool on the
+   * assembly under them; the spec was a combobox somebody had to select the row
+   * to see. `threadedName` is the rule, and `kindOf` is still the kernel's own
+   * word for anything that has to be told apart by kind.
+   */
+  const nameOf = useCallback(
+    (featureTag: string) => threadedName(kindOf(featureTag), threads[featureTag]?.spec ?? null),
+    [kindOf, threads],
+  )
+
+  /**
+   * The same name in a sentence: `Cuts the #4-40 UNC blind hole`.
+   *
+   * The kind is lowercased and the spec is not — `#4-40 unc` is not how a shop
+   * writes it, and lowercasing the whole name is what naming through
+   * `nameOf` would do here.
+   */
+  const namedInline = useCallback(
+    (featureTag: string) =>
+      threadedName(kindOf(featureTag).toLowerCase(), threads[featureTag]?.spec ?? null),
+    [kindOf, threads],
+  )
   const iconOf = useCallback(
     (featureTag: string) => {
       const feature = report.features.find((each) => each.featureTag === featureTag)
+      /*
+        The kernel's kind rather than the name: the icon is picked by what the
+        feature *is*, and a thread in front of it is a word `BY_KIND` has never
+        heard of.
+      */
       return feature ? (
-        <KindIcon featureType={feature.featureType} kind={nameOf(featureTag)} />
+        <KindIcon featureType={feature.featureType} kind={kindOf(featureTag)} />
       ) : null
     },
-    [report.features, nameOf],
+    [report.features, kindOf],
   )
   const wayUpOf = useCallback(
     (featureTag: string) => {
@@ -1845,8 +1957,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const mappedTo = useMemo(() => mappedTags.map(nameOf), [mappedTags, nameOf])
 
   /** Every kind of feature on the part, for the group editor's quick buttons. */
-  const typeChoices = useMemo(() => typeButtons(report.features, nameOf), [report.features, nameOf])
-
   /**
    * The distinct features in a set of tags: identical holes are one.
    *
@@ -2772,18 +2882,18 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   )
 
   /**
-   * What each stack in the tree offers, and what each answer does.
+   * What each assembly in the tree offers, and what each answer does.
    *
-   * **One button per assembly, under the components it is about** (Paul,
-   * 2026-09-07: "I should just have an 'add to order list' button (or update,
-   * context aware), at the top level of each tool assembly"). It stood in the
-   * panel on the right, a table away from the stack it described, and for one
-   * afternoon it was a tick per component — which said whether each was on and
-   * never what pressing it would change.
+   * **One button for the full assembly, under the components it is about**
+   * (Paul, 2026-09-08: "there should only be one 'add to order list' button for
+   * the full assembly"). It stood in the panel on the right, a table away from
+   * the stack it described; then it was a press per stack, which made a
+   * threaded hole two orders — a tap orderable with no drill under it to make
+   * the hole it threads.
    *
-   * **Every stack, not just the open one.** A threaded hole is a tap and a drill
-   * and they are ordered separately, so each carries its own press; the panel on
-   * the right could only ever speak for whichever slot was selected.
+   * **Every assembly, not just the open one.** A pocket's rougher and finisher
+   * are ordered separately, so each carries its own press; the panel on the
+   * right could only ever speak for whichever slot was selected.
    *
    * **Written to every tag the row stands for.** A bolt circle of eight
    * identical holes is one row and eight tags, and a tool chosen for the row is
@@ -2791,15 +2901,15 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * one press mean what it says.
    */
   const treeActionsFor = useCallback(
-    (stack: TreeAssembly) =>
-      assemblyActions(
-        stack,
+    (stacks: ReadonlyArray<TreeAssembly>) =>
+      groupActions(
+        stacks,
         treeLines,
         activeItem !== null,
         draft?.kind === 'group' ? 'group' : 'feature',
         componentName,
       ).map((action) => ({
-        key: `${stack.id}-${action.kind}`,
+        key: `${stacks[0]?.id ?? 'assembly'}-${action.kind}`,
         label: action.label,
         ...(action.danger === true ? { danger: true } : {}),
         ...(action.quiet === true ? { quiet: true } : {}),
@@ -2808,21 +2918,33 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           /*
             **Backing out touches the tree, not the bill.** The change was never
             written, so there is nothing to undo on the sheet — what is put back
-            is the stack, from the line the sheet already holds.
+            is every stack of the assembly, from the lines the sheet holds.
           */
           if (action.kind === 'revert') {
-            const saved = savedFor(stack, treeLines)
-            if (saved !== null) {
-              writeTree(restoreAssembly(assemblies, stack.id, saved))
+            let put = assemblies
+            for (const stack of stacks) {
+              const saved = savedFor(stack, treeLines)
+              if (saved !== null) {
+                put = restoreAssembly(put, stack.id, saved)
+              }
             }
-            return
-          }
-          const line = lineOf(stack)
-          if (line === null) {
+            writeTree(put)
             return
           }
           /*
-            **Not a row yet: one press makes it and writes this stack.**
+            **The whole assembly is written, or none of it.** A tap and the
+            drill under it are one thing to order, so the press walks every
+            stack of the group that has a tool to write.
+          */
+          const written = stacks.flatMap((stack) => {
+            const line = lineOf(stack)
+            return line === null ? [] : [{ stack, line, had: savedFor(stack, treeLines) }]
+          })
+          if (written.length === 0) {
+            return
+          }
+          /*
+            **Not a row yet: one press makes it and writes this assembly.**
             `addFeature` and `confirmDraft` carry the scratch tree onto the new
             row; making the row writes no lines of its own (see `billFor`), so
             what reaches the order list is this assembly and no other.
@@ -2832,16 +2954,18 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
             return
           }
           /*
-            **The stack remembers what it now stands as, before anything else.**
+            **Each stack remembers what it now stands as, before anything else.**
             It is the only thing that tells a replacement from a second assembly
             next time (Paul, 2026-09-07), and it is written first because the
-            press that confirms a stack also makes the row — `carryDraftTree`
+            press that confirms an assembly also makes the row — `carryDraftTree`
             moves the stacks onto the new id, and an unmarked stack arriving
             there would lose the link to its line.
           */
-          writeTree(
-            markOrdered(assemblies, stack.id, action.kind === 'remove' ? null : line.toolGuid),
-          )
+          let marked = assemblies
+          for (const { stack, line } of written) {
+            marked = markOrdered(marked, stack.id, action.kind === 'remove' ? null : line.toolGuid)
+          }
+          writeTree(marked)
           if (action.kind === 'confirm') {
             if (draft !== null) {
               confirmDraft()
@@ -2849,23 +2973,24 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               addFeature()
             }
           }
-          /*
-            **A replacement takes the old line off before the new one goes on.**
-            The sheet keys a line by its tool, so a stack that swapped cutters
-            would otherwise leave the tool it was ordered as sitting on the
-            feature beside the one that replaced it (Paul, 2026-09-07).
-          */
-          const had = savedFor(stack, treeLines)
-          const off =
-            action.kind === 'remove'
-              ? (had?.toolGuid ?? line.toolGuid)
-              : action.kind === 'replace' && had !== null && had.toolGuid !== line.toolGuid
-                ? had.toolGuid
-                : null
           let next = sheet
-          for (const tag of tags) {
-            next = off === null ? next : removeChoice(next, tag, off)
-            next = action.kind === 'remove' ? next : addChoice(next, tag, line)
+          for (const { line, had } of written) {
+            /*
+              **A replacement takes the old line off before the new one goes on.**
+              The sheet keys a line by its tool, so a stack that swapped cutters
+              would otherwise leave the tool it was ordered as sitting on the
+              feature beside the one that replaced it (Paul, 2026-09-07).
+            */
+            const off =
+              action.kind === 'remove'
+                ? (had?.toolGuid ?? line.toolGuid)
+                : had !== null && had.toolGuid !== line.toolGuid
+                  ? had.toolGuid
+                  : null
+            for (const tag of tags) {
+              next = off === null ? next : removeChoice(next, tag, off)
+              next = action.kind === 'remove' ? next : addChoice(next, tag, line)
+            }
           }
           commit(next)
         },
@@ -3165,7 +3290,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         ? 'Cuts every feature in the group'
         : reading === null
           ? 'What fits what is selected'
-          : `Cuts the ${featureRow({ feature: reading, features: report.features, regions: report.regions, unit }).type.toLowerCase()}`
+          : `Cuts the ${namedInline(reading.featureTag)}`
 
   /**
    * What the table below is a list of.
@@ -3517,19 +3642,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                               <GroupEditor
                                 tags={kept}
                                 results={draft.results}
-                                onResults={(results) =>
-                                  setDraft((current) =>
-                                    current ? { ...current, results } : current,
-                                  )
-                                }
                                 onDrop={(tag) => dispatch({ type: 'toggle', featureTag: tag })}
-                                types={typeChoices}
-                                onAddAll={(tags) =>
-                                  dispatch({
-                                    type: 'collect',
-                                    tags: [...kept, ...tags.filter((tag) => !kept.includes(tag))],
-                                  })
-                                }
                                 nameOf={nameOf}
                                 onConfirm={confirmDraft}
                                 onCancel={cancelDraft}
@@ -3555,6 +3668,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                             */ ? null : (
                               <SelectionPanel
                                 feature={reading}
+                                nameOf={nameOf}
                                 features={report.features}
                                 regions={report.regions}
                                 unit={unit}
@@ -3578,10 +3692,26 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                         mode: holeChoice.mode,
                                         spec: threadSpec,
                                         onChange: (choice: HoleChoice) => {
-                                          setThreads((current) => ({
-                                            ...current,
-                                            ...(focused === null ? {} : { [focused]: choice }),
-                                          }))
+                                          /*
+                                            **Identical holes are one decision**
+                                            — `shared/part-interaction` says why,
+                                            and the demands this thread writes
+                                            already went to the whole group. The
+                                            row is the group, so a thread kept
+                                            against the one hole that was
+                                            clicked left the row named after a
+                                            plain hole (Paul, 2026-09-08).
+                                          */
+                                          setThreads((current) => {
+                                            if (focused === null) {
+                                              return current
+                                            }
+                                            const made = { ...current }
+                                            for (const tag of groupOf(focused)) {
+                                              made[tag] = choice
+                                            }
+                                            return made
+                                          })
                                           /**
                                            * A threaded hole is drilled, not milled.
                                            *
@@ -3693,6 +3823,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                   info === null ? null : (
                     <FeatureDetails
                       features={report.features.filter((each) => each.featureTag === info)}
+                      name={nameOf(info)}
                       allFeatures={report.features}
                       regions={report.regions}
                       unit={unit}
@@ -4108,23 +4239,42 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                     */}
                     </div>
                     <ToolTableToolbar
-                      onClear={() =>
+                      onClear={() => {
+                        if (componentSlot === 'holder') {
+                          setHolderQuery(NO_QUERY)
+                          return
+                        }
+                        if (componentSlot === 'collet') {
+                          setColletQuery(NO_QUERY)
+                          return
+                        }
+                        setNumberSearch('')
+                        apply(EMPTY_QUERY)
+                      }}
+                      /*
+                        **What is narrowing the list, counted where it can be
+                        cleared** (Paul, 2026-09-08). Most of the filters are
+                        column headers now, and a header on a column somebody
+                        has since hidden is a filter with nothing on screen
+                        pointing at it — so the count includes them, and the
+                        button next to it puts every one of them back.
+                      */
+                      set={
                         componentSlot === 'holder'
-                          ? setHolderQuery(NO_QUERY)
+                          ? countTerms(holderQuery)
                           : componentSlot === 'collet'
-                            ? setColletQuery(NO_QUERY)
-                            : apply(EMPTY_QUERY)
+                            ? countTerms(colletQuery)
+                            : countQuery(query) + (numberSearch.trim() === '' ? 0 : 1)
                       }
                       filters={
-                        componentSlot !== null ? (
-                          <ComponentFilters
-                            kind={componentSlot}
-                            records={componentSlot === 'holder' ? holderPool : colletPool}
-                            query={componentSlot === 'holder' ? holderQuery : colletQuery}
-                            onQuery={componentSlot === 'holder' ? setHolderQuery : setColletQuery}
-                            unit={unit}
-                          />
-                        ) : (
+                        /*
+                          **A holder list has no filter buttons at all.** Every
+                          question about a holder or a collet is a question
+                          about one of its columns, so all of them are asked in
+                          the headings; the tool list keeps the few no column
+                          shows.
+                        */
+                        componentSlot !== null ? undefined : (
                           <FilterPanel
                             facets={facets}
                             query={query}
@@ -4134,18 +4284,15 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                             holding={{ tapers, series: colletSeries }}
                             materialGroup={materialGroup}
                             onMaterial={chooseMaterial}
-                            catalogNumberSearch={{ value: numberSearch, onChange: setNumberSearch }}
+                            only={BUTTON_FILTERS}
+                            /*
+                              **The floor allowance and the clamping length
+                              are off the page** (Paul, 2026-09-08), with the
+                              rule behind each still running: the sheet's
+                              values are what the matching reads, and nothing
+                              on screen asks to change them for now.
+                            */
                             matching={{
-                              floor: {
-                                value: floorRadius,
-                                onChange: setFloorRadius,
-                                sheetValue: sheetFloorRadius,
-                              },
-                              clamping: {
-                                rule: clamping,
-                                onChange: setClamping,
-                                sheet: sheetClamping,
-                              },
                               ...(holeDiameter === null
                                 ? {}
                                 : {
@@ -4321,6 +4468,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           inBom={(each) => keptHere.has(each.guid)}
                           keptElsewhere={(each) => bom.has(each.guid) && !keptHere.has(each.guid)}
                           usedOn={(guid) => usedOn(guid)}
+                          filtering={tapFiltering}
                         />
                       ) : (
                         <PartToolTable
@@ -4372,6 +4520,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           inBom={(each) => keptHere.has(each.guid)}
                           keptElsewhere={(each) => bom.has(each.guid) && !keptHere.has(each.guid)}
                           usedOn={(guid) => usedOn(guid)}
+                          filtering={toolFiltering}
                         />
                       )}
                     </div>
@@ -4401,6 +4550,22 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           panel on the right reads out.
                         */
                           onChoose={looking ? setLookedUp : fillSlot}
+                          /*
+                            Every question about a holder or a collet is asked
+                            in its own column heading; the pool rather than the
+                            list, so an axis still offers what choosing it
+                            would bring back.
+                          */
+                          filtering={{
+                            query: componentSlot === 'holder' ? holderQuery : colletQuery,
+                            onQuery: componentSlot === 'holder' ? setHolderQuery : setColletQuery,
+                            options: (code) =>
+                              optionsOn(
+                                componentSlot,
+                                componentSlot === 'holder' ? holderPool : colletPool,
+                                code,
+                              ),
+                          }}
                           usedIn={heldElsewhere}
                           onFeature={(guid) => guid === savedInSlot}
                           usedOn={usedOn}
