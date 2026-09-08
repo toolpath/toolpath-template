@@ -96,6 +96,26 @@ export interface FeatureListPanelProps {
   readonly assemblyOf?: (itemId: string, toolGuid: string) => string | null
 }
 
+/**
+ * What makes a kit `Button` narrower than the words in it.
+ *
+ * **The list must never scroll sideways** (Paul, 2026-09-08: "I should never
+ * have to horizontally scroll in the feature list — long names should …").
+ * `@toolpath/ui` wraps a button's children in a `whitespace-nowrap` box of its
+ * own, and that box takes its width from its contents: a `truncate` on a span
+ * inside one never fires, because the box grows to fit the span instead. The
+ * row grew with it, the column is a fixed 320px, and what was left was a
+ * horizontal scrollbar under a list whose ends nobody could read.
+ *
+ * These make that box a line that may be narrower than what is in it, which is
+ * all an ellipsis needs. `FITS` also lays the children out, because a block box
+ * puts them inline and `truncate` does nothing to an inline span; `STACKS`
+ * leaves the block flow alone for a button whose children are already lines.
+ */
+const FITS = '[&>div]:flex [&>div]:w-full [&>div]:min-w-0 [&>div]:items-center [&>div]:gap-1.5'
+
+const STACKS = '[&>div]:w-full [&>div]:min-w-0'
+
 /** What a group's result option is called where it has to fit in a row. */
 const RESULT_LABEL = {
   all: 'one for all',
@@ -152,7 +172,8 @@ const Answer = ({
       title={`${assembly === null ? '' : `${assembly} — `}${pick.tool.catalogNumber}${holding === '' ? '' : ` in ${holding}`} — every tool that fits ${label}`}
       onClick={onOpen}
       className={cn(
-        'text-2xs flex w-full flex-col gap-0.5 rounded border px-1.5 py-0.5 text-left transition',
+        STACKS,
+        'text-2xs flex w-full min-w-0 flex-col gap-0.5 rounded border px-1.5 py-0.5 text-left transition',
         here
           ? 'border-info/60 bg-info/15 text-info'
           : 'border-transparent text-zinc-400 hover:border-zinc-800 hover:bg-zinc-900/60 hover:text-zinc-200',
@@ -302,9 +323,25 @@ export const FeatureListPanel = ({
               */
               <li key={item.id} className="relative rounded bg-zinc-950/75">
                 <Menu context>
-                  <Menu.Trigger>
+                  {/*
+                    **Block, not the kit's `inline-block`.** A shrink-to-fit box
+                    takes the width of its contents wherever they cannot be made
+                    narrower, which is how one long name pushed the whole list
+                    past its column and put a scrollbar under it.
+                  */}
+                  <Menu.Trigger className="block w-full min-w-0">
                     <div
                       className={cn(
+                        /*
+                          **The button has to be allowed to be narrow.** A kit
+                          `Button` puts the className it is given on the box
+                          inside it, not on the `<button>` — so a flex item with
+                          `min-width: auto` sits between the row and everything
+                          that knows how to truncate, and its automatic minimum
+                          is the whole unbroken name. This is the one place that
+                          can say otherwise about it.
+                        */
+                        '[&>button]:min-w-0 [&>button]:flex-1',
                         'flex items-center gap-1 rounded border px-1.5 py-1 text-left transition',
                         here
                           ? 'border-info/60 bg-info/15'
@@ -353,7 +390,17 @@ export const FeatureListPanel = ({
                           // Selecting the row already on screen puts it down again,
                           // which is the way back to the list's own answers.
                           onClick={() => onSelect(here ? null : item.id)}
-                          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                          /*
+                          `w-full` is load-bearing: the className reaches the
+                          box *inside* the button, and that box is sized by what
+                          is in it unless it is told to be the width of the
+                          button — which is what leaves the ellipsis somewhere
+                          to happen.
+                        */
+                          className={cn(
+                            FITS,
+                            'flex w-full min-w-0 flex-1 items-center gap-1.5 text-left',
+                          )}
                         >
                           <span className="shrink-0 text-zinc-400">
                             {item.kind === 'group' ? (

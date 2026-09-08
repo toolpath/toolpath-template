@@ -780,6 +780,55 @@ test('keeps the default name when none is typed, and takes one from the tick', a
 })
 
 /**
+ * **The list never scrolls sideways** (Paul, 2026-09-08: "I should never have to
+ * horizontally scroll in the feature list … long names should … to avoid this").
+ *
+ * The column is a fixed width over the part, and everything in a row already
+ * carried `truncate` — but a `@toolpath/ui` button puts the className it is
+ * given on the box *inside* it, so the `<button>` kept `min-width: auto` and
+ * that box took its width from its own contents. Between them, nothing could be
+ * narrower than the longest unbroken name, so the row grew and the list scrolled
+ * under it. Both halves are pinned here: nothing overflows, and the name is
+ * clipped rather than the row grown.
+ */
+test('never scrolls sideways, however long the names in it are', async ({ page }) => {
+  const LONG = 'a preposterously long assembly name that nobody would ever type'
+  const tree = page.locator('[data-assembly-tree]')
+  const list = page.getByRole('list', { name: 'Features being asked about' })
+
+  // A feature with a full stack under it, named at length — the name reaches
+  // the line the row is answered with.
+  await ready(page)
+  await page.getByRole('button', { name: '+ Feature' }).click()
+  await buildStack(page)
+  await tree.getByRole('button', { name: 'Assembly 1', exact: true }).click()
+  await tree.getByRole('textbox').fill(LONG)
+  await tree.getByRole('textbox').press('Enter')
+  await tree.getByRole('button', { name: 'Add to order list' }).click()
+
+  // And a part-level assembly, whose row *is* the name.
+  await page.getByRole('button', { name: '+ Tool Assembly' }).click()
+  await tree.getByRole('button', { name: /^TOOL for / }).click()
+  await page.getByRole('grid').first().getByRole('row').first().click()
+  await tree.getByRole('button', { name: 'Assembly 1', exact: true }).click()
+  await tree.getByRole('textbox').fill(`${LONG} either`)
+  await tree.getByRole('textbox').press('Enter')
+  await tree.getByRole('button', { name: 'Add to order list' }).click()
+
+  await expect(list.getByText(LONG).first()).toBeVisible()
+  expect(await list.evaluate((ul) => ul.scrollWidth - ul.clientWidth)).toBeLessThanOrEqual(0)
+  // The card the name was typed on is held to its panel the same way.
+  expect(await tree.evaluate((card) => card.scrollWidth - card.clientWidth)).toBeLessThanOrEqual(0)
+  // Clipped, rather than the row having grown to hold it.
+  expect(
+    await list
+      .getByText(LONG)
+      .first()
+      .evaluate((el) => el.scrollWidth > el.clientWidth),
+  ).toBe(true)
+})
+
+/**
  * **The + Tool Assembly tree has no second stack** (Paul, 2026-09-08: "we can
  * also remove the add assembly button from + Tool Assembly"). It answers no
  * feature, so another stack the part needs is another row with a name of its

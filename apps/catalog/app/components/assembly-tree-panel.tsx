@@ -357,7 +357,16 @@ export const AssemblyTreePanel = ({
         const index = assemblies.indexOf(group.root)
         return (
           <div key={group.root.id} className="rounded border border-zinc-800">
-            <div className="flex items-center gap-1 border-b border-zinc-800 px-2 py-1">
+            <div
+              /*
+              **The heading may be narrower than the name in it.** A kit
+              `Button` puts the className it is given on the box inside it, so
+              the `<button>` itself keeps `min-width: auto` — the whole unbroken
+              name — and a card with a long name would grow past the panel it is
+              in. `feature-list-panel.tsx` states the same rule for the list.
+            */
+              className="flex items-center gap-1 border-b border-zinc-800 px-2 py-1 [&>button]:min-w-0"
+            >
               {naming === group.root.id && onRename !== undefined ? (
                 <NameField
                   value={group.root.name ?? ''}
@@ -382,7 +391,9 @@ export const AssemblyTreePanel = ({
                   title="Rename this assembly"
                   onClick={() => setNaming(group.root.id)}
                   className={cn(
-                    'text-2xs min-w-0 flex-1 truncate text-left font-semibold tracking-wide text-zinc-400',
+                    // `w-full` so the box inside the button is the width of the
+                    // button rather than of the name — where the ellipsis happens.
+                    'text-2xs w-full min-w-0 flex-1 truncate text-left font-semibold tracking-wide text-zinc-400',
                     /* A name is somebody's words, so it is left as typed; a
                      number is a heading, and headings here are upper case. */
                     group.root.name === undefined ? 'uppercase' : '',

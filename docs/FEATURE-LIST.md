@@ -413,6 +413,19 @@ differently:
 
 ### Layout
 
+- **It never scrolls sideways** (Paul, 2026-09-08: "I should never have to
+  horizontally scroll in the feature list — long names should …"). The column is
+  a fixed 320px over the part and every name in a row already carried
+  `truncate`, and it still scrolled: a `@toolpath/ui` `Button` puts the
+  `className` it is given on the box _inside_ it, so the `<button>` keeps
+  `min-width: auto` — the whole unbroken name — and that box takes its width
+  from its own contents. Three things together are the fix, and none of them
+  works alone: `[&>button]:min-w-0` on the row, `w-full` on what reaches the
+  inner box, and `[&>div]:flex` where the children have to lay out in a line
+  (`FITS` / `STACKS` in `components/feature-list-panel.tsx`). The tree's cards
+  carry the same treatment for the same reason.
+  `tests/on-the-part.spec.ts` § "never scrolls sideways" is the sensor: nothing
+  overflows, and a long name is clipped rather than the row grown.
 - **The rows stand on the part, not in a box** (Paul, 2026-09-08: "make the list
   rows sit on top of the 3d viewer rather than in the box"). The card around
   them was a solid panel the width of the list whether the list was one row or
