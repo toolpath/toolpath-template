@@ -1190,6 +1190,40 @@ test.describe('the tool assembly tree', () => {
   })
 
   /**
+   * **A rack says what is already being bought, and for what** (Paul,
+   * 2026-09-07: "holders and collets should show if they are already in use the
+   * same way that tools do (float to the top and badge) … it should note which
+   * feature and assembly they are used in in the badge"). The tool list said
+   * only *on list*, and a rack said only whether a component stood in another
+   * stack of the same feature.
+   */
+  test('names the feature and assembly a component is already used on', async ({ page }) => {
+    await ready(page)
+    await page.getByRole('button', { name: 'Add feature' }).click()
+    const tree = page.locator('[data-assembly-tree]')
+    await buildStack(page)
+
+    const holder = tree.getByRole('button', { name: /^HOLDER for / })
+    const number = ((await holder.textContent()) ?? '').replace(/^HOLDER/, '').trim()
+    await tree.getByRole('button', { name: 'Add to order list' }).click()
+
+    // A second feature, and its holder rack: the first feature's holder is
+    // named there, with the feature and the stack it is on.
+    await at(page, NOTHING)
+    await page.keyboard.press('Escape')
+    await ready(page)
+    await page.getByRole('button', { name: 'Add feature' }).click()
+    await tree.getByRole('button', { name: /^HOLDER for / }).click()
+
+    const rack = page.locator('[data-component-table="holder"]').getByRole('grid')
+    const marked = rack.getByRole('row').filter({ hasText: number }).first()
+    await expect(marked).toBeVisible()
+    await expect(marked.getByText(/^on .+ · Assembly 1/)).toBeVisible()
+    // And it leads the rack, the way a kept tool leads the tool list.
+    await expect(rack.getByRole('row').first()).toContainText(number)
+  })
+
+  /**
    * **An unsaved swap is visible in the list and can be backed out of** (Paul,
    * 2026-09-07: "I need to see the holder that was previously selected for the
    * feature in the list and have a way to back out"). Picking a different holder

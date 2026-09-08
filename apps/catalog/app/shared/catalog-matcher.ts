@@ -267,11 +267,31 @@ const compact = (verdict: Verdict): CompactVerdict => ({
 })
 
 /** Reattach local catalog records after a worker returns compact verdict data. */
+/**
+ * The catalog by guid, built once for each tools array.
+ *
+ * Every answer that comes back from the worker names its tools by guid, and the
+ * index to resolve them was rebuilt from all 38,000 of them each time — once a
+ * table result, once a recommendation batch. The array is the module-level
+ * catalog and never changes, so the map is remembered against it.
+ */
+const INDEXES = new WeakMap<object, Map<string, CatalogTool>>()
+
+const toolIndex = (tools: ReadonlyArray<CatalogTool>): Map<string, CatalogTool> => {
+  const had = INDEXES.get(tools)
+  if (had !== undefined) {
+    return had
+  }
+  const made = new Map(tools.map((tool) => [tool.guid, tool]))
+  INDEXES.set(tools, made)
+  return made
+}
+
 export const rehydrateVerdicts = (
   compactVerdicts: ReadonlyArray<CompactVerdict>,
   tools: ReadonlyArray<CatalogTool>,
 ): Array<Verdict> => {
-  const byGuid = new Map(tools.map((tool) => [tool.guid, tool]))
+  const byGuid = toolIndex(tools)
   const reason = (compactReason: CompactReason): Reason => ({
     rule:
       compactReason.ruleLine === null

@@ -328,6 +328,14 @@ export interface PartToolTableProps {
   readonly holding?: Holding
   readonly inBom: (tool: CatalogTool) => boolean
   readonly keptElsewhere: (tool: CatalogTool) => boolean
+  /**
+   * Where this tool is already used, on some *other* feature — named.
+   *
+   * `on list` said that much and no more, so a cutter already being bought for
+   * three other features looked the same as one bought for one (Paul,
+   * 2026-09-07). `shared/component-usage.ts` owns the words.
+   */
+  readonly usedOn?: (guid: string) => { readonly label: string; readonly title: string } | null
   readonly empty?: ReactNode
   /** Test-only escape hatch for jsdom, where virtual rows cannot measure themselves. */
   readonly virtualized?: boolean
@@ -346,6 +354,7 @@ export const PartToolTable = ({
   holding,
   inBom,
   keptElsewhere,
+  usedOn,
   empty,
   virtualized = true,
 }: PartToolTableProps) => {
@@ -446,6 +455,7 @@ export const PartToolTable = ({
           {(tool) => {
             const here = inBom(tool)
             const elsewhere = !here && keptElsewhere(tool)
+            const used = here ? null : (usedOn?.(tool.guid) ?? null)
             const rowMarks = marks?.(tool) ?? {}
             return (
               <Table.Row>
@@ -463,6 +473,14 @@ export const PartToolTable = ({
                       on list
                     </span>
                   ) : null}
+                  {used === null ? null : (
+                    <span
+                      className="text-2xs ml-2 rounded border border-zinc-700 px-1 text-zinc-400"
+                      title={used.title}
+                    >
+                      {used.label}
+                    </span>
+                  )}
                 </Table.Cell>
                 <Table.Cell>
                   <span className="flex min-w-0 items-center gap-1">

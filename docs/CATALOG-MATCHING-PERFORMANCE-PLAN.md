@@ -439,6 +439,28 @@ the worker's heap. Sending only the tags a demand names, and letting the worker
 read the rest from a report it fetched itself, is the next step if a part ever
 gets big enough to make that first message hurt.
 
+## The table sorts what it is given (2026-09-07)
+
+`@toolpath/ui`'s table runs its sort modifier over every row it is handed, and
+that modifier reduces with `concat` — quadratic. On the scraped catalog's 38,114
+tools that is some 700 million operations: **2.7 seconds, every time the tool
+list was mounted or handed new data** (Paul, 2026-09-07: "it takes a long time to
+go back to the tools tab in the table").
+
+Two changes here, and one that belongs upstream:
+
+- The tool list is **hidden rather than unmounted** while a rack is on screen, so
+  coming back to it costs nothing.
+- It is handed at most `TABLE_ROW_CAP` rows, and the chrome says how many are not
+  shown. A feature's matched list is nearly always shorter, so the cap bites
+  while browsing the catalog rather than while answering a question. Switching
+  back to the tools measured **2,713 ms before, 59 ms after**.
+- The reduce itself is a one-line fix in the kit. Raise or remove the cap when it
+  lands.
+
+`rehydrateVerdicts` also rebuilt a guid index over all 38,114 tools for every
+answer that came back; it is remembered against the catalog array now.
+
 ## Future product path
 
 If this demo becomes a product with customer-specific tool libraries, very much

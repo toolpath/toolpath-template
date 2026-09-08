@@ -69,6 +69,15 @@ export interface ComponentTableProps {
    * 2026-09-07).
    */
   readonly onFeature?: (guid: string) => boolean
+  /**
+   * Where this component is already used, on some *other* feature.
+   *
+   * **A rack says what is already being bought** (Paul, 2026-09-07: "holders and
+   * collets should show if they are already in use the same way that tools do …
+   * it should note which feature and assembly they are used in"). The rule and
+   * the words are `shared/component-usage.ts`; this draws what comes back.
+   */
+  readonly usedOn?: (guid: string) => { readonly label: string; readonly title: string } | null
   readonly empty?: ReactNode
   /** Test-only escape hatch for jsdom, where virtual rows cannot measure themselves. */
   readonly virtualized?: boolean
@@ -127,6 +136,7 @@ export const ComponentTable = ({
   onChoose,
   usedIn,
   onFeature,
+  usedOn,
   empty,
   virtualized = true,
 }: ComponentTableProps) => {
@@ -248,6 +258,7 @@ export const ComponentTable = ({
             const { record } = row
             const elsewhere = usedIn?.(record.guid) ?? []
             const saved = onFeature?.(record.guid) ?? false
+            const used = usedOn?.(record.guid) ?? null
             return (
               <Table.Row>
                 <Table.Cell>
@@ -267,6 +278,19 @@ export const ComponentTable = ({
                       title={`Standing in ${elsewhere.join(', ')} of this feature`}
                     >
                       in {elsewhere.join(', ')}
+                    </span>
+                  )}
+                  {/*
+                    And what it is already bought for elsewhere, named: a rack of
+                    five hundred chucks cannot answer "am I already ordering one
+                    of these, and for what" from a row that only says *in use*.
+                  */}
+                  {used === null ? null : (
+                    <span
+                      className="text-2xs ml-2 rounded border border-zinc-700 px-1 text-zinc-400"
+                      title={used.title}
+                    >
+                      {used.label}
                     </span>
                   )}
                 </Table.Cell>

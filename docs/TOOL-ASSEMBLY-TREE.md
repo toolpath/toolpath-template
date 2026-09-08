@@ -331,6 +331,15 @@ What changed is where a line comes from:
   `shared/tool-order.ts` is the same partition asked of a holder or a collet, so
   the row wearing **on the feature** is the row somebody lands on. A partition
   rather than a sort: a column somebody sorted by still decides everything else.
+- **And it says what is already being bought, and for what** (Paul, 2026-09-07:
+  "holders and collets should show if they are already in use the same way that
+  tools do (float to the top and badge) … it should note which feature and
+  assembly they are used in in the badge"). `shared/component-usage.ts` walks the
+  list once and answers, per guid, which rows and which stacks hold it — the
+  stack found by what it was _ordered_ as, so a swapped cutter still points at
+  its own line. The badge names the first in full and counts the rest, with all
+  of them in its tooltip; anything on the order list floats up the rack, under
+  the one this feature holds.
 - **The list marks what the feature already has.** The row on the bill for the
   open slot wears **on the feature**; a component standing in one of this
   feature's other stacks wears **in Assembly 2** / **in TAP**, naming which
