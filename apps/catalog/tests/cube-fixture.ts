@@ -44,7 +44,23 @@ delete (report as Record<string, unknown>)['meshGlbUrl']
 delete (report as Record<string, unknown>)['meshStlUrl']
 delete (report as Record<string, unknown>)['thumbnailUrl']
 
-export const openCube = async (page: Page, query = ''): Promise<void> => {
+/**
+ * The cube, with the flags this spec means to exercise.
+ *
+ * **A flag has to be stated, not inherited.** The tool assembly tree ships on
+ * (`shared/flags.ts` says why), so a spec written for the panel it replaces
+ * would silently be testing the wrong page. Every spec here says which of the
+ * two shapes it is about, and the two are covered rather than one of them being
+ * whatever the default happens to be that week.
+ */
+export const openCube = async (
+  page: Page,
+  query = '',
+  flags: Readonly<Record<string, boolean>> = { assemblyTree: false },
+): Promise<void> => {
+  await page.addInitScript((held: string) => {
+    window.localStorage.setItem('tool-catalog.flags', held)
+  }, JSON.stringify(flags))
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url())
     if (url.pathname === '/api/session') {

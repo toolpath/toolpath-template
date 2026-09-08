@@ -51,7 +51,14 @@ The whole reason a group is a thing rather than a multiple selection:
   the group. Six holes of five sizes have one drill between them or they have
   none, and that is the answer worth knowing before a job is quoted.
 - **`each` — the best tool for each.** A result per feature, whether or not one
-  tool covers them all.
+  tool covers them all. **Parked, 2026-09-07** (Paul: take it off groups for the
+  time being). It is off the group editor only — `CHOICES` in
+  `components/group-editor.tsx` no longer lists it — and everything behind it
+  stands: `Results` still has `each`, a group already saved as one still answers
+  per feature and still opens, and `routes/part.tsx` still runs the per-feature
+  recommendations. Restoring the option is putting that one entry back, with
+  `group-editor.test.tsx` and the skipped `a group answers per its result
+option` in `tests/on-the-part.spec.ts` as the pair to turn back over.
 
 ### Ids and names
 

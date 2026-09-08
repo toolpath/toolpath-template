@@ -182,6 +182,21 @@ application unless that application says otherwise.
   `docs/HOLDER-PROFILES.md` is the guide, including the two things deliberately
   left undone — clearance still reasons from the published dimensions, and the
   record seam below.
+  **The unit of an answer is a tool assembly, not a tool** (Paul, 2026-09-07),
+  behind the `assemblyTree` flag — the **Tool tree** chip in the header, on by
+  default and one press to roll back. A selected row gets a tree of `TOOL` /
+  `HOLDER` / `COLLET` in the feature panel beside the list (a threaded hole gets
+  a tap stack and a drill stack), each slot opens its own table with the same
+  columns, sorting and filters the tool table has, and any component can be
+  chosen first and narrows the rest. The table is whichever list the open
+  slot asks for, and picking a row there fills that slot without walking on to
+  the next one. **Each stack carries one context-aware button** — _Add to order list_, _Change holder from
+  A to B_, _Remove from order list_ — and that press is the only way a component
+  reaches the bill: picking a row in a table selects it into the stack and
+  nothing more. `docs/TOOL-ASSEMBLY-TREE.md` is the spec, including
+  _Where the rules live_ and _Not built_. `openCube` in the Playwright fixture
+  takes the flags and defaults them off, so every spec states which of the two
+  shapes it is about.
   **The feature list is what drives the page** (Paul, 2026-09-02): a click on
   the part adds a row, a row is what the tool table is being asked about, and a
   tool reaches the bill only because a row put it there — there is no second
@@ -227,19 +242,24 @@ application unless that application says otherwise.
   route, and the pure half is where its rules live. A change to how it behaves is
   almost always a change to one of these rather than to `routes/part.tsx`:
 
-| Question                                     | Module                                  |
-| -------------------------------------------- | --------------------------------------- |
-| what the list holds, its names, ids, storage | `app/shared/feature-list.ts`            |
-| which of four things the page is being asked | `asked()`, same file                    |
-| a row's answer, and what it opens to         | `app/shared/recommendations.ts`         |
-| what the panel offers for the tool it shows  | `app/shared/tool-actions.ts`            |
-| what fills the tool table, and the cache     | `app/shared/catalog-matcher.ts`         |
-| the same work, off the UI thread             | `app/client/catalog-matcher.worker.ts`  |
-| what a click on the part means               | `app/shared/part-interaction.ts`        |
-| the list, its answers and its right-click    | `app/components/feature-list-panel.tsx` |
-| building a group                             | `app/components/group-editor.tsx`       |
-| the reading, its numbers and its thread      | `app/components/selection-panel.tsx`    |
-| the tool table and its marks                 | `app/components/part-tool-table.tsx`    |
+| Question                                        | Module                                  |
+| ----------------------------------------------- | --------------------------------------- |
+| what the list holds, its names, ids, storage    | `app/shared/feature-list.ts`            |
+| which of four things the page is being asked    | `asked()`, same file                    |
+| a row's answer, and what it opens to            | `app/shared/recommendations.ts`         |
+| what the panel offers for the tool it shows     | `app/shared/tool-actions.ts`            |
+| what fills the tool table, and the cache        | `app/shared/catalog-matcher.ts`         |
+| the same work, off the UI thread                | `app/client/catalog-matcher.worker.ts`  |
+| what a click on the part means                  | `app/shared/part-interaction.ts`        |
+| a feature's assemblies, its slots, its storage  | `app/shared/assembly-tree.ts`           |
+| what narrows what when any part is chosen first | `app/shared/assembly-narrowing.ts`      |
+| what a stack offers, and its button's words     | `app/shared/assembly-actions.ts`        |
+| reading and filtering a holder or a collet      | `app/shared/component-columns.ts`       |
+| the shapes being tried out, and the way back    | `app/shared/flags.ts`                   |
+| the list, its answers and its right-click       | `app/components/feature-list-panel.tsx` |
+| building a group                                | `app/components/group-editor.tsx`       |
+| the reading, its numbers and its thread         | `app/components/selection-panel.tsx`    |
+| the tool table and its marks                    | `app/components/part-tool-table.tsx`    |
 
 - `docs/` holds planning documents that outlive a single change.
   `docs/CATALOG-SPEC.md` is the tool catalog specified end to end — how a shop
@@ -248,6 +268,8 @@ application unless that application says otherwise.
   with its open questions. Read it first.
   `docs/FEATURE-LIST.md` is the part page in full detail, and the one to read
   before changing it.
+  `docs/TOOL-ASSEMBLY-TREE.md` is the tool assembly tree — what replaces the
+  holder dropdowns behind the `assemblyTree` flag, and what the flag protects.
   `docs/FEATURE-DEFAULTS.md` is the guide to the catalog's feature datasheet,
   `apps/catalog/app/shared/feature-defaults.csv`, and `docs/RULES.md` the
   guide to its rules sheet, `rules.csv` and `knobs.csv` beside it — the files

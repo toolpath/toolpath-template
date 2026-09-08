@@ -466,12 +466,45 @@ everything is that one call with different arguments:
 
     setup   = flutes (or the neck), out to what the feature needs,
               no shorter than `least stickout`, onto the unit's `stickout step`,
-              held under the ceiling
+              held under the ceiling,
+              then raised to this tool's own floor — flutes + diameter
     ceiling = the tightest of
                 OAL − (minimum clamping length × SFDM)   ← `minimum clamping length`
                 OAL × (1 − good hold)                    ← `good hold`
                 OAL − the collet's published grip
               and never under the flutes; `limitedBy` names the winner
+
+**The shortest it is ever set up at is the flutes plus a diameter** (Paul,
+2026-09-07: "the shortest length below holder depth you should ever do is flute
+length + tool diameter. If the required length below holder is less than that,
+we should just use flute length + tool diameter instead").
+
+The flutes alone is what the arithmetic gives — the collet face sits at the end
+of the cutting edge — and it is not a length anybody sets a tool up at: it puts
+the holder nose level with the top of the cut. A diameter is the room left for
+that, and it scales the way the problem does.
+
+`app/shared/stickout-floor.ts` owns it, in two halves, because the floor has to
+survive two things that would otherwise erase it:
+
+- `withLeastFor` puts the tool's own floor into `StickoutPolicy.least`, which is
+  one figure for every tool because a package cannot know which tool it is about
+  to be asked about.
+- `atLeastFloor` raises the answer afterwards. `setupStickout` applies the floor
+  and _then_ lands on the shop's increment, downward — so a 19 mm floor on a
+  3 mm step came back 18, and a 25 mm floor came back 24. An increment is a
+  convenience at the machine; the floor is a rule, and one the rounding can undo
+  is not one. **The ceiling still wins**: a shop clamping 7.5×⌀ leaves a 57 mm
+  tool no shank to stand 19 out on, and the furthest it can go is the honest
+  answer.
+
+Two consequences worth knowing. `withClampingLength` **took a policy and never
+passed it on**, so the sheet's floor and step never reached `LBH` at all; that
+is fixed with this, which is why every tool's `LBH` and `L/D` move. And the
+dataset's own `LBH` — built by `build.ts` with `DEFAULT_STICKOUT_POLICY` — no
+longer equals the page's, by design: the package's floor is one number and the
+page's is per-tool. The lockstep test still holds, because it is about the
+shared _policy_ rather than the derived length.
 
 `min ≤ setup ≤ max` holds by construction, so the drawing cannot dimension a
 length the table contradicts. `stickout.test.ts` checks it over the committed

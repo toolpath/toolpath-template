@@ -2,6 +2,7 @@
  * Scrape the vendors' cutting-tool catalogs into the local store.
  *
  *   pnpm --filter @toolpath/catalog-data scrape [--refresh] [--only <family.csv>]
+ *                                                 [--timeout <seconds>]
  *
  * Everything with a decision in it is `src/scrape.ts`, where the lint and
  * style sensors reach. This file is what needs `fs`: where the store lives,
@@ -35,6 +36,9 @@ import { scraperVersion } from '@toolpath/tool-scraper/node'
 import { scrapeCuttingTools } from '../dist/scrape.js'
 import { ROOT, RECORDS, ensureStore, writeMergedScrape } from './store.mjs'
 
+const USAGE =
+  'usage: node scripts/scrape.mjs [--refresh] [--only <family.csv>] [--timeout <seconds>]'
+
 const argv = process.argv.slice(2)
 const refresh = argv.includes('--refresh')
 // Guarded on the flag being present, not on `indexOf` alone: `indexOf` answers
@@ -43,7 +47,24 @@ const refresh = argv.includes('--refresh')
 // the one named", and the run reported success having scraped nothing.
 const only = argv.includes('--only') ? argv[argv.indexOf('--only') + 1] : undefined
 if (argv.includes('--only') && (only === undefined || only.startsWith('--'))) {
-  console.error('usage: node scripts/scrape.mjs [--refresh] [--only <family.csv>]')
+  console.error(USAGE)
+  process.exit(1)
+}
+/**
+ * How long one request may take, in seconds.
+ *
+ * **A vendor's biggest category is where the default runs out** (2026-09-07:
+ * Emuge's taps failed twice, once on `fetch failed` and once on
+ * `The operation was aborted due to timeout`). The scraper's own default is
+ * sixty seconds and it has always taken an override; this script simply never
+ * passed one, so the only way past a slow page was to give up on the family.
+ *
+ * A family is written the moment it finishes, so raising this costs nothing on
+ * the families that were already fast.
+ */
+const timeout = argv.includes('--timeout') ? Number(argv[argv.indexOf('--timeout') + 1]) : undefined
+if (argv.includes('--timeout') && (!Number.isFinite(timeout) || timeout <= 0)) {
+  console.error(USAGE)
   process.exit(1)
 }
 
@@ -57,7 +78,7 @@ const left = []
 let scraped = 0
 
 await scrapeCuttingTools({
-  fetcher: createFetcher(),
+  fetcher: createFetcher(timeout === undefined ? {} : { timeoutMs: timeout * 1000 }),
   warn: (message) => warnings.push(message),
   skip: (csvName) => {
     if (only !== undefined) {

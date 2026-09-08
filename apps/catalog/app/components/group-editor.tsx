@@ -20,7 +20,9 @@ import type { Results } from 'shared/feature-list'
  *   of five sizes have one drill between them or they have none, and that is
  *   the answer worth knowing before a job is quoted.
  * - **one each** — the best tool for each of them, which is six answers in a
- *   row that opens.
+ *   row that opens. **Parked** (Paul, 2026-09-07): the option is off the box
+ *   for the time being, so *one for all* is the only question offered. See
+ *   {@link CHOICES}.
  */
 export interface GroupEditorProps {
   /** What is in the group as it stands — clicked on the part, or added by kind. */
@@ -50,19 +52,18 @@ export interface GroupEditorProps {
   readonly matching?: 'idle' | 'pending' | 'error' | 'nothing-fits' | 'ready'
 }
 
+/**
+ * **_The best tool for each_ is parked** (Paul, 2026-09-07): the option is off
+ * the editor for the time being, so a group asks the one question it has left.
+ * Everything behind it is untouched — `Results` still has `each`, a group
+ * already saved as one still answers and still opens, and putting the entry
+ * back in this list is the whole of restoring it.
+ */
 const CHOICES: ReadonlyArray<{ value: Results; label: string; note: string }> = [
   {
     value: 'all',
     label: 'One tool for all of them',
     note: 'Only tools that can cut every feature in the group.',
-  },
-  {
-    value: 'each',
-    label: 'The best tool for each',
-    // And it takes them: there is no one tool to pick for six questions, so
-    // the rules' own answer to each is what goes on the bill (Paul,
-    // 2026-09-02).
-    note: 'The best tool for each feature, chosen for you.',
   },
 ]
 

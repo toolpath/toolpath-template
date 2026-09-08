@@ -15,6 +15,7 @@ import {
 } from '@toolpath/catalog-data'
 import { collets as allCollets, holders as allHolders } from './catalog'
 import { policyOf, type HoldThresholds } from './holder-choice'
+import { atLeastFloor, withLeastFor } from './stickout-floor'
 
 /**
  * The assembly the page draws, built once from what was picked.
@@ -63,14 +64,27 @@ export const drawnAssembly = (
     holder !== null && curve !== null
       ? clearance({ tool, holder, collet, stickout: 0 }, curve, margins).requiredStickout
       : null
-  const limits = stickoutLimits(tool, picked, required, policyOf(thresholds))
+  const limits = stickoutLimits(
+    tool,
+    picked,
+    required,
+    withLeastFor(policyOf(thresholds), tool.geometry),
+  )
   const least = limits === null ? null : Math.max(limits.min, required ?? limits.min)
   const overLimit = least !== null && limits?.max != null && least > limits.max + 1e-6
   const stickout =
     limits === null
       ? null
       : Math.min(
-          Math.max(selection.stickout ?? limits.setup, limits.min),
+          Math.max(
+            selection.stickout ??
+              atLeastFloor(limits.setup, tool.geometry, {
+                floor: policyOf(thresholds).least,
+                ceiling: limits.max,
+              }) ??
+              limits.setup,
+            limits.min,
+          ),
           limits.max ?? Number.POSITIVE_INFINITY,
         )
   const band = stickout === null ? null : holdBand(tool, stickout, thresholds)

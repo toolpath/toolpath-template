@@ -1,11 +1,12 @@
 import {
   DEFAULT_CLAMPING,
   DEFAULT_STICKOUT_POLICY,
-  setupStickout,
+  stickoutRange,
   type CatalogTool,
   type ClampingRule,
   type StickoutPolicy,
 } from '@toolpath/catalog-data'
+import { atLeastFloor, withLeastFor } from './stickout-floor'
 
 export { type ClampingRule }
 
@@ -56,7 +57,25 @@ export const withClampingLength = (
   policy: StickoutPolicy = DEFAULT_STICKOUT_POLICY,
 ): ReadonlyArray<CatalogTool> =>
   tools.map((tool) => {
-    const below = setupStickout({ geometry: tool.geometry, unitSystem: tool.unitSystem }, rule)
+    /*
+      **The policy was taken and never passed on** (2026-09-07). `LBH` is the
+      setup length, and it was being worked out with the package's default floor
+      and step whatever the sheet said — so a shop's own figures reached the
+      holder list and the drawing but never the number in the table beside them.
+      `withLeastFor` is the other half: the floor is this tool's flutes plus a
+      diameter, which is a per-tool number a policy cannot carry on its own.
+    */
+    const range = stickoutRange(
+      { geometry: tool.geometry, unitSystem: tool.unitSystem },
+      {
+        rule,
+        policy: withLeastFor(policy, tool.geometry),
+      },
+    )
+    const below = atLeastFloor(range?.setup ?? null, tool.geometry, {
+      floor: policy.least,
+      ceiling: range?.max ?? null,
+    })
     const { DC } = tool.geometry
     if (below === null || DC === undefined || DC <= 0) {
       return tool

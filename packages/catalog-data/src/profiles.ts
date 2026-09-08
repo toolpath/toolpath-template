@@ -1,5 +1,7 @@
 import type { HolderProfile as MeasuredProfile, ProfilesDocument } from '@toolpath/tool-scraper'
+import { belowGageLine } from '@toolpath/tool-support'
 import type { ProfileDatum, ProfilePoint } from '@toolpath/tool-support'
+import type { Holder } from './toolholding.js'
 
 /**
  * A holder as its own CAD model measures it, keyed by the holder's guid.
@@ -123,6 +125,173 @@ export const profileFor = (profiles: Profiles, guid: string): HolderProfile | nu
   profiles.holders[guid] ?? null
 
 /**
+ * A rise smaller than this is measurement noise rather than a step, in mm.
+ *
+ * The same figure `wallCorners` uses on the other side of the drawing seam, and
+ * for the same reason: a STEP model tessellated to a polyline wobbles by
+ * fractions of a hundredth, and treating that as a shoulder would put a nose
+ * length of nothing on every holder.
+ */
+const STEP = 0.05
+
+/**
+ * The share of a band's final width at which that band is taken to have begun.
+ *
+ * A holder is a staircase and the sweep's model has three treads, so the two
+ * boundaries have to land on the risers that matter — the flange, and the
+ * shoulder behind the collet nut — rather than on the chamfer off the nut's own
+ * face. Nine tenths clears every chamfer in the measured rack and still catches
+ * a real step.
+ */
+const MOST = 0.9
+
+/** The five numbers a parametric {@link Holder} states, read off a measurement. */
+export interface MeasuredDimensions {
+  readonly noseDiameter: number
+  readonly noseLength: number
+  readonly bodyDiameter: number
+  readonly bodyLength: number
+  readonly projection: number
+  readonly flangeDiameter: number
+}
+
+/**
+ * A measured silhouette reduced to the layers a clearance sweep reads.
+ *
+ * **Because most of the rack publishes none of them.** A `HolderRecord` carries
+ * identity, a taper and a gauge length and no geometry at all, so
+ * `clearance()` — which builds its silhouette from the published nose, body and
+ * flange — swept nothing and answered "clears" for every one of them. That is
+ * not a cosmetic wrong answer: `requiredStickout` comes out `null` with it, so
+ * nothing told the stack to stand out, and a tool for a pocket two inches deep
+ * was set up at its flute length with the holder drawn a inch and a half inside
+ * the part (Paul, 2026-09-07, with a screenshot of exactly that).
+ *
+ * The measurement is the vendor's own model, so these are *derived from the
+ * vendor* rather than invented — and every field is marked `derived` by
+ * {@link withMeasuredDimensions} so nothing shows them as the vendor's word.
+ *
+ * ## Conservative by construction
+ *
+ * The sweep's model is three layers, each a radius from a height upward; a real
+ * silhouette is a staircase of forty. Each band therefore takes the **widest**
+ * radius in it, never a mean or a sample. A reduction that over-states girth can
+ * only report interference that is not there; one that under-states it puts a
+ * holder through a wall and calls it clear. Only the first is safe to be wrong
+ * in, and this is wrong in that direction on purpose.
+ *
+ * ## Which end is the nose
+ *
+ * `belowGageLine` returns the model from the spindle face down, `z` ascending —
+ * so **`z = 0` is the gage line and the last vertex is the nose**, and a height
+ * above the nose is `noseZ - z`. Reading it the other way up derives a nose
+ * diameter from the flange, which is a holder that clears nothing.
+ *
+ * Null for a model of fewer than two vertices, which is no holder.
+ */
+export const dimensionsFromProfile = (
+  profile: Pick<HolderProfile, 'points' | 'datum'>,
+): MeasuredDimensions | null => {
+  const points = belowGageLine(profile)
+  if (points.length < 2) {
+    return null
+  }
+  const noseZ = Math.max(...points.map(([z]) => z))
+  /** How far a vertex stands above the nose face, in mm. */
+  const above = ([z]: ProfilePoint): number => noseZ - z
+  const widestWhere = (keep: (point: ProfilePoint) => boolean): number => {
+    const radii = points.filter(keep).map(([, r]) => r)
+    return radii.length === 0 ? 0 : Math.max(...radii)
+  }
+
+  /**
+   * Where a band begins: the lowest height at which the holder has reached
+   * most of the width it is going to have.
+   *
+   * **Not the first rise.** A collet nut is chamfered off its own face, so the
+   * first step above the tip is a fraction of a millimetre — and splitting
+   * there made the band above it the whole rest of the holder, which is a
+   * BT30 chuck modelled as Ø45 from a tenth of a millimetre above the tip. The
+   * real steps are the flange and the shoulder behind the nut; `MOST` is what
+   * tells those from a chamfer.
+   */
+  const startOf = (width: number, within: ReadonlyArray<ProfilePoint>): number => {
+    const reached = within.filter(([, r]) => r >= width * MOST).map(above)
+    return reached.length === 0 ? Number.POSITIVE_INFINITY : Math.min(...reached)
+  }
+
+  const flangeRadius = widestWhere(() => true)
+  const projection = startOf(flangeRadius, points)
+  const belowFlange = points.filter((point) => above(point) < projection)
+  // Everything under the flange, at its widest: the band the tool reaches
+  // through, and the one that decides whether a deep pocket can be cut at all.
+  const underRadius =
+    belowFlange.length === 0 ? flangeRadius : widestWhere((point) => above(point) < projection)
+  const noseLength = startOf(underRadius, belowFlange)
+  const noseRadius = widestWhere((point) => above(point) < noseLength)
+  const bodyRadius = widestWhere((point) => above(point) >= noseLength && above(point) < projection)
+
+  const nose = noseRadius === 0 ? underRadius : noseRadius
+  const body = bodyRadius === 0 ? underRadius : bodyRadius
+  return {
+    noseDiameter: nose * 2,
+    // A holder whose nose *is* the whole of it below the flange has one band,
+    // not a zero-length one: the split found nothing to split on.
+    noseLength: Number.isFinite(noseLength) ? noseLength : projection,
+    bodyDiameter: body * 2,
+    bodyLength: Math.max(projection - (Number.isFinite(noseLength) ? noseLength : projection), 0),
+    projection,
+    flangeDiameter: flangeRadius * 2,
+  }
+}
+
+/**
+ * A holder with the geometry its own model measures, where the vendor states
+ * none.
+ *
+ * **Only the silence is filled.** A number a vendor published is that vendor's
+ * claim and stays exactly as it is, whatever the model says — the two
+ * disagreeing is worth knowing about and is not this function's to settle.
+ */
+export const withMeasuredDimensions = (holder: Holder, profile: HolderProfile | null): Holder => {
+  const measured = profile === null ? null : dimensionsFromProfile(profile)
+  if (measured === null) {
+    return holder
+  }
+  const fill = <K extends keyof MeasuredDimensions>(
+    field: K,
+    stated: number | null,
+  ): { value: number | null; derived: boolean } =>
+    stated === null ? { value: measured[field], derived: true } : { value: stated, derived: false }
+
+  const nose = fill('noseDiameter', holder.noseDiameter)
+  const noseLength = fill('noseLength', holder.noseLength)
+  const body = fill('bodyDiameter', holder.bodyDiameter)
+  const bodyLength = fill('bodyLength', holder.bodyLength)
+  const projection = fill('projection', holder.projection)
+  const flange = fill('flangeDiameter', holder.flangeDiameter)
+  const derived = Object.entries({
+    noseDiameter: nose,
+    noseLength,
+    bodyDiameter: body,
+    bodyLength,
+    projection,
+    flangeDiameter: flange,
+  }).flatMap(([field, held]) => (held.derived ? [[field, 'derived'] as const] : []))
+
+  return {
+    ...holder,
+    noseDiameter: nose.value,
+    noseLength: noseLength.value,
+    bodyDiameter: body.value,
+    bodyLength: bodyLength.value,
+    projection: projection.value,
+    flangeDiameter: flange.value,
+    provenance: { ...holder.provenance, ...Object.fromEntries(derived) },
+  }
+}
+
+/**
  * The silhouette from the gage line out.
  *
  * `@toolpath/tool-support`'s. The note that stood here said the crossing had a
@@ -131,4 +300,4 @@ export const profileFor = (profiles: Profiles, guid: string): HolderProfile | nu
  * checking. The trim is shared now and the drawing's split is asserted against
  * it by a test in that package.
  */
-export { belowGageLine } from '@toolpath/tool-support'
+export { belowGageLine }

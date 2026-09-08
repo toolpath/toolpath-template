@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router'
 import { Badge, IconButton, cn } from '@toolpath/ui'
 import { Chip, ChipGroup } from 'components/chip'
 import { UNIT_ABBREVIATION, UNIT_SYSTEMS, type UnitSystem } from '@toolpath/tool-support'
-import { MoonIcon, SunIcon, UploadSimpleIcon } from '@phosphor-icons/react'
+import { MoonIcon, SunIcon, TreeStructureIcon, UploadSimpleIcon } from '@phosphor-icons/react'
 import { forgetPart, orderListHref, partHref, usePartSession } from 'shared/part-session'
 import { useTheme } from 'shared/use-theme'
 
@@ -20,9 +20,28 @@ export interface AppHeaderProps {
   readonly toolCount: number
   /** Opens an in-workspace uploader when a part is already on screen. */
   readonly onUploadPart?: () => void
+  /**
+   * The tool-assembly tree, and the way back off it.
+   *
+   * **A shape being tried out needs a way back that is not a revert** (Paul,
+   * 2026-09-07: "make this a feature flag, as I may want to roll back"). The
+   * tree replaces how a feature's tools are chosen — the tree beside the table,
+   * the holder and collet tables, the stack on the right — so the switch is in
+   * the header rather than in an environment variable somebody has to restart a
+   * build to change. Absent on the pages that have no part and so no tree.
+   */
+  readonly assemblyTree?: boolean
+  readonly onAssemblyTree?: (on: boolean) => void
 }
 
-export const AppHeader = ({ unit, onUnit, toolCount, onUploadPart }: AppHeaderProps) => {
+export const AppHeader = ({
+  unit,
+  onUnit,
+  toolCount,
+  onUploadPart,
+  assemblyTree,
+  onAssemblyTree,
+}: AppHeaderProps) => {
   const [theme, onTheme] = useTheme()
   // A part stays loaded while somebody reads the catalog, so the tab that
   // brought them there takes them back to it rather than to an upload form
@@ -71,6 +90,20 @@ export const AppHeader = ({ unit, onUnit, toolCount, onUploadPart }: AppHeaderPr
         >
           {theme === 'dark' ? <SunIcon aria-hidden="true" /> : <MoonIcon aria-hidden="true" />}
         </IconButton>
+        {assemblyTree === undefined || onAssemblyTree === undefined ? null : (
+          <Chip
+            pressed={assemblyTree}
+            title={
+              assemblyTree
+                ? 'Showing the tool assembly tree. Press to go back to the old tool panel.'
+                : 'Showing the old tool panel. Press to try the tool assembly tree.'
+            }
+            onClick={() => onAssemblyTree(!assemblyTree)}
+          >
+            <TreeStructureIcon className="size-3.5" />
+            Tool tree
+          </Chip>
+        )}
         <ChipGroup label="Units">
           {UNIT_SYSTEMS.map((each) => (
             <Chip key={each} pressed={each === unit} onClick={() => onUnit(each)}>

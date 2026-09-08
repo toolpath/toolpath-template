@@ -23,12 +23,23 @@ const RULE = { vendorSpec: true, perDiameter: 3 }
  * the multiple, and that change reaching every tool the page reads.
  */
 describe('the catalog as this shop reads it', () => {
-  /** The dataset was built with this rule and this policy, so nothing moves. */
-  it('leaves the dataset’s own figures where the rule is the default', () => {
+  /**
+   * **The page floors the setup where the dataset does not** (Paul,
+   * 2026-09-07: "the shortest length below holder depth you should ever do is
+   * flute length + tool diameter").
+   *
+   * `build.ts` derives `LBH` with `DEFAULT_STICKOUT_POLICY`, whose floor is one
+   * figure for every tool; the page's floor is this tool's own flutes plus a
+   * diameter, which a package cannot know before it is asked about a tool. So
+   * the dataset carries 15 and the page reads 19 — 13 of flutes and 6 of
+   * diameter — and that divergence is the rule, not drift. The lockstep below
+   * still holds: it is about the shared *policy*, which has not moved.
+   */
+  it('floors the setup at the flutes plus a diameter', () => {
     const [read] = withClampingLength([sixMil], RULE)
 
-    expect(read?.geometry.LBH).toBe(15)
-    expect(read?.geometry.LD).toBe(2.5)
+    expect(read?.geometry.LBH).toBe(19)
+    expect(read?.geometry.LD).toBe(3.17)
     expect(read?.provenance.LBH).toBe('derived')
     expect(read?.provenance.LD).toBe('derived')
   })
@@ -37,16 +48,20 @@ describe('the catalog as this shop reads it', () => {
    * **A clamping rule moves the ceiling, and the setup only where it hits it**
    * (2026-09-03). `LBH` is the length the tool is set up at, so clamping more
    * shank shortens the column only once the ceiling comes down past the
-   * stickout: this tool sits at 15 with 39 mm of ceiling, and needs 14×D
-   * clamped before the ceiling reaches it.
+   * stickout.
+   *
+   * **And the ceiling beats the floor**, which is the half worth pinning: a
+   * shop that clamps 7.5×⌀ leaves this tool no shank to stand 19 out on, and
+   * the honest answer is the furthest it can go rather than a length it has no
+   * grip for.
    */
   it('shortens the setup once the shop clamps past it', () => {
     expect(
       withClampingLength([sixMil], { vendorSpec: true, perDiameter: 6 })[0]?.geometry.LBH,
-    ).toBe(15)
+    ).toBe(19)
 
     const hard = withClampingLength([sixMil], { vendorSpec: true, perDiameter: 7.5 })[0]
-    // 7.5×⌀6 leaves 12 of a 57 mm tool, under the 15 it would be set up at.
+    // 7.5×⌀6 leaves 13 of a 57 mm tool, under the 19 the floor asks for.
     expect(hard?.geometry.LBH).toBe(13)
     expect(hard?.geometry.LD).toBe(2.17)
   })
@@ -59,7 +74,7 @@ describe('the catalog as this shop reads it', () => {
   it('still bounds the setup where the rule says nothing', () => {
     const off = { vendorSpec: false, perDiameter: 0 }
 
-    expect(withClampingLength([sixMil], off)[0]?.geometry.LBH).toBe(15)
+    expect(withClampingLength([sixMil], off)[0]?.geometry.LBH).toBe(19)
   })
 
   it('leaves a tool that states no diameter or length alone', () => {

@@ -1,0 +1,376 @@
+import { describe, expect, it } from 'vitest'
+import {
+  DRAFT_TREE,
+  addAssembly,
+  assemblyName,
+  defaultAssemblies,
+  draftKeyFor,
+  emptyAssembly,
+  firstNode,
+  forThread,
+  guidAt,
+  heldIn,
+  isEmpty,
+  linesOf,
+  nextAssemblyId,
+  readTrees,
+  removeAssembly,
+  restoreAssembly,
+  sameNode,
+  setSlot,
+  slotLabel,
+  treeFromLines,
+  treeRows,
+  writeTrees,
+  type TreeAssembly,
+} from './assembly-tree'
+import { nextId } from './feature-list'
+
+const filled: TreeAssembly = {
+  id: 'assembly-1',
+  role: 'cut',
+  toolGuid: 'tool-a',
+  holderGuid: 'holder-a',
+  colletGuid: 'collet-a',
+}
+
+describe('what a feature starts with', () => {
+  it('gives an ordinary feature one stack', () => {
+    const made = defaultAssemblies(false)
+    expect(made).toHaveLength(1)
+    expect(made[0]?.role).toBe('cut')
+  })
+
+  it('gives a threaded hole a tap and a drill, tap first', () => {
+    expect(defaultAssemblies(true).map((each) => each.role)).toEqual(['tap', 'drill'])
+  })
+
+  it('names the tool slot after the role it is for', () => {
+    const [tap, drill] = defaultAssemblies(true)
+    expect(slotLabel(tap!, 'tool')).toBe('TAP')
+    expect(slotLabel(drill!, 'tool')).toBe('DRILL')
+    expect(slotLabel(tap!, 'holder')).toBe('HOLDER')
+  })
+})
+
+/**
+ * **A hole is plain until somebody says otherwise, and its stacks say the
+ * same** (Paul, 2026-09-07: "after I define one set of holes as threaded, it
+ * defaults to finding a tap for any new hole selection — new hole selections
+ * should be treated as new and default to plain").
+ *
+ * A tree is kept in the browser and a thread is not, so a tap stack outlived
+ * the reading that asked for it: the table opened on the taps for a hole the
+ * panel above it called plain.
+ */
+describe('the stacks following the thread', () => {
+  it('opens a tap and a drill once the hole is given a thread', () => {
+    expect(forThread(defaultAssemblies(false), true).map((each) => each.role)).toEqual([
+      'tap',
+      'drill',
+    ])
+  })
+
+  it('goes back to one stack on a hole nobody has called threaded', () => {
+    expect(forThread(defaultAssemblies(true), false).map((each) => each.role)).toEqual(['cut'])
+  })
+
+  it('leaves a tree that already matches the thread alone', () => {
+    const held = defaultAssemblies(true)
+    expect(forThread(held, true)).toBe(held)
+  })
+
+  /**
+   * **Work is never thrown away by a reading changing underneath it.** A stack
+   * with a component in it is somebody's answer; only empty stacks are the
+   * page's own opening position to correct.
+   */
+  it('keeps stacks that hold something, whatever the thread says', () => {
+    const built = setSlot(defaultAssemblies(true), 'assembly-1', 'tool', 'tap-a')
+    expect(forThread(built, false)).toBe(built)
+    expect(forThread([filled], true)).toEqual([filled])
+  })
+})
+
+/**
+ * **The drill hangs off the tap it predrills** (Paul, 2026-09-07: "the drill is
+ * dependent on the tap, but both the drill and the tap may have their own
+ * holder and collet"). Drawn as stacks of equal rank they read as two answers
+ * to one question rather than one answer taking two tools in an order.
+ */
+describe('how the stacks nest', () => {
+  it('hangs a threaded hole’s drill under its tap', () => {
+    expect(treeRows(defaultAssemblies(true))).toEqual([
+      { assembly: defaultAssemblies(true)[0], depth: 0 },
+      { assembly: defaultAssemblies(true)[1], depth: 1 },
+    ])
+  })
+
+  it('leaves every ordinary stack a root of its own', () => {
+    const two = addAssembly(defaultAssemblies(false))
+    expect(treeRows(two).map((row) => row.depth)).toEqual([0, 0])
+  })
+
+  /** A drill with no tap above it is a hole in its own right, not a child. */
+  it('makes a lone drill a stack of its own', () => {
+    expect(treeRows([emptyAssembly('assembly-1', 'drill')])[0]?.depth).toBe(0)
+  })
+
+  /** Drawn tap-first even where the bill happens to hold the drill first. */
+  it('draws the tap before the drill it predrills', () => {
+    const back = [emptyAssembly('assembly-1', 'drill'), emptyAssembly('assembly-2', 'tap')]
+    expect(treeRows(back).map((row) => [row.assembly.role, row.depth])).toEqual([
+      ['tap', 0],
+      ['drill', 1],
+    ])
+  })
+})
+
+describe('ids', () => {
+  it('reads the next off the tree rather than a clock', () => {
+    expect(nextAssemblyId(defaultAssemblies(true))).toBe('assembly-3')
+    expect(nextAssemblyId([])).toBe('assembly-1')
+  })
+
+  it('adds an empty stack on the end', () => {
+    const made = addAssembly(defaultAssemblies(false))
+    expect(made).toHaveLength(2)
+    expect(isEmpty(made[1]!)).toBe(true)
+  })
+})
+
+describe('filling a slot', () => {
+  it('puts a guid in the slot named', () => {
+    const made = setSlot(defaultAssemblies(false), 'assembly-1', 'holder', 'holder-a')
+    expect(guidAt(made[0]!, 'holder')).toBe('holder-a')
+  })
+
+  it('clears the collet when the holder changes, because a series is an interface', () => {
+    const made = setSlot([filled], 'assembly-1', 'holder', 'holder-b')
+    expect(made[0]?.holderGuid).toBe('holder-b')
+    expect(made[0]?.colletGuid).toBeNull()
+  })
+
+  it('leaves the tool alone when the collet changes', () => {
+    const made = setSlot([filled], 'assembly-1', 'collet', 'collet-b')
+    expect(made[0]?.toolGuid).toBe('tool-a')
+  })
+
+  it('empties a slot with null', () => {
+    expect(setSlot([filled], 'assembly-1', 'tool', null)[0]?.toolGuid).toBeNull()
+  })
+})
+
+describe('removing', () => {
+  it('takes the stack off', () => {
+    expect(removeAssembly(defaultAssemblies(true), 'assembly-1').map((each) => each.id)).toEqual([
+      'assembly-2',
+    ])
+  })
+
+  it('empties the last one rather than leaving a feature with no stack to click', () => {
+    const made = removeAssembly([filled], 'assembly-1')
+    expect(made).toHaveLength(1)
+    expect(isEmpty(made[0]!)).toBe(true)
+  })
+})
+
+describe('where the tree opens', () => {
+  it('lands on the first slot nobody has filled', () => {
+    const made = setSlot(defaultAssemblies(false), 'assembly-1', 'tool', 'tool-a')
+    expect(firstNode(made)).toEqual({ assemblyId: 'assembly-1', slot: 'holder' })
+  })
+
+  it('lands on the first tool when everything is filled', () => {
+    expect(firstNode([filled])).toEqual({ assemblyId: 'assembly-1', slot: 'tool' })
+  })
+
+  it('has nowhere to go on an empty tree', () => {
+    expect(firstNode([])).toBeNull()
+  })
+
+  it('tells two nodes apart', () => {
+    expect(sameNode({ assemblyId: 'a', slot: 'tool' }, { assemblyId: 'a', slot: 'tool' })).toBe(
+      true,
+    )
+    expect(sameNode({ assemblyId: 'a', slot: 'tool' }, { assemblyId: 'a', slot: 'holder' })).toBe(
+      false,
+    )
+    expect(sameNode(null, { assemblyId: 'a', slot: 'tool' })).toBe(false)
+  })
+})
+
+describe('the bill', () => {
+  it('writes a line only for a stack that has a tool', () => {
+    expect(linesOf([filled, emptyAssembly('assembly-2', 'cut')])).toEqual([
+      { toolGuid: 'tool-a', holderGuid: 'holder-a', colletGuid: 'collet-a' },
+    ])
+  })
+
+  it('leaves a holder with no tool off it — there is nothing to order yet', () => {
+    const held = setSlot(defaultAssemblies(false), 'assembly-1', 'holder', 'holder-a')
+    expect(linesOf(held)).toEqual([])
+  })
+
+  it('writes a tool-only line without inventing a holder', () => {
+    const made = setSlot(defaultAssemblies(false), 'assembly-1', 'tool', 'tool-a')
+    expect(linesOf(made)).toEqual([{ toolGuid: 'tool-a' }])
+  })
+
+  it('reads a tree back off lines already on the bill', () => {
+    const made = treeFromLines([{ toolGuid: 'tap-a' }, { toolGuid: 'drill-a' }], true)
+    expect(made.map((each) => each.role)).toEqual(['tap', 'drill'])
+    expect(made[1]?.toolGuid).toBe('drill-a')
+  })
+
+  /**
+   * **The bill is not in the tree's order.** Roles handed out by position gave
+   * a threaded hole whose drill was billed first a drill labelled `TAP`,
+   * opening the tap list on a drill.
+   */
+  it('reads which line is the tap off the tool rather than its position', () => {
+    const made = treeFromLines([{ toolGuid: 'drill-a' }, { toolGuid: 'tap-a' }], true, (guid) =>
+      guid.startsWith('tap'),
+    )
+    expect(made.map((each) => [each.role, each.toolGuid])).toEqual([
+      ['tap', 'tap-a'],
+      ['drill', 'drill-a'],
+    ])
+  })
+
+  it('falls back to the default stack where the bill holds nothing', () => {
+    expect(treeFromLines([], false)).toEqual(defaultAssemblies(false))
+  })
+})
+
+describe('the key a question keeps its stacks under before it is a row', () => {
+  it('gives two different questions two different keys', () => {
+    expect(draftKeyFor(['a'])).not.toBe(draftKeyFor(['b']))
+  })
+
+  /** The same features asked in a different order are the same question. */
+  it('does not care what order the tags came in', () => {
+    expect(draftKeyFor(['a', 'b'])).toBe(draftKeyFor(['b', 'a']))
+  })
+
+  /** List ids are `feature-N` / `group-N`, so the prefix can never be one. */
+  it('can never collide with a list id', () => {
+    expect(draftKeyFor(['a']).startsWith(`${DRAFT_TREE}:`)).toBe(true)
+    expect(nextId([], 'feature').startsWith(DRAFT_TREE)).toBe(false)
+    expect(nextId([], 'group').startsWith(DRAFT_TREE)).toBe(false)
+  })
+})
+
+describe('kept in the browser', () => {
+  const store = () => {
+    const held = new Map<string, string>()
+    return {
+      getItem: (key: string) => held.get(key) ?? null,
+      setItem: (key: string, value: string) => held.set(key, value),
+    }
+  }
+
+  it('keeps the trees for a part and reads them back', () => {
+    const storage = store()
+    writeTrees(storage, 'part-1', { 'feature-1': [filled] })
+    expect(readTrees(storage, 'part-1')['feature-1']).toEqual([filled])
+  })
+
+  it('reads another part as nothing kept', () => {
+    const storage = store()
+    writeTrees(storage, 'part-1', { 'feature-1': [filled] })
+    expect(readTrees(storage, 'part-2')).toEqual({})
+  })
+
+  it('reads unreadable storage as nothing kept rather than throwing', () => {
+    expect(readTrees({ getItem: () => 'not json' }, 'part-1')).toEqual({})
+  })
+
+  it('drops an entry that is not a list of stacks', () => {
+    const storage = { getItem: () => JSON.stringify({ 'feature-1': [{ id: 3 }] }) }
+    expect(readTrees(storage, 'part-1')).toEqual({})
+  })
+})
+
+/**
+ * **Backing out is a press.** A stack differing from the bill is an unsaved
+ * edit, and the only way out of one used to be remembering what had been there
+ * and finding it again in a table of two hundred (Paul, 2026-09-07).
+ */
+describe('putting a stack back to the line the bill holds', () => {
+  const tree: Array<TreeAssembly> = [
+    { id: 'assembly-1', role: 'cut', toolGuid: 'tool-a', holderGuid: 'holder-b', colletGuid: null },
+    { id: 'assembly-2', role: 'cut', toolGuid: 'tool-c', holderGuid: null, colletGuid: null },
+  ]
+
+  it('restores every slot, not the one being looked at', () => {
+    const back = restoreAssembly(tree, 'assembly-1', {
+      toolGuid: 'tool-a',
+      holderGuid: 'holder-a',
+      colletGuid: 'collet-a',
+    })
+    expect(back[0]).toEqual({
+      id: 'assembly-1',
+      role: 'cut',
+      toolGuid: 'tool-a',
+      holderGuid: 'holder-a',
+      colletGuid: 'collet-a',
+      // What is put back is the *line*, so the stack stands as that line again.
+      orderedTool: 'tool-a',
+    })
+  })
+
+  it('reads a slot the line does not state as empty rather than as unchanged', () => {
+    const back = restoreAssembly(tree, 'assembly-1', { toolGuid: 'tool-a' })
+    expect(back[0]?.holderGuid).toBeNull()
+  })
+
+  it('leaves the other stacks of the feature alone', () => {
+    const back = restoreAssembly(tree, 'assembly-1', { toolGuid: 'tool-a' })
+    expect(back[1]).toBe(tree[1])
+  })
+})
+
+/**
+ * **A badge says which stack, not that there is one** (Paul, 2026-09-07: "it
+ * should say which assembly it is used in rather than just saying 'in the
+ * tree'").
+ */
+describe('what a stack is called, and where a component stands', () => {
+  const twoStacks: Array<TreeAssembly> = [
+    { id: 'assembly-1', role: 'cut', toolGuid: 'tool-a', holderGuid: 'holder-a', colletGuid: null },
+    { id: 'assembly-2', role: 'cut', toolGuid: 'tool-b', holderGuid: 'holder-a', colletGuid: null },
+  ]
+  const threaded: Array<TreeAssembly> = [
+    { id: 'assembly-1', role: 'tap', toolGuid: 'tap-a', holderGuid: 'holder-a', colletGuid: null },
+    {
+      id: 'assembly-2',
+      role: 'drill',
+      toolGuid: 'drill-a',
+      holderGuid: 'holder-a',
+      colletGuid: null,
+    },
+  ]
+
+  it('numbers a plain stack by where it stands', () => {
+    expect(assemblyName(twoStacks, twoStacks[1] as TreeAssembly)).toBe('Assembly 2')
+  })
+
+  it('calls a tap and a drill what they are', () => {
+    expect(assemblyName(threaded, threaded[0] as TreeAssembly)).toBe('TAP')
+    expect(assemblyName(threaded, threaded[1] as TreeAssembly)).toBe('DRILL')
+  })
+
+  it('names the stacks a component is standing in', () => {
+    expect(heldIn(threaded, 'holder-a')).toEqual(['TAP', 'DRILL'])
+  })
+
+  /** The table's own selected row already says that one. */
+  it('leaves out the stack being filled', () => {
+    expect(heldIn(twoStacks, 'holder-a', 'assembly-1')).toEqual(['Assembly 2'])
+  })
+
+  it('names nothing for a component standing nowhere', () => {
+    expect(heldIn(twoStacks, 'holder-z')).toEqual([])
+  })
+})

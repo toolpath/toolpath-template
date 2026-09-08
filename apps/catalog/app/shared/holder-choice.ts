@@ -18,6 +18,7 @@ import {
   type StickoutPolicy,
 } from '@toolpath/catalog-data'
 import { KNOBS, knobValue, type Knob } from './rules'
+import { atLeastFloor, withLeastFor } from './stickout-floor'
 
 /**
  * Every way to hold one tool for one feature, each pulled out as far as it
@@ -139,8 +140,12 @@ const optionFor = (
   const probe =
     curve === null ? null : clearance({ tool, holder, collet, stickout: 0 }, curve, margins)
   const required = probe?.requiredStickout ?? null
-  const limits = stickoutLimits(tool, collet, required, policyOf(thresholds))
-  const stickout = limits?.setup ?? null
+  const policy = withLeastFor(policyOf(thresholds), tool.geometry)
+  const limits = stickoutLimits(tool, collet, required, policy)
+  const stickout = atLeastFloor(limits?.setup ?? null, tool.geometry, {
+    floor: policyOf(thresholds).least,
+    ceiling: limits?.max ?? null,
+  })
   const band = stickout === null ? null : holdBand(tool, stickout, thresholds)
   const check =
     curve === null || stickout === null
@@ -275,3 +280,44 @@ export const describeGrade = (option: HolderOption): string => {
   // is worth a word only when it is bad.
   return option.band === 'bad' ? 'too little of the tool in the holder' : ''
 }
+
+/**
+ * Whether a holder can be drawn at all.
+ *
+ * **A holder nobody can draw is not worth offering** (Paul, 2026-09-07: "some
+ * holders in the drop down don't render — exclude any holders without models").
+ *
+ * There are two ways to have a silhouette and a holder needs one of them. A
+ * measured profile is the good one: the vendor's own CAD, cut at the gage line.
+ * Failing that the drawing falls back to the published dimensions.
+ *
+ * **The parametric fallback turns on `noseDiameter` and nothing else.**
+ * `parametricSegments` in `@toolpath/tool-drawing` returns no segments at all
+ * when it is null, and every other dimension it reads is optional — a nose
+ * length defaults to the gauge length, a body and a flange are each skipped
+ * when their pair is incomplete. So a holder stating a flange and no nose draws
+ * nothing, and one stating a nose alone draws. A first version of this checked
+ * whether *any* of the six published dimensions was stated, which is the
+ * plausible rule and the wrong one: it passed all 21 REGO-FIX holders, none of
+ * which state a nose, and every one of them still drew a blank panel.
+ *
+ * That is a rule this application does not own, so
+ * `holder-drawable.test.ts` checks it against the real `assemblyOutline`
+ * rather than restating it — the same lockstep `catalog-drawing.test.tsx`
+ * keeps over the drawing frame, and for the same reason: a copy nobody checks
+ * drifts.
+ *
+ * Under the record seam this is most of the rack. A `HolderRecord` carries
+ * identity, taper and gauge length and no geometry at all, so on 2026-09-07
+ * **no holder in the scrape was parametrically drawable** — 0 of 555 — and a
+ * drawable rack is entirely what `pnpm --filter @toolpath/catalog-data profiles`
+ * measures. 379 of those 555 publish a CAD model to measure; the other 176
+ * have no silhouette from any source and are the ones this genuinely hides.
+ *
+ * **The list of tools is not narrowed by this.** Whether a tool can be *held*
+ * is a different question from whether the holder has a picture, and answering
+ * them with one rule would take tools off a shop's list because a vendor
+ * publishes no CAD.
+ */
+export const drawable = (holder: Holder, hasProfile: (guid: string) => boolean): boolean =>
+  hasProfile(holder.guid) || holder.noseDiameter !== null

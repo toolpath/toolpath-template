@@ -42,7 +42,7 @@
     "test": "vitest run",
     "build:sample-profiles": "pnpm build && node scripts/build-sample-profiles.mjs",
     "scrape:holding": "pnpm build && node scripts/scrape-holding.mjs",
-    "profiles": "pnpm build && node scripts/profiles.mjs"
+    "profiles": "pnpm build && node --env-file-if-exists=.env scripts/profiles.mjs"
   },
   "dependencies": {
     "@toolpath/part-contracts": "workspace:*",

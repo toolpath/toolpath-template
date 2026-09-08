@@ -88,24 +88,32 @@ export const closeCandidates = (
 }
 
 /**
- * Which rule excluded the most tools: the one to reconsider first.
+ * How many tools each rule was the first to remove, by the rule's own text.
  *
- * Named by its text — the sheet row as written — so an empty list can say
- * "diameter <= largest tool diameter is what rules them out" rather than only
- * which feature.
+ * **A tally rather than the verdicts** because the verdicts do not survive the
+ * worker boundary: a drill question removes ~37,000 tools and only the nearest
+ * few dozen are worth sending, so the count that {@link tightestOf} reads is
+ * taken where the whole set still exists (2026-09-07). Named by its text — the
+ * sheet row as written — so an answer can say "diameter <= largest tool
+ * diameter is what rules them out" rather than only which feature.
  */
-export const tightestRule = (excluded: ReadonlyArray<Verdict>): string | null => {
-  const counts = new Map<string, number>()
+export const ruleTally = (excluded: ReadonlyArray<Verdict>): Record<string, number> => {
+  const counts: Record<string, number> = {}
   for (const verdict of excluded) {
     const first = verdict.removed[0]
     if (first) {
       const name = first.rule?.text ?? 'the tool types this feature considers'
-      counts.set(name, (counts.get(name) ?? 0) + 1)
+      counts[name] = (counts[name] ?? 0) + 1
     }
   }
+  return counts
+}
+
+/** Which rule excluded the most tools: the one to reconsider first. */
+export const tightestOf = (tally: Readonly<Record<string, number>>): string | null => {
   let worst: string | null = null
   let most = 0
-  for (const [name, count] of counts) {
+  for (const [name, count] of Object.entries(tally)) {
     if (count > most) {
       worst = name
       most = count
@@ -113,3 +121,7 @@ export const tightestRule = (excluded: ReadonlyArray<Verdict>): string | null =>
   }
   return worst
 }
+
+/** The same answer from the verdicts themselves, for a caller that holds them all. */
+export const tightestRule = (excluded: ReadonlyArray<Verdict>): string | null =>
+  tightestOf(ruleTally(excluded))

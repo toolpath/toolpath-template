@@ -51,7 +51,8 @@ const announce = (chosen: DatasetChoice): DatasetChoice => {
 /**
  * Which measured holder profiles get bundled.
  *
- * A scrape that has run `toolpath-scrape profiles` on this machine leaves
+ * A scrape that has run `pnpm --filter @toolpath/catalog-data profiles` on this
+ * machine leaves
  * `scrape-out/profiles.json` beside its catalog, and a checkout has the
  * committed synthetic sample. They are two aliases rather than one because the
  * profiles are a second document on purpose — ~110 vertices per holder that

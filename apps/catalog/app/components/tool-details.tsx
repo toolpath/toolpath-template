@@ -1,7 +1,13 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { ArrowSquareOutIcon } from '@phosphor-icons/react'
 import { Badge, Button, Combobox, Toggle, cn } from '@toolpath/ui'
-import { NO_MARGINS, type CatalogTool, type Margins } from '@toolpath/catalog-data'
+import {
+  NO_MARGINS,
+  type CatalogTool,
+  type Collet,
+  type Holder,
+  type Margins,
+} from '@toolpath/catalog-data'
 import type { ReachCurve } from '@toolpath/part-contracts'
 import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { formatGeometry } from 'shared/geometry'
@@ -131,6 +137,30 @@ export interface ToolDetailsProps {
   readonly curve?: ReachCurve | null
   /** Room the shop wants kept between the stack and the part. */
   readonly margins?: Margins
+  /**
+   * The stack around the tool, where something other than this panel holds it.
+   *
+   * **The tool assembly tree is that something** (Paul, 2026-09-07): with the
+   * tree on, a holder is a slot with a table of its own and this panel offers
+   * no dropdowns at all — so `holding` is absent, and without this the sheet
+   * would draw the cutter on its own beside a stack the tree had fully
+   * assembled. `holding` still wins where both are given: the dropdowns and the
+   * picture must not be able to disagree.
+   */
+  readonly stack?: { readonly holder: Holder | null; readonly collet: Collet | null }
+  /**
+   * What fills the column under the drawing, in place of the tool's numbers.
+   *
+   * **One drawing, and only the details change** (Paul, 2026-09-07: "there
+   * should really only be one view that can show tool and tool + holder, only
+   * the details column should change when a different component is selected").
+   * Selecting a holder in the tree used to swap the whole panel for a second
+   * drawing in a box of its own — which is why that one came out lying on its
+   * side, and why the Tool / Tool + holder switch vanished the moment somebody
+   * looked at a holder. The sheet above is the same sheet either way; this is
+   * the half that answers "which component am I reading".
+   */
+  readonly details?: ReactNode
 }
 
 export const ToolDetails = ({
@@ -141,6 +171,8 @@ export const ToolDetails = ({
   mappedTo = [],
   curve = null,
   margins = NO_MARGINS,
+  stack,
+  details,
 }: ToolDetailsProps) => {
   const family = getFamily(tool.familyId)
   /**
@@ -161,8 +193,17 @@ export const ToolDetails = ({
    * about what is lit.
    */
   const [pointed, setPointed] = useState<string | null>(null)
-  const chosen = holding?.chosen(tool) ?? { holderGuid: null, colletGuid: null }
+  const chosen = holding?.chosen(tool) ?? {
+    holderGuid: stack?.holder?.guid ?? null,
+    colletGuid: stack?.collet?.guid ?? null,
+  }
   const holders = holding?.holdersFor(tool) ?? []
+  /**
+   * Holders that fit and have no picture, which is why they are not on the
+   * list above (Paul, 2026-09-07). Zero once they have been measured, and the
+   * note goes with it.
+   */
+  const undrawable = holding?.undrawable?.(tool) ?? 0
   const collets = holding?.colletsFor(tool, chosen.holderGuid) ?? []
   /**
    * What the stack has to stand out to clear, from the list rather than the
@@ -172,7 +213,8 @@ export const ToolDetails = ({
    * other would be two answers to one question.
    */
   const needed = holding?.requiredStickout(tool) ?? null
-  const holderChosen = holders.find((each) => each.guid === chosen.holderGuid)?.holder
+  const holderChosen =
+    holders.find((each) => each.guid === chosen.holderGuid)?.holder ?? stack?.holder ?? undefined
   const stickout = holding?.stickoutFor?.(tool) ?? null
   /**
    * The stack, worked out where every other page works it out.
@@ -322,6 +364,19 @@ export const ToolDetails = ({
               </Combobox.List>
             </Combobox.Popover>
           </Combobox>
+          {/*
+            **An empty dropdown has to say which empty it is** (Paul,
+            2026-09-07: "now I see no holders"). Nothing fitting and everything
+            fitting but unmeasured both showed the same "No holder", so a
+            measuring run nobody had made read as a broken page.
+          */}
+          {undrawable === 0 ? null : (
+            <p className="text-2xs text-zinc-500">
+              {holders.length === 0
+                ? `${undrawable} holder${undrawable === 1 ? '' : 's'} fit here, none with a model to draw.`
+                : `${undrawable} more fit but have no model to draw.`}
+            </p>
+          )}
           <Combobox
             items={['', ...collets.map((each) => each.guid)]}
             value={chosen.colletGuid ?? ''}
@@ -400,46 +455,73 @@ export const ToolDetails = ({
           same tone the table's rows are — so the sheet reads as a thing on the
           panel rather than as the panel itself.
         */}
-        <div className="flex min-h-0 flex-1 flex-col">
-          <CatalogDrawing
-            tool={tool}
-            unit={unit}
-            curve={curve}
-            margins={margins}
-            materialRoom={PANEL_MATERIAL_ROOM}
-            dimensions
-            dimensionSides="both"
-            highlight={pointed}
-            onDimensionHover={setPointed}
-            assembly={drawnAsStack ? drawn.assembly : null}
-          />
+        {/*
+          **The sheet is portrait by construction** (Paul, 2026-09-07, twice:
+          "should be kept vertical", then "holder visualization is still
+          horizontal").
+
+          `orientationFor` in `@toolpath/tool-drawing` is
+          `width >= height ? 'horizontal' : 'vertical'` — the measured box and
+          nothing else, with no prop to override it. So a wide panel, or a short
+          window, or a details column that happens to be tall enough to squeeze
+          the sheet, all lay the tool on its side; the first fix only gave the
+          box a definite height, which left the ratio to chance.
+
+          **A capped width and a floor under the height**, rather than an
+          aspect ratio off `h-full`. That version was right two runs in three
+          and wrong in the other: `h-full` resolves against a parent whose own
+          height is not definite on the first layout pass, so `aspect-ratio`
+          derived the height from the width instead and the box came out
+          landscape — and the package reads the box once. 16 rem of width under
+          18 rem of height cannot be landscape whatever the panel is doing,
+          because neither figure waits on a percentage to resolve. A taller
+          panel only makes it more portrait.
+        */}
+        <div className="flex min-h-0 flex-1 flex-col items-center">
+          <div className="h-full min-h-[18rem] w-full max-w-[16rem]">
+            <CatalogDrawing
+              tool={tool}
+              unit={unit}
+              curve={curve}
+              margins={margins}
+              materialRoom={PANEL_MATERIAL_ROOM}
+              dimensions
+              dimensionSides="both"
+              highlight={pointed}
+              onDimensionHover={setPointed}
+              assembly={drawnAsStack ? drawn.assembly : null}
+            />
+          </div>
         </div>
       </div>
 
       {/* The numbers it is chosen on, at the bottom: two columns, big enough
           to read across the desk, each saying what it is rather than only its
-          code (Paul, 2026-09-01). */}
-      <dl className="grid shrink-0 grid-cols-2 gap-x-4 gap-y-1.5 overflow-auto rounded-lg border border-zinc-800 bg-zinc-950 p-2">
-        {KEY_CODES.flatMap((code) => {
-          /**
-           * **`LBH` is whatever the drawing above is drawn at** (2026-09-03).
-           * The panel printed the tool's own figure beside a drawing of the
-           * stack, so a tool set out further to clear the part read as two
-           * different lengths on one card — and the sheet dimensioned the one
-           * it drew. Drawn as the stack, the number is the stack's; drawn
-           * alone, it is the tool's own.
-           */
-          const asDrawn = drawnAsStack ? drawn.stickout : null
-          const shown = code === 'LBH' && asDrawn !== null ? asDrawn : tool.geometry[code]
-          const value = shown
-          if (value === undefined) {
-            return []
-          }
-          const provenance = code === 'LBH' && asDrawn !== null ? 'derived' : tool.provenance[code]
-          return [
-            <div
-              key={code}
-              /*
+          code (Paul, 2026-09-01) — or whatever else is being read, where the
+          caller is showing a component of the stack rather than the cutter. */}
+      {details === undefined ? (
+        <dl className="grid shrink-0 grid-cols-2 gap-x-4 gap-y-1.5 overflow-auto rounded-lg border border-zinc-800 bg-zinc-950 p-2">
+          {KEY_CODES.flatMap((code) => {
+            /**
+             * **`LBH` is whatever the drawing above is drawn at** (2026-09-03).
+             * The panel printed the tool's own figure beside a drawing of the
+             * stack, so a tool set out further to clear the part read as two
+             * different lengths on one card — and the sheet dimensioned the one
+             * it drew. Drawn as the stack, the number is the stack's; drawn
+             * alone, it is the tool's own.
+             */
+            const asDrawn = drawnAsStack ? drawn.stickout : null
+            const shown = code === 'LBH' && asDrawn !== null ? asDrawn : tool.geometry[code]
+            const value = shown
+            if (value === undefined) {
+              return []
+            }
+            const provenance =
+              code === 'LBH' && asDrawn !== null ? 'derived' : tool.provenance[code]
+            return [
+              <div
+                key={code}
+                /*
                 Pointing at a number lights its line on the drawing above, and
                 the drawing lights the number back. The pointer only: a card
                 holds nothing focusable, so a `focus` handler here would be a
@@ -447,48 +529,53 @@ export const ToolDetails = ({
                 keyboard means making eight cards tab stops, which is a bigger
                 question than this change.
               */
-              onMouseEnter={() => setPointed(code)}
-              onMouseLeave={() => setPointed(null)}
-              className={cn(
-                'flex items-baseline justify-between gap-2 rounded-sm border-b border-zinc-900 pb-1 transition',
-                // The same blue the panel lights the tool it is about in, so
-                // the sheet and the table agree about what is being pointed at.
-                pointed === code ? 'bg-info/15' : null,
-              )}
-              title={
-                provenance && provenance !== 'vendor-stated'
-                  ? `${provenance} — not the vendor's figure`
-                  : 'vendor-stated'
-              }
-            >
-              <dt className="text-2xs flex min-w-0 items-center gap-1.5 text-zinc-500">
-                <span className="shrink-0 text-zinc-600">
-                  <MeasurementIcon measurement={code} />
-                </span>
-                <span className="truncate">{KEY_LABELS[code]}</span>
-                {UNLETTERED.has(code) ? null : (
-                  <span className="shrink-0 font-mono text-zinc-600">{code}</span>
+                onMouseEnter={() => setPointed(code)}
+                onMouseLeave={() => setPointed(null)}
+                className={cn(
+                  'flex items-baseline justify-between gap-2 rounded-sm border-b border-zinc-900 pb-1 transition',
+                  // The same blue the panel lights the tool it is about in, so
+                  // the sheet and the table agree about what is being pointed at.
+                  pointed === code ? 'bg-info/15' : null,
                 )}
-              </dt>
-              <dd className="font-mono text-sm text-zinc-100">
-                {formatGeometry(code, value, unit)}
-                {provenance && provenance !== 'vendor-stated' ? (
-                  /*
+                title={
+                  provenance && provenance !== 'vendor-stated'
+                    ? `${provenance} — not the vendor's figure`
+                    : 'vendor-stated'
+                }
+              >
+                <dt className="text-2xs flex min-w-0 items-center gap-1.5 text-zinc-500">
+                  <span className="shrink-0 text-zinc-600">
+                    <MeasurementIcon measurement={code} />
+                  </span>
+                  <span className="truncate">{KEY_LABELS[code]}</span>
+                  {UNLETTERED.has(code) ? null : (
+                    <span className="shrink-0 font-mono text-zinc-600">{code}</span>
+                  )}
+                </dt>
+                <dd className="font-mono text-sm text-zinc-100">
+                  {formatGeometry(code, value, unit)}
+                  {provenance && provenance !== 'vendor-stated' ? (
+                    /*
                     **A footnote mark, not a unit** (Paul, 2026-09-01: "L/D
                     ratio in tool details shows a degree sign instead of a X").
                     The degree sign after a number reads as degrees, and the two
                     figures this catalog derives — the L/D and the length below
                     the holder — are exactly the two it sat on.
                   */
-                  <sup className="ml-0.5 text-zinc-500" aria-label={provenance}>
-                    *
-                  </sup>
-                ) : null}
-              </dd>
-            </div>,
-          ]
-        })}
-      </dl>
+                    <sup className="ml-0.5 text-zinc-500" aria-label={provenance}>
+                      *
+                    </sup>
+                  ) : null}
+                </dd>
+              </div>,
+            ]
+          })}
+        </dl>
+      ) : (
+        <div className="shrink-0 overflow-auto rounded-lg border border-zinc-800 bg-zinc-950 p-2">
+          {details}
+        </div>
+      )}
     </div>
   )
 }

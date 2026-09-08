@@ -78,6 +78,18 @@ export interface Holding {
   readonly requiredStickout: (tool: CatalogTool) => number | null
   readonly stickoutFor: (tool: CatalogTool) => number | null
   readonly reachNote?: (tool: CatalogTool) => string | null
+  /**
+   * How many holders that would otherwise fit were left off for having no
+   * picture, so the panel can say so.
+   *
+   * **An empty dropdown that fits is indistinguishable from one that was
+   * filtered** (Paul, 2026-09-07: "I just asked you to hide holders that do
+   * not have profiles, and now I see no holders"). `drawable` hid every holder
+   * in the rack, and the panel showed the same "No holder" it shows for a tool
+   * nothing holds — so a missing measuring run read as a broken page. This is
+   * the count behind that silence, and zero where nothing was hidden.
+   */
+  readonly undrawable?: (tool: CatalogTool) => number
   readonly onChoose: (
     tool: CatalogTool,
     choice: { readonly holderGuid: string | null; readonly colletGuid: string | null },

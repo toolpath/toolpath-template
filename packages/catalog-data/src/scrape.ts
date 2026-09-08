@@ -463,7 +463,46 @@ type HoldingScraper = (
  * rather than being typed here, except the group name, which is the one string
  * the family config does not carry.
  */
+/**
+ * The Kennametal family code behind each toolholding family, by CSV name.
+ *
+ * **Declared here because nothing declares it.** A cutting-tool family carries
+ * its own `familyCode`; a toolholding family carries none, and the scraper's
+ * own `families/kennametal.ts` says why — the codes "were scraped by hand from
+ * a code read off the page at the time". Kennametal's category pages build
+ * their family lists in the browser, so there is nothing to read them off
+ * without one.
+ *
+ * Read from the vendor's own family-page URLs (Paul, 2026-09-07), which are
+ * `fam.<slug>.<code>.html`. The slug does not matter — AEM resolves the page
+ * off the numeric code alone — so the slug is kept here only as the evidence
+ * of which page the code came from.
+ *
+ * This is the same stopgap `REGOFIX_COLLET_GROUPS` below is: a table the
+ * scraper should own, kept here until toolholding has a record seam.
+ */
+const KENNAMETAL_HOLDING_CODES: Readonly<Record<string, string>> = {
+  // fam.er-standard-collets-metric.100000478.html
+  'er_standard_collets_metric.csv': '100000478',
+  // fam.er-standard-collets-inch.100000479.html — the inch listing of the same
+  // ER standard collet, which is what the vendor publishes under that name.
+  'er16_collets_coolant_through_inch.csv': '100000479',
+  // fam.er-collet-adapter-bt30.100149552.html
+  'bt30_er_collet_adapters_metric.csv': '100149552',
+}
+
 const HOLDING_SCRAPERS: Readonly<Record<string, HoldingScraper>> = {
+  /**
+   * The AEM variant table, the same endpoint the cutting tools come from.
+   *
+   * A family this table has no code for answers `null`, which `holdingReachable`
+   * reports as the family not being one this brand knows — the honest answer,
+   * and the one that keeps a missing code from reading as a broken scrape.
+   */
+  kennametal: (fetcher, csvName) => {
+    const code = KENNAMETAL_HOLDING_CODES[csvName]
+    return code === undefined ? null : scrapeFamily(fetcher, code, 'kennametal', [], AEM_TITLE)
+  },
   maritool: (fetcher, csvName, warn) => {
     const leaves = MARITOOL_LEAVES[csvName as keyof typeof MARITOOL_LEAVES]
     return leaves === undefined

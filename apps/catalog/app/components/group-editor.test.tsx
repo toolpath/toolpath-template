@@ -64,20 +64,20 @@ describe('building a group', () => {
   /**
    * The result option is the whole reason a group is a thing rather than a
    * multiple selection: one tool that cuts all of them, or the best for each.
+   *
+   * **Only the first of those is offered** (Paul, 2026-09-07: *the best tool
+   * for each* is parked). The model still has `each` — a group already saved
+   * as one still answers — so what this pins is that the box no longer offers
+   * it, which is the whole of the change and the whole of undoing it.
    */
-  it('offers the two questions a group can ask, and reports the change', () => {
-    const { onResults } = show()
+  it('offers the one question a group can ask, and not the parked one', () => {
+    show()
 
-    const each = screen.getByRole('button', { name: /The best tool for each/ })
     const all = screen.getByRole('button', { name: /One tool for all of them/ })
     expect(all).toHaveAttribute('aria-pressed', 'true')
     expect(all).toHaveClass('w-full')
-    expect(each).toHaveClass('w-full')
     expect(all.firstElementChild).toHaveClass('w-full', 'justify-start', 'text-left')
-    expect(each.firstElementChild).toHaveClass('w-full', 'justify-start', 'text-left')
-    fireEvent.click(each)
-
-    expect(onResults).toHaveBeenCalledWith('each')
+    expect(screen.queryByRole('button', { name: /The best tool for each/ })).toBeNull()
   })
 
   /** A group of nothing is not a group, so the way out of an empty draft is Cancel. */

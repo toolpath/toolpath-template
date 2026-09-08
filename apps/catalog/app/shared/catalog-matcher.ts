@@ -5,9 +5,9 @@ import { withClampingLength, type ClampingRule } from './clamping-length'
 import { filterTools, type ToolQuery } from './filter'
 import { holdable, policyOf, type HoldThresholds } from './holder-choice'
 import { holdableTools, splitHolding } from './holding'
-import { type Format, type Reason, type Verdict } from './judge'
+import { closestMisses, type Format, type Reason, type Verdict } from './judge'
 import { sectionOf } from './section-of'
-import { fittingTools } from './tool-fit'
+import { fittingTools, ruleTally } from './tool-fit'
 import { holeAt } from './hole-mode'
 import { RULES, type Knob } from './rules'
 
@@ -63,7 +63,25 @@ export interface CompactVerdict {
 export interface DetailedResult {
   readonly demandKey: string
   readonly fitting: ReadonlyArray<CompactVerdict>
-  readonly excluded: ReadonlyArray<CompactVerdict>
+  /**
+   * The removed tools that came closest, and only those.
+   *
+   * **The whole excluded set does not cross the worker boundary** (2026-09-07).
+   * A drill question against the scraped catalog removes some 37,000 tools, and
+   * sending them was a 21 MB structured clone each way for a list of eight near
+   * misses, a tally and a count — measured at ~90 ms in each direction before a
+   * row was drawn, with four of them held in the worker's table cache.
+   *
+   * {@link NEAR_MISSES} of them, ranked the way `closestMisses` ranks, so the
+   * eight the panel asks for are the eight it would have picked from the whole
+   * set. What is lost is a verdict for a tool nothing was going to show — which
+   * is why the two things a count *is* used for travel beside it as numbers.
+   */
+  readonly nearMisses: ReadonlyArray<CompactVerdict>
+  /** How many tools the rules removed in all, since {@link nearMisses} is a slice of them. */
+  readonly excludedCount: number
+  /** How many each rule removed first: what `tightestOf` reads. */
+  readonly ruleTally: Readonly<Record<string, number>>
   readonly narrowedGuids: ReadonlyArray<string>
   readonly heldGuids: ReadonlyArray<string>
 }
@@ -214,16 +232,37 @@ export interface MatcherCatalog {
 
 /** Work shared by every demand in one worker request. */
 export interface PreparedMatch {
-  /** Table matching uses the catalog's configured setup length. */
+  /** The whole catalog at the shop's configured setup length. */
   readonly tools: ReadonlyArray<CatalogTool>
-  /** Recommendations are narrowed before the existing rule pipeline runs. */
+  /**
+   * The tools any answer is drawn from: the discrete filters, **without the
+   * ranges**.
+   *
+   * **This is what the rules are run over** (2026-09-07). Judging the whole
+   * catalog and narrowing afterwards cost 340 ms a demand against the scraped
+   * 38,114 tools — a drill question paying to judge 11,566 taps and 21,132 end
+   * mills before discarding them — and the feature list asks one demand per
+   * row, so a forty-hole part spent twelve seconds of the one worker thread
+   * before a single drill reached the table. Judging this set instead is 65 ms.
+   *
+   * The ranges are deliberately left out rather than folded in with the rest:
+   * `closeCandidates` drops them too, because "close" is exactly a tool a
+   * little outside a range, and a near miss judged away here could not be
+   * offered as one later.
+   */
+  readonly considered: ReadonlyArray<CatalogTool>
+  /** Those of them the filters actually admit — what a row may show. */
   readonly admitted: ReadonlyArray<CatalogTool>
 }
 
 export const prepareMatch = (context: MatchContext, catalog: MatcherCatalog): PreparedMatch => {
   const tools = withClampingLength(catalog.tools, context.clamping, policyOf(context.thresholds))
   const { tools: toolQuery, holding } = splitHolding(context.query)
-  return { tools, admitted: holdableTools(filterTools(tools, toolQuery), holding) }
+  const considered = holdableTools(filterTools(tools, { ...toolQuery, ranges: {} }), holding)
+  // The same set the old one-pass filter gave: the discrete predicate is
+  // idempotent and the holding one is independent of it, so applying the ranges
+  // to what is already discretely filtered leaves the ranges as the difference.
+  return { tools, considered, admitted: filterTools(considered, toolQuery) }
 }
 
 interface DemandMatch {
@@ -248,7 +287,7 @@ const matchDemand = (
   const fitting = fittingTools(
     effectiveFeatures(context, demand),
     context.features,
-    prepared.tools,
+    prepared.considered,
     matcherFormat(context.unit),
     context.knobs,
   )
@@ -281,6 +320,15 @@ const matchDemand = (
   return { fitting: fitting.fitting, excluded: fitting.excluded, narrowed, held }
 }
 
+/**
+ * How many of the removed tools travel back with a table answer.
+ *
+ * The panel asks for eight. The rest of the headroom is for `closeCandidates`,
+ * which narrows them again by the discrete filters before the eight are taken,
+ * and for the marks the table paints on a near miss it draws.
+ */
+const NEAR_MISSES = 50
+
 /** Runs the existing detailed table pipeline with only cloneable request inputs. */
 export const detailedMatch = (
   context: MatchContext,
@@ -292,7 +340,9 @@ export const detailedMatch = (
   return {
     demandKey: demand.demandKey,
     fitting: matched.fitting.map(compact),
-    excluded: matched.excluded.map(compact),
+    nearMisses: closestMisses(matched.excluded, NEAR_MISSES).map(compact),
+    excludedCount: matched.excluded.length,
+    ruleTally: ruleTally(matched.excluded),
     narrowedGuids: matched.narrowed.map((verdict) => verdict.tool.guid),
     heldGuids: matched.held.map((verdict) => verdict.tool.guid),
   }

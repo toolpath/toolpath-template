@@ -108,6 +108,6 @@ export const profilesSource = (
     fromScrape: false,
     note:
       `No measured holder profiles beside ${dataset.path}; no holder in it will be drawn as ` +
-      'measured. Run `toolpath-scrape profiles` to measure them.',
+      'measured. Run `pnpm --filter @toolpath/catalog-data profiles` to measure them.',
   }
 }

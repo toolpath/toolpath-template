@@ -12,7 +12,8 @@ import {
 } from './catalog-matcher'
 import { EMPTY_QUERY } from './filter'
 import { policyOf, thresholdsFrom } from './holder-choice'
-import { fittingTools } from './tool-fit'
+import { fittingTools, ruleTally, tightestOf, tightestRule } from './tool-fit'
+import { closestMisses } from './judge'
 
 const tool = (guid: string, DC: number): CatalogTool =>
   ({
@@ -54,6 +55,13 @@ const context = (features: ReadonlyArray<PartFeature>): MatchContext => ({
 })
 
 const catalog = { tools: [tool('SMALL', 6), tool('LARGE', 10)], holders: [], collets: [] }
+
+/** Two that the 8-10 mm pocket admits and one it is too wide for, by a stated amount. */
+const wide = {
+  tools: [tool('SMALL', 6), tool('MID', 7), tool('WIDE', 10)],
+  holders: [],
+  collets: [],
+}
 
 const holder: Holder = {
   guid: 'holder-1',
@@ -207,6 +215,52 @@ describe('catalog matcher protocol', () => {
       state: 'ready',
       toolGuid: detailed.heldGuids[0],
     })
+  })
+
+  it('judges the discrete filters without the ranges, so a range hides a tool without unjudging it', () => {
+    const feature = pocket('pocket-1')
+    const input = {
+      ...context([feature]),
+      // 7 mm exactly: the pocket admits SMALL and MID, and the range admits MID.
+      query: { text: '', terms: {}, ranges: { DC: { min: 7, max: 7 } } },
+    }
+    const prepared = prepareMatch(input, wide)
+    const result = detailedMatch(
+      input,
+      { demandKey: 'one', tags: [feature.featureTag] },
+      wide,
+      prepared,
+    )
+
+    expect(prepared.considered.map((each) => each.guid)).toEqual(['SMALL', 'MID', 'WIDE'])
+    expect(prepared.admitted.map((each) => each.guid)).toEqual(['MID'])
+    // The rules were run over all three, so the one the range hides is still a
+    // near miss the panel can offer rather than a tool nobody ever judged.
+    expect(result.fitting.map((each) => each.toolGuid).sort()).toEqual(['MID', 'SMALL'])
+    expect(result.narrowedGuids).toEqual(['MID'])
+    expect(result.nearMisses.map((each) => each.toolGuid)).toEqual(['WIDE'])
+  })
+
+  it('sends the closest misses with the whole removed set as a count and a tally', () => {
+    const feature = pocket('pocket-1')
+    const input = context([feature])
+    const result = detailedMatch(input, { demandKey: 'one', tags: [feature.featureTag] }, wide)
+    const every = fittingTools(
+      [feature],
+      [feature],
+      withClampingLength(wide.tools, SHEET_CLAMPING, policyOf(input.thresholds)),
+      undefined,
+      input.knobs,
+    )
+
+    // The count and the tally are taken where the whole set still exists; only
+    // the near misses themselves cross the boundary.
+    expect(result.excludedCount).toBe(every.excluded.length)
+    expect(result.ruleTally).toEqual(ruleTally(every.excluded))
+    expect(tightestOf(result.ruleTally)).toBe(tightestRule(every.excluded))
+    expect(result.nearMisses.map((each) => each.toolGuid)).toEqual(
+      closestMisses(every.excluded, 50).map((verdict) => verdict.tool.guid),
+    )
   })
 
   it('returns one recommendation result for every demand in a sixteen-feature batch', () => {

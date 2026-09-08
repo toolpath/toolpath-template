@@ -8,7 +8,12 @@ import type {
   Profiles,
   ToolFamily,
 } from '@toolpath/catalog-data'
-import { CATALOG_VERSION, PROFILES_VERSION, profileFor } from '@toolpath/catalog-data'
+import {
+  CATALOG_VERSION,
+  PROFILES_VERSION,
+  profileFor,
+  withMeasuredDimensions,
+} from '@toolpath/catalog-data'
 import dataset from 'catalog-dataset'
 import profileDocument from 'catalog-profiles'
 
@@ -46,9 +51,7 @@ export const facets: Facets = document.facets
  * "no toolholding in this dataset" rather than "nothing holds this tool": the
  * two look the same on screen and mean opposite things.
  */
-export const holders: ReadonlyArray<Holder> = document.holders ?? []
 export const collets: ReadonlyArray<Collet> = document.collets ?? []
-export const hasToolholding = (): boolean => holders.length > 0
 
 /**
  * The measured half, kept out of the catalog document on purpose.
@@ -72,6 +75,35 @@ if (measured.profilesVersion !== PROFILES_VERSION) {
 
 /** The silhouette measured off this holder's own CAD model, or null where none was. */
 export const getProfile = (guid: string): HolderProfile | null => profileFor(measured, guid)
+
+/**
+ * What the catalog can hold a tool with, **carrying the geometry its own model
+ * measures** where the vendor publishes none.
+ *
+ * Empty in a dataset built before toolholding was ingested. The UI has to say
+ * "no toolholding in this dataset" rather than "nothing holds this tool": the
+ * two look the same on screen and mean opposite things.
+ *
+ * **This is the one seam where a measurement reaches the arithmetic** (Paul,
+ * 2026-09-07). `clearance()` builds its silhouette from the published nose,
+ * body and flange, and a `HolderRecord` carries none of them — so it swept the
+ * tool's shank and nothing else, answered "clears the part" for every holder in
+ * the rack, and returned `requiredStickout: null`. Nothing then told a stack to
+ * stand out, so a tool for a pocket two inches deep was set up at its half-inch
+ * flute length with the holder drawn well inside the part.
+ *
+ * Filling the silence here rather than at each call site is what makes the
+ * grading, the stickout, the drawing and the verdict read the same holder.
+ * Measured on this stack: `requiredStickout` goes from `null` to 53 mm and
+ * `checked` from `["shank"]` to the whole silhouette.
+ *
+ * The cost is one pass over the rack at import, which is the pass that was
+ * already being made to index it.
+ */
+export const holders: ReadonlyArray<Holder> = (document.holders ?? []).map((holder) =>
+  withMeasuredDimensions(holder, profileFor(measured, holder.guid)),
+)
+export const hasToolholding = (): boolean => holders.length > 0
 
 const byGuid = new Map(document.tools.map((tool) => [tool.guid, tool]))
 const familiesById = new Map(document.families.map((family) => [family.id, family]))

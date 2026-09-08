@@ -17,14 +17,21 @@
  *    is why `.gitignore` covers the whole of `scrape-out/`.
  * 2. **Measure.** `src/scrape.ts` drives the five API calls per holder.
  *
- * Needs `TOOLPATH_API_KEY`, and `TOOLPATH_API_URL` until the holder routes
- * reach production — `http://localhost:4000` for the local services stack. See
- * `docs/HOLDER-PROFILES.md`.
+ * **Needs `TOOLPATH_API_KEY`, and nothing else** (2026-09-07). The holder
+ * routes reached production: `api.toolpath.com` answers Engine API 1.3.3 and
+ * carries `/v1/holders`, so `TOOLPATH_API_URL` is now an override for a local
+ * or staging stack rather than the requirement it was while production was
+ * 1.1.0. See `docs/HOLDER-PROFILES.md`.
+ *
+ * The key is read from the environment only — never a flag, because a key in a
+ * shell history is a key in a CI log. `--env-file-if-exists=.env` on the
+ * `profiles` script means a gitignored `packages/catalog-data/.env` holding
+ * `TOOLPATH_API_KEY=...` is enough, and is the way that keeps it out of both.
  */
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { apiUrl, describeApi } from '@toolpath/tool-scraper/node'
+import { describeApi } from '@toolpath/tool-scraper/node'
 
 import { ingestProfiles } from '../dist/index.js'
 import { measureHolders } from '../dist/scrape.js'
@@ -49,10 +56,6 @@ if (!process.env.TOOLPATH_API_KEY) {
 mkdirSync(STEP, { recursive: true })
 console.log(`Scrape root: ${ROOT}`)
 console.log(`${describeApi()}\n`)
-
-if (apiUrl() === 'https://api.toolpath.com') {
-  console.log('note: production is Engine API 1.1.0 and carries no holder routes.\n')
-}
 
 const families = readdirSync(HOLDING)
   .filter((name) => name.endsWith('.json'))

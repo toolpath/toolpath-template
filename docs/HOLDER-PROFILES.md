@@ -7,12 +7,12 @@ it gets here, and what is deliberately not finished.
 
 ## Where each half comes from
 
-|                   | The published holder                      | The measured holder                                          |
-| ----------------- | ----------------------------------------- | ------------------------------------------------------------ |
-| Source            | the vendor's table                        | the vendor's STEP model, measured by the Toolpath Engine API |
-| Shape             | `Holder` — nose, body, projection, flange | `HolderProfile` — a `[z, r]` silhouette on the gage line     |
-| Lives in          | the catalog document                      | its own document, read lazily                                |
-| Decides clearance | **yes**                                   | no                                                           |
+|                   | The published holder                      | The measured holder                                             |
+| ----------------- | ----------------------------------------- | --------------------------------------------------------------- |
+| Source            | the vendor's table                        | the vendor's STEP model, measured by the Toolpath Engine API    |
+| Shape             | `Holder` — nose, body, projection, flange | `HolderProfile` — a `[z, r]` silhouette on the gage line        |
+| Lives in          | the catalog document                      | its own document, read lazily                                   |
+| Decides clearance | **yes**                                   | fills the numbers it decides from, where the vendor states none |
 
 They are alternatives, not a refinement of one by the other. Reducing a measured
 silhouette to a nose and a body throws away the only reason to measure it, which
@@ -40,15 +40,27 @@ the merged `<root>/profiles.json`, keyed by the holder's guid.
 PUT, deliberately outside the app's server, which is where every _other_ API key
 in this workspace is handled.
 
-Point it at local services:
+**Production carries the holder routes now** (2026-09-07). `api.toolpath.com`
+answers Engine API 1.3.3 and serves `/v1/holders`, `/v1/holders/{id}` and the
+Fusion pair, so a measuring run needs a key and nothing else. It was 1.1.0 with
+no holder route at all when this document was written, which is why the pipeline
+and this page both used to insist on a local stack; `TOOLPATH_API_URL` is now an
+override for local or staging rather than a requirement.
+
+The key is read from the environment only, never a flag — a key in a shell
+history is a key in a CI log. A gitignored `packages/catalog-data/.env` is the
+way that keeps it out of both, and the `profiles` script loads it:
 
 ```
-export TOOLPATH_API_URL=http://localhost:4000
-export TOOLPATH_API_KEY=...        # services: pnpm dev:api-key
+# packages/catalog-data/.env
+TOOLPATH_API_KEY=...
+
+pnpm --filter @toolpath/catalog-data profiles
 ```
 
-Production is Engine API 1.1.0 and has no `/v1/holders` route at all. Local
-(1.3.0) and staging (1.3.1) do. A run takes about a second per holder.
+Point it somewhere else with `TOOLPATH_API_URL=http://localhost:4000` for the
+local services stack, whose key comes from `pnpm dev:api-key` there. A run takes
+about a second per holder.
 
 ## How it reaches the drawing
 
@@ -99,22 +111,57 @@ not have produced cannot be committed by accident.
 
 ## What is not done
 
-**Clearance is still reasoned from the published dimensions.** `clearance()` in
-`@toolpath/catalog-data` sweeps the parametric nose and body, so a measured
-drawing and the verdict under it are answering from different geometry. Deferred
-on purpose (Justin, 2026-09-02): teaching `clearance.ts` to sweep a `[z, r]`
-polyline touches a dozen callers that draw nothing at all, and it is a change
-worth making on its own. `catalog-drawing.tsx` takes a `measured` prop so a
-consumer can compare the two pictures when investigating a disagreement.
+**Clearance still sweeps a parametric holder — but no longer an empty one.**
+`clearance()` builds its silhouette from the published nose, body and flange,
+and teaching it to sweep a `[z, r]` polyline is still the change worth making on
+its own (Justin, 2026-09-02): it touches a dozen callers that draw nothing.
 
-**The record seam is not taken yet.** `@toolpath/tool-scraper` 2.1.0 mints
-`HolderRecord` and `ColletRecord` and binds mappers for Kennametal, WIDIA,
-REGO-FIX and MariTool — the upstream half of `TOOL-SCRAPER-REFACTOR.md` § step 6
-is done. This repository has not moved onto it: `packages/catalog-data/src/scrape.ts`
-still scrapes cutting tools only, `scripts/scrape.mjs` still writes
-`holders: []`, and the `src/vendors/` stopgap mappers still have no callers. So
-the only holders in the application today are the sample's three. Taking the
-seam is what makes a real scrape produce real holders, and it is the next step.
+What changed on 2026-09-07 is that the parametric holder it sweeps is no longer
+_blank_. Under the record seam a `HolderRecord` publishes none of those numbers,
+so the sweep checked the tool's shank and nothing else, answered "clears the
+part" for every holder in the rack, and returned `requiredStickout: null` —
+which meant nothing told a stack to stand out at all. A tool for a pocket two
+inches deep was set up at its half-inch flute length with the holder drawn well
+inside the part (Paul, with a screenshot of exactly that).
+
+`dimensionsFromProfile` reduces a measurement to the three layers the sweep
+reads, and `withMeasuredDimensions` fills **only** the fields the vendor left
+null — a published number is that vendor's claim and stays. `app/shared/catalog.ts`
+applies it once, where `holders` is exported, so the grading, the stickout, the
+drawing and the verdict all read the same holder. On `BT30-ER11-110DT` against a
+2.066 in wall, `requiredStickout` goes from `null` to 53 mm and `checked` from
+`["shank"]` to the whole silhouette.
+
+**The reduction is conservative on purpose.** Three bands cannot describe forty
+steps, so each band takes the _widest_ radius in it: it may claim a holder is
+fatter than it is, never thinner. Thinner is what puts a holder through a wall
+and calls it clear. The band boundaries land on the real risers — the flange,
+and the shoulder behind the collet nut — rather than on the chamfer off the
+nut's own face, which is a tenth of a millimetre above the tip and would
+otherwise make the band above it the entire holder.
+
+It is still a reduction, and the polyline sweep would beat it.
+`catalog-drawing.tsx` takes a `measured` prop so a consumer can compare the two
+pictures when investigating a disagreement.
+
+**The record seam is taken, and it is what makes the measurement compulsory.**
+`scrape:holding` drives `@toolpath/tool-scraper` 2.3.0's `HolderRecord` through
+`boundToolholding`/`toHolding`, and a scrape on 2026-09-07 produced 555 holders
+and 181 collets — MariTool 522, REGO-FIX 21, Kennametal 12.
+
+A record states no nose, so **not one of those 555 could be drawn
+parametrically**: `parametricSegments` in `@toolpath/tool-drawing` returns no
+segments at all when `noseDiameter` is null, and that is every holder from the
+seam. The 21 REGO-FIX records that carry _some_ published dimension carry no
+nose either. A measured profile is therefore not the better of two pictures any
+more — it is the only one, and a rack nobody has run `profiles` over shows no
+holders at all.
+
+379 of the 555 publish a `cadModelUrl` to measure. The remaining 176 have no
+silhouette from any source; `drawable` in `apps/catalog/app/shared/holder-choice.ts`
+is what keeps them out of the holder dropdown, checked against the real
+`assemblyOutline` in `holder-drawable.test.ts` rather than restating the
+package's gate.
 
 ## Orientation, and the day it was fixed
 

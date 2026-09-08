@@ -55,12 +55,6 @@ export interface SelectionPanelProps {
     readonly mode: HoleMode
     readonly spec: ThreadSpec | null
     readonly onChange: (choice: { mode: HoleMode; spec: ThreadSpec | null }) => void
-    /**
-     * How far a drill may be from the hole, over and under, in millimetres —
-     * the shop's own `max drill deviation`. What the panel needs it for is
-     * saying whether the model can be predrilled to a standard size at all.
-     */
-    readonly deviation: { readonly over: number; readonly under: number }
   }
 }
 
@@ -304,7 +298,6 @@ export const SelectionPanel = ({
           mode={thread.mode}
           spec={thread.spec}
           onChange={thread.onChange}
-          deviation={thread.deviation}
           unit={unit}
         />
       ) : null}

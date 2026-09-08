@@ -97,7 +97,9 @@ describe('the holders that work, pulled out to what the feature needs', () => {
     expect(
       options.map((each) => [each.holder.guid, each.required, each.stickout, each.grade]),
     ).toEqual([
-      ['slim', 12.5, 13, 'good'],
+      // 19: the flutes plus a diameter, which is under what this feature needs
+      // of the wide holder and over what it needs of the slim one.
+      ['slim', 12.5, 19, 'good'],
       ['wide', 30.5, 30.5, 'good'],
     ])
     expect(options[0]?.recommended).toBe(true)
@@ -119,7 +121,7 @@ describe('the holders that work, pulled out to what the feature needs', () => {
     const rounded = (value: number | null) =>
       value === null ? null : Math.round(value * 100) / 100
     expect(options.map((each) => [each.holder.guid, rounded(each.stickout), each.grade])).toEqual([
-      ['slim', 13, 'good'],
+      ['slim', 19, 'good'],
       /*
         Wanted 30.5. The tool allows 20: 3×⌀6 of shank has to stay clamped in
         a 38 mm tool, which is tighter than the 25.33 the hold share alone
@@ -151,10 +153,13 @@ describe('the holders that work, pulled out to what the feature needs', () => {
     expect(options.some((each) => each.recommended)).toBe(false)
   })
 
-  /** Without a reach curve nothing can be checked; the stack is drawn at the flutes and graded by hold alone. */
+  /**
+   * Without a reach curve nothing can be checked; the stack is set up at the
+   * floor — the flutes plus a diameter — and graded by hold alone.
+   */
   it('grades by hold alone when there is no curve to sweep', () => {
     const options = holderOptions(tool, [holder('wide', 20)], [collet], {}, null, room, thresholds)
-    expect(options[0]).toMatchObject({ required: null, stickout: 13, clears: null, grade: 'good' })
+    expect(options[0]).toMatchObject({ required: null, stickout: 19, clears: null, grade: 'good' })
   })
 
   /**
@@ -241,8 +246,14 @@ describe('the sheet’s thresholds', () => {
       room,
       thresholdsFrom(),
     )
-    // 13 mm of flute under a half-inch floor: the 3 mm step nearest 12.7 that is not under 13 is 15.
-    expect(option?.stickout).toBe(15)
+    /*
+      **The floor beats the step** (Paul, 2026-09-07). The sheet's own floor is
+      a half inch and its step 3 mm, which used to put this tool at 15. The
+      floor is now the flutes plus a diameter — 13 + 6 — and 19 is not on the
+      step: an increment is a convenience at the machine, and rounding 19 down
+      to 18 would undo the rule it is rounding.
+    */
+    expect(option?.stickout).toBe(19)
     expect(option?.range).toEqual({ min: 13, max: 57 * (1 - 0.33) })
   })
 })
