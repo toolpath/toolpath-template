@@ -64,13 +64,29 @@ Catalog no │ Vendor │ Type │ …                              │
 - **The table is whichever list the open slot asks for** — tools, holders or
   collets — with the same sorting, the same column picker, the same column
   order and the same Filters button.
-- **The tree is the only thing that says which list that is.** Three tabs over
-  the table — Tools / Holders / Collets — said it as well for an afternoon, so a
-  rack could be read with no feature at all; they came out again because the
-  slot is where a list is asked for and a second control saying the same thing
-  is one that can disagree with it (Paul, 2026-09-07: "I think we can get rid of
-  the tools/holders/collets tabs, as we'll be accessing them through the
-  dialog").
+- **Three buttons in the table's chrome say which list it is**, dressed like the
+  Filters button beside them, the open one lit (Paul, 2026-09-07: "I want the
+  table tabs for tools, holders, and collets back, just as buttons like the
+  filters button. The one that is active should be highlighted"). They went
+  through a full-width tab row and then through being removed altogether — what
+  was wanted is the switch the table needs and an indicator of what is on screen,
+  not a second navigation. **They are the tree's slots**: pressing one opens that
+  slot on the open stack, so the buttons and the tree cannot disagree about what
+  the rows below are for. **With no stack open they are three catalogs** (Paul,
+  2026-09-07: "the buttons need to be shown and usable when not editing a feature
+  as well"): the heading says `Every holder in the crib` rather than `Holders for
+this assembly`, because a rack is narrowed to what fits a stack only while
+  there is one, and a row clicked is a **look-up** the panel on the right reads
+  out — it has no slot to fill.
+- **Each button counts its own list, and the counts move** (Paul, 2026-09-07:
+  "the count is always showing the tool count. This should be unique to the
+  component … it needs to live update when a feature is selected, or as tool
+  assembly components are selected"). One number beside the heading counted tools
+  whichever of the three was on screen, so a rack of three holders was headed by
+  a nine. They are the lengths of the three lists the render already derived, so
+  they follow the feature, the filters and the stack: pick a holder and the
+  collet count is the collets that close on it. A dash while the matching is
+  still running, because three zeroes beside a spinner reads as "nothing fits".
 - **Picking a row does not walk you to the next slot** (Paul, 2026-09-07: "it is
   still automatically moving me to holders when I select a tool as a row … I
   shouldn't be moved to the next component automatically — I should click on its
@@ -309,6 +325,12 @@ What changed is where a line comes from:
   because the change was never written. Without it, backing out of a swap meant
   remembering what had been there and finding it again in a table of two hundred
   (Paul, 2026-09-07).
+- **And it floats to the top of the rack** (Paul, 2026-09-07: "can we float
+  confirmed tool assembly components to the top of the table lists?"). The tool
+  list has had that rule since 2026-08-31 (`keptFirst`); `firstBy` in
+  `shared/tool-order.ts` is the same partition asked of a holder or a collet, so
+  the row wearing **on the feature** is the row somebody lands on. A partition
+  rather than a sort: a column somebody sorted by still decides everything else.
 - **The list marks what the feature already has.** The row on the bill for the
   open slot wears **on the feature**; a component standing in one of this
   feature's other stacks wears **in Assembly 2** / **in TAP**, naming which

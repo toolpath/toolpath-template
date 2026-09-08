@@ -189,8 +189,9 @@ application unless that application says otherwise.
   a tap stack and a drill stack), each slot opens its own table with the same
   columns, sorting and filters the tool table has, and any component can be
   chosen first and narrows the rest. The table is whichever list the open
-  slot asks for, and picking a row there fills that slot without walking on to
-  the next one. **Each stack carries one context-aware button** — _Add to order list_, _Change holder from
+  slot asks for — three buttons in its chrome switch it, each counting its own
+  list, and with no feature they read the three catalogs — and picking a row
+  there fills that slot without walking on to the next one. **Each stack carries one context-aware button** — _Add to order list_, _Change holder from
   A to B_, _Remove from order list_ — and that press is the only way a component
   reaches the bill: picking a row in a table selects it into the stack and
   nothing more. `docs/TOOL-ASSEMBLY-TREE.md` is the spec, including

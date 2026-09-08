@@ -77,16 +77,65 @@ export const narrowTools = (
     return tools
   }
   if (holder !== null) {
-    return tools.filter((tool) =>
-      collet === null
-        ? holderCanTake(tool, holder, collets)
-        : holderTakesCollet(holder, collet) && holderTakesTool(holder, collet, tool),
-    )
+    /*
+      **Asked once per shank, not once per tool.** Every rule below reads the
+      tool through `geometry.SFDM` and nothing else — `holderTakesTool` refuses
+      a tool that states no shank and otherwise compares that one number — so
+      two tools of the same shank always answer alike. A feature's list is
+      thousands of tools and a few dozen shanks, and the collet-chuck branch
+      walks a whole series per ask.
+    */
+    const answers = new Map<number, boolean>()
+    return tools.filter((tool) => {
+      const shank = tool.geometry.SFDM
+      if (shank === undefined) {
+        return false
+      }
+      const had = answers.get(shank)
+      if (had !== undefined) {
+        return had
+      }
+      const takes =
+        collet === null
+          ? holderCanTake(tool, holder, collets)
+          : holderTakesCollet(holder, collet) && holderTakesTool(holder, collet, tool)
+      answers.set(shank, takes)
+      return takes
+    })
   }
   return tools.filter((tool) => {
     const shank = tool.geometry.SFDM
     return shank !== undefined && collet !== null && gripsShank(collet, shank)
   })
+}
+
+/**
+ * One tool per distinct shank — the set every "does any of these fit" question
+ * is really asked of.
+ *
+ * **A shank is all these rules read.** `holderTakesTool` compares a collet's
+ * clamp range or a holder's bore against `geometry.SFDM`, and `gripsShank` the
+ * same, so a thousand end mills on a 12 mm shank are one question rather than a
+ * thousand. Narrowing a rack against a feature's matched tools was
+ * holders × tools work on every click; this makes it holders × shanks, and the
+ * answer is identical because the dropped tools would each have repeated one
+ * that is kept.
+ *
+ * A tool stating no shank is left out rather than kept: both predicates refuse
+ * one, so it can never be the tool that makes a holder fit.
+ */
+export const byShank = (tools: ReadonlyArray<CatalogTool>): ReadonlyArray<CatalogTool> => {
+  const seen = new Set<number>()
+  const kept: Array<CatalogTool> = []
+  for (const tool of tools) {
+    const shank = tool.geometry.SFDM
+    if (shank === undefined || seen.has(shank)) {
+      continue
+    }
+    seen.add(shank)
+    kept.push(tool)
+  }
+  return kept
 }
 
 /**

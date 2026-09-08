@@ -71,7 +71,7 @@ import {
 import { ColumnPicker } from 'components/column-filter'
 import { FACET_AXES } from 'components/filter-panel'
 import { orderedCodes } from 'shared/column-order'
-import { keptFirst } from 'shared/tool-order'
+import { firstBy, keptFirst } from 'shared/tool-order'
 import {
   allTools as catalogTools,
   collets as allCollets,
@@ -95,6 +95,7 @@ import {
   markOrdered,
   removeAssembly,
   restoreAssembly,
+  SLOTS,
   treeFromLines,
   useAssemblyTrees,
   type Slot,
@@ -102,7 +103,13 @@ import {
   type TreeNode,
 } from 'shared/assembly-tree'
 import { assemblyActions, lineOf, nothingToConfirm, savedFor } from 'shared/assembly-actions'
-import { holdersToOffer, narrowCollets, narrowTools, whyEmpty } from 'shared/assembly-narrowing'
+import {
+  byShank,
+  holdersToOffer,
+  narrowCollets,
+  narrowTools,
+  whyEmpty,
+} from 'shared/assembly-narrowing'
 import {
   COLLET_COLUMNS,
   HOLDER_COLUMNS,
@@ -957,6 +964,20 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     () => partHighlight({ kept: askedNow.tags, focused, group: null }),
     [askedNow.tags, focused],
   )
+
+  /**
+   * What the part is painted with, held still between renders.
+   *
+   * **The viewer repaints on identity** (Paul, 2026-09-07: "everything is quite
+   * laggy now — the 3d model sticks"). Both of these were built in the middle of
+   * the JSX — `new Set(highlighted)` and `heldRegions(selection)` — so every
+   * render of this route handed the part two objects it had never seen before: a
+   * keystroke in the search box, a hover on a table row, a tick of the matcher.
+   * They now change when what they are derived from changes, which is what they
+   * were always meant to mean.
+   */
+  const paintedSet = useMemo(() => new Set(highlighted), [highlighted])
+  const heldRegionList = useMemo(() => heldRegions(selection), [selection])
 
   const arrows = useMemo(() => {
     // Named, so the answer is given: one arrow, the one it is cut from. Still
@@ -2495,22 +2516,79 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   )
 
   /**
+   * Which of the three lists the table shows while no stack is open.
+   *
+   * **The buttons work with nothing selected too** (Paul, 2026-09-07: "the
+   * buttons need to be shown and usable when not editing a feature as well.
+   * With no selections, I should still see the tool, holder, and collet buttons
+   * in the table"). A crib is three catalogs and all three are worth reading —
+   * which BT30 chucks do I own, which collets close on 8 mm — and asking that
+   * used to need a feature invented to hang it off.
+   */
+  const [browsing, setBrowsing] = useState<Slot>('tool')
+
+  /**
+   * The holder or collet being read while no stack is open.
+   *
+   * A row clicked in a component table normally fills the slot the tree has
+   * open. Read on its own there is no slot to fill, and a click that did nothing
+   * at all would be a table somebody can only look at — so it is a look-up, and
+   * the panel on the right shows what the vendor published.
+   */
+  const [lookedUp, setLookedUp] = useState<string | null>(null)
+
+  /**
+   * The slot the tree has open, where there is one. It outranks the buttons: the
+   * tree is what the table is being asked for while a feature is being answered,
+   * and two things deciding which list is on screen is how those two stop
+   * agreeing.
+   */
+  const slotOpen: Slot | null = assemblyTree && !perFeature && node !== null ? node.slot : null
+
+  /** The list on show, and the plain tool list with the flag off. */
+  const listKind: Slot = assemblyTree ? (slotOpen ?? browsing) : 'tool'
+
+  /**
+   * Pressing one of the three buttons.
+   *
+   * **A button is the tree's slot while there is a tree.** Pressing *Holders*
+   * with a stack open opens that stack's holder slot, so the row clicked in the
+   * table lands where the button said it would; with no stack open it is a
+   * catalog being read, and the button is all there is to remember.
+   */
+  const chooseList = useCallback(
+    (kind: Slot) => {
+      setBrowsing(kind)
+      if (node !== null) {
+        selectNode({ assemblyId: node.assemblyId, slot: kind })
+      }
+    },
+    [node, selectNode],
+  )
+
+  /**
    * Which of the two component lists the table is, and `null` while it is the
-   * tools — the slot the tree has open.
+   * tools.
    *
-   * **The tree is the only thing that says which list this is** (Paul,
-   * 2026-09-07: "I think we can get rid of the tools/holders/collets tabs, as
-   * we'll be accessing them through the dialog"). Three tabs over the table said
-   * it as well for an afternoon, so a rack could be read with no feature at all;
-   * the slot in the tree is where a list is asked for, and a second control
-   * saying the same thing is one that can disagree with it.
-   *
-   * `null` too while the tree is off, a tool is being chosen, or the question is
-   * one per feature — a group asked for a tool each has no one list of anything,
-   * and that notice outranks the tree the same way it outranks the tool list.
+   * `null` too while the tree is off or the question is one per feature — a
+   * group asked for a tool each has no one list of anything, and that notice
+   * outranks everything else.
    */
   const componentSlot: Slot | null =
-    assemblyTree && !perFeature && node !== null && node.slot !== 'tool' ? node.slot : null
+    assemblyTree && !perFeature && listKind !== 'tool' ? listKind : null
+
+  /** A rack being read rather than a slot being answered. */
+  const looking = componentSlot !== null && slotOpen === null
+
+  /** The one row clicked while reading a rack, in each of the two. */
+  const lookedUpHolder =
+    looking && componentSlot === 'holder'
+      ? (allHolders.find((each) => each.guid === lookedUp) ?? null)
+      : null
+  const lookedUpCollet =
+    looking && componentSlot === 'collet'
+      ? (allCollets.find((each) => each.guid === lookedUp) ?? null)
+      : null
 
   /**
    * Whether the tree is drawn at all.
@@ -2559,6 +2637,17 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     [assembly, tapRows, shownRows],
   )
 
+  /**
+   * The same tools, one per shank — what the two racks are actually narrowed by.
+   *
+   * **A rack is graded against shanks, not against tools** (`byShank` says why).
+   * Both lists below ask "can this holder take *any* of these", and every rule
+   * behind that question reads `geometry.SFDM` alone — so a feature matching two
+   * thousand end mills is asking about the twenty shanks they stand on. On the
+   * full scrape that product was the long task behind every click on the part.
+   */
+  const stackShanks = useMemo(() => byShank(stackTools), [stackTools])
+
   const offered = useMemo(
     () =>
       holdersToOffer(
@@ -2575,9 +2664,9 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           the tool list under it. `asking` is the guard: with no feature there is
           no set of tools to be compatible with, and the list is a catalog again.
         */
-        asking ? stackTools : null,
+        asking ? stackShanks : null,
       ),
-    [treeTool, treeCollet, holderFilters, asking, stackTools],
+    [treeTool, treeCollet, holderFilters, asking, stackShanks],
   )
   const holderPool = offered.shown
   const undrawableHolders = offered.hidden
@@ -2590,8 +2679,12 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     // The same rule the holder slot follows, for the same reason: a collet
     // closing on nothing this feature can be cut with is not a row to click.
     () =>
-      narrowCollets(allCollets, { tool: treeTool, holder: treeHolder }, asking ? stackTools : null),
-    [treeTool, treeHolder, asking, stackTools],
+      narrowCollets(
+        allCollets,
+        { tool: treeTool, holder: treeHolder },
+        asking ? stackShanks : null,
+      ),
+    [treeTool, treeHolder, asking, stackShanks],
   )
   const colletRows = useMemo(
     () => filterComponents('collet', colletPool, colletQuery),
@@ -2600,11 +2693,21 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
 
   /**
    * The tools on show under the tree: {@link stackTools}, narrowed by the
-   * holding that is standing in the stack.
+   * holding that is standing in the stack, and **what the feature already
+   * orders first** (Paul, 2026-09-07: "can we float confirmed tool assembly
+   * components to the top of the table lists?").
+   *
+   * `shownRows` is kept-first already, but a tap list is not and neither is a
+   * list narrowed by a holder, so the rule is applied where the table's own rows
+   * are settled rather than left to survive two derivations.
    */
   const treeToolRows = useMemo(
-    () => narrowTools(stackTools, { holder: treeHolder, collet: treeCollet }, allCollets),
-    [stackTools, treeHolder, treeCollet],
+    () =>
+      keptFirst(
+        narrowTools(stackTools, { holder: treeHolder, collet: treeCollet }, allCollets),
+        keptHere,
+      ),
+    [stackTools, treeHolder, treeCollet, keptHere],
   )
 
   /** The lines this row already has on the bill, which is what Add and Update compare against. */
@@ -2824,6 +2927,26 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   }, [assembly, componentSlot, treeLines])
 
   /**
+   * The rack as the table draws it: what the feature already orders, first.
+   *
+   * **The same rule the tool list has always had** (Paul, 2026-09-07: "can we
+   * float confirmed tool assembly components to the top of the table lists?").
+   * The holder a feature is ordered with sat wherever the crib's own order put
+   * it, wearing an *on the feature* badge nobody scrolled to. A partition rather
+   * than a sort, so a column somebody sorted by still decides everything else —
+   * and the row the stack is holding stays where the narrowing put it, because
+   * the table marks that one itself.
+   */
+  const holderList = useMemo(
+    () => firstBy(holderRows, (each) => each.guid === savedInSlot),
+    [holderRows, savedInSlot],
+  )
+  const colletList = useMemo(
+    () => firstBy(colletRows, (each) => each.guid === savedInSlot),
+    [colletRows, savedInSlot],
+  )
+
+  /**
    * What the panel beside the table offers for the tool it is showing.
    *
    * The rule is `shared/tool-actions`; this is what each of its answers does.
@@ -2975,11 +3098,45 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * otherwise, because "Cuts the pocket" over a list of collet chucks is a
    * heading about a different list.
    */
+  /**
+   * How many rows each of the three lists has, for the button that opens it.
+   *
+   * Every one of them is a list this render already derived, so the numbers are
+   * whatever the table would draw: narrowed by the feature, by the filters and
+   * by what is standing in the stack.
+   */
+  const listCounts: Readonly<Record<Slot, number>> = {
+    tool: treeToolRows.length,
+    holder: holderRows.length,
+    collet: colletRows.length,
+  }
+
+  /**
+   * What each of the three lists is called on its button — plural, because a
+   * button naming a list is naming rows rather than the slot it fills.
+   */
+  const SLOT_TABLE_LABEL: Readonly<Record<Slot, string>> = {
+    tool: 'Tools',
+    holder: 'Holders',
+    collet: 'Collets',
+  }
+
   const tableTitle =
     componentSlot === 'holder'
-      ? 'Holders for this assembly'
+      ? /*
+          **And it says which holders.** The rack is narrowed to what can hold
+          the stack only while there is a stack; read on its own it is the whole
+          crib, and a heading claiming an assembly nobody has started is the kind
+          of thing somebody trusts and then cannot square with the count on the
+          button beside it.
+        */
+        asking
+        ? 'Holders for this assembly'
+        : 'Every holder in the crib'
       : componentSlot === 'collet'
-        ? 'Collets for this assembly'
+        ? asking
+          ? 'Collets for this assembly'
+          : 'Every collet in the crib'
         : listTitle
 
   return (
@@ -3084,8 +3241,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                   before the window runs out (Paul, 2026-09-02).
                 */
                 overlaySpills={draft !== null}
-                selected={new Set(highlighted)}
-                heldRegions={heldRegions(selection)}
+                selected={paintedSet}
+                heldRegions={heldRegionList}
                 arrows={arrows}
                 onPickDirection={(direction) => dispatch({ type: 'arm', direction })}
                 directionColor={
@@ -3532,6 +3689,77 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                   >
                     <div className="flex min-w-0 min-h-8 flex-wrap items-center gap-2">
                       {/*
+                        **Which of the three lists this is, as three buttons**
+                        (Paul, 2026-09-07: "I want the table tabs for tools,
+                        holders, and collets back, just as buttons like the
+                        filters button. The one that is active should be
+                        highlighted"). They were a full-width tab row for an
+                        afternoon and then nothing at all; what was wanted is the
+                        switch the *table* needs — small, in its chrome, beside
+                        the Filters button they are dressed as — and an indicator
+                        of which list is on screen.
+
+                        They are the tree's slots, not a control beside it:
+                        pressing one opens that slot on the open stack, so the
+                        buttons and the tree cannot disagree about what the rows
+                        below are for. Drawn only while there is a stack, because
+                        with no feature there is no assembly for a holder to be
+                        offered against and the table is the catalog.
+                      */}
+                      {assemblyTree && !perFeature
+                        ? SLOTS.map((slot) => {
+                            const open = listKind === slot
+                            return (
+                              <Button
+                                key={slot}
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                aria-pressed={open}
+                                onClick={() => chooseList(slot)}
+                                className={cn(
+                                  'flex items-center gap-1.5 rounded border px-2 py-1 text-xs',
+                                  open
+                                    ? 'border-primary/60 bg-primary/15 text-zinc-100'
+                                    : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
+                                )}
+                              >
+                                {SLOT_TABLE_LABEL[slot]}
+                                {/*
+                                  **Each button counts its own list** (Paul,
+                                  2026-09-07: "the count is always showing the
+                                  tool count. This should be unique to the
+                                  component … and it should be shown in the
+                                  buttons"). One number beside the heading
+                                  counted tools whichever of the three was on
+                                  screen, so a rack of three holders was headed
+                                  by a nine.
+
+                                  Derived, so they move with everything that
+                                  narrows a list: the feature being asked about,
+                                  the filters, and the components already in the
+                                  stack — pick a holder and the collets left are
+                                  the ones that close on it.
+                                */}
+                                <span
+                                  className={cn(
+                                    'text-2xs',
+                                    open ? 'text-zinc-400' : 'text-zinc-500',
+                                  )}
+                                >
+                                  {/*
+                                    A dash while the matching is still running:
+                                    all three lists are empty until it answers,
+                                    and three zeroes beside a spinner is a count
+                                    somebody reads as "nothing fits".
+                                  */}
+                                  {tablePending ? '—' : listCounts[slot]}
+                                </span>
+                              </Button>
+                            )
+                          })
+                        : null}
+                      {/*
                       **Two tabs on the list, taps first** (Paul, 2026-09-02:
                       "I'd like to have the tabs in the tool table, showing taps
                       first by default, then the drill tab to the right to
@@ -3667,7 +3895,9 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                       {/* Nothing to count where nothing has been asked of this
                         panel: a number beside "nothing selected" reads as a
                         count of tools that are not there. */}
-                      {threadSpec !== null || perFeature ? null : (
+                      {/* One number beside the heading counted tools whichever
+                        list was on screen; each button counts its own now. */}
+                      {threadSpec !== null || perFeature || assemblyTree ? null : (
                         <Badge variant={listed.length === 0 ? 'danger' : 'secondary'}>
                           {listed.length}
                         </Badge>
@@ -3935,7 +4165,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                     {componentSlot !== null ? (
                       <ComponentTable
                         kind={componentSlot}
-                        records={componentSlot === 'holder' ? holderRows : colletRows}
+                        records={componentSlot === 'holder' ? holderList : colletList}
                         unit={unit}
                         columns={componentSlot === 'holder' ? HOLDER_COLUMNS : COLLET_COLUMNS}
                         hiddenColumns={
@@ -3945,11 +4175,18 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           componentSlot === 'holder' ? holderColumnOrder : colletColumnOrder
                         }
                         chosen={
-                          componentSlot === 'holder'
-                            ? (assembly?.holderGuid ?? null)
-                            : (assembly?.colletGuid ?? null)
+                          looking
+                            ? lookedUp
+                            : componentSlot === 'holder'
+                              ? (assembly?.holderGuid ?? null)
+                              : (assembly?.colletGuid ?? null)
                         }
-                        onChoose={fillSlot}
+                        /*
+                          A row fills the slot the tree has open; with no stack
+                          open there is no slot, and the click is a look-up the
+                          panel on the right reads out.
+                        */
+                        onChoose={looking ? setLookedUp : fillSlot}
                         usedIn={heldElsewhere}
                         onFeature={(guid) => guid === savedInSlot}
                         empty={
@@ -4142,6 +4379,21 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         />
                       )
                 }
+              />
+            </Card>
+          ) : /*
+              **A rack can be read without a feature** (Paul, 2026-09-07). The
+              same panel, with no stack around it and nothing to confirm: what
+              the vendor published about the one row that was clicked.
+            */
+          looking && componentSlot !== null && (lookedUpHolder ?? lookedUpCollet) !== null ? (
+            <Card className="size-full overflow-hidden">
+              <AssemblyPanel
+                tool={null}
+                holder={lookedUpHolder}
+                collet={lookedUpCollet}
+                selected={componentSlot}
+                unit={unit}
               />
             </Card>
           ) : panelTool ? (

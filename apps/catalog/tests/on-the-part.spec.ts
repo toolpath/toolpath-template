@@ -799,6 +799,96 @@ test.describe('the tool assembly tree', () => {
   })
 
   /**
+   * **Three buttons in the table's chrome, and the open one is lit** (Paul,
+   * 2026-09-07: "I want the table tabs for tools, holders, and collets back,
+   * just as buttons like the filters button. The one that is active should be
+   * highlighted"). They are the tree's slots rather than a control beside it, so
+   * the buttons and the tree cannot disagree about what the rows below are for.
+   */
+  test('switches the list with the three buttons in the chrome', async ({ page }) => {
+    await ready(page)
+    await page.getByRole('button', { name: 'Add feature' }).click()
+
+    const chrome = page.locator('[data-list-chrome]')
+    // Named with their counts now, so matched on the word they lead with.
+    await expect(chrome.getByRole('button', { name: /^Tools/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+
+    await chrome.getByRole('button', { name: /^Holders/ }).click()
+
+    await expect(page.locator('[data-component-table="holder"]')).toBeVisible()
+    await expect(chrome.getByRole('button', { name: /^Holders/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    // And the tree opened that slot, rather than the two saying different things.
+    await expect(
+      page.locator('[data-assembly-tree]').getByRole('button', { name: /^HOLDER for / }),
+    ).toHaveAttribute('aria-current', 'true')
+  })
+
+  /**
+   * **The three buttons work with nothing selected too** (Paul, 2026-09-07:
+   * "the buttons need to be shown and usable when not editing a feature as
+   * well. With no selections, I should still see the tool, holder, and collet
+   * buttons in the table"). A crib is three catalogs, and asking which BT30
+   * chucks a shop owns used to need a feature invented to hang the question off.
+   */
+  test('reads the holder and collet racks with no feature started', async ({ page }) => {
+    // Nothing clicked on the part: the catalog is what is on show.
+    await expect(page.getByText('Every tool in the catalog')).toBeVisible()
+
+    const chrome = page.locator('[data-list-chrome]')
+    await chrome.getByRole('button', { name: /^Holders/ }).click()
+    await expect(page.getByText('Every holder in the crib')).toBeVisible()
+
+    // A row is a look-up rather than a slot being filled — there is no stack for
+    // it to go into — and it reads out on the right.
+    const holders = page.locator('[data-component-table="holder"]').getByRole('grid')
+    await holders.getByRole('row').first().click()
+    await expect(page.getByText('Choose a tool to draw the assembly.')).toBeVisible()
+
+    await chrome.getByRole('button', { name: /^Collets/ }).click()
+    await expect(page.getByText('Every collet in the crib')).toBeVisible()
+  })
+
+  /**
+   * **Each button counts its own list, and the counts move** (Paul, 2026-09-07:
+   * "the count is always showing the tool count. This should be unique to the
+   * component … it needs to live update when a feature is selected, or as tool
+   * assembly components are selected"). One number beside the heading counted
+   * tools whichever of the three was on screen.
+   */
+  test('counts each list on its own button, and keeps them current', async ({ page }) => {
+    const chrome = page.locator('[data-list-chrome]')
+    const count = async (name: RegExp) =>
+      ((await chrome.getByRole('button', { name }).innerText()) ?? '').replace(/\D/g, '')
+
+    // With nothing selected the three numbers are three different lists.
+    await chrome.getByRole('button', { name: /^Holders/ }).click()
+    const rack = page.locator('[data-component-table="holder"]').getByRole('grid')
+    await expect(rack.getByRole('row').first()).toBeVisible()
+    expect(await count(/^Holders/)).toBe(String(await rack.getByRole('row').count()))
+
+    // Put a holder in a feature's stack: the collets left are the ones that
+    // close on it, and the button says so.
+    await ready(page)
+    await page.getByRole('button', { name: 'Add feature' }).click()
+    const tree = page.locator('[data-assembly-tree]')
+    await tree.getByRole('button', { name: /^HOLDER for / }).click()
+    const holders = page.locator('[data-component-table="holder"]').getByRole('grid')
+    await expect(holders.getByRole('row').first()).toBeVisible()
+    await holders.getByRole('row').first().click()
+
+    await tree.getByRole('button', { name: /^COLLET for / }).click()
+    const collets = page.locator('[data-component-table="collet"]').getByRole('grid')
+    await expect(collets.getByRole('row').first()).toBeVisible()
+    expect(await count(/^Collets/)).toBe(String(await collets.getByRole('row').count()))
+  })
+
+  /**
    * **Before the row exists, not after it.** The tools for a draft were already
    * listed at the bottom of the page while the column beside them stayed empty
    * until the feature was confirmed — which read as broken rather than as
@@ -1064,6 +1154,39 @@ test.describe('the tool assembly tree', () => {
     // changed about the stack, naming the holder it would drop.
     await tree.getByRole('button', { name: 'Clear the holder' }).click()
     await expect(tree.getByRole('button', { name: `Take holder ${number} off` })).toBeVisible()
+  })
+
+  /**
+   * **What the feature already orders is the first row** (Paul, 2026-09-07: "can
+   * we float confirmed tool assembly components to the top of the table lists?").
+   * The tool list has had that rule since 2026-08-31; the two racks did not, so
+   * the holder a feature is ordered with sat wherever the crib's order put it,
+   * wearing a badge nobody scrolled to.
+   */
+  test('floats what the feature already orders to the top of the rack', async ({ page }) => {
+    await ready(page)
+    await page.getByRole('button', { name: 'Add feature' }).click()
+
+    // The *second* holder in the rack, so floating it is a move rather than a
+    // list that was already in that order.
+    const tree = page.locator('[data-assembly-tree]')
+    await tree.getByRole('button', { name: /^HOLDER for / }).click()
+    const holders = page.locator('[data-component-table="holder"]').getByRole('grid')
+    await expect(holders.getByRole('row').nth(1)).toBeVisible()
+    const wanted = ((await holders.getByRole('row').nth(1).textContent()) ?? '').trim()
+    await expect(holders.getByRole('row').first()).not.toContainText(wanted.slice(0, 12))
+    await holders.getByRole('row').nth(1).click()
+
+    await tree.getByRole('button', { name: /^TOOL for / }).click()
+    const tools = page.getByRole('grid').first()
+    await expect(tools.getByRole('row').first()).toBeVisible()
+    await tools.getByRole('row').first().click()
+    await tree.getByRole('button', { name: 'Add to order list' }).click()
+
+    // Back to the rack: the holder the feature is ordered with leads it now.
+    await tree.getByRole('button', { name: /^HOLDER for / }).click()
+    await expect(holders.getByRole('row').first()).toContainText(wanted.slice(0, 12))
+    await expect(holders.getByRole('row').first().getByText('on the feature')).toBeVisible()
   })
 
   /**

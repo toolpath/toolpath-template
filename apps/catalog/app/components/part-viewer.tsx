@@ -211,6 +211,17 @@ export const PartViewer = ({
   const [plane, setPlane] = useState<ReturnType<typeof sectionFromPick> | null>(null)
   const [depth, setDepth] = useState(0)
 
+  /**
+   * **The scene's own props are deliberately not memoised** (measured,
+   * 2026-09-07). Holding `selection`, `highlights`, `hoveredFeatureIds`,
+   * `theme` and `section` still between renders is the obvious fix for "the 3d
+   * model sticks", and on the scraped catalog it made a click on the part five
+   * times *slower*: 566 ms of long tasks became 2,600 ms, and picking a tool
+   * row went from none to 4,200 ms. `EnginePart` evidently takes a cheaper path
+   * when it is handed fresh values than when it is asked to reconcile ones it
+   * has seen. Whatever the mechanism, the numbers are the rule: build them in
+   * the JSX, and measure before changing that.
+   */
   const viewerReport = useMemo<PartReport>(
     () => ({
       ...report,

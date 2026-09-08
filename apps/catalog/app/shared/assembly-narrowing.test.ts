@@ -7,6 +7,7 @@ import {
   narrowCollets,
   narrowHolders,
   narrowTools,
+  byShank,
   gripsAny,
   takesAny,
   whyEmpty,
@@ -294,5 +295,35 @@ describe('why a list is empty', () => {
 
   it('says the catalog is empty where nothing was chosen', () => {
     expect(whyEmpty(0, NOTHING_CHOSEN)).toBe('Nothing in the catalog to show here.')
+  })
+})
+
+/**
+ * **A rack is graded against shanks, not against tools** (Paul, 2026-09-07:
+ * "everything is quite laggy now"). Every rule that asks a set of tools whether
+ * any of them fits reads `geometry.SFDM` and nothing else, so the set worth
+ * asking is one tool per distinct shank — on the full scrape that is twenty
+ * questions rather than two thousand.
+ */
+describe('one tool per shank', () => {
+  const on = (shank: number | undefined, guid: string): CatalogTool =>
+    ({ guid, geometry: { SFDM: shank } }) as unknown as CatalogTool
+
+  it('keeps the first of each shank, in order', () => {
+    expect(
+      byShank([on(6, 'a'), on(12, 'b'), on(6, 'c'), on(8, 'd')]).map((each) => each.guid),
+    ).toEqual(['a', 'b', 'd'])
+  })
+
+  /** Both predicates refuse a tool that states none, so it can never decide one. */
+  it('drops a tool whose shank the vendor did not state', () => {
+    expect(byShank([on(undefined, 'a'), on(6, 'b')]).map((each) => each.guid)).toEqual(['b'])
+  })
+
+  it('answers the same as the full list would', () => {
+    const shrink = holder({ clamping: 'shrink', boreDiameter: 12, colletSeries: null })
+    const many = [on(6, 'a'), on(12, 'b'), on(12, 'c')]
+    expect(takesAny(shrink, byShank(many), [])).toBe(takesAny(shrink, many, []))
+    expect(takesAny(shrink, byShank(many), [])).toBe(true)
   })
 })
