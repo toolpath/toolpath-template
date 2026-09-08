@@ -4,6 +4,7 @@ import type { PartFeature } from '@toolpath/part-contracts'
 import { SHEET_CLAMPING, withClampingLength } from './clamping-length'
 import {
   detailedMatch,
+  featuresKey,
   matchKey,
   prepareMatch,
   recommendationMatch,
@@ -278,5 +279,39 @@ describe('catalog matcher protocol', () => {
     expect(results.map((result) => result.demandKey)).toEqual(
       features.map((feature) => feature.featureTag),
     )
+  })
+})
+
+/**
+ * **The report crosses the worker boundary once** (Paul, 2026-09-07: "it still
+ * lags quite a bit when I finish with one feature then go to select another …
+ * the hover highlight and ability to click on the model hangs"). A key was
+ * built by serialising the whole feature list, on every render that asked for
+ * one, and the request carried the list again — measured at 3.4 MB a message on
+ * a 400-feature part.
+ */
+describe('the features key', () => {
+  const one = (tag: string): PartFeature =>
+    ({ featureTag: tag, featureType: 'wall', regionIdxs: [0] }) as unknown as PartFeature
+
+  it('is the same for one array asked twice', () => {
+    const features = [one('a'), one('b')]
+    expect(featuresKey(features)).toBe(featuresKey(features))
+  })
+
+  it('is the same for two arrays that say the same thing', () => {
+    expect(featuresKey([one('a')])).toBe(featuresKey([one('a')]))
+  })
+
+  it('differs for a different report', () => {
+    expect(featuresKey([one('a')])).not.toBe(featuresKey([one('b')]))
+  })
+
+  /** The digest is what goes in the key, so a key never carries a datasheet. */
+  it('keeps the features out of the match key', () => {
+    const features = [one('a')]
+    const key = matchKey('table', context(features), [{ demandKey: 'one', tags: ['a'] }])
+    expect(key).toContain(featuresKey(features))
+    expect(key).not.toContain('featureType')
   })
 })

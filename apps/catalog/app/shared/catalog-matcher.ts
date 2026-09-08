@@ -40,6 +40,24 @@ export interface MatchRequest {
   readonly kind: MatchKind
   readonly key: string
   readonly context: MatchContext
+  /**
+   * The identity of `context.features`, so the part crosses the boundary once.
+   *
+   * **The report is the same report all session** (Paul, 2026-09-07: "it still
+   * lags quite a bit when I finish with one feature then go to select another …
+   * the hover highlight and ability to click on the model hangs for a couple of
+   * seconds"). Every request carried the whole feature list — measured at
+   * 3.4 MB a message on a 400-feature part, three messages to a selection, each
+   * one serialised twice on the way out and cloned again by the browser. None of
+   * it changes between requests.
+   *
+   * So the features travel once and the worker keeps them under this key; a
+   * later request states the key and sends `context.features` empty. A worker
+   * that does not hold the key says so, and the client sends them again — which
+   * is what makes this safe across a worker that restarted or a cache that was
+   * never warmed.
+   */
+  readonly featuresKey: string
   readonly demands: ReadonlyArray<MatchDemand>
 }
 
@@ -106,6 +124,19 @@ export type MatchResponse =
       readonly results: ReadonlyArray<RecommendationResult>
     }
   | {
+      /**
+       * The features this request names are not the ones the worker holds.
+       *
+       * Not an error: the client answers it by sending them, which is the whole
+       * of the recovery. A worker that restarted, or one that never saw this
+       * report, both land here.
+       */
+      readonly requestId: number
+      readonly kind: 'needs-features'
+      readonly requestKind: MatchKind
+      readonly key: string
+    }
+  | {
       readonly requestId: number
       readonly kind: 'error'
       /** The slot that owns this failure; errors must not be guessed from a key. */
@@ -138,7 +169,46 @@ const stable = (value: unknown): string => {
   return JSON.stringify(value) ?? 'null'
 }
 
-/** A deterministic key for response ownership and the worker's optional cache. */
+/**
+ * The identity of a report's features, computed once for each array.
+ *
+ * **A key is asked for on every render; the report is read once.** `stable` over
+ * a few hundred features with their datasheets builds megabytes of string, and
+ * `matchKey` runs on every selection, every filter change and every keystroke in
+ * the search box — so the walk is done once per features array and remembered
+ * against it. A different array is a different report and gets a different
+ * digest.
+ *
+ * Digested rather than kept whole so that remembering it costs a few bytes
+ * instead of the megabytes it was built from. FNV-1a over the serialisation,
+ * with the length beside it: a hash collision would have to land on two
+ * different reports of exactly the same size.
+ */
+const FINGERPRINTS = new WeakMap<object, string>()
+
+export const featuresKey = (features: ReadonlyArray<PartFeature>): string => {
+  const had = FINGERPRINTS.get(features)
+  if (had !== undefined) {
+    return had
+  }
+  const written = stable(features)
+  let hash = 0x811c9dc5
+  for (let at = 0; at < written.length; at += 1) {
+    hash ^= written.charCodeAt(at)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  const made = `${String(written.length)}:${(hash >>> 0).toString(16)}`
+  FINGERPRINTS.set(features, made)
+  return made
+}
+
+/**
+ * A deterministic key for response ownership and the worker's optional cache.
+ *
+ * The features are in it by their digest rather than in full: two reports with
+ * the same digest are the same report, and serialising a part's whole geometry
+ * into a cache key on every render is what this key cost before.
+ */
 export const matchKey = (
   kind: MatchKind,
   context: MatchContext,
@@ -148,7 +218,10 @@ export const matchKey = (
     kind,
     // Recommendation verdicts contain only a GUID, so display units cannot affect
     // either the answer or its cache entry.
-    context: kind === 'recommendations' ? { ...context, unit: 'millimeters' } : context,
+    context: {
+      ...(kind === 'recommendations' ? { ...context, unit: 'millimeters' } : context),
+      features: featuresKey(context.features),
+    },
     demands,
   })
 

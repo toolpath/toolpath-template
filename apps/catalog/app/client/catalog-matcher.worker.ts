@@ -5,6 +5,7 @@ import {
   prepareMatch,
   recommendationMatch,
   type DetailedResult,
+  type MatchContext,
   type MatchRequest,
   type MatchResponse,
   type RecommendationResult,
@@ -44,8 +45,40 @@ class Lru<Value> {
 const tables = new Lru<ReadonlyArray<DetailedResult>>(4)
 const recommendations = new Lru<RecommendationResult>(256)
 
+/**
+ * The part this worker is answering about, kept between requests.
+ *
+ * **The report crosses once** (Paul, 2026-09-07). A request used to carry every
+ * feature and its datasheet — megabytes, three times to a selection, all of it
+ * identical to the last one. Now it carries their key, and this is where they
+ * live; a request naming a key this worker does not hold is answered with
+ * `needs-features`, and the client sends them.
+ */
+let held: { readonly key: string; readonly features: MatchContext['features'] } | null = null
+
 self.onmessage = (event: MessageEvent<MatchRequest>) => {
-  const request = event.data
+  const incoming = event.data
+  if (incoming.context.features.length > 0) {
+    held = { key: incoming.featuresKey, features: incoming.context.features }
+  }
+  if (held === null || held.key !== incoming.featuresKey) {
+    const asking: MatchResponse = {
+      requestId: incoming.requestId,
+      kind: 'needs-features',
+      requestKind: incoming.kind,
+      key: incoming.key,
+    }
+    self.postMessage(asking)
+    return
+  }
+  /*
+    Every rule below reads the features off the context, so the held ones are
+    put back into it rather than threaded through as a second argument.
+  */
+  const request: MatchRequest = {
+    ...incoming,
+    context: { ...incoming.context, features: held.features },
+  }
   try {
     if (request.kind === 'table') {
       const cached = tables.get(request.key)

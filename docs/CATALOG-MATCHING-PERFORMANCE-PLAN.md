@@ -410,6 +410,35 @@ The relevant success measure is UI responsiveness, not zero calculation time.
 Matching 17,470 tools can still take noticeable time on a slow machine. With
 this plan, that time is isolated to the worker while the demo remains usable.
 
+## What crosses the boundary (2026-09-07)
+
+**The part crosses once.** Every request carried `context.features` — each
+feature with its datasheet — and the request was `JSON.parse(JSON.stringify(…))`
+on the way out; `matchKey` serialised the same features again to build a cache
+key, on every render that asked for one. Measured on a 400-feature report:
+**3.4 MB a message, three messages to a single selection**, with the hover
+highlight and clicks on the model stalling behind it (Paul, 2026-09-07: "it
+still lags quite a bit when I finish with one feature then go to select
+another").
+
+Three changes, all inside the existing request/result types:
+
+- `featuresKey` digests a features array **once per array identity** (a WeakMap
+  against the array, FNV-1a over its serialisation, kept as `length:hash`).
+  `matchKey` puts that digest in the key instead of the features.
+- `MatchRequest.featuresKey` names the report; the client sends
+  `context.features` only when the worker is not known to hold that key, and the
+  worker keeps them. Subsequent requests are **8 KB instead of 3.4 MB**.
+- A worker that does not hold the named features answers `needs-features`, and
+  the client resends with them. That is the path a restarted worker takes — a
+  remount clears the client's memory of what was sent, so the round trip is a
+  backstop rather than the ordinary case.
+
+The features still cross once per report, and the browser still clones them into
+the worker's heap. Sending only the tags a demand names, and letting the worker
+read the rest from a report it fetched itself, is the next step if a part ever
+gets big enough to make that first message hurt.
+
 ## Future product path
 
 If this demo becomes a product with customer-specific tool libraries, very much

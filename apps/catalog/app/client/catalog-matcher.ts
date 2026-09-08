@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { PartFeature } from '@toolpath/part-contracts'
 import {
+  featuresKey,
   matchKey,
   type DetailedResult,
   type MatchContext,
@@ -17,8 +19,45 @@ export type MatchState<Result> =
 
 const idle = { status: 'idle' } as const
 
-/** Reports carry viewer helpers at runtime; the worker receives data only. */
+/**
+ * Reports carry viewer helpers at runtime; the worker receives data only.
+ *
+ * **The part is made plain once, not once a request** (Paul, 2026-09-07: "it
+ * still lags quite a bit when I finish with one feature then go to select
+ * another"). A `JSON.parse(JSON.stringify(…))` of the whole request meant
+ * serialising and re-parsing every feature's datasheet on the way to a worker
+ * that already had them — measured at 3.4 MB a message on a 400-feature part,
+ * three of them to a selection. The features are stripped once against their
+ * own identity; everything else in a request is a query, a few knobs and a
+ * handful of tags.
+ */
 const cloneable = <Value>(value: Value): Value => JSON.parse(JSON.stringify(value)) as Value
+
+const PLAIN = new WeakMap<object, ReadonlyArray<PartFeature>>()
+
+const plainFeatures = (features: ReadonlyArray<PartFeature>): ReadonlyArray<PartFeature> => {
+  const had = PLAIN.get(features)
+  if (had !== undefined) {
+    return had
+  }
+  const made = cloneable(features)
+  PLAIN.set(features, made)
+  return made
+}
+
+/**
+ * The request as it goes over the wire: the features once, then their key.
+ *
+ * `sent` is what the worker is known to hold. It is a ref rather than state
+ * because it changes as a side effect of sending and nothing renders from it.
+ */
+const forWire = (request: MatchRequest, sent: string | null): MatchRequest => ({
+  ...cloneable({ ...request, context: { ...request.context, features: [] } }),
+  context: {
+    ...cloneable({ ...request.context, features: [] }),
+    features: sent === request.featuresKey ? [] : plainFeatures(request.context.features),
+  },
+})
 
 /** Owns the one per-tab matcher worker and rejects stale response slots. */
 export const useCatalogMatcher = () => {
@@ -36,6 +75,8 @@ export const useCatalogMatcher = () => {
     table: null,
     recommendations: null,
   })
+  /** The features the worker is known to hold, so they cross the boundary once. */
+  const held = useRef<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [ready, setReady] = useState(false)
   const [table, setTable] = useState<MatchState<DetailedResult>>(idle)
@@ -53,7 +94,8 @@ export const useCatalogMatcher = () => {
         continue
       }
       queued.current[kind] = null
-      current.postMessage(cloneable(request))
+      current.postMessage(forWire(request, held.current))
+      held.current = request.featuresKey
     }
   }, [])
 
@@ -68,12 +110,34 @@ export const useCatalogMatcher = () => {
       type: 'module',
     })
     worker.current = current
+    // A new worker holds nothing, so the next request carries the part again.
+    // The `needs-features` answer is the backstop; this is the ordinary path,
+    // and it saves a round trip on every remount.
+    held.current = null
     setReady(true)
     schedule()
     current.onmessage = (event: MessageEvent<MatchResponse>) => {
       const response = event.data
-      const slot = response.kind === 'error' ? response.requestKind : response.kind
+      const slot =
+        response.kind === 'error' || response.kind === 'needs-features'
+          ? response.requestKind
+          : response.kind
       if (response.requestId !== latest.current[slot]) {
+        return
+      }
+      /*
+        **The worker does not hold this report.** It restarted, or it has never
+        seen this one; either way the answer is to send it, which is what the
+        client kept a copy of. `held` is cleared first so the resend carries the
+        features rather than naming them again.
+      */
+      if (response.kind === 'needs-features') {
+        const previous = latestRequest.current[slot]
+        held.current = null
+        if (previous !== null) {
+          queued.current[slot] = previous
+          schedule()
+        }
         return
       }
       if (response.kind === 'error') {
@@ -136,7 +200,14 @@ export const useCatalogMatcher = () => {
       } else {
         setRecommendations(pending)
       }
-      const request: MatchRequest = { requestId, kind, key, context, demands }
+      const request: MatchRequest = {
+        requestId,
+        kind,
+        key,
+        context,
+        featuresKey: featuresKey(context.features),
+        demands,
+      }
       latestRequest.current[kind] = request
       queued.current[kind] = request
       schedule()
