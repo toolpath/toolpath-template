@@ -244,6 +244,38 @@ describe('catalog matcher protocol', () => {
   })
 
   /**
+   * **A form the filter asks for is a form the question is about** (Paul,
+   * 2026-09-08: "there is no way to show end mills if I can't find a drill").
+   *
+   * The pocket's type table considers end mills, so a drill in the catalog is
+   * removed before a rule reads it — and adding one to the `form` filter is
+   * the whole of the ask. Pinned here because the wiring is what was missing:
+   * the predrill button had been writing that filter since 2026-09-02 and the
+   * judge was throwing the tools away again.
+   */
+  it('lets the form filter put a type the feature does not consider into the judging', () => {
+    const feature = pocket('pocket-1')
+    const drill = { ...tool('DRILL', 6), form: 'drill', toolType: 'drill' } as CatalogTool
+    const crib = { tools: [tool('SMALL', 6), drill], holders: [], collets: [] }
+    const asking = (forms: ReadonlyArray<string>) =>
+      detailedMatch(
+        { ...context([feature]), query: { text: '', terms: { form: forms }, ranges: {} } },
+        { demandKey: 'one', tags: [feature.featureTag] },
+        crib,
+      )
+
+    const before = asking(['flat end mill'])
+    expect(before.fitting.map((each) => each.toolGuid)).toEqual(['SMALL'])
+
+    const after = asking(['flat end mill', 'drill'])
+    expect(after.fitting.map((each) => each.toolGuid).sort()).toEqual(['DRILL', 'SMALL'])
+    // Asked for, not forgiven: every other rule still reads it.
+    expect(rehydrateVerdicts(after.fitting, crib.tools).map((each) => each.tool.form)).toContain(
+      'drill',
+    )
+  })
+
+  /**
    * **The filters are the last word** (Paul, 2026-09-08: "I may want to use a
    * larger tool than required … when I change the filter, it currently shows me
    * 'no tools match'"). Asking for the 10 mm cutter in an 8 mm pocket is a

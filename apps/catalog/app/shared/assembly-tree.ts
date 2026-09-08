@@ -110,6 +110,23 @@ export interface TreeAssembly {
    * one means.
    */
   readonly overrides?: ReadonlyArray<Slot>
+  /**
+   * What a shop calls this stack (Paul, 2026-09-08: naming a tool assembly when
+   * it is made, and from the list afterwards).
+   *
+   * **A number is a position, not a name.** `Assembly 1` and `Assembly 2` say
+   * which of two stacks a component is standing in and nothing about why either
+   * exists — and a pocket's rougher and finisher are exactly the case where the
+   * difference is the whole decision. It is optional and stays optional: the
+   * rule {@link assemblyName} already followed holds for every stack nobody
+   * names, so a tree reads as it did before.
+   *
+   * Absent, or empty, on every tree stored before the field existed and on one
+   * read back off the bill — a line carries a stack, not what somebody called
+   * it — both of which read as unnamed. Trimmed on the way in, in {@link
+   * renameAssembly}.
+   */
+  readonly name?: string
 }
 
 /** Which slot of which assembly is being filled — what the table below is a list of. */
@@ -455,9 +472,48 @@ export const assemblyName = (
   assemblies: ReadonlyArray<TreeAssembly>,
   assembly: TreeAssembly,
 ): string =>
+  assembly.name !== undefined && assembly.name.trim() !== ''
+    ? assembly.name.trim()
+    : defaultAssemblyName(assemblies, assembly)
+
+/**
+ * What a stack is called while nobody has named it.
+ *
+ * The name a naming field is typed *over* rather than into — the placeholder is
+ * what the stack would go on being called — so it is a function of its own
+ * rather than something the field reinvents.
+ */
+export const defaultAssemblyName = (
+  assemblies: ReadonlyArray<TreeAssembly>,
+  assembly: TreeAssembly,
+): string =>
   assembly.role === 'cut'
     ? `Assembly ${String(assemblies.indexOf(assembly) + 1)}`
     : ROLE_LABEL[assembly.role]
+
+/**
+ * One stack called what a shop calls it.
+ *
+ * Empty puts the name back rather than storing one, so clearing the field is
+ * the way back to `Assembly 2` — there is no second control for un-naming a
+ * stack, and a stored empty name would read as named everywhere but on screen.
+ */
+export const renameAssembly = (
+  assemblies: ReadonlyArray<TreeAssembly>,
+  id: string,
+  name: string,
+): Array<TreeAssembly> =>
+  assemblies.map((each) => {
+    if (each.id !== id) {
+      return each
+    }
+    const trimmed = name.trim()
+    if (trimmed === '') {
+      const { name: _dropped, ...rest } = each
+      return rest
+    }
+    return { ...each, name: trimmed }
+  })
 
 /**
  * The stacks of this feature holding a component, by name.
@@ -621,7 +677,10 @@ const isAssembly = (value: unknown): value is TreeAssembly => {
     // nothing overridden — see `TreeAssembly.overrides`.
     (assembly.overrides === undefined ||
       (Array.isArray(assembly.overrides) &&
-        assembly.overrides.every((slot) => SLOTS.includes(slot))))
+        assembly.overrides.every((slot) => SLOTS.includes(slot)))) &&
+    // Absent on every tree stored before the field existed, which reads as
+    // unnamed — see `TreeAssembly.name`.
+    (assembly.name === undefined || typeof assembly.name === 'string')
   )
 }
 

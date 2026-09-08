@@ -644,21 +644,46 @@ export const optionsMatching = <Option extends { value: string; label: string }>
  * eleven presses down a scrolling list. Searching is not narrowing: what it
  * hides stays chosen, because a value ticked and then scrolled out of sight by
  * a second word is still a value the shop asked for.
+ *
+ * **A column can only offer what the list is holding, and that is not always
+ * the whole question** (Paul, 2026-09-08: "there is no way to show end mills if
+ * I can't find a drill. I should have the option to show endmills in the Type
+ * filter, but it does not show up … I should always have a '...' row at the
+ * bottom of the recommended filter options to expand any filter to show what
+ * it's hiding from the list in any filter that is limited contextually").
+ *
+ * A threaded hole's list is drills, so the Type column offered `Drill` and
+ * nothing else — and a shop that wanted to interpolate the predrill had no way
+ * to say so. So the values a list happens to hold are the *recommendation*, and
+ * the row under them opens the rest: everything the axis has that this list is
+ * not showing, drawn greyed at nought because pressing one is how the question
+ * widens. The same rule the filter panel has followed since 2026-09-01 — a
+ * value that could return something stays pressable — reaching the values a
+ * contextual list never offered at all.
  */
 export const TermFilter = ({
   label,
   options,
   chosen,
   onChosen,
+  hidden = [],
 }: {
   /** The column, which is what the search box says it searches. */
   readonly label: string
   readonly options: ReadonlyArray<{ value: string; label: string; count: number }>
   readonly chosen: ReadonlyArray<string>
   readonly onChosen: (values: ReadonlyArray<string>) => void
+  /**
+   * What this axis has that the list is not showing — everything the context
+   * narrowed away, behind the `…` row.
+   */
+  readonly hidden?: ReadonlyArray<{ value: string; label: string }>
 }) => {
   const [search, setSearch] = useState('')
-  const shown = optionsMatching(options, search)
+  const [expanded, setExpanded] = useState(false)
+  const rest = optionsMatching(hidden, search).map((option) => ({ ...option, count: 0 }))
+  const offList = new Set(hidden.map((option) => option.value))
+  const shown = [...optionsMatching(options, search), ...(expanded ? rest : [])]
   const values = shown.map((option) => option.value)
   /** Whether the button takes the shown options back off, which is its words. */
   const all = values.length > 0 && values.every((value) => chosen.includes(value))
@@ -675,7 +700,7 @@ export const TermFilter = ({
 
   return (
     <div className="min-w-44">
-      {options.length === 0 ? null : (
+      {options.length === 0 && hidden.length === 0 ? null : (
         <div className="mb-1.5 flex items-center gap-1.5">
           <Input
             id={`term-filter-search-${label}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}
@@ -702,29 +727,54 @@ export const TermFilter = ({
         </div>
       )}
       <div className="max-h-72 overflow-y-auto">
-        {options.length === 0 ? (
+        {options.length === 0 && hidden.length === 0 ? (
           <p className="text-2xs px-2 py-1.5 text-zinc-600">Nothing to narrow by.</p>
         ) : shown.length === 0 ? (
           <p className="text-2xs px-2 py-1.5 text-zinc-600">Nothing matches that.</p>
         ) : (
-          shown.map((option) => (
-            <div
-              key={option.value}
-              className="text-2xs flex cursor-pointer items-center gap-2 px-2 py-1 whitespace-nowrap normal-case hover:bg-zinc-900"
-            >
-              <Checkbox
-                name={`term-filter-${option.value}`}
-                checked={chosen.includes(option.value)}
-                onChange={() => toggle(option.value)}
-                size="sm"
-                aria-label={option.label}
-              />
-              <span className="text-zinc-200">{option.label}</span>
-              <span className="ml-auto pl-3 font-mono tabular-nums text-zinc-600">
-                {option.count}
-              </span>
-            </div>
-          ))
+          shown.map((option) => {
+            /*
+              Off the list: a value the context narrowed away, drawn faintly at
+              nought. Pressable like any other, because pressing it is how the
+              question widens — the filter panel's own rule since 2026-09-01.
+            */
+            const off = offList.has(option.value)
+            return (
+              <div
+                key={option.value}
+                className="text-2xs flex cursor-pointer items-center gap-2 px-2 py-1 whitespace-nowrap normal-case hover:bg-zinc-900"
+              >
+                <Checkbox
+                  name={`term-filter-${option.value}`}
+                  checked={chosen.includes(option.value)}
+                  onChange={() => toggle(option.value)}
+                  size="sm"
+                  aria-label={off ? `${option.label} — not on this list` : option.label}
+                />
+                <span className={off ? 'text-zinc-500' : 'text-zinc-200'}>{option.label}</span>
+                <span className="ml-auto pl-3 font-mono tabular-nums text-zinc-600">
+                  {option.count}
+                </span>
+              </div>
+            )
+          })
+        )}
+        {rest.length === 0 && !(expanded && hidden.length > 0) ? null : (
+          <Button
+            type="button"
+            size="sm"
+            variant="muted"
+            data-expand-filter
+            onClick={() => setExpanded(!expanded)}
+            title={
+              expanded
+                ? `Offer only the ${label.toLowerCase()} values this list holds.`
+                : `Every ${label.toLowerCase()} the catalog has, including what this list is not showing. Choosing one asks for it.`
+            }
+            className="text-2xs w-full justify-start rounded-none border-0 bg-transparent px-2 py-1.5 text-left whitespace-nowrap text-zinc-500 normal-case hover:bg-zinc-900 hover:text-zinc-300"
+          >
+            {expanded ? 'Fewer — only what this list holds' : `… ${String(rest.length)} more`}
+          </Button>
         )}
       </div>
     </div>

@@ -588,6 +588,37 @@ test('the family is a column, and the column is the filter', async ({ page }) =>
 })
 
 /**
+ * **A column can only offer what the list is holding, and that is not always
+ * the whole question** (Paul, 2026-09-08: "there is no way to show end mills if
+ * I can't find a drill … I should always have a '...' row at the bottom of the
+ * recommended filter options to expand any filter to show what it's hiding from
+ * the list in any filter that is limited contextually").
+ *
+ * The face's list is the tools that can cut a face, so the Type column offered
+ * those and a drill could not be asked for at all. The row under the values
+ * opens the rest of the axis, and pressing one writes **both** halves: the type
+ * it narrows on, and the form it asks for — which is what the judge's type table
+ * stands down for. Against the cube, where the crib's drills are exactly the
+ * tools a face's list does not hold.
+ */
+test('offers what the Type column is not showing, and asks for it', async ({ page }) => {
+  await ready(page)
+
+  await page.getByRole('button', { name: 'Filter by Type', exact: true }).click()
+  const types = page.getByRole('group', { name: 'Type' })
+  await expect(types.getByRole('checkbox', { name: /^Drill/ })).toBeHidden()
+
+  await types.getByRole('button', { name: /^… \d+ more$/ }).click()
+  const drill = types.getByRole('checkbox', { name: 'Drill — not on this list' })
+  await expect(drill).toBeVisible()
+  await drill.click()
+
+  // Both halves, in the URL where every filter on this page lives.
+  await expect(page).toHaveURL(/type=Drill/)
+  await expect(page).toHaveURL(/form=drill/)
+})
+
+/**
  * The feature list: what a click adds, and what the list answers with.
  *
  * **The selection used to be invisible** (Paul, 2026-09-02). Clicking a face
@@ -675,16 +706,92 @@ test('adds a tool assembly with no feature behind it', async ({ page }) => {
   expect(number).not.toBe('')
   await row.click()
 
-  // One press makes the row and orders the stack.
+  /*
+    **The name is typed on the dialog's own card**, while the stack is being
+    built — and the row the press makes is called what the stack was called
+    (Paul, 2026-09-08: "it should default to the default name, or the one I
+    entered in the dialog").
+  */
+  await tree.getByRole('button', { name: 'Assembly 1', exact: true }).click()
+  await tree.getByRole('textbox', { name: 'Name for Assembly 1' }).fill('Facing stack')
+  await tree.getByRole('textbox', { name: 'Name for Assembly 1' }).press('Enter')
+
+  // One press makes the row and orders the stack — and asks for nothing else.
   await tree.getByRole('button', { name: 'Add to order list' }).click()
-  await expect(list.getByRole('button', { name: 'Tool assembly 1', exact: true })).toBeVisible()
+  await expect(list.getByRole('button', { name: 'Facing stack', exact: true })).toBeVisible()
+  await expect(list.getByRole('textbox')).toHaveCount(0)
   await expect(list.getByText('no feature')).toBeVisible()
 
-  // And on the bill, under the number a shop orders by, for no feature.
+  // And on the bill, under the number a shop orders by, for the stack's name —
+  // it machines no feature, so what it is *for* is all the note can say.
   await page.getByRole('link', { name: 'Order list' }).click()
   const bill = page.getByRole('table')
   await expect(bill.getByText(number).first()).toBeVisible()
-  await expect(bill.getByText('machines no feature')).toBeVisible()
+  await expect(bill.getByText('for Facing stack')).toBeVisible()
+})
+
+/**
+ * **Nothing typed is the name it already had** (Paul, 2026-09-08: "the name
+ * needs to add the default if I don't enter one"), and the tick settles a name
+ * exactly as Enter does — it is the press the field advertises.
+ *
+ * The width is here too, because it is the reason the placeholder could not be
+ * read: the list is only as wide as its rows, so a field taking its width from
+ * the row got the width of a caret (Paul, 2026-09-08: "this text entry box
+ * needs to be wider so I can see what I'm typing").
+ */
+test('keeps the default name when none is typed, and takes one from the tick', async ({ page }) => {
+  const list = page.getByRole('list', { name: 'Features being asked about' })
+  const tree = page.locator('[data-assembly-tree]')
+
+  await page.getByRole('button', { name: '+ Tool Assembly' }).click()
+  await tree.getByRole('button', { name: /^TOOL for / }).click()
+  await page.getByRole('grid').first().getByRole('row').first().click()
+  await tree.getByRole('button', { name: 'Add to order list' }).click()
+
+  /*
+    **Nothing is asked for.** Named nowhere, the row is the number it was always
+    going to be, and naming waits until somebody has something to say.
+  */
+  await expect(list.getByRole('textbox')).toHaveCount(0)
+  const named = list.getByRole('button', { name: 'Tool assembly 1', exact: true })
+  await expect(named).toBeVisible()
+
+  await named.click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Rename…' }).click()
+
+  // Wide enough to read what is being typed, and what it is called now.
+  const field = list.getByRole('textbox', { name: 'Name for Tool assembly 1' })
+  await expect(field).toHaveAttribute('placeholder', 'Tool assembly 1')
+  const box = await field.boundingBox()
+  expect(box?.width ?? 0).toBeGreaterThan(150)
+
+  // The tick settles a name that was typed, exactly as Enter does.
+  await field.fill('test')
+  await list.getByRole('button', { name: 'Save the name for Tool assembly 1' }).click()
+  await expect(list.getByRole('button', { name: 'test', exact: true })).toBeVisible()
+
+  // And nothing typed leaves it called what it is already called.
+  await list.getByRole('button', { name: 'test', exact: true }).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Rename…' }).click()
+  await list.getByRole('button', { name: 'Save the name for test' }).click()
+
+  await expect(list.getByRole('button', { name: 'test', exact: true })).toBeVisible()
+})
+
+/**
+ * **The + Tool Assembly tree has no second stack** (Paul, 2026-09-08: "we can
+ * also remove the add assembly button from + Tool Assembly"). It answers no
+ * feature, so another stack the part needs is another row with a name of its
+ * own rather than an unnamed `Assembly 2` inside this one.
+ */
+test('offers no second stack on an assembly that answers no feature', async ({ page }) => {
+  const tree = page.locator('[data-assembly-tree]')
+
+  await page.getByRole('button', { name: '+ Tool Assembly' }).click()
+  await expect(tree).toBeVisible()
+  // A feature keeps its second stack — `another assembly is one press away`.
+  await expect(tree.getByRole('button', { name: 'Add assembly' })).toHaveCount(0)
 })
 
 /**
@@ -1439,6 +1546,42 @@ test.describe('the tool assembly tree', () => {
 
     await expect(tree.getByRole('button', { name: 'Remove from order list' })).toBeVisible()
     await expect(tree.getByRole('button', { name: 'Add to order list' })).toHaveCount(0)
+  })
+
+  /**
+   * **A stack can be called something, and the list says so** (Paul,
+   * 2026-09-08: "I need to be able to name tool assemblies", and "it still
+   * isn't showing the name in the order list in the parts page"). `Assembly 1`
+   * is a position; the name is the one thing on the line that says why this
+   * stack exists, so it is on the card and on the line the card put on the
+   * list.
+   */
+  test('names a stack, and says the name on the line it puts on the list', async ({ page }) => {
+    await ready(page)
+    await page.getByRole('button', { name: '+ Feature' }).click()
+    const tree = await buildStack(page)
+
+    // The card's heading is the way in, and the placeholder is what it is
+    // called now rather than a prompt.
+    // Exactly, because the trash beside it is "Remove assembly 1".
+    await tree.getByRole('button', { name: 'Assembly 1', exact: true }).click()
+    const field = tree.getByRole('textbox', { name: 'Name for Assembly 1' })
+    await expect(field).toHaveAttribute('placeholder', 'Assembly 1')
+    // Wide enough to read, and still inside the card it is the heading of.
+    const box = await field.boundingBox()
+    const card = await tree.boundingBox()
+    expect(box?.width ?? 0).toBeGreaterThan(150)
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(
+      (card?.x ?? 0) + (card?.width ?? 0) + 1,
+    )
+    await field.fill('big stupid')
+    await field.press('Enter')
+    await expect(tree.getByRole('button', { name: 'big stupid', exact: true })).toBeVisible()
+
+    await tree.getByRole('button', { name: 'Add to order list' }).click()
+
+    const list = page.getByRole('list', { name: 'Features being asked about' })
+    await expect(list.getByText('big stupid')).toBeVisible()
   })
 
   /**

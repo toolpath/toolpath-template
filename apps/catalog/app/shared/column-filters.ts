@@ -37,6 +37,15 @@ const TOOL_TERM_COLUMNS: Readonly<Record<string, string>> = {
 }
 
 /**
+ * The axes a tool column narrows on with words rather than numbers.
+ *
+ * What a `…` row has to be measured against: only an axis of values can have
+ * values it is not showing, and the list of them is this file's to say for the
+ * same reason `AXES_IN_TOOL_COLUMNS` is.
+ */
+export const TOOL_TERM_AXES: ReadonlyArray<string> = Object.values(TOOL_TERM_COLUMNS)
+
+/**
  * The three tool numbers that are not lengths.
  *
  * A flute count converts to nothing, a point angle is degrees in either unit,

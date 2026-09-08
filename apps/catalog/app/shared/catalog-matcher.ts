@@ -444,6 +444,16 @@ const matchDemand = (
     prepared.considered,
     matcherFormat(context.unit),
     context.knobs,
+    /*
+      **A form the filter asks for is a form the question is about.** The type
+      table is the feature's default, and the `form` filter is the one place
+      that says which forms are being asked about — so a group added there
+      (`formsAsking`, `shared/tool-type.ts`) reaches the judging rather than being
+      removed by the type table under a filter that had just admitted it. It is
+      already in the context, so no cache key changes and no second state can
+      disagree with it.
+    */
+    context.query.terms.form ?? [],
   )
   const narrowed = fitting.fitting.filter((verdict) =>
     prepared.admittedGuids.has(verdict.tool.guid),

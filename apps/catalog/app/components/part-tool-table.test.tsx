@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { CatalogTool } from '@toolpath/catalog-data'
 import {
   flexibleColumnWidth,
@@ -135,6 +135,53 @@ describe('PartToolTable', () => {
     expect(onChoose).not.toHaveBeenCalled()
   })
 
+  /**
+   * **The column is the stack's length, not the tool's own** (Paul,
+   * 2026-09-08: "we can plainly see that more of the tool is beneath the
+   * holder"). It printed `geometry.LBH`, which is the length a tool is set up
+   * at with no holder and no feature, beside a panel drawing the same tool
+   * three times further out — because the holder the column used to ask about
+   * was a dropdown on the row, and the assembly tree took those out.
+   */
+  it('prints the length below the holder the open stack needs, not the tool’s own', () => {
+    show({
+      columns: TOOL_COLUMNS,
+      hiddenColumns: [],
+      columnOrder: ['LBH'],
+      // The tool's own setup length, which is what the column used to print.
+      tools: [{ ...first, geometry: { ...first.geometry, LBH: 44 } }],
+      below: () => ({ length: 52, needs: 52, most: 60, overLimit: false }),
+    })
+
+    expect(tableRows()[0]).toHaveTextContent('52.00 mm')
+    expect(screen.getAllByText('holder needs').length).toBeGreaterThan(0)
+  })
+
+  /** A tool too short to be set that far out says both lengths, so somebody can act on it. */
+  it('says what the stack needs and what the tool holds when it cannot reach', () => {
+    show({
+      columns: TOOL_COLUMNS,
+      hiddenColumns: [],
+      columnOrder: ['LBH'],
+      below: () => ({ length: 45, needs: 70, most: 45, overLimit: true }),
+    })
+
+    expect(tableRows()[0]).toHaveTextContent('needs 70.00 mm out, holds 45.00 mm')
+  })
+
+  /** With nothing holding it, the tool's own setup length is the honest answer. */
+  it('falls back to the tool’s own length below holder with no stack', () => {
+    show({
+      columns: TOOL_COLUMNS,
+      hiddenColumns: [],
+      columnOrder: ['LBH'],
+      tools: [{ ...first, geometry: { ...first.geometry, LBH: 60 } }],
+    })
+
+    expect(tableRows()[0]).toHaveTextContent('60.00 mm')
+    expect(screen.queryByText('holder needs')).not.toBeInTheDocument()
+  })
+
   it('keeps the table grid wider than its scroll container', () => {
     show({
       columns: TOOL_COLUMNS,
@@ -229,6 +276,34 @@ describe('the filters a heading asks', () => {
     fireEvent.click(await screen.findByRole('group', { name: 'Diameter' }))
 
     expect(tableRows()[0]).toHaveTextContent('T-20')
+  })
+
+  /**
+   * **What a contextual list is not showing is offered per axis** (Paul,
+   * 2026-09-08: "I should always have a '...' row at the bottom of the
+   * recommended filter options to expand any filter to show what it's hiding
+   * from the list"). The Type column and the Vendor column ask the same shape of
+   * question about different axes, so each gets its own answer.
+   */
+  it('offers what an axis is hiding behind the row on that column', () => {
+    const hidden = (axis: string) =>
+      axis === 'type' ? [{ value: 'Flat end mill', label: 'Flat end mill' }] : []
+    show({ filtering: filtering({ hidden }) })
+
+    /*
+      The menu is a portal rendered on the press itself, so it is read back
+      synchronously and scoped to the menu — a role query across a table of rows
+      is slow enough to time this test out under a parallel run.
+    */
+    fireEvent.click(screen.getByRole('button', { name: 'Filter by Vendor' }))
+    const vendor = screen.getByRole('group', { name: 'Vendor' })
+    expect(within(vendor).queryByRole('button', { name: /more/ })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter by Type' }))
+    const type = screen.getByRole('group', { name: 'Type' })
+    fireEvent.click(within(type).getByRole('button', { name: '… 1 more' }))
+
+    expect(within(type).getByRole('checkbox', { name: /Flat end mill/ })).toBeInTheDocument()
   })
 
   /** The two cells that set a choice rather than hold a value ask nothing. */

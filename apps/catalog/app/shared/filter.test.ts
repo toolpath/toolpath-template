@@ -498,6 +498,29 @@ describe('what an axis keeps offering', () => {
     expect(offered.get('Kennametal')).toBe(2)
   })
 
+  /**
+   * **A chosen value is always offered**, whatever the memory holds — the filter
+   * panel's own rule, reached from a new direction once the `…` row started
+   * offering values the list had never held. One ticked from behind it is in no
+   * memory of this axis, so without this the tick vanished as it was made and
+   * there was no control left to lift it.
+   */
+  it('offers a chosen value the memory never held', () => {
+    const narrowed = new Map([['Sandvik', 7]])
+
+    const offered = stillOffered(narrowed, ['Sandvik'], before)
+
+    expect(offered.get('Sandvik')).toBe(7)
+    expect([...offered.keys()]).toContain('Kennametal')
+  })
+
+  /** Even where the narrowed list cannot count it: nought, and still liftable. */
+  it('offers it at nought where nothing measures it', () => {
+    const offered = stillOffered(new Map(), ['Sandvik'], before)
+
+    expect(offered.get('Sandvik')).toBe(0)
+  })
+
   it('counts fresh the moment the axis is cleared', () => {
     const narrowed = new Map([['Harvey Tool', 4]])
 

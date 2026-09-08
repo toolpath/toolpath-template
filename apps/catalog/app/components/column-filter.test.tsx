@@ -305,6 +305,100 @@ describe('narrowing on a set of names', () => {
   })
 })
 
+/**
+ * **A column can only offer what the list is holding, and that is not always
+ * the whole question** (Paul, 2026-09-08: "there is no way to show end mills if
+ * I can't find a drill … I should always have a '...' row at the bottom of the
+ * recommended filter options to expand any filter to show what it's hiding from
+ * the list in any filter that is limited contextually").
+ */
+describe('what a contextual list is not showing', () => {
+  const HIDDEN = [
+    { value: 'Flat end mill', label: 'Flat end mill' },
+    { value: 'Ball end mill', label: 'Ball end mill' },
+  ]
+
+  const show = (
+    over: { chosen?: ReadonlyArray<string>; onChosen?: (v: ReadonlyArray<string>) => void } = {},
+  ) =>
+    render(
+      <TermFilter
+        label="Type"
+        options={[{ value: 'Drill', label: 'Drill', count: 14 }]}
+        chosen={over.chosen ?? []}
+        onChosen={over.onChosen ?? (() => {})}
+        hidden={HIDDEN}
+      />,
+    )
+
+  it('offers the rest behind one row, and says how many', () => {
+    show()
+
+    expect(screen.queryByRole('checkbox', { name: /Flat end mill/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '… 2 more' }))
+    expect(screen.getByRole('checkbox', { name: /Flat end mill/ })).toBeInTheDocument()
+  })
+
+  /** Pressing one is how the question widens, so it answers like any other value. */
+  it('chooses a value the list is not showing', () => {
+    const onChosen = vi.fn()
+    show({ onChosen })
+
+    fireEvent.click(screen.getByRole('button', { name: '… 2 more' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Flat end mill/ }))
+
+    expect(onChosen).toHaveBeenLastCalledWith(['Flat end mill'])
+  })
+
+  /** Named as what it is, because a nought beside it would otherwise read as absent. */
+  it('says a value is off the list rather than only greying it', () => {
+    show()
+
+    fireEvent.click(screen.getByRole('button', { name: '… 2 more' }))
+    expect(
+      screen.getByRole('checkbox', { name: 'Flat end mill — not on this list' }),
+    ).toBeInTheDocument()
+  })
+
+  /** The search reaches them too, which is what makes a long axis usable. */
+  it('searches what is behind the row as well as what is in front', () => {
+    show()
+
+    fireEvent.click(screen.getByRole('button', { name: '… 2 more' }))
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search type values' }), {
+      target: { value: 'ball' },
+    })
+
+    expect(screen.getByRole('checkbox', { name: /Ball end mill/ })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Drill' })).not.toBeInTheDocument()
+    // And the button acts on exactly what is on screen, expanded or not.
+    expect(screen.getByRole('button', { name: 'Select shown (1)' })).toBeEnabled()
+  })
+
+  it('goes back to what the list holds', () => {
+    show()
+
+    fireEvent.click(screen.getByRole('button', { name: '… 2 more' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Fewer — only what this list holds' }))
+
+    expect(screen.queryByRole('checkbox', { name: /Flat end mill/ })).not.toBeInTheDocument()
+  })
+
+  /** Nothing behind it is no row: the `…` is an offer, not a heading. */
+  it('draws no row where the list is the whole axis', () => {
+    render(
+      <TermFilter
+        label="Type"
+        options={[{ value: 'Drill', label: 'Drill', count: 14 }]}
+        chosen={[]}
+        onChosen={() => {}}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: /more/ })).not.toBeInTheDocument()
+  })
+})
+
 describe('which options a typed word leaves', () => {
   it('matches the words shown and the value behind them, either case', () => {
     expect(optionsMatching(OPTIONS, 'HARVI').map((each) => each.value)).toEqual([

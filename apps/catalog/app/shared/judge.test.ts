@@ -124,6 +124,31 @@ describe('one filleted pocket, nine tools, the committed sheet', () => {
   })
 
   /**
+   * **A form the filter asks for is let past the type table, and judged.**
+   *
+   * Paul, 2026-09-08: "there is no way to show end mills if I can't find a
+   * drill … this is not really an override, it is just the ability to add a
+   * potentially compatible group of tool types to the list". So the table
+   * stands down for an asked form and nothing else does: the drill below is in
+   * the question, and the rules then remove it by name for being wider than
+   * the pocket admits rather than for being a drill.
+   */
+  it('lets a form the filter asks for past the type table, and still judges it', () => {
+    const wide = tool('Z', 'drill', { DC: 8, LCF: 30, LD: 4, SIG: 118 })
+    const [asked] = judgeTools([wide], pocket(), [pocket()], { asked: ['drill'] })
+    expect(standingOf(asked!)).toBe('fits')
+    const fat = tool('Y', 'drill', { DC: 12, LCF: 30, LD: 4, SIG: 118 })
+    const [over] = judgeTools([fat], pocket(), [pocket()], { asked: ['drill'] })
+    expect(standingOf(over!)).toBe('removed')
+    expect(over!.removed[0]?.text).toContain(
+      'diameter 12 over 10.10 (largest tool diameter + drill oversize)',
+    )
+    // Asking for one form says nothing about another.
+    const [other] = judgeTools([wide], pocket(), [pocket()], { asked: ['reamer'] })
+    expect(other!.removed[0]?.text).toContain('not a type this feature considers')
+  })
+
+  /**
    * A tool on the tightest corner is a tool that fits.
    *
    * It was warned by a 5 %-under rule — the downsize rule — and Paul took that

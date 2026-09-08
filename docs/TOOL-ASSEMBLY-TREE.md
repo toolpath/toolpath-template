@@ -337,6 +337,42 @@ a series filter must not match a shrink-fit chuck, and a gauge-length bound must
 not match a holder that publishes none. That is `matchesFilters`' rule, applied
 to this catalog's own axes.
 
+## 4a. The length below the holder
+
+`belowHolder`, `app/shared/drawn-assembly.ts`.
+
+**The tool list's _Length below holder_ column is about the stack, not about
+the tool** (Paul, 2026-09-08: "we can plainly see that more of the tool is
+beneath the holder"). It printed `geometry.LBH`, which `stickout.ts` defines as
+that same function asked with **no holder and no feature** — 0.625 in on a ⌀0.25
+end mill — while the panel beside it drew the very same tool 2.125 in out to
+reach the bottom of a 2.066 in pocket. Two numbers for one length, on one
+screen.
+
+Nothing was wrong with the machinery; the tree walked away from it. The column
+asked `Holding.requiredStickout`, which reads a holder picked **in a dropdown on
+the row** — and those dropdowns came out with the flag on 2026-09-08, so nothing
+has set that holder since and every row fell back to the tool's own figure.
+
+A holder is the assembly's now, so the question is asked of the assembly once
+per row: the least the stack has to stand out to clear the part by the shop's
+margins (0.020 in up and 0.020 in sideways by default), floored by flute length
+
+- diameter and landed on the shop's increment. That is `drawnAssembly`'s
+  stickout and nothing else, so **the row, the drawing and the panel's `LBH` are
+  one derivation** — which is the whole reason `stickout.ts` exists. A tool too
+  short to be set that far out says both lengths instead: `needs 70 mm out, holds
+45 mm`.
+
+With no holder in the stack the column falls back to the tool's own setup
+length, which is the honest answer while nothing holds it.
+
+The verdict under the drawing names that length too — `at 2.125 in below the
+holder · tightest: …` — because a stack clears at one stickout and fouls at
+another, and a verdict with no length on it is a verdict about nothing in
+particular (Paul, 2026-09-08: "it's not clear what length below holder this
+applies to").
+
 ## 5. What reaches the bill
 
 Nothing changed about the bill. It is still one sheet,
@@ -399,7 +435,8 @@ What changed is where a line comes from:
   open slot wears **on the feature**; a component standing in one of this
   feature's other stacks wears **in Assembly 2** / **in TAP**, naming which
   rather than saying "in this tree" (Paul, 2026-09-07). `assemblyName` is the one
-  place a stack is named, so the tree's heading and the badge cannot disagree.
+  place a stack is named, so the tree's heading and the badge cannot disagree —
+  including when the stack has been given a name of its own, below.
 - **What else the press moves is flagged under it.** `setSlot` clears the collet
   whenever the holder changes — a collet is an interface to one holder's series —
   so a second changed slot becomes a line under the button saying so. A button
@@ -409,6 +446,31 @@ What changed is where a line comes from:
 - **A tree read back off the bill.** A part answered before this shape existed
   has lines and no tree; `treeFromLines` opens on those, so nothing answered
   under the old panel reads as work lost.
+
+**A stack can be named** (Paul, 2026-09-08: "I need to be able to name tool
+assemblies — when they are created, through any mechanism"). `Assembly 1` and
+`Assembly 2` are positions rather than names, and a pocket's rougher and its
+finisher are the case where which is which is the whole decision.
+
+- The card's heading is the way in: press it, and the field replaces it.
+  `+ Add assembly` opens the field on the stack it makes — **a stack is named
+  when it is made**, because a name asked for later is a name most stacks will
+  not get. The id is arithmetic (`nextAssemblyId`), so the press knows which
+  stack it is about before the tree carrying it comes back.
+- `TreeAssembly.name` is optional and stays optional; `assemblyName` falls back
+  to `defaultAssemblyName`, which is the number or the role — and that default
+  is the field's placeholder, so naming never hides what the stack is called
+  now. `renameAssembly` trims what is typed and treats an empty name as no name,
+  which is the way back.
+- **A part-level assembly's tree has no add press at all** — it answers no
+  feature, so the second stack it would make is another _+ Tool Assembly_ row
+  instead. `onAdd` is optional on the panel for exactly that, and the route
+  withholds it while the tree is the part's rather than a feature's.
+- It is the same control the feature list names a part-level assembly with —
+  `components/name-field.tsx`, `docs/FEATURE-LIST.md` § _Naming a tool assembly_
+  for what Enter, Escape and a click elsewhere each mean.
+- A name is somebody's words, so the heading stops shouting it: the upper-case
+  treatment is the number's, not the name's.
 
 **A holder on its own is not orderable**, and the panel says so rather than
 offering a button that would write half a line.
@@ -503,6 +565,118 @@ tool, not why it was picked, so a tree read back off the bill by `treeFromLines`
 comes back with nothing overridden. The tree itself is kept in the browser and
 does carry it.
 
+## 5b. Asking for a tool the list is not showing
+
+**A column can only offer what the list is holding, and that is not always the
+whole question** (Paul, 2026-09-08: "there is no way to show end mills if I
+can't find a drill … End mills are technically a valid tool to predrill for the
+tap, just usually not the first choice. I should always have a '...' row at the
+bottom of the recommended filter options to expand any filter to show what it's
+hiding from the list in any filter that is limited contextually").
+
+A term column offers the values the answer holds, counted over the rows the
+matcher returned. With a feature on screen that list is already narrow, so a
+threaded hole's Type column offered `Drill` and nothing else — the values a shop
+might want to _ask_ for were exactly the ones it could not see. Three separate
+things were hiding the end mills, and it is worth naming all three because
+fixing one alone changes nothing:
+
+1. **The `form` filter.** Choosing a thread writes `THREADED_FORMS` — the drill
+   and the taps — and `prepareMatch` judges only what the terms admit, so no end
+   mill was ever judged.
+2. **The type table.** `feature-defaults.csv` gives a feature its forms and
+   `judge.ts` removes anything else before a rule reads it. A blind hole
+   considers end mills; a `Thread`, a T-slot or a tapered hole does not.
+3. **The drills-only list.** A threaded hole's tool list was `drill` plus the two
+   forms the predrill press writes, so a mill could be judged, fit, and still be
+   dropped on its way to the screen.
+
+What the page does now:
+
+- **The `…` row.** Under the values a list holds, `TermFilter`
+  (`components/column-filter.tsx`) draws one row saying how many more the axis
+  has. Pressing it lists them, greyed at nought, tickable — the filter panel's
+  own rule since 2026-09-01, that a value which could return something stays
+  pressable, reaching the values a contextual list never offered at all. The
+  search box reaches behind the row too, so `end mill` is one word rather than a
+  scroll. The values come from the whole catalog (`hiddenOn` in `routes/part.tsx`
+  against `TOOL_TERM_AXES`), because what is behind the row is what exists.
+- **A type ticked is a form asked for.** The Type column narrows on a phrase and
+  the phrase is not what decides whether a tool is judged, so ticking
+  `Flat end mill` on a threaded hole narrowed a list of drills to nothing.
+  `formOfTypeLabel` reads the phrase back to its form — `typeLabel`'s own
+  inverse, in the same file so the two cannot drift — and `formsAsking` folds it
+  into the `form` filter: the geometry's own forms are never taken away, an
+  untick gives back only what that tick added, and anything else in the filter
+  (the predrill press's additions) stands.
+- **The type table stands down for a form the filter asks for**, and only the
+  type table — `JudgeOptions.asked`, fed from `context.query.terms.form`. Every
+  rule still reads the tool and every filter still narrows it: an end mill too
+  wide for the bore is removed by name, by the end-mill diameter row, and comes
+  back through the Diameter column's own override or not at all. **This is not
+  an override** (Paul: "this is not really an override, it is just the ability to
+  add a potentially compatible group of tool types to the list").
+- **The drill list shows what the filter asks for**, `predrillFormsOf` in
+  `shared/hole-mode.ts`: drills, and any other cutter named in the `form` filter.
+  Taps stay out of it — they are the other half of the same feature and have a
+  list of their own. `drillsFirst` still leads with the drills, which is the shop
+  rule the press was written for.
+
+Because the state is the `form` filter and nothing else, there is no second
+control to disagree with the predrill press, no context field, no cache key and
+no per-question reset: a new feature rewrites that filter the way it always did.
+
+Its end-to-end coverage is `offers what the Type column is not showing, and asks
+for it` in `tests/on-the-part.spec.ts`: on the cube, the crib's drills are
+exactly what a face's list does not hold.
+
+### What a group costs to answer
+
+Asking for a type the list did not hold made an existing cost visible (Paul,
+2026-09-08: "they are taking a bit to come in … this is a 42 tool group. We
+should optimize for up to 150 or so"). Judging is proportional to the catalog,
+and `fittingTools` ran **one full pass per feature in the group** — 42 passes
+over some 9,000 tools, holding every pass's verdicts to fold at the end. A
+150-hole group did not merely crawl: it exhausted the worker's heap.
+
+Two rules now, both in `app/shared/tool-fit.ts`:
+
+- **A group asks as many questions as it has distinct ones.** `judgeTools` reads
+  a feature through exactly two things — its `featureType` and its `sheetOf`
+  reading — so two features equal in both cannot be told apart by any rule, and
+  the second is arithmetic already done. A bolt circle is one question;
+  `distinctQuestions` is the rule and a group built by hand out of genuinely
+  different features still judges each of them.
+- **The fold happens as it judges, not after.** A tool removed by one question is
+  removed, so the next question is only asked of the tools still standing —
+  `foldOnto` in `judge.ts` folds one tool at a time. Nothing holds a verdict per
+  tool per feature any more, which is what the heap failure was.
+
+What it costs, measured against the scraped 38,114-tool catalog and its 555
+holders, for the screenshot's `#4-40` hole:
+
+| group               | before         | after  |
+| ------------------- | -------------- | ------ |
+| ×4 identical holes  | 435 ms         | 123 ms |
+| ×42 identical holes | ~4.6 s         | 114 ms |
+| ×42 distinct holes  | ~4.6 s         | 244 ms |
+| ×150 distinct holes | heap exhausted | 343 ms |
+
+A third of a second went with them: the Type column's own phrase — `typeLabel`,
+read for all 38,114 tools whenever that axis is filtered or counted — is worked
+out once per form name rather than once per tool (`WORDS` in
+`shared/tool-type.ts`), which took `prepareMatch` from 110 ms back to 30 ms.
+
+The trade is stated where it is made: a tool the first question removes carries
+that question's reasons and not the rest of the group's. `ruleTally` and the
+panel already read only the first, and a near miss is measured against the
+feature that turned it down — which is the feature somebody is looking at.
+
+Not covered: the holder and collet racks. Their options are narrowed by
+geometry — the tool's shank, the reach curve — rather than by a count over a
+list, so a `…` row there would offer values that still cannot appear. Widening
+that is the incompatible-components path, not this one.
+
 ## 6. The flag, and its removal
 
 It shipped behind `assemblyTree` on 2026-09-07 — on by default, one press in the
@@ -535,6 +709,14 @@ gets it.
 | what narrows what                                 | `app/shared/assembly-narrowing.ts`               |
 | what a stack offers, and its button's words       | `app/shared/assembly-actions.ts`                 |
 | what overruling the rules offers                  | `overridableTools`, `app/shared/tool-fit.ts`     |
+| what an axis has that the list is not showing     | `hiddenOn`, `app/routes/part.tsx`                |
+| the `…` row that offers it                        | `TermFilter`, `components/column-filter.tsx`     |
+| the form behind a Type phrase                     | `formOfTypeLabel`, `app/shared/tool-type.ts`     |
+| what a tick on Type asks the form filter          | `formsAsking`, same file                         |
+| the forms the type table stands down for          | `asked`, `app/shared/judge.ts`                   |
+| how many questions a group actually asks          | `distinctQuestions`, `app/shared/tool-fit.ts`    |
+| folding one tool's verdicts as they are judged    | `foldOnto`, `app/shared/judge.ts`                |
+| what a threaded hole's drill list may show        | `predrillFormsOf`, `app/shared/hole-mode.ts`     |
 | how many each column alone holds back             | `overridableTally`, same file                    |
 | which column a rule is about                      | `columnOfRule`, `app/shared/tool-marks.ts`       |
 | the note a changed filter raises                  | `OverrideNotice`, `components/column-filter.tsx` |
@@ -547,6 +729,10 @@ gets it.
 | what the bill already holds for a stack           | `savedFor`, same file                            |
 | putting a stack back to the bill's line           | `restoreAssembly`, `assembly-tree.ts`            |
 | what a stack is called, and where a part stands   | `assemblyName` / `heldIn`, same file             |
+| the name somebody gave a stack, and clearing it   | `renameAssembly`, same file                      |
+| the field a name is typed in, in both places      | `app/components/name-field.tsx`                  |
+| the length below the holder a stack needs         | `belowHolder`, `app/shared/drawn-assembly.ts`    |
+| the words the clearance verdict is said in        | `verdictNote`, `components/catalog-drawing.tsx`  |
 | the columns a holder and a collet are read on     | `app/shared/component-columns.ts`                |
 | narrowing a rack by brand, type, family, a number | `app/shared/component-query.ts`                  |
 | which of the three lists the table is             | `listKind` / `chooseList`, `routes/part.tsx`     |

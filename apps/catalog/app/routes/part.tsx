@@ -53,6 +53,7 @@ import {
   labelOf,
   nextId,
   removeItem,
+  renameItem,
   replaceItem,
   sheetKeysOf,
   useFeatureList,
@@ -88,6 +89,7 @@ import {
 import { useEscape } from 'shared/use-escape'
 import {
   DRAFT_TREE,
+  assemblyName,
   assemblyNamed,
   draftKeyFor,
   forThread,
@@ -100,6 +102,7 @@ import {
   addAssembly,
   markOrdered,
   removeAssembly,
+  renameAssembly,
   restoreAssembly,
   SLOTS,
   treeFromLines,
@@ -143,7 +146,7 @@ import {
   searchWithQuery,
 } from 'shared/filter'
 import { applySuggestions, suggestionsFor } from 'shared/suggest-filters'
-import { askOfToolColumn, sayBound } from 'shared/column-filters'
+import { TOOL_TERM_AXES, askOfToolColumn, sayBound } from 'shared/column-filters'
 import {
   DERIVED_AXES,
   HOLDING_AXES,
@@ -153,6 +156,7 @@ import {
   tapers,
 } from 'shared/holding'
 import { sectionOf } from 'shared/section-of'
+import { belowHolder, type BelowHolder } from 'shared/drawn-assembly'
 import {
   drawable,
   holdable,
@@ -186,8 +190,10 @@ import {
   holeDepthOf,
   makersFor,
   millsShown,
+  predrillFormsOf,
 } from 'shared/hole-mode'
 import { hasSharpCorner } from 'shared/feature-defaults'
+import { formsAsking } from 'shared/tool-type'
 import { threadPanes } from 'shared/thread-panes'
 import { drillFor, minorOf, threadedName, type HoleMode, type ThreadSpec } from 'shared/threads'
 import { useCatalogMatcher } from 'client/catalog-matcher'
@@ -621,6 +627,17 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   /** The row whose tools are on screen; null while the list answers for itself. */
   const [selectedId, setSelectedId] = useState<string | null>(null)
   /**
+   * The part-level assembly being renamed, where one is.
+   *
+   * **Naming is offered, never demanded** (Paul, 2026-09-08: "it shouldn't
+   * force me to name it immediately when I complete creating a tool assembly …
+   * then I can rename if desired"). The press that makes the row is an order,
+   * and a field opening over the row it just wrote made naming a step in
+   * ordering; the row takes the name typed on the dialog's own card, or the
+   * default, and right-click → *Rename…* is what sets this.
+   */
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  /**
    * One feature *inside* a group, picked from the summary table.
    *
    * A group asked for one tool each answers in rows, and a row is a way in: it
@@ -817,7 +834,14 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * `drill; flat end mill; bull nose end mill` for one — what kept a mill off
    * a threaded hole was this line (Paul, 2026-09-02).
    */
-  const predrillForms = useMemo(() => ['drill', ...predrillMills], [predrillMills])
+  /**
+   * **And whatever else the filter asks for** (Paul, 2026-09-08: "End mills are
+   * technically a valid tool to predrill for the tap, just usually not the
+   * first choice"). It was this list and the two forms the press writes, so a
+   * type asked for in the Type column was judged, fitted, and then dropped on
+   * its way to the screen. `predrillFormsOf` is the rule.
+   */
+  const predrillForms = useMemo(() => predrillFormsOf(query.terms.form ?? []), [query.terms.form])
 
   /**
    * A chosen feature fills the blanks in the filters.
@@ -1650,12 +1674,110 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     })
   }, [query.ranges, suggestions])
 
+  /**
+   * Every value each axis has, so a contextual list can say what it is not
+   * showing.
+   *
+   * **A column can only offer what the list is holding, and that is not always
+   * the whole question** (Paul, 2026-09-08: "there is no way to show end mills
+   * if I can't find a drill … I should always have a '...' row at the bottom of
+   * the recommended filter options to expand any filter to show what it's
+   * hiding from the list in any filter that is limited contextually"). With a
+   * feature on screen the counts are measured over the rows the matcher
+   * answered with, so a threaded hole's Type column offered `Drill` and nothing
+   * else — and the way to ask for anything more was gone.
+   *
+   * The whole catalog rather than the filtered one: what is behind the `…` is
+   * the values that exist, and a value another filter is holding back is still
+   * a value pressing this one could bring in.
+   */
+  const everyValue = useMemo(() => {
+    const counts = new Map<string, ReadonlyMap<string, number>>()
+    // The axes a column narrows on with words: a range column says what it is
+    // hiding with its own two numbers, and has an override besides.
+    for (const axis of TOOL_TERM_AXES) {
+      counts.set(axis, countBy(allTools, axis))
+    }
+    return counts
+  }, [allTools])
+
+  /** One axis's values that are not on the list, in the words the rows use. */
+  const hiddenOn = useCallback(
+    (axis: string): ReadonlyArray<{ value: string; label: string }> => {
+      // Without a feature the options already are the whole catalog; there is
+      // nothing behind them, and a `…` row offering nothing is noise.
+      if (!asking) {
+        return []
+      }
+      const offered = axisOptions.get(axis)
+      return [...(everyValue.get(axis) ?? new Map<string, number>()).keys()]
+        .filter((value) => !(offered?.has(value) ?? false))
+        .map((value) => ({ value, label: axis === 'family' ? familyName(value) : value }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true }))
+    },
+    [asking, axisOptions, everyValue],
+  )
+
+  /**
+   * The forms the page itself put in the filter, which a tick may add to and
+   * never takes away.
+   *
+   * Not the sheet's suggestion alone: choosing a thread replaces it with
+   * {@link THREADED_FORMS}, so on a threaded blind hole the sheet still says
+   * `flat end mill` while the page says drill and taps. Reading the suggestion
+   * there would have left an end mill in the filter after its tick came off —
+   * the switch nobody can find their way back out of.
+   */
+  const baseForms = useMemo(
+    () => (holeChoice.mode === 'plain' ? (suggestions.terms.form ?? []) : THREADED_FORMS),
+    [holeChoice.mode, suggestions.terms.form],
+  )
+
+  /**
+   * A type ticked is a form asked for.
+   *
+   * **The Type column narrows on a phrase, and the phrase is not what decides
+   * whether a tool is judged** — the `form` filter is, and choosing a thread
+   * writes the drill and the taps into it. So ticking `Flat end mill` on a
+   * threaded hole narrowed a list of drills to nothing rather than asking for
+   * end mills, which is the whole of what somebody meant by pressing it.
+   *
+   * `formsAsking` (`shared/tool-type.ts`) is the rule, and it is symmetric: the
+   * geometry's own forms are never taken away, and unticking gives back only
+   * what that tick added.
+   */
+  const applyToolTerm = useCallback(
+    (axis: string, values: ReadonlyArray<string>) => {
+      const forms = query.terms.form ?? []
+      if (axis !== 'type' || forms.length === 0) {
+        applyTerm(axis, values)
+        return
+      }
+      const next = formsAsking(forms, baseForms, query.terms.type ?? [], values)
+      const terms: Record<string, ReadonlyArray<string>> = { ...query.terms }
+      // Empty is unconstrained on either axis, and an axis constraining nothing
+      // is written as absent rather than as an empty list — `applyTerm`'s rule.
+      for (const [key, kept] of [
+        ['form', next],
+        ['type', values],
+      ] as const) {
+        if (kept.length === 0) {
+          delete terms[key]
+        } else {
+          terms[key] = kept
+        }
+      }
+      apply({ ...query, terms })
+    },
+    [query, applyTerm, apply, baseForms],
+  )
+
   const toolFiltering = useMemo(
     () => ({
       search: { value: numberSearch, onChange: setNumberSearch },
       catalog: {
         query,
-        onTerm: applyTerm,
+        onTerm: applyToolTerm,
         onRange: applyRange,
         options: (axis: string) =>
           [...countsOn(axis)]
@@ -1669,9 +1791,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
             }))
             .sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true })),
         override: overrideFor,
+        hidden: hiddenOn,
       },
     }),
-    [query, applyTerm, applyRange, countsOn, numberSearch, overrideFor],
+    [query, applyToolTerm, applyRange, countsOn, numberSearch, overrideFor, hiddenOn],
   )
 
   /**
@@ -2685,9 +2808,24 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     if (pendingAssemblyId === null) {
       return
     }
-    const made: ListItem = { kind: 'assembly', id: pendingAssemblyId, tags: [] }
     /*
-      Its own carry rather than `carryDraftTree`: that one falls back to
+      Its own carry rather than `carryDraftTree` — see below — and read first,
+      because **the row is called what the stack in it was called** (Paul,
+      2026-09-08: "it should default to the default name, or the one I entered
+      in the dialog"). The dialog's card is where a name is typed while the
+      assembly is being built, and a row that threw that away and asked again
+      would be asking twice for one answer.
+    */
+    const built = treeNow(draftKeyFor([]))
+    const named = built?.[0]?.name?.trim()
+    const made: ListItem = {
+      kind: 'assembly',
+      id: pendingAssemblyId,
+      tags: [],
+      ...(named === undefined || named === '' ? {} : { name: named }),
+    }
+    /*
+      `treeNow` above rather than `carryDraftTree`: that one falls back to
       `DRAFT_TREE`, which is the group editor's key and can still hold a group
       somebody walked away from. An assembly's stacks are only ever under its
       own scratch key.
@@ -2697,7 +2835,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       row in one tick — an unmarked stack arriving here would lose the link to
       its line.
     */
-    const built = treeNow(draftKeyFor([]))
     forgetTree(draftKeyFor([]))
     if (built !== undefined) {
       commitTree(made.id, built)
@@ -2707,6 +2844,15 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     // The row somebody has just made is the row they are working on.
     setSelectedId(made.id)
     setSelectedTag(null)
+    /*
+      **And it is not asked to be named** (Paul, 2026-09-08: "it shouldn't force
+      me to name it immediately when I complete creating a tool assembly … then
+      I can rename if desired"). The press is an order, and a field opening over
+      the row it just wrote makes naming a step in ordering rather than
+      something a shop does when it has something to say. The default stands,
+      the dialog's own name is kept where there was one, and right-click →
+      *Rename…* is there whenever it is wanted.
+    */
   }, [pendingAssemblyId, treeNow, forgetTree, commitTree, setList])
 
   const confirmDraft = useCallback(() => {
@@ -2952,6 +3098,41 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const treeTool = assembly?.toolGuid == null ? null : getTool(assembly.toolGuid)
   const treeHolder = allHolders.find((each) => each.guid === assembly?.holderGuid) ?? null
   const treeCollet = allCollets.find((each) => each.guid === assembly?.colletGuid) ?? null
+
+  /**
+   * The length below the holder each row in the tool list would stand at.
+   *
+   * **The column is about the stack, not about the tool** (Paul, 2026-09-08:
+   * "we can plainly see that more of the tool is beneath the holder"). It
+   * printed `geometry.LBH` — the length a tool is set up at with no holder and
+   * no feature — beside a panel drawing the same tool three times further out,
+   * because the holder it used to ask about was a dropdown on the row and the
+   * tree took those out. One holder is chosen for the whole assembly now, so
+   * the question is asked of that holder once per row.
+   *
+   * Cached per tool for as long as the stack, the feature and the margins hold
+   * still: the answer is a sweep of the holder over the reach curve, and the
+   * list is virtualized, so this is a few dozen sweeps rather than one per
+   * catalog row.
+   */
+  const belowHolderOf = useMemo(() => {
+    const cache = new Map<string, BelowHolder | null>()
+    return (each: CatalogTool): BelowHolder | null => {
+      const had = cache.get(each.guid)
+      if (had !== undefined) {
+        return had
+      }
+      const made = belowHolder(
+        each,
+        { holder: treeHolder, collet: treeCollet },
+        curve,
+        margins,
+        thresholds,
+      )
+      cache.set(each.guid, made)
+      return made
+    }
+  }, [treeHolder, treeCollet, curve, margins, thresholds])
 
   const writeTree = useCallback(
     (next: ReadonlyArray<TreeAssembly>) => {
@@ -4063,6 +4244,39 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                               iconOf={iconOf}
                               directionOf={wayUpOf}
                               onEdit={startEdit}
+                              /*
+                                **The name is on the stack, and the line stands
+                                for the stack** (Paul, 2026-09-08: "it still
+                                isn't showing the name in the order list in the
+                                parts page"). The bill holds tools; the tree
+                                holds what they were called — matched by what
+                                the stack was *ordered* as, so swapping the
+                                cutter keeps the line pointing at its own stack.
+                              */
+                              assemblyOf={(itemId, toolGuid) => {
+                                const stacks = trees[itemId] ?? []
+                                const stack = stacks.find(
+                                  (each) => (each.orderedTool ?? each.toolGuid) === toolGuid,
+                                )
+                                if (stack?.name === undefined) {
+                                  return null
+                                }
+                                const name = assemblyName(stacks, stack)
+                                /*
+                                  Not twice: a part-level assembly's row is
+                                  called what the stack in it was called, and a
+                                  line repeating the heading over it is noise.
+                                */
+                                const item = itemNamed(list, itemId)
+                                return item !== null && labelOf(item, nameOf) === name ? null : name
+                              }}
+                              renamingId={renamingId}
+                              onRenameStart={(id) => setRenamingId(id)}
+                              onRename={(id, name) => {
+                                setList((current) => renameItem(current, id, name))
+                                setRenamingId(null)
+                              }}
+                              onRenameCancel={() => setRenamingId(null)}
                               onRemove={(id) => {
                                 const going = itemNamed(list, id)
                                 if (going !== null) {
@@ -4226,8 +4440,23 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                   warningFor={warningFor}
                                   onClear={clearSlot}
                                   actionsFor={treeActionsFor}
-                                  onAdd={() => writeTree(addAssembly(assemblies))}
+                                  /*
+                                    **A part-level assembly is one stack**
+                                    (Paul, 2026-09-08: "we can also remove the
+                                    add assembly button from + Tool Assembly").
+                                    It answers no feature, so a second stack
+                                    under it is a second thing to order with
+                                    nothing to tell it apart — another one is
+                                    another _+ Tool Assembly_, with a row and a
+                                    name of its own.
+                                  */
+                                  {...(assemblyOnly
+                                    ? {}
+                                    : { onAdd: () => writeTree(addAssembly(assemblies)) })}
                                   onRemove={(id) => writeTree(removeAssembly(assemblies, id))}
+                                  onRename={(id, name) =>
+                                    writeTree(renameAssembly(assemblies, id, name))
+                                  }
                                   title={listTitle}
                                   confirmed={activeItem !== null}
                                 />
@@ -4869,6 +5098,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           inBom={(each) => keptHere.has(each.guid)}
                           keptElsewhere={(each) => bom.has(each.guid) && !keptHere.has(each.guid)}
                           usedOn={(guid) => usedOn(guid)}
+                          below={belowHolderOf}
                           filtering={tapFiltering}
                         />
                       ) : (
@@ -4910,6 +5140,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           inBom={(each) => keptHere.has(each.guid)}
                           keptElsewhere={(each) => bom.has(each.guid) && !keptHere.has(each.guid)}
                           usedOn={(guid) => usedOn(guid)}
+                          below={belowHolderOf}
                           filtering={toolFiltering}
                         />
                       )}

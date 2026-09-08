@@ -271,11 +271,14 @@ application unless that application says otherwise.
 | a feature's assemblies, its slots, its storage  | `app/shared/assembly-tree.ts`                        |
 | what narrows what when any part is chosen first | `app/shared/assembly-narrowing.ts`                   |
 | a group's worst case, and whose it is           | `app/shared/group-geometry.ts`                       |
+| how far below the holder a stack has to stand   | `belowHolder`, `app/shared/drawn-assembly.ts`        |
 | which slots were filled against the rules       | `overrides`, `app/shared/assembly-tree.ts`           |
 | what a stack offers, and its button's words     | `app/shared/assembly-actions.ts`                     |
+| what a shop calls an assembly, and its field    | `renameItem` / `renameAssembly`, `name-field.tsx`    |
 | reading and filtering a holder or a collet      | `app/shared/component-columns.ts`                    |
 | which column header asks which filter           | `app/shared/column-filters.ts`                       |
 | what a tool is, in one phrase with its shank    | `app/shared/tool-type.ts`                            |
+| the form behind a Type phrase, and what it asks | `app/shared/tool-type.ts`                            |
 | the list, its answers and its right-click       | `app/components/feature-list-panel.tsx`              |
 | building a group                                | `app/components/group-editor.tsx`                    |
 | the reading, its numbers and its thread         | `app/components/selection-panel.tsx`                 |

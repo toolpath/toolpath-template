@@ -85,6 +85,16 @@ option` in `tests/on-the-part.spec.ts` as the pair to turn back over.
   assembly is `Tool assembly 2`, off its own id: there is nothing else to name
   it after until it has a tool in it. A name somebody
   has to invent for every group is a name most groups will not get.
+- **Except a part-level assembly, which can be given one** (Paul, 2026-09-08:
+  "I need to be able to name tool assemblies — when they are created, and
+  through the right-click menu in the list"). It is the one row kind that
+  answers no feature, so `Tool assembly 2` is a number rather than a name, and
+  the stack in it is exactly the thing whose reason nothing else on the page can
+  state. `AssemblyItem.name` is optional and stays optional; `labelOf` falls
+  back to the number, `defaultLabelOf` is that number on its own — the
+  placeholder a name is typed _over_ — and `renameItem` trims what is typed and
+  treats an empty name as no name, which is the way back. Only an assembly: a
+  feature and a group are named by what they hold.
 - **A thread is part of the name** (Paul, 2026-09-08: "once a thread is applied
   to a hole, the feature should be named '<thread spec> <type of hole> Hole'").
   `Blind Hole` becomes `M8×1.25 Blind Hole` the moment a spec is chosen on the
@@ -235,6 +245,10 @@ order, so an empty one is a row about nothing.
   `assembly-actions` already offers a question that is not a row yet — makes the
   row and writes the lines in one go, under the id `pendingAssemblyId` minted
   before the row exists so the two cannot disagree about where they wrote.
+- **There is no _+ Add assembly_ under it** (Paul, 2026-09-08). A part-level
+  assembly answers no feature, so nothing about it could need a second stack:
+  another stack the part needs is another _+ Tool Assembly_, a row with a name
+  of its own rather than an unnamed `Assembly 2` inside this one.
 - **Cancel**, under the tree, drops the stacks and the draft and leaves nothing
   behind — and so does **Escape** (Paul, 2026-09-08: "escape key should also get
   me out of tool assembly dialog"). It is the newest thing on the page and it
@@ -243,6 +257,10 @@ order, so an empty one is a row about nothing.
   outward step.
 - **Remove from order list** takes the row with it, for the same reason: the
   assembly is the order.
+- **And the row is named as it is made.** The press that makes it opens the name
+  field on it (`renamingId` in `routes/part.tsx`), because the moment the row
+  appears is the one moment somebody knows what the stack is for — a name asked
+  for later is a name most rows will not get.
 
 ### + Group
 
@@ -346,18 +364,52 @@ one.
   the drill.
 - A row with no answer says which question failed: `nothing fits` for a feature,
   `no one tool cuts all of these` for a group.
+- **A line wears the name of the stack it stands for**, over the catalog number,
+  where the shop called that stack anything (Paul, 2026-09-08: "it still isn't
+  showing the name in the order list in the parts page"). The bill holds tools
+  and the tree holds names, so the route matches a line to a stack by what the
+  stack was _ordered_ as — `assemblyOf` in `routes/part.tsx` — and a swapped
+  cutter still points at its own stack. Nothing is drawn for the stacks nobody
+  named, which is most of them.
 
 ### Right-click
 
 **Edit…** and **Remove**, fixed to the window at the click point. A part-level
-assembly is offered **Remove** alone: it holds no features, so there is nothing
-an editor could ask about. Positioned
+assembly is offered **Rename…** and **Remove**: it holds no features, so there
+is nothing an editor could ask about — what it does have is a name, which is the
+second way in after the one the press that made it opened. Positioned
 inside the list it was clipped by the list's own scroll, so the menu for a row
 near the bottom opened where nobody could reach it — the very thing the scroll
 was supposed to make safe.
 
 **Remove takes the row off the bill and off the part**, not just off the list.
 An edit that drops features drops their lines too.
+
+### Naming a tool assembly
+
+Minimal, and in place (Paul, 2026-09-08: "the UI should be minimal — enter the
+text where the placeholder is shown then click a small check mark or hit enter
+on the keyboard to confirm"). `components/name-field.tsx` is the one control,
+shared with the tree's cards so the two cannot answer _does Escape cancel_
+differently:
+
+- The field replaces the row's label, and carries a width floor of its own
+  (Paul, 2026-09-08: "this text entry box needs to be wider so I can see what
+  I'm typing"). The list stands on the part and is only as wide as its rows, so
+  a field taking its width from the row it is in got the width of a caret — and
+  the placeholder saying what the row is called now was invisible with it.
+- **The placeholder is what it is called now** — `Tool assembly 2` — rather than
+  a prompt, so the field never hides the one thing needed to decide whether to
+  bother naming it.
+- **It opens where naming is the work** — right-click → _Rename…_ on a row, the
+  card's heading in the tree, and the card the tree's _+ Add assembly_ makes.
+  Never over a row a press has just ordered.
+- **Enter or the tick keeps it**; **Escape leaves it alone**; a click elsewhere
+  keeps what was typed, because a field that throws a name away on a misclick is
+  worse than one that keeps a name somebody can retype.
+- **Nothing typed keeps the default** (Paul, 2026-09-08: "the name needs to add
+  the default if I don't enter one") — the row goes on being `Tool assembly 2`.
+  That is also how a name is taken off again; there is no un-name control.
 
 ### Layout
 
@@ -477,6 +529,13 @@ One sheet, `tool-catalog.setup.<partId>`, keyed by feature tag.
   and are what confirming without a holder writes.
 - `addChoice` replaces by tool guid, so adding a holder to a tool already on the
   list updates that line.
+- **A part-level assembly's lines are keyed by its row id**, which the order
+  list reads back through `isAssemblyKey` — and the note under such a row is
+  **for _its name_** rather than **machines _a feature_** (Paul, 2026-09-08:
+  "it should show the name of the assembly in the order list as well"). Unnamed
+  it still reads _for no feature_, which is what a stack nobody's geometry asked
+  for is. `routes/order-list.tsx` reads the list out of the browser to resolve
+  the name; nothing on that page edits it.
 
 ---
 
@@ -503,25 +562,29 @@ true of the work the worker does:
 
 ## 11. Where the rules live
 
-| Rule                                     | File                                             |
-| ---------------------------------------- | ------------------------------------------------ |
-| what the list holds, names, ids, storage | `app/shared/feature-list.ts`                     |
-| what the bottom of the page is asked     | `asked()`, same file                             |
-| which key a row's lines are kept under   | `sheetKeysOf`, same file                         |
-| the three presses that grow the list     | `app/components/add-bar.tsx`                     |
-| a row's answer, and what opens           | `app/shared/recommendations.ts`                  |
-| what a click means                       | `app/shared/part-interaction.ts`                 |
-| the list on screen                       | `app/components/feature-list-panel.tsx`          |
-| building a group                         | `app/components/group-editor.tsx`                |
-| a group's worst case, and whose it is    | `app/shared/group-geometry.ts`                   |
-| the reading and its thread               | `app/components/selection-panel.tsx`             |
-| what a threaded hole is called           | `threadedName`, `app/shared/threads.ts`          |
-| what the panel and the ⓘ dialog call it  | `nameOf`, handed down by `part.tsx`              |
-| the tool table and its marks             | `app/components/part-tool-table.tsx`             |
-| what overruling the rules offers         | `overridableTools`, `shared/tool-fit.ts`         |
-| the warning and its confirm              | `OverrideNotice`, `components/column-filter.tsx` |
-| which slots were filled against them     | `overrides`, `shared/assembly-tree.ts`           |
-| everything wired together                | `app/routes/part.tsx`                            |
+| Rule                                      | File                                             |
+| ----------------------------------------- | ------------------------------------------------ |
+| what the list holds, names, ids, storage  | `app/shared/feature-list.ts`                     |
+| the name a shop gave an assembly row      | `renameItem` / `defaultLabelOf`, same file       |
+| the field that name is typed in           | `app/components/name-field.tsx`                  |
+| what the bottom of the page is asked      | `asked()`, same file                             |
+| which key a row's lines are kept under    | `sheetKeysOf`, same file                         |
+| the three presses that grow the list      | `app/components/add-bar.tsx`                     |
+| a row's answer, and what opens            | `app/shared/recommendations.ts`                  |
+| what a click means                        | `app/shared/part-interaction.ts`                 |
+| the list on screen                        | `app/components/feature-list-panel.tsx`          |
+| building a group                          | `app/components/group-editor.tsx`                |
+| a group's worst case, and whose it is     | `app/shared/group-geometry.ts`                   |
+| the reading and its thread                | `app/components/selection-panel.tsx`             |
+| what a threaded hole is called            | `threadedName`, `app/shared/threads.ts`          |
+| what the panel and the ⓘ dialog call it   | `nameOf`, handed down by `part.tsx`              |
+| the tool table and its marks              | `app/components/part-tool-table.tsx`             |
+| what overruling the rules offers          | `overridableTools`, `shared/tool-fit.ts`         |
+| the warning and its confirm               | `OverrideNotice`, `components/column-filter.tsx` |
+| what a filter is not showing, and the `…` | `TermFilter`, `components/column-filter.tsx`     |
+| what a tick on Type asks of the forms     | `formsAsking`, `app/shared/tool-type.ts`         |
+| which slots were filled against them      | `overrides`, `shared/assembly-tree.ts`           |
+| everything wired together                 | `app/routes/part.tsx`                            |
 
 Each pure module owns its tests. `tests/on-the-part.spec.ts` walks the paths that
 begin with a click on the part, against the cube fixture — the only fixture that

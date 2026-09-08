@@ -70,6 +70,9 @@ const show = (props: Partial<Parameters<typeof FeatureListPanel>[0]> = {}) => {
     onOpen: vi.fn(),
     onEdit: vi.fn(),
     onRemove: vi.fn(),
+    onRename: vi.fn(),
+    onRenameStart: vi.fn(),
+    onRenameCancel: vi.fn(),
   }
   render(
     <FeatureListPanel
@@ -171,6 +174,76 @@ describe('the list of what has been asked about', () => {
     expect(screen.getByRole('menuitem', { name: 'Remove' })).toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: /^Edit/ })).not.toBeInTheDocument()
     expect(onEdit).not.toHaveBeenCalled()
+  })
+
+  /**
+   * **The one row kind with a name to give** (Paul, 2026-09-08: naming a tool
+   * assembly when it is made, and from the right-click menu afterwards). A
+   * feature is called what it is and a group what it holds; an assembly
+   * answering no feature has only its number.
+   */
+  it('names a part-level assembly where its name is drawn', () => {
+    const { onRename, onRenameCancel } = show({
+      items: [{ kind: 'assembly', id: 'assembly-2', tags: [] }],
+      renamingId: 'assembly-2',
+    })
+
+    const field = screen.getByRole('textbox', { name: 'Name for Tool assembly 2' })
+    // The placeholder is what the row goes on being called, not a prompt.
+    expect(field).toHaveAttribute('placeholder', 'Tool assembly 2')
+    fireEvent.change(field, { target: { value: 'Facing stack' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save the name for Tool assembly 2' }))
+
+    expect(onRename).toHaveBeenCalledWith('assembly-2', 'Facing stack')
+    expect(onRenameCancel).not.toHaveBeenCalled()
+  })
+
+  it('draws the name it was given, and offers a rename on a right-click', () => {
+    const { onRenameStart } = show({
+      items: [{ kind: 'assembly', id: 'assembly-2', tags: [], name: 'Facing stack' }],
+    })
+
+    expect(screen.getByRole('button', { name: 'Facing stack' })).toBeInTheDocument()
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Facing stack' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Rename…' }))
+
+    expect(onRenameStart).toHaveBeenCalledWith('assembly-2')
+  })
+
+  /**
+   * **The name is on the stack, and the line stands for the stack** (Paul,
+   * 2026-09-08: "it still isn't showing the name in the order list in the parts
+   * page"). A feature's row answers with tools; what the shop called the stack
+   * one of them stands in is the most readable thing about it.
+   */
+  it('says what the shop called the stack a line stands for', () => {
+    show({
+      answers: ANSWERS,
+      assemblyOf: (itemId, toolGuid) =>
+        itemId === 'feature-1' && toolGuid === '5510VXD375' ? 'big stupid' : null,
+    })
+
+    expect(screen.getByText('big stupid')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'big stupid: 5510VXD375 for Pocket' }),
+    ).toBeInTheDocument()
+  })
+
+  /** Most stacks are never named, and a number over a catalog number is noise. */
+  it('says nothing where the stack was never named', () => {
+    show({ answers: ANSWERS })
+
+    expect(screen.getByRole('button', { name: '5510VXD375 for Pocket' })).toBeInTheDocument()
+  })
+
+  /** A feature and a group are named by what they hold, and by nothing else. */
+  it('offers no rename on a feature or a group', () => {
+    show()
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Pocket' }))
+
+    expect(screen.queryByRole('menuitem', { name: 'Rename…' })).not.toBeInTheDocument()
   })
 
   /**

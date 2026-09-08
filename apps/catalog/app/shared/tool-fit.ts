@@ -1,15 +1,9 @@
 import type { PartFeature } from '@toolpath/part-contracts'
 import type { CatalogTool } from '@toolpath/catalog-data'
 import { allTools } from './catalog.js'
-import {
-  foldVerdicts,
-  judgeTools,
-  orderVerdicts,
-  removedFrom,
-  type Format,
-  type Verdict,
-} from './judge'
+import { foldOnto, judgeTools, orderVerdicts, type Format, type Verdict } from './judge'
 import type { Knob } from './rules'
+import { sheetOf } from './feature-defaults'
 import { filterTools, type ToolQuery } from './filter'
 import { holdableTools, splitHolding } from './holding'
 import { columnOfRule } from './tool-marks'
@@ -43,26 +37,99 @@ export interface Fitting {
  * @param all every feature on the part, so reach is measured from the part top
  * @param format words the numbers in the person's unit
  * @param knobs the sheet's knobs, with the clearances entered on the page
+ * @param asked the forms the filter asks for, which the type table lets past —
+ *   `judge.ts` § `JudgeOptions.asked` says why, and `formsAsking`
+ *   (`shared/tool-type.ts`) is what a tick on the Type column writes
+ *
+ * **A group is judged question by question, folding as it goes** (Paul,
+ * 2026-09-08: "this is a 42 tool group. We should optimize for up to 150 or
+ * so"). Two things made a group cost what it did: every feature judged the whole
+ * catalog, and every feature's verdicts were held to be folded at the end — 42
+ * passes over 9,000 tools, and a 150-hole group exhausted the worker's heap
+ * outright. So {@link distinctQuestions} asks each question once, and a tool a
+ * question removes is out of the next one's candidates: what stands is what
+ * every question kept.
+ *
+ * The trade, stated where it is made: a removed tool carries the reasons of the
+ * question that removed it and not the rest of the group's. `ruleTally` and the
+ * panel read only the first anyway, and a near miss is then measured against the
+ * feature that turned it down — which is the one somebody is looking at.
  */
+/**
+ * The question a feature asks of a tool, as a value.
+ *
+ * **Four identical holes are one question, and were being asked four times**
+ * (2026-09-08, measured: a `×4` bolt circle cost 435 ms an answer against the
+ * scraped catalog where one hole cost 110 ms). `judgeTools` reads a feature
+ * through exactly two things — its `featureType`, which picks the sheet rows and
+ * the type table, and its {@link sheetOf} reading, which is every number those
+ * rows are measured against, including the reach curve. Two features equal in
+ * both cannot be told apart by any rule, so judging the second is arithmetic
+ * already done.
+ *
+ * A group of identical holes is the ordinary case: the page groups a bolt circle
+ * as one row precisely because it is one decision. A group somebody built by
+ * hand out of genuinely different features still judges each of them.
+ *
+ * The stringify is per feature, not per tool — four of them against 9,000 tools
+ * judged — so it costs nothing worth measuring.
+ */
+const questionOf = (feature: PartFeature, all: ReadonlyArray<PartFeature>): string =>
+  JSON.stringify([feature.featureType, sheetOf(feature, all)])
+
+/** One feature per distinct question, in the order they were selected. */
+export const distinctQuestions = (
+  selected: ReadonlyArray<PartFeature>,
+  all: ReadonlyArray<PartFeature>,
+): Array<PartFeature> => {
+  const seen = new Set<string>()
+  return selected.filter((feature) => {
+    const question = questionOf(feature, all)
+    if (seen.has(question)) {
+      return false
+    }
+    seen.add(question)
+    return true
+  })
+}
+
 export const fittingTools = (
   selected: ReadonlyArray<PartFeature>,
   all: ReadonlyArray<PartFeature> = selected,
   tools: ReadonlyArray<CatalogTool> = allTools,
   format?: Format,
   knobs?: ReadonlyArray<Knob>,
+  asked?: ReadonlyArray<string>,
 ): Fitting => {
   if (selected.length === 0) {
     return { fitting: [], excluded: [] }
   }
-  const verdicts = foldVerdicts(
-    selected.map((feature) =>
-      judgeTools(tools, feature, all, {
-        ...(format ? { format } : {}),
-        ...(knobs ? { knobs } : {}),
-      }),
-    ),
-  )
-  return { fitting: orderVerdicts(verdicts), excluded: removedFrom(verdicts) }
+  const options = {
+    ...(format ? { format } : {}),
+    ...(knobs ? { knobs } : {}),
+    ...(asked ? { asked } : {}),
+  }
+  const excluded: Array<Verdict> = []
+  let standing: Array<Verdict> = []
+  let candidates = tools
+  for (const [at, feature] of distinctQuestions(selected, all).entries()) {
+    const judged = judgeTools(candidates, feature, all, options)
+    const next: Array<Verdict> = []
+    for (const [index, verdict] of judged.entries()) {
+      // Aligned by construction: `candidates` is the previous round's survivors
+      // in order, and `judgeTools` answers in the order it is given.
+      const before = standing[index]
+      const folded = at === 0 || before === undefined ? verdict : foldOnto(before, verdict)
+      if (folded.removed.length > 0) {
+        excluded.push(folded)
+      } else {
+        next.push(folded)
+      }
+    }
+    standing = next
+    candidates = next.map((verdict) => verdict.tool)
+  }
+  return { fitting: orderVerdicts(standing), excluded }
 }
 
 /**

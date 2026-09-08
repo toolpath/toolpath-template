@@ -9,6 +9,7 @@ import {
   formsWithMills,
   millsLabel,
   millsShown,
+  predrillFormsOf,
   holeAt,
   makersFor,
   reaches,
@@ -448,5 +449,31 @@ describe('the tool forms a threaded hole takes', () => {
       expect(THREADED_FORMS).toContain(tap.form)
     }
     expect(THREADED_FORMS).not.toContain('tapered mill')
+  })
+})
+
+/**
+ * **A tapped hole is drilled, but the filter says with what** (Paul,
+ * 2026-09-08: "End mills are technically a valid tool to predrill for the tap,
+ * just usually not the first choice"). The list was drills plus the two forms
+ * the predrill press writes, so a type asked for in the Type column was judged,
+ * fitted, and then dropped on its way to the screen.
+ */
+describe('the forms a threaded hole\u2019s drill list shows', () => {
+  it('is drills wherever the filter asks for nothing else', () => {
+    expect(predrillFormsOf(['drill', 'tap right hand'])).toEqual(['drill'])
+    expect(predrillFormsOf([])).toEqual(['drill'])
+  })
+
+  it('adds whatever cutter the filter asks for, taps excepted', () => {
+    expect(predrillFormsOf(['drill', 'tap right hand', 'ball end mill'])).toEqual([
+      'drill',
+      'ball end mill',
+    ])
+  })
+
+  /** The taps are the other half of the same feature and have a list of their own. */
+  it('never lists a tap, however it got into the filter', () => {
+    expect(predrillFormsOf(['tap left hand', 'tap right hand'])).toEqual(['drill'])
   })
 })

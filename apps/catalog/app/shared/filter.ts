@@ -426,16 +426,33 @@ const withoutTerm = (query: ToolQuery, key: string): ToolQuery => {
  * this feature's own values, from the last moment the question could be
  * answered — with a fresh count wherever one can still be measured. Clearing
  * the axis asks the question again.
+ *
+ * **And a chosen value is always offered**, whatever the memory holds. It is
+ * the filter panel's own third rule — a value narrowing the list with no
+ * control to lift it is a filter nobody can find their way out of — and it
+ * became reachable when the `…` row started offering values the list had never
+ * held: one ticked from behind it was in no memory of this axis, so the tick
+ * disappeared the moment it was made.
  */
 export const stillOffered = (
   counts: ReadonlyMap<string, number>,
   chosen: ReadonlyArray<string>,
   before: ReadonlyMap<string, number> | undefined,
 ): ReadonlyMap<string, number> => {
-  if (chosen.length === 0 || before === undefined) {
+  if (chosen.length === 0 || (before === undefined && chosen.every((value) => counts.has(value)))) {
     return counts
   }
-  return new Map([...before].map(([value, count]) => [value, counts.get(value) ?? count]))
+  const offered = new Map(
+    before === undefined
+      ? counts
+      : [...before].map(([value, count]) => [value, counts.get(value) ?? count]),
+  )
+  for (const value of chosen) {
+    if (!offered.has(value)) {
+      offered.set(value, counts.get(value) ?? 0)
+    }
+  }
+  return offered
 }
 
 export const countsByAxis = (

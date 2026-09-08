@@ -3,6 +3,8 @@ import {
   DRAFT_TREE,
   addAssembly,
   assemblyName,
+  defaultAssemblyName,
+  renameAssembly,
   defaultAssemblies,
   draftKeyFor,
   emptyAssembly,
@@ -479,5 +481,51 @@ describe('what a stack is called, and where a component stands', () => {
 
   it('names nothing for a component standing nowhere', () => {
     expect(heldIn(twoStacks, 'holder-z')).toEqual([])
+  })
+
+  /**
+   * **A number is a position, not a name** (Paul, 2026-09-08). A pocket's
+   * rougher and its finisher are `Assembly 1` and `Assembly 2`, which is the
+   * case where which is which is the whole decision.
+   */
+  it('calls a stack what somebody called it, wherever it is mentioned', () => {
+    const named = renameAssembly(twoStacks, 'assembly-2', '  Finisher  ')
+
+    expect(assemblyName(named, named[1] as TreeAssembly)).toBe('Finisher')
+    // The placeholder a name is typed over is what it goes on being called.
+    expect(defaultAssemblyName(named, named[1] as TreeAssembly)).toBe('Assembly 2')
+    // The badge on a table row reads the same name, so the two cannot disagree.
+    expect(heldIn(named, 'holder-a')).toEqual(['Assembly 1', 'Finisher'])
+  })
+
+  /** Clearing the field is the way back: there is no second un-name control. */
+  it('goes back to its number when the name is cleared', () => {
+    const named = renameAssembly(twoStacks, 'assembly-2', 'Finisher')
+
+    expect(renameAssembly(named, 'assembly-2', '  ')[1]).toEqual(twoStacks[1])
+  })
+
+  /** A tap is called what it is until it is called something else. */
+  it('names a tap over its role', () => {
+    const named = renameAssembly(threaded, 'assembly-1', 'M6 tap')
+
+    expect(assemblyName(named, named[0] as TreeAssembly)).toBe('M6 tap')
+    expect(assemblyName(named, named[1] as TreeAssembly)).toBe('DRILL')
+  })
+
+  it('keeps a name through a slot being filled, and in the browser', () => {
+    const named = renameAssembly(twoStacks, 'assembly-1', 'Rougher')
+    const filled = setSlot(named, 'assembly-1', 'collet', 'collet-a')
+
+    expect(assemblyName(filled, filled[0] as TreeAssembly)).toBe('Rougher')
+
+    const held = new Map<string, string>()
+    const storage = {
+      getItem: (key: string) => held.get(key) ?? null,
+      setItem: (key: string, value: string) => void held.set(key, value),
+    }
+    writeTrees(storage, 'part-a', { 'feature-1': filled })
+
+    expect(readTrees(storage, 'part-a')['feature-1']).toEqual(filled)
   })
 })

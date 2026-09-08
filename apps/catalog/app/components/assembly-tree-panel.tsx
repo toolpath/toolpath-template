@@ -1,10 +1,13 @@
 import { PlusIcon, TrashIcon, WarningIcon, XIcon } from '@phosphor-icons/react'
 import { Button, IconButton, cn } from '@toolpath/ui'
+import { useState } from 'react'
 import {
   SLOTS,
   assemblyName,
+  defaultAssemblyName,
   guidAt,
   isEmpty,
+  nextAssemblyId,
   sameNode,
   slotLabel,
   stacksOf,
@@ -13,6 +16,7 @@ import {
   type TreeAssembly,
   type TreeNode,
 } from 'shared/assembly-tree'
+import { NameField } from './name-field'
 
 /**
  * The stacks a feature is answered with, as a tree beside the tool table.
@@ -83,8 +87,31 @@ export interface AssemblyTreePanelProps {
    * does the writing, and this draws what comes back.
    */
   readonly actionsFor: (stacks: ReadonlyArray<TreeAssembly>) => ReadonlyArray<AssemblyRowAction>
-  readonly onAdd: () => void
+  /**
+   * Another stack for this feature, where the tree may have one.
+   *
+   * **A part-level assembly is one stack** (Paul, 2026-09-08: "we can also
+   * remove the add assembly button from + Tool Assembly"). It answers no
+   * feature, so nothing about it could need a second stack: another stack the
+   * part needs is another _+ Tool Assembly_, a row of its own with a name of
+   * its own. Absent, and the press is not drawn.
+   */
+  readonly onAdd?: () => void
   readonly onRemove: (assemblyId: string) => void
+  /**
+   * One stack called what a shop calls it — `shared/assembly-tree.ts`
+   * `renameAssembly` is the rule, and empty is the way back to the number.
+   *
+   * **A number is a position, not a name** (Paul, 2026-09-08). A pocket's
+   * rougher and its finisher are `Assembly 1` and `Assembly 2`, which is the
+   * one case where which is which is the whole decision — and the badge on a
+   * table row saying where a holder is already standing reads the same name, so
+   * naming a stack names it everywhere it is mentioned.
+   *
+   * Optional: a tree drawn without it is one where a stack keeps its number,
+   * which is every tree drawn before this existed.
+   */
+  readonly onRename?: (assemblyId: string, name: string) => void
   /** What the tree is for, drawn above it. */
   readonly title: string
   /**
@@ -286,12 +313,26 @@ export const AssemblyTreePanel = ({
   actionsFor,
   onAdd,
   onRemove,
+  onRename,
   title,
   confirmed = true,
-}: AssemblyTreePanelProps) => (
-  <div
-    data-assembly-tree
-    /*
+}: AssemblyTreePanelProps) => {
+  /**
+   * The stack being named, where one is.
+   *
+   * Held here rather than by the route because both ways into it are presses on
+   * this panel: the tick beside a card's name, and *Add assembly* — **a stack
+   * is named when it is made** (Paul, 2026-09-08), so the press that adds one
+   * opens the field on it rather than leaving somebody to find it afterwards.
+   * An id belonging to a tree that is no longer on screen simply matches
+   * nothing, which is a card drawn with its name.
+   */
+  const [naming, setNaming] = useState<string | null>(null)
+
+  return (
+    <div
+      data-assembly-tree
+      /*
       **It fills the panel it is in** (Paul, 2026-09-07: "moving the tool tree
       to the feature panel"). It was a fixed column with a rule down its right
       edge, because it stood inside the tool table's scroll area; in the box
@@ -299,63 +340,93 @@ export const AssemblyTreePanel = ({
       scroll — a second one inside it hides half a stack behind a bar nobody
       expects.
     */
-    className="flex w-full min-w-0 flex-col gap-2 border-t border-zinc-800 pt-2"
-  >
-    <div className="pb-1">
-      <p className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
-        Tool assemblies
-      </p>
-      <p className="truncate text-xs text-zinc-300" title={title}>
-        {title}
-      </p>
-      {confirmed ? null : <p className="text-2xs text-amber-300">not on the list yet</p>}
-    </div>
+      className="flex w-full min-w-0 flex-col gap-2 border-t border-zinc-800 pt-2"
+    >
+      <div className="pb-1">
+        <p className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
+          Tool assemblies
+        </p>
+        <p className="truncate text-xs text-zinc-300" title={title}>
+          {title}
+        </p>
+        {confirmed ? null : <p className="text-2xs text-amber-300">not on the list yet</p>}
+      </div>
 
-    {treeGroups(assemblies).map((group) => {
-      const stacks = stacksOf(group)
-      const index = assemblies.indexOf(group.root)
-      return (
-        <div key={group.root.id} className="rounded border border-zinc-800">
-          <div className="flex items-center gap-1 border-b border-zinc-800 px-2 py-1">
-            <span className="text-2xs flex-1 font-semibold tracking-wide text-zinc-400 uppercase">
+      {treeGroups(assemblies).map((group) => {
+        const stacks = stacksOf(group)
+        const index = assemblies.indexOf(group.root)
+        return (
+          <div key={group.root.id} className="rounded border border-zinc-800">
+            <div className="flex items-center gap-1 border-b border-zinc-800 px-2 py-1">
+              {naming === group.root.id && onRename !== undefined ? (
+                <NameField
+                  value={group.root.name ?? ''}
+                  /* What the stack goes on being called if nothing is typed —
+                   `name-field.tsx` says why that is the placeholder. */
+                  placeholder={defaultAssemblyName(assemblies, group.root)}
+                  /* What it is called *now*, so the tick beside a named stack
+                     says which stack it is about. */
+                  label={assemblyName(assemblies, group.root)}
+                  onCommit={(name) => {
+                    onRename(group.root.id, name)
+                    setNaming(null)
+                  }}
+                  onCancel={() => setNaming(null)}
+                />
+              ) : (
+                <Button
+                  type="button"
+                  variant="muted"
+                  size="sm"
+                  disabled={onRename === undefined}
+                  title="Rename this assembly"
+                  onClick={() => setNaming(group.root.id)}
+                  className={cn(
+                    'text-2xs min-w-0 flex-1 truncate text-left font-semibold tracking-wide text-zinc-400',
+                    /* A name is somebody's words, so it is left as typed; a
+                     number is a heading, and headings here are upper case. */
+                    group.root.name === undefined ? 'uppercase' : '',
+                  )}
+                >
+                  {/*
+                  `assemblyName` rather than a name invented here: a table row badges
+                  a component with the stack it is standing in, and two places
+                  naming the same stack is how those two end up disagreeing.
+                */}
+                  {assemblyName(assemblies, group.root)}
+                </Button>
+              )}
               {/*
-                `assemblyName` rather than a name invented here: a table row badges
-                a component with the stack it is standing in, and two places
-                naming the same stack is how those two end up disagreeing.
-              */}
-              {assemblyName(assemblies, group.root)}
-            </span>
-            {/*
               **The trash takes the whole assembly** (Paul, 2026-09-08). A tap
               removed on its own leaves a drill hanging under nothing, which the
               next read makes a stack of its own: a hole drilled for a thread
               nobody is cutting.
             */}
-            {treeGroups(assemblies).length > 1 || !stacks.every(isEmpty) ? (
-              <IconButton
-                variant="muted"
-                size="sm"
-                aria-label={`Remove assembly ${String(index + 1)}`}
-                title="Remove this assembly"
-                onClick={() => onRemove(group.root.id)}
-                className="!size-5 border-0 bg-transparent text-zinc-600 hover:text-danger [&_svg]:!size-3"
-              >
-                <TrashIcon aria-hidden="true" />
-              </IconButton>
-            ) : null}
-          </div>
-          <div className="flex flex-col gap-1 p-1">
-            <StackRows
-              assembly={group.root}
-              selected={selected}
-              labelFor={labelFor}
-              orderedFor={orderedFor}
-              warningFor={warningFor}
-              onSelect={onSelect}
-              onClear={onClear}
-            />
+              {treeGroups(assemblies).length > 1 || !stacks.every(isEmpty) ? (
+                <IconButton
+                  variant="muted"
+                  size="sm"
+                  aria-label={`Remove assembly ${String(index + 1)}`}
+                  title="Remove this assembly"
+                  onClick={() => onRemove(group.root.id)}
+                  className="!size-5 border-0 bg-transparent text-zinc-600 hover:text-danger [&_svg]:!size-3"
+                >
+                  <TrashIcon aria-hidden="true" />
+                </IconButton>
+              ) : null}
+            </div>
+            <div className="flex flex-col gap-1 p-1">
+              <StackRows
+                assembly={group.root}
+                selected={selected}
+                labelFor={labelFor}
+                orderedFor={orderedFor}
+                warningFor={warningFor}
+                onSelect={onSelect}
+                onClear={onClear}
+              />
 
-            {/*
+              {/*
               **The drill is a branch of the tap, not a fourth slot of it**
               (Paul, 2026-09-08: "the drill is separate from them and has
               sublevels", and 2026-09-07: "Second Level: Tap Drill / Third Level
@@ -365,25 +436,25 @@ export const AssemblyTreePanel = ({
               drill's rather than the tap's, which one more indent on its own
               was not enough to say.
             */}
-            {group.under.map((child) => (
-              <div
-                key={child.id}
-                data-assembly-branch={child.id}
-                className="ml-3 rounded border border-zinc-800/80 bg-zinc-900/40 p-1"
-              >
-                <StackRows
-                  assembly={child}
-                  selected={selected}
-                  labelFor={labelFor}
-                  orderedFor={orderedFor}
-                  warningFor={warningFor}
-                  onSelect={onSelect}
-                  onClear={onClear}
-                />
-              </div>
-            ))}
+              {group.under.map((child) => (
+                <div
+                  key={child.id}
+                  data-assembly-branch={child.id}
+                  className="ml-3 rounded border border-zinc-800/80 bg-zinc-900/40 p-1"
+                >
+                  <StackRows
+                    assembly={child}
+                    selected={selected}
+                    labelFor={labelFor}
+                    orderedFor={orderedFor}
+                    warningFor={warningFor}
+                    onSelect={onSelect}
+                    onClear={onClear}
+                  />
+                </div>
+              ))}
 
-            {/*
+              {/*
               **One press for the whole assembly** (Paul, 2026-09-08: "there
               should only be one 'add to order list' button for the full
               assembly"). Every component of it — the tap, its holding, the
@@ -393,52 +464,64 @@ export const AssemblyTreePanel = ({
               Under the components rather than in the header: it is a sentence
               about all of them, and it is as wide as the sentence needs.
             */}
-            {actionsFor(stacks).map((action) => (
-              <div key={action.key} className="flex flex-col gap-0.5">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={
-                    action.danger === true || action.quiet === true ? 'secondary' : 'primary'
-                  }
-                  onClick={action.onClick}
-                  className={cn(
-                    'w-full justify-center text-xs',
-                    action.danger === true ? 'text-danger' : '',
-                  )}
-                >
-                  {action.label}
-                </Button>
-                {/*
+              {actionsFor(stacks).map((action) => (
+                <div key={action.key} className="flex flex-col gap-0.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={
+                      action.danger === true || action.quiet === true ? 'secondary' : 'primary'
+                    }
+                    onClick={action.onClick}
+                    className={cn(
+                      'w-full justify-center text-xs',
+                      action.danger === true ? 'text-danger' : '',
+                    )}
+                  >
+                    {action.label}
+                  </Button>
+                  {/*
                   **What else the press moves is said before it is pressed.** A
                   holder change takes the collet with it, and a button that drops
                   one somebody chose without a word is the defect this line
                   exists to prevent.
                 */}
-                {action.note === undefined ? null : (
-                  <p className="text-2xs text-amber-300">{action.note}</p>
-                )}
-              </div>
-            ))}
+                  {action.note === undefined ? null : (
+                    <p className="text-2xs text-amber-300">{action.note}</p>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )
-    })}
+        )
+      })}
 
-    {/*
+      {/*
       **Another stack is always one press away** (Paul, 2026-09-07, on the
       "multiple tools for one feature" question). A pocket is a rougher and a
       finisher, and the page had no way to say so at all.
     */}
-    <Button
-      type="button"
-      size="sm"
-      variant="secondary"
-      onClick={onAdd}
-      className="justify-center gap-1 text-xs"
-    >
-      <PlusIcon className="size-3" />
-      Add assembly
-    </Button>
-  </div>
-)
+      {onAdd === undefined ? null : (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            /*
+              **A stack is named when it is made** (Paul, 2026-09-08). The id is
+              arithmetic off the tree — `nextAssemblyId` is what `addAssembly`
+              mints it with — so the field can be opened on the stack this press
+              is about before the tree carrying it comes back.
+            */
+            setNaming(nextAssemblyId(assemblies))
+            onAdd()
+          }}
+          className="justify-center gap-1 text-xs"
+        >
+          <PlusIcon className="size-3" />
+          Add assembly
+        </Button>
+      )}
+    </div>
+  )
+}

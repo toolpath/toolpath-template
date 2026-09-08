@@ -68,6 +68,22 @@ export interface AssemblyItem {
   readonly id: string
   /** Always empty: a part-level assembly stands for no feature. */
   readonly tags: ReadonlyArray<string>
+  /**
+   * What a shop calls this stack (Paul, 2026-09-08: naming a tool assembly when
+   * it is made, and from the list afterwards).
+   *
+   * **The one row kind that has nothing to be named after.** A feature is
+   * called what it is and a group is called what it holds, so both read off the
+   * part; an assembly answering no feature has only its number, and "Tool
+   * assembly 3" says nothing about the facing mill it stands for. It is
+   * optional and stays optional — {@link labelOf} falls back to the number, so
+   * a stack nobody names reads exactly as it did before.
+   *
+   * Absent, or empty, on every row stored before the field existed, which reads
+   * as unnamed. Trimmed on the way in, in {@link renameItem}, so a name of
+   * spaces is no name.
+   */
+  readonly name?: string
 }
 
 export type ListItem = FeatureItem | GroupItem | AssemblyItem
@@ -133,6 +149,32 @@ export const removeItem = (list: ReadonlyArray<ListItem>, id: string): Array<Lis
   list.filter((each) => each.id !== id)
 
 /**
+ * A part-level assembly called what a shop calls it.
+ *
+ * Empty puts the name back rather than storing one, so clearing the field is
+ * the way back to "Tool assembly 3" — there is no second control for un-naming
+ * a row, and a stored empty name would read as named everywhere but on screen.
+ *
+ * Only an assembly: a feature and a group are named by what they hold, and a
+ * typed name over either of those is a second name for a thing the part already
+ * names.
+ */
+export const renameItem = (
+  list: ReadonlyArray<ListItem>,
+  id: string,
+  name: string,
+): Array<ListItem> =>
+  list.map((each) => {
+    if (each.id !== id || each.kind !== 'assembly') {
+      return each
+    }
+    const trimmed = name.trim()
+    return trimmed === ''
+      ? { kind: 'assembly', id: each.id, tags: each.tags }
+      : { ...each, name: trimmed }
+  })
+
+/**
  * What a group is called, from what is in it.
  *
  * Derived rather than typed (Paul, 2026-09-02): a name somebody has to invent
@@ -164,7 +206,20 @@ export const groupLabel = (names: ReadonlyArray<string>): string => {
  * `nameOf` is handed in because reading a feature's own name needs the
  * measurements reader and the part's regions, which are the route's to hold.
  */
-export const labelOf = (item: ListItem, nameOf: (tag: string) => string): string => {
+export const labelOf = (item: ListItem, nameOf: (tag: string) => string): string =>
+  item.kind === 'assembly' && item.name !== undefined && item.name.trim() !== ''
+    ? item.name.trim()
+    : defaultLabelOf(item, nameOf)
+
+/**
+ * What a row is called when nobody has named it.
+ *
+ * The name a naming field is typed *over* rather than into — the placeholder is
+ * what the row would go on being called — so it is a function of its own rather
+ * than something the field reinvents. Everything but a part-level assembly is
+ * only ever this.
+ */
+export const defaultLabelOf = (item: ListItem, nameOf: (tag: string) => string): string => {
   if (item.kind === 'assembly') {
     /*
       Numbered off its own id, the rule `groupLabel` already follows: an
@@ -311,6 +366,9 @@ const isItem = (value: unknown): value is ListItem => {
     typeof item.id === 'string' &&
     Array.isArray(item.tags) &&
     item.tags.every((tag) => typeof tag === 'string') &&
+    // Absent on every row stored before the field existed, which reads as
+    // unnamed — see `AssemblyItem.name`.
+    (item.kind !== 'assembly' || item.name === undefined || typeof item.name === 'string') &&
     (item.kind !== 'group' || item.results === 'all' || item.results === 'each')
   )
 }

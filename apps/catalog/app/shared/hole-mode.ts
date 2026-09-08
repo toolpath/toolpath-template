@@ -160,6 +160,26 @@ export const millsLabel = (forms: ReadonlyArray<string>): string => {
   return `Showing ${on[0] ?? ''}s`
 }
 
+/**
+ * The forms the drill half of a threaded hole may show: drills, and whatever
+ * other cutter the filter is asking for.
+ *
+ * **A tapped hole is drilled, but the filter says with what** (Paul,
+ * 2026-09-08: "End mills are technically a valid tool to predrill for the tap,
+ * just usually not the first choice"). The rule this replaces was `drill` plus
+ * {@link PREDRILL_MILL_FORMS} — the two forms the predrill press writes — so a
+ * type asked for in the Type column was judged, fitted, and then dropped by the
+ * list on its way to the screen, with nothing on the page saying why.
+ *
+ * The taps are still out of it: they are the other half of the same feature and
+ * have a list of their own, so a tap on the drill list would be the same tool
+ * offered twice. Drills still lead, which is {@link drillsFirst}.
+ */
+export const predrillFormsOf = (forms: ReadonlyArray<string>): Array<string> => [
+  'drill',
+  ...forms.filter((form) => form !== 'drill' && !isTap(form)),
+]
+
 export const formsWithMills = (forms: ReadonlyArray<string>, on: boolean): Array<string> =>
   on
     ? [...forms, ...PREDRILL_MILL_FORMS.filter((form) => !forms.includes(form))]

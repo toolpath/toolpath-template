@@ -3,8 +3,9 @@ import type { ReactNode } from 'react'
 import { CaretDownIcon, CaretRightIcon, FolderIcon, FolderOpenIcon } from '@phosphor-icons/react'
 import { formatGeometry } from 'shared/geometry'
 import type { UnitSystem } from '@toolpath/tool-support'
-import { labelOf, type ListItem } from 'shared/feature-list'
+import { defaultLabelOf, labelOf, type ListItem } from 'shared/feature-list'
 import type { Pick, RecommendationRow } from 'shared/recommendations'
+import { NameField } from './name-field'
 import { HolderIcon, ToolTypeIcon } from './tool-icons'
 
 /**
@@ -67,6 +68,32 @@ export interface FeatureListPanelProps {
    */
   readonly onEdit: (id: string) => void
   readonly onRemove: (id: string) => void
+  /**
+   * The part-level assembly being named, where one is.
+   *
+   * **Naming is opened from outside as well as from here** (Paul, 2026-09-08:
+   * a tool assembly is named when it is created, and from the right-click menu
+   * afterwards). The row a press has just made is named without a second
+   * gesture, and the route is what knows a row has just been made — so which
+   * row is open for naming is the route's, and this draws it.
+   */
+  readonly renamingId?: string | null
+  /** Right-click → *Rename*: an assembly already on the list. */
+  readonly onRenameStart?: (id: string) => void
+  /** Kept. Empty is no name at all — `feature-list.ts` `renameItem` is the rule. */
+  readonly onRename?: (id: string, name: string) => void
+  /** Escape or a press elsewhere: leave the row called what it was called. */
+  readonly onRenameCancel?: () => void
+  /**
+   * What the shop called the stack behind one of a row's lines, or null where
+   * they called it nothing (Paul, 2026-09-08: "it still isn't showing the name
+   * in the order list in the parts page").
+   *
+   * A line on this list is a stack the tree holds, and the name lives on the
+   * stack — so the route reads it off the tree for the row and the tool, and
+   * this draws it. Null keeps every unnamed line exactly as it was.
+   */
+  readonly assemblyOf?: (itemId: string, toolGuid: string) => string | null
 }
 
 /** What a group's result option is called where it has to fit in a row. */
@@ -88,6 +115,7 @@ const Answer = ({
   unit,
   here,
   label,
+  assembly,
   onOpen,
 }: {
   pick: Pick
@@ -95,6 +123,15 @@ const Answer = ({
   here: boolean
   /** What the row is, for the press to name what it opens. */
   label: string
+  /**
+   * What the shop called the stack this line stands for, where they called it
+   * anything (Paul, 2026-09-08: "it still isn't showing the name in the order
+   * list in the parts page").
+   *
+   * Null on every stack nobody named, which is most of them: a number over a
+   * catalog number would be noise on every line.
+   */
+  assembly: string | null
   onOpen: () => void
 }) => {
   const diameter = pick.tool.geometry.DC
@@ -111,8 +148,8 @@ const Answer = ({
       variant="muted"
       size="sm"
       aria-pressed={here}
-      aria-label={`${pick.tool.catalogNumber} for ${label}`}
-      title={`${pick.tool.catalogNumber}${holding === '' ? '' : ` in ${holding}`} — every tool that fits ${label}`}
+      aria-label={`${assembly === null ? '' : `${assembly}: `}${pick.tool.catalogNumber} for ${label}`}
+      title={`${assembly === null ? '' : `${assembly} — `}${pick.tool.catalogNumber}${holding === '' ? '' : ` in ${holding}`} — every tool that fits ${label}`}
       onClick={onOpen}
       className={cn(
         'text-2xs flex w-full flex-col gap-0.5 rounded border px-1.5 py-0.5 text-left transition',
@@ -121,6 +158,14 @@ const Answer = ({
           : 'border-transparent text-zinc-400 hover:border-zinc-800 hover:bg-zinc-900/60 hover:text-zinc-200',
       )}
     >
+      {/*
+        **The name over the stack it names**, the way the tree's card carries
+        it: it is the most human-readable thing on the line, and a shop that
+        troubled to call a stack something is a shop that will look for it here.
+      */}
+      {assembly === null ? null : (
+        <span className="w-full truncate font-medium text-zinc-300">{assembly}</span>
+      )}
       <span className="flex w-full items-center gap-1.5">
         <span className="shrink-0">
           <ToolTypeIcon toolType={pick.tool.form} />
@@ -143,6 +188,7 @@ const Answers = ({
   unit,
   chosenTool,
   here,
+  assemblyOf,
   onOpen,
 }: {
   row: RecommendationRow | undefined
@@ -150,6 +196,8 @@ const Answers = ({
   /** The tool the panel is showing, so the row can mark which of its lines it is. */
   chosenTool: string | null
   here: boolean
+  /** What the shop called the stack behind one of this row's lines, or null. */
+  assemblyOf: (toolGuid: string) => string | null
   onOpen: (toolGuid: string) => void
 }) => {
   if (row === undefined) {
@@ -177,6 +225,7 @@ const Answers = ({
           pick={pick}
           unit={unit}
           label={row.label}
+          assembly={assemblyOf(pick.tool.guid)}
           here={here && (chosenTool === null || chosenTool === pick.tool.guid)}
           onOpen={() => onOpen(pick.tool.guid)}
         />
@@ -200,6 +249,11 @@ export const FeatureListPanel = ({
   directionOf,
   onEdit,
   onRemove,
+  renamingId = null,
+  onRenameStart,
+  onRename,
+  onRenameCancel,
+  assemblyOf,
 }: FeatureListPanelProps) => {
   /** The row a right-click is asking about, and where it was asked. */
   return (
@@ -236,6 +290,9 @@ export const FeatureListPanel = ({
             const here = item.id === selectedId && selectedTag === null
             const opened = open.includes(item.id)
             const label = labelOf(item, nameOf)
+            /* Only an assembly is named: a feature and a group are called what
+               the part calls them — `feature-list.ts` `renameItem`. */
+            const naming = item.kind === 'assembly' && item.id === renamingId
             return (
               /*
                 **Each row is its own plate.** Standing on the part rather than
@@ -271,89 +328,109 @@ export const FeatureListPanel = ({
                       ) : (
                         <span aria-hidden="true" className="size-4 shrink-0" />
                       )}
-                      <Button
-                        type="button"
-                        variant="muted"
-                        size="sm"
-                        aria-pressed={here}
-                        // Named for what it is, so the caret beside it — "Open 4 ×
-                        // Through Hole" — is a different control by its name as
-                        // well as by its shape.
-                        aria-label={label}
-                        // Selecting the row already on screen puts it down again,
-                        // which is the way back to the list's own answers.
-                        onClick={() => onSelect(here ? null : item.id)}
-                        className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-                      >
-                        <span className="shrink-0 text-zinc-400">
-                          {item.kind === 'group' ? (
-                            opened ? (
-                              <FolderOpenIcon />
-                            ) : (
-                              <FolderIcon />
-                            )
-                          ) : item.kind === 'assembly' ? (
-                            /* No feature to draw, so it wears what it is: a
-                               stack in a holder. */
-                            <HolderIcon />
-                          ) : (
-                            (iconOf?.(item.tags[0] ?? '') ?? null)
-                          )}
-                        </span>
-                        <span
-                          className={cn(
-                            'min-w-0 flex-1 truncate text-xs',
-                            here ? 'text-zinc-100' : 'text-zinc-300',
-                          )}
+                      {naming ? (
+                        <NameField
+                          value={item.name ?? ''}
+                          /* What it goes on being called if nothing is typed,
+                             rather than a prompt — `name-field.tsx` says why. */
+                          placeholder={defaultLabelOf(item, nameOf)}
+                          /* What it is called *now*, so the tick beside a named
+                             row says which row it is about. */
+                          label={label}
+                          onCommit={(name) => onRename?.(item.id, name)}
+                          onCancel={() => onRenameCancel?.()}
+                        />
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="muted"
+                          size="sm"
+                          aria-pressed={here}
+                          // Named for what it is, so the caret beside it — "Open 4 ×
+                          // Through Hole" — is a different control by its name as
+                          // well as by its shape.
+                          aria-label={label}
+                          // Selecting the row already on screen puts it down again,
+                          // which is the way back to the list's own answers.
+                          onClick={() => onSelect(here ? null : item.id)}
+                          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
                         >
-                          {label}
-                        </span>
-                        {/* What the group was asked for, on the row: it changes the
+                          <span className="shrink-0 text-zinc-400">
+                            {item.kind === 'group' ? (
+                              opened ? (
+                                <FolderOpenIcon />
+                              ) : (
+                                <FolderIcon />
+                              )
+                            ) : item.kind === 'assembly' ? (
+                              /* No feature to draw, so it wears what it is: a
+                               stack in a holder. */
+                              <HolderIcon />
+                            ) : (
+                              (iconOf?.(item.tags[0] ?? '') ?? null)
+                            )}
+                          </span>
+                          <span
+                            className={cn(
+                              'min-w-0 flex-1 truncate text-xs',
+                              here ? 'text-zinc-100' : 'text-zinc-300',
+                            )}
+                          >
+                            {label}
+                          </span>
+                          {/* What the group was asked for, on the row: it changes the
                         answer underneath, and a shop should not have to open a
                         dialog to see which question it is. */}
-                        {item.kind === 'group' ? (
-                          <span
-                            className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-zinc-400"
-                            title={
-                              item.results === 'all'
-                                ? 'One tool that cuts every feature in this group'
-                                : 'The best tool for each feature in this group'
-                            }
-                          >
-                            {RESULT_LABEL[item.results]}
-                          </span>
-                        ) : item.kind === 'assembly' ? (
-                          /* **It says what it is on the row** (Paul,
+                          {item.kind === 'group' ? (
+                            <span
+                              className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-zinc-400"
+                              title={
+                                item.results === 'all'
+                                  ? 'One tool that cuts every feature in this group'
+                                  : 'The best tool for each feature in this group'
+                              }
+                            >
+                              {RESULT_LABEL[item.results]}
+                            </span>
+                          ) : item.kind === 'assembly' ? (
+                            /* **It says what it is on the row** (Paul,
                              2026-09-08). A stack that answers no feature looks
                              exactly like one that answers a feature nobody can
                              see any more, and the two are different things. */
-                          <span
-                            className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-zinc-400"
-                            title="A tool assembly for the part, not for a feature"
-                          >
-                            no feature
-                          </span>
-                        ) : (
-                          <span className="text-2xs shrink-0 font-mono text-zinc-500">
-                            {directionOf?.(item.tags[0] ?? '') ?? ''}
-                          </span>
-                        )}
-                        {item.tags.length > 1 ? (
-                          <span
-                            className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 font-semibold text-zinc-300"
-                            title={`${String(item.tags.length)} features`}
-                          >
-                            ×{item.tags.length}
-                          </span>
-                        ) : null}
-                      </Button>
+                            <span
+                              className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-zinc-400"
+                              title="A tool assembly for the part, not for a feature"
+                            >
+                              no feature
+                            </span>
+                          ) : (
+                            <span className="text-2xs shrink-0 font-mono text-zinc-500">
+                              {directionOf?.(item.tags[0] ?? '') ?? ''}
+                            </span>
+                          )}
+                          {item.tags.length > 1 ? (
+                            <span
+                              className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 font-semibold text-zinc-300"
+                              title={`${String(item.tags.length)} features`}
+                            >
+                              ×{item.tags.length}
+                            </span>
+                          ) : null}
+                        </Button>
+                      )}
                     </div>
                   </Menu.Trigger>
                   <Menu.Popover>
                     {/* An assembly has no features to pick, so there is nothing
                         an editor could ask about: it is built in its own tree
                         and removed here. */}
-                    {item.kind === 'assembly' ? null : (
+                    {item.kind === 'assembly' ? (
+                      /* **The one row kind with a name to give** (Paul,
+                         2026-09-08). It answers no feature, so "Tool assembly
+                         3" is the whole of what the list can say about it
+                         until somebody says what it is for. */
+                      <Menu.Item onClick={() => onRenameStart?.(item.id)}>Rename…</Menu.Item>
+                    ) : (
                       <Menu.Item onClick={() => onEdit(item.id)}>
                         Edit {item.kind === 'group' ? 'group' : 'feature'}…
                       </Menu.Item>
@@ -377,6 +454,7 @@ export const FeatureListPanel = ({
                       unit={unit}
                       chosenTool={chosenTool}
                       here={here}
+                      assemblyOf={(toolGuid) => assemblyOf?.(item.id, toolGuid) ?? null}
                       onOpen={(toolGuid) => onSelect(item.id, null, toolGuid)}
                     />
                   </div>
@@ -405,6 +483,7 @@ export const FeatureListPanel = ({
                               unit={unit}
                               chosenTool={chosenTool}
                               here={item.id === selectedId && selectedTag === child.tag}
+                              assemblyOf={(toolGuid) => assemblyOf?.(item.id, toolGuid) ?? null}
                               onOpen={(toolGuid) => onSelect(item.id, child.tag, toolGuid)}
                             />
                           </li>

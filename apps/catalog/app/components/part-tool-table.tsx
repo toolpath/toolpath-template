@@ -23,6 +23,7 @@ import { familyName } from 'shared/catalog'
 import { typeLabel } from 'shared/tool-type'
 import type { ToolQuery } from 'shared/filter'
 import type { Mark } from 'shared/tool-marks'
+import type { BelowHolder } from 'shared/drawn-assembly'
 import { orderedCodes } from 'shared/column-order'
 import { ToolTypeIcon } from './tool-icons'
 import {
@@ -310,12 +311,14 @@ const GeometryCell = ({
   code,
   mark,
   holding,
+  below,
   unit,
 }: {
   tool: CatalogTool
   code: string
   mark: Mark | undefined
   holding: Holding | undefined
+  below: BelowHolder | null
   unit: UnitSystem
 }) => {
   if (isHolding(code)) {
@@ -327,9 +330,18 @@ const GeometryCell = ({
   }
   if (isStack(code) && (mark === undefined || mark.ok)) {
     const own = tool.geometry.LBH
-    const needed = holding?.requiredStickout(tool) ?? null
-    const picked = holding?.chosen(tool).holderGuid ?? null
-    const cannot = holding?.reachNote?.(tool) ?? null
+    const needed = below?.length ?? null
+    /**
+     * **What the stack cannot reach, said as two lengths** — the note the
+     * per-row holder dropdown used to write. A tool dropped for reach was
+     * dropped for one of two reasons and said neither: every stack fouls the
+     * part at the length this feature needs, or the tool is too short to stand
+     * out that far and keep hold. Both are about a length somebody can change.
+     */
+    const cannot =
+      below !== null && below.overLimit && below.needs !== null && below.most !== null
+        ? `needs ${formatGeometry('LBH', below.needs, unit)} out, holds ${formatGeometry('LBH', below.most, unit)}`
+        : null
     const changed = own !== undefined && needed !== null && Math.abs(needed - own) > 0.005
     return (
       <span className="flex min-w-0 flex-col items-end font-mono text-zinc-300">
@@ -343,9 +355,7 @@ const GeometryCell = ({
         {cannot !== null ? (
           <span className="text-2xs font-sans text-amber-300">{cannot}</span>
         ) : changed ? (
-          <span className="text-2xs font-sans text-amber-300">
-            {picked === null ? '' : 'holder needs'}
-          </span>
+          <span className="text-2xs font-sans text-amber-300">holder needs</span>
         ) : null}
       </span>
     )
@@ -416,6 +426,16 @@ export interface ToolColumnFiltering {
      * question and by no other — `column-filter.tsx` § `OverrideNotice`.
      */
     readonly override?: (code: string) => ColumnOverride | undefined
+    /**
+     * What an axis has that this list is not showing — the values a feature's
+     * own answer narrowed away, offered behind the `…` row.
+     *
+     * Per axis, like the counts beside it: what a contextual list hides is a
+     * property of the axis, and only the axis's own values can say it.
+     */
+    readonly hidden?: (
+      axis: string,
+    ) => ReadonlyArray<{ readonly value: string; readonly label: string }>
   }
 }
 
@@ -429,6 +449,17 @@ export interface PartToolTableProps {
   readonly columnOrder: ReadonlyArray<string>
   readonly marks?: (tool: CatalogTool) => Record<string, Mark>
   readonly holding?: Holding
+  /**
+   * The length below the holder each candidate would stand at, in the stack
+   * that is open — `shared/drawn-assembly`'s {@link BelowHolder}.
+   *
+   * A function of the *stack*, not of the row: one holder is chosen in the
+   * tree for the whole assembly, so the row is asked about that holder rather
+   * than carrying a holder of its own. Absent, and the column falls back to
+   * the tool's own setup length, which is what a list with nothing holding it
+   * can honestly say.
+   */
+  readonly below?: (tool: CatalogTool) => BelowHolder | null
   readonly inBom: (tool: CatalogTool) => boolean
   readonly keptElsewhere: (tool: CatalogTool) => boolean
   /**
@@ -465,6 +496,7 @@ export const PartToolTable = ({
   columnOrder,
   marks,
   holding,
+  below,
   inBom,
   keptElsewhere,
   usedOn,
@@ -569,6 +601,7 @@ export const PartToolTable = ({
       chosen: axis === null ? undefined : (catalog.query.terms[axis] ?? []),
       onChosen: axis === null ? undefined : (values) => catalog.onTerm(axis, values),
       ...(ask?.shape === 'range' ? { override: catalog.override?.(code) } : {}),
+      ...(axis === null ? {} : { hidden: catalog.hidden?.(axis) }),
     }
   }
 
@@ -641,6 +674,8 @@ export const PartToolTable = ({
             const elsewhere = !here && keptElsewhere(tool)
             const used = here ? null : (usedOn?.(tool.guid) ?? null)
             const rowMarks = marks?.(tool) ?? {}
+            // Once per row, not once per cell: the stack is swept to answer it.
+            const rowBelow = below?.(tool) ?? null
             return (
               <Table.Row>
                 {shown.map((column) => (
@@ -714,6 +749,7 @@ export const PartToolTable = ({
                         code={column.code}
                         mark={rowMarks[column.code]}
                         holding={holding}
+                        below={rowBelow}
                         unit={unit}
                       />
                     )}

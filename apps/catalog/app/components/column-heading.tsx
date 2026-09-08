@@ -97,6 +97,13 @@ export interface ColumnHeadingProps {
    * § `OverrideNotice` is the rule and the warning.
    */
   readonly override?: ColumnOverride
+  /**
+   * What this axis has that the list is not showing, behind the `…` row.
+   *
+   * Only a column asking for words has any: a range says what it hides with
+   * its own two numbers. `column-filter.tsx` § `TermFilter` is the rule.
+   */
+  readonly hidden?: ReadonlyArray<{ readonly value: string; readonly label: string }>
 }
 
 /**
@@ -253,6 +260,7 @@ export const ColumnFilterMenu = ({
           options={what.options}
           chosen={what.chosen}
           onChosen={what.onChosen}
+          {...(props.hidden === undefined ? {} : { hidden: props.hidden })}
         />
       ) : (
         <TextFilter label={props.label} value={what.value} onValue={what.onValue} />

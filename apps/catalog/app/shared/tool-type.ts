@@ -23,10 +23,6 @@ export const normalise = (toolType: string): string =>
     .replace(/\s+/g, ' ')
     .trim()
 
-/** What a name is called in the library's vocabulary, where it has a proper one. */
-export const toolTypeLabel = (toolType: string): string =>
-  TOOL_FORMS.find((each) => each.value === normalise(toolType))?.label ?? toolType
-
 /**
  * The forms the shank says nothing about, so the phrase is left off them.
  *
@@ -46,6 +42,36 @@ const SHANK_IS_THE_TYPE: ReadonlySet<string> = new Set([
   'tap left hand',
   'tap right hand',
 ])
+
+/**
+ * What each form is called and whether its shank is worth saying, worked out
+ * once per name.
+ *
+ * **The phrase is read for every tool in the catalog, several times over.** The
+ * `type` axis is a filter and a column, so choosing one runs {@link typeLabel}
+ * across 38,114 tools inside `prepareMatch`, and the `…` row's own value list
+ * runs it across them again — three regular expressions and a linear search
+ * through the vocabulary each time, measured at 48 ms a pass. A form is one of
+ * about twenty-five names, so the answer is worth keeping.
+ */
+const WORDS = new Map<string, { readonly label: string; readonly shankIsType: boolean }>()
+
+const wordsFor = (toolType: string) => {
+  const had = WORDS.get(toolType)
+  if (had !== undefined) {
+    return had
+  }
+  const name = normalise(toolType)
+  const made = {
+    label: TOOL_FORMS.find((each) => each.value === name)?.label ?? toolType,
+    shankIsType: SHANK_IS_THE_TYPE.has(name),
+  }
+  WORDS.set(toolType, made)
+  return made
+}
+
+/** What a name is called in the library's vocabulary, where it has a proper one. */
+export const toolTypeLabel = (toolType: string): string => wordsFor(toolType).label
 
 /**
  * Whether the shank behind the cut is thinner than the cut.
@@ -85,8 +111,66 @@ export const typeLabel = (tool: {
   readonly form: string
   readonly geometry: Readonly<Record<string, number>>
 }): string => {
-  const label = toolTypeLabel(tool.form)
-  return reducedShank(tool) && !SHANK_IS_THE_TYPE.has(normalise(tool.form))
-    ? `Reduced shank ${label.toLowerCase()}`
-    : label
+  const { label, shankIsType } = wordsFor(tool.form)
+  return reducedShank(tool) && !shankIsType ? `Reduced shank ${label.toLowerCase()}` : label
+}
+
+/**
+ * The form behind a phrase: {@link typeLabel} read backwards.
+ *
+ * **A type ticked in a column is a form asked for** (Paul, 2026-09-08: "there
+ * is no way to show end mills if I can't find a drill … End mills are
+ * technically a valid tool to predrill for the tap"). The Type column narrows
+ * on the phrase, and the phrase is all it has; what decides whether a tool is
+ * ever *judged* is the `form` filter, which is a different vocabulary. Without
+ * a way back from one to the other, ticking `Flat end mill` on a threaded hole
+ * narrowed a list of drills to nothing instead of asking for end mills.
+ *
+ * Here rather than anywhere else because {@link typeLabel} is here: two places
+ * building and unbuilding one phrase is how a tick stops finding its own tools.
+ * `null` where the phrase is not one this catalog builds — a vendor's own
+ * `toolType` passed through, say — because guessing a form from a word nobody
+ * put in the vocabulary is how a filter asks for something that does not exist.
+ */
+export const formOfTypeLabel = (label: string): string | null => {
+  const plain = normalise(label.replace(/^Reduced shank /i, ''))
+  const found = TOOL_FORMS.find((form) => normalise(form.label) === plain || form.value === plain)
+  return found?.value ?? null
+}
+
+/**
+ * The `form` filter after a change to the chosen types.
+ *
+ * **A tick adds its form and an untick takes it back**, so the Type column can
+ * widen a question the geometry narrowed without becoming a switch nobody can
+ * find their way back out of — the `form` axis has no control of its own
+ * (`column-filters.ts` § `AXES_PARKED`).
+ *
+ * `base` is what the geometry asked for and is never taken away: on a threaded
+ * hole it is the drill and the taps, so unticking `Drill` narrows the list to
+ * nothing for as long as that tick is off and puts the drills back when it
+ * comes off again — rather than emptying the form filter and with it the list.
+ * Everything else in the filter is left exactly as it was, which is what keeps
+ * the predrill press's own additions standing.
+ */
+export const formsAsking = (
+  forms: ReadonlyArray<string>,
+  base: ReadonlyArray<string>,
+  before: ReadonlyArray<string>,
+  after: ReadonlyArray<string>,
+): Array<string> => {
+  const never = new Set(base)
+  const formsOf = (types: ReadonlyArray<string>): Array<string> =>
+    types.flatMap((type) => {
+      const form = formOfTypeLabel(type)
+      return form === null ? [] : [form]
+    })
+  const asked = formsOf(after)
+  const dropped = new Set(
+    formsOf(before).filter((form) => !never.has(form) && !asked.includes(form)),
+  )
+  const kept = forms.filter((form) => !dropped.has(form))
+  // Two phrases of one form — `Flat end mill` and its reduced-shank twin — are
+  // one thing to ask for, so the filter says it once.
+  return [...new Set([...kept, ...asked])]
 }
