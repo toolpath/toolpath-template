@@ -829,6 +829,51 @@ test('never scrolls sideways, however long the names in it are', async ({ page }
 })
 
 /**
+ * **A group's caret is the gutter it sits in** (Paul, 2026-09-08: "the arrow is
+ * so big, then the text is so short … the arrow should be to the left of other
+ * rows — this is not indented").
+ *
+ * Making every button in a row stretch to fill it — which is what let a long
+ * name be truncated — stretched the caret with it, so a group row was half
+ * chevron and half ellipsis. The caret is exactly the width of the spacer every
+ * other row keeps in its place, so a group's name starts where a feature's name
+ * starts.
+ */
+test('opens a group from a caret the width of the gutter', async ({ page }) => {
+  const list = page.getByRole('list', { name: 'Features being asked about' })
+
+  // A feature, then a group, so the two kinds are on the list together.
+  await ready(page)
+  await page.getByRole('button', { name: '+ Feature' }).click()
+  await ready(page)
+  await page.getByRole('button', { name: '+ Group' }).click()
+  await inTheGroup(page)
+  await page
+    .getByRole('grid')
+    .getByRole('row')
+    .nth(1)
+    .evaluate((element) => element.click())
+  await page.getByRole('button', { name: /^Create group and add tools?$/ }).click()
+
+  // A feature and a group, on the list together.
+  await expect(list.getByRole('listitem')).toHaveCount(2)
+
+  const carets = await list.getByRole('button', { name: /^Open / }).boundingBox()
+  expect(carets?.width ?? 0).toBeLessThanOrEqual(20)
+
+  // And the two kinds of row start their names in the same place: the row with
+  // a caret is not indented past the row without one.
+  const starts = await list.evaluate((ul) =>
+    Array.from(ul.querySelectorAll('li')).map((row) => {
+      const label = row.querySelector('button[aria-pressed]')
+      return label === null ? -1 : Math.round(label.getBoundingClientRect().left)
+    }),
+  )
+  expect(starts).toHaveLength(2)
+  expect(starts[0]).toBe(starts[1])
+})
+
+/**
  * **The + Tool Assembly tree has no second stack** (Paul, 2026-09-08: "we can
  * also remove the add assembly button from + Tool Assembly"). It answers no
  * feature, so another stack the part needs is another row with a name of its

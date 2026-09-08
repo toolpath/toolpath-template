@@ -167,6 +167,8 @@ const Answer = ({
       type="button"
       variant="muted"
       size="sm"
+      // The `<button>` itself, rather than the box inside it — see the row's own.
+      full
       aria-pressed={here}
       aria-label={`${assembly === null ? '' : `${assembly}: `}${pick.tool.catalogNumber} for ${label}`}
       title={`${assembly === null ? '' : `${assembly} — `}${pick.tool.catalogNumber}${holding === '' ? '' : ` in ${holding}`} — every tool that fits ${label}`}
@@ -332,16 +334,6 @@ export const FeatureListPanel = ({
                   <Menu.Trigger className="block w-full min-w-0">
                     <div
                       className={cn(
-                        /*
-                          **The button has to be allowed to be narrow.** A kit
-                          `Button` puts the className it is given on the box
-                          inside it, not on the `<button>` — so a flex item with
-                          `min-width: auto` sits between the row and everything
-                          that knows how to truncate, and its automatic minimum
-                          is the whole unbroken name. This is the one place that
-                          can say otherwise about it.
-                        */
-                        '[&>button]:min-w-0 [&>button]:flex-1',
                         'flex items-center gap-1 rounded border px-1.5 py-1 text-left transition',
                         here
                           ? 'border-info/60 bg-info/15'
@@ -353,12 +345,21 @@ export const FeatureListPanel = ({
                       {item.kind === 'group' ? (
                         <IconButton
                           type="button"
-                          size="md"
+                          size="sm"
                           variant="muted"
                           aria-expanded={opened}
                           aria-label={`${opened ? 'Close' : 'Open'} ${label}`}
                           onClick={() => onOpen(item.id)}
-                          className="shrink-0 rounded p-0.5 text-zinc-500 hover:text-zinc-200"
+                          /*
+                            **The caret is the gutter, not a control beside it**
+                            (Paul, 2026-09-08: "the arrow is so big, then the
+                            text is so short … the arrow should be to the left
+                            of other rows"). It is exactly the width of the
+                            spacer every other row keeps in its place, so a
+                            group's name starts where a feature's name starts
+                            and the caret hangs to the left of both.
+                          */
+                          className="!size-4 shrink-0 rounded border-0 bg-transparent p-0 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 [&_svg]:!size-3"
                         >
                           {opened ? <CaretDownIcon /> : <CaretRightIcon />}
                         </IconButton>
@@ -378,92 +379,112 @@ export const FeatureListPanel = ({
                           onCancel={() => onRenameCancel?.()}
                         />
                       ) : (
-                        <Button
-                          type="button"
-                          variant="muted"
-                          size="sm"
-                          aria-pressed={here}
-                          // Named for what it is, so the caret beside it — "Open 4 ×
-                          // Through Hole" — is a different control by its name as
-                          // well as by its shape.
-                          aria-label={label}
-                          // Selecting the row already on screen puts it down again,
-                          // which is the way back to the list's own answers.
-                          onClick={() => onSelect(here ? null : item.id)}
-                          /*
+                        /*
+                          **A box the button can fill, rather than a button the
+                          row stretches.** A kit `Button` puts the className it
+                          is given on the box inside it, so the `<button>` keeps
+                          `min-width: auto` — the whole unbroken name — and a
+                          row that made every button in it `flex-1` stretched
+                          the caret to half the row along with it. This is the
+                          one flex item, and the button fills it.
+                        */
+                        <div className="min-w-0 flex-1">
+                          <Button
+                            type="button"
+                            variant="muted"
+                            size="sm"
+                            /*
+                              **`full` is the only way to widen the `<button>`
+                              itself.** A `<button>` sizes to fit its contents
+                              even as a flex container, and the className a kit
+                              `Button` is given lands on the box inside it — so
+                              without this the button takes the width of the
+                              whole unbroken name and hangs out of the row.
+                            */
+                            full
+                            aria-pressed={here}
+                            // Named for what it is, so the caret beside it — "Open 4 ×
+                            // Through Hole" — is a different control by its name as
+                            // well as by its shape.
+                            aria-label={label}
+                            // Selecting the row already on screen puts it down again,
+                            // which is the way back to the list's own answers.
+                            onClick={() => onSelect(here ? null : item.id)}
+                            /*
                           `w-full` is load-bearing: the className reaches the
                           box *inside* the button, and that box is sized by what
                           is in it unless it is told to be the width of the
                           button — which is what leaves the ellipsis somewhere
                           to happen.
                         */
-                          className={cn(
-                            FITS,
-                            'flex w-full min-w-0 flex-1 items-center gap-1.5 text-left',
-                          )}
-                        >
-                          <span className="shrink-0 text-zinc-400">
-                            {item.kind === 'group' ? (
-                              opened ? (
-                                <FolderOpenIcon />
-                              ) : (
-                                <FolderIcon />
-                              )
-                            ) : item.kind === 'assembly' ? (
-                              /* No feature to draw, so it wears what it is: a
-                               stack in a holder. */
-                              <HolderIcon />
-                            ) : (
-                              (iconOf?.(item.tags[0] ?? '') ?? null)
-                            )}
-                          </span>
-                          <span
                             className={cn(
-                              'min-w-0 flex-1 truncate text-xs',
-                              here ? 'text-zinc-100' : 'text-zinc-300',
+                              FITS,
+                              'flex w-full min-w-0 flex-1 items-center gap-1.5 text-left',
                             )}
                           >
-                            {label}
-                          </span>
-                          {/* What the group was asked for, on the row: it changes the
+                            <span className="shrink-0 text-zinc-400">
+                              {item.kind === 'group' ? (
+                                opened ? (
+                                  <FolderOpenIcon />
+                                ) : (
+                                  <FolderIcon />
+                                )
+                              ) : item.kind === 'assembly' ? (
+                                /* No feature to draw, so it wears what it is: a
+                               stack in a holder. */
+                                <HolderIcon />
+                              ) : (
+                                (iconOf?.(item.tags[0] ?? '') ?? null)
+                              )}
+                            </span>
+                            <span
+                              className={cn(
+                                'min-w-0 flex-1 truncate text-xs',
+                                here ? 'text-zinc-100' : 'text-zinc-300',
+                              )}
+                            >
+                              {label}
+                            </span>
+                            {/* What the group was asked for, on the row: it changes the
                         answer underneath, and a shop should not have to open a
                         dialog to see which question it is. */}
-                          {item.kind === 'group' ? (
-                            <span
-                              className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-zinc-400"
-                              title={
-                                item.results === 'all'
-                                  ? 'One tool that cuts every feature in this group'
-                                  : 'The best tool for each feature in this group'
-                              }
-                            >
-                              {RESULT_LABEL[item.results]}
-                            </span>
-                          ) : item.kind === 'assembly' ? (
-                            /* **It says what it is on the row** (Paul,
+                            {item.kind === 'group' ? (
+                              <span
+                                className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-zinc-400"
+                                title={
+                                  item.results === 'all'
+                                    ? 'One tool that cuts every feature in this group'
+                                    : 'The best tool for each feature in this group'
+                                }
+                              >
+                                {RESULT_LABEL[item.results]}
+                              </span>
+                            ) : item.kind === 'assembly' ? (
+                              /* **It says what it is on the row** (Paul,
                              2026-09-08). A stack that answers no feature looks
                              exactly like one that answers a feature nobody can
                              see any more, and the two are different things. */
-                            <span
-                              className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-zinc-400"
-                              title="A tool assembly for the part, not for a feature"
-                            >
-                              no feature
-                            </span>
-                          ) : (
-                            <span className="text-2xs shrink-0 font-mono text-zinc-500">
-                              {directionOf?.(item.tags[0] ?? '') ?? ''}
-                            </span>
-                          )}
-                          {item.tags.length > 1 ? (
-                            <span
-                              className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 font-semibold text-zinc-300"
-                              title={`${String(item.tags.length)} features`}
-                            >
-                              ×{item.tags.length}
-                            </span>
-                          ) : null}
-                        </Button>
+                              <span
+                                className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-zinc-400"
+                                title="A tool assembly for the part, not for a feature"
+                              >
+                                no feature
+                              </span>
+                            ) : (
+                              <span className="text-2xs shrink-0 font-mono text-zinc-500">
+                                {directionOf?.(item.tags[0] ?? '') ?? ''}
+                              </span>
+                            )}
+                            {item.tags.length > 1 ? (
+                              <span
+                                className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 font-semibold text-zinc-300"
+                                title={`${String(item.tags.length)} features`}
+                              >
+                                ×{item.tags.length}
+                              </span>
+                            ) : null}
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </Menu.Trigger>

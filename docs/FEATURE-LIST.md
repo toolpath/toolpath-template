@@ -426,6 +426,20 @@ differently:
   carry the same treatment for the same reason.
   `tests/on-the-part.spec.ts` § "never scrolls sideways" is the sensor: nothing
   overflows, and a long name is clipped rather than the row grown.
+- **And a `<button>` needs `full`.** A button sizes to fit its contents even as a
+  flex container, so the row's name button takes the width of the whole unbroken
+  name unless the kit is told `full` — the one prop that reaches the `<button>`
+  rather than the box inside it. The name button and the answer lines both carry
+  it.
+- **The caret is the gutter, not a control beside it** (Paul, 2026-09-08: "the
+  arrow is so big, then the text is so short … the arrow should be to the left
+  of other rows — this is not indented"). Stretching every button in a row to
+  fill it stretched the caret too, and a group row became half chevron and half
+  ellipsis. Only the name is a flex item that grows: the caret is exactly the
+  width of the spacer every other row keeps in its place, so a group's name
+  starts where a feature's name starts.
+  `tests/on-the-part.spec.ts` § "opens a group from a caret the width of the
+  gutter" measures both.
 - **The rows stand on the part, not in a box** (Paul, 2026-09-08: "make the list
   rows sit on top of the 3d viewer rather than in the box"). The card around
   them was a solid panel the width of the list whether the list was one row or
