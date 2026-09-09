@@ -29,3 +29,4 @@ jobs:
       - run: pnpm --filter @toolpath/catalog exec playwright install --with-deps chromium
       - run: pnpm test:e2e
       - run: pnpm --filter @toolpath/dfm docker:build
+      - run: pnpm --filter @toolpath/catalog docker:build

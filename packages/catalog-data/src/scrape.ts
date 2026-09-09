@@ -49,7 +49,6 @@ import { createHolderApi, measureHolder } from '@toolpath/tool-scraper/node'
 
 import { statedForm } from './forms.js'
 import type { ScrapedCollet, ScrapedFamily, ScrapedHolder, ScrapedTool } from './ingest.js'
-import type { ThreadMethod } from './types.js'
 
 /**
  * Running the vendors' scrapers, and handing their records to the ingest.
@@ -143,14 +142,28 @@ export class ScrapeError extends Error {}
  * Scoped there because that is the only transport deriving a thread system
  * from an id: EMUGE's `emuge_taps` is a tap whose id states neither, and it is
  * scraped by category and never asks this.
+ *
+ * **`metric` and `inch`, and deliberately not `millimeters` and `inches`.**
+ * This is not a unit system, so catalog 9's rename of that vocabulary does not
+ * reach it: it is the value of the `Thread System` tag column the scrape
+ * appends to Kennametal's variant-table request, naming the *standard* a
+ * designation is written in — `M6X1` against `1/4-20`. The scraper's
+ * `vendors/kennametal/records.ts` refuses anything else outright, for the
+ * reason it says: its two readers of that tag once defaulted in opposite
+ * directions and minted a record whose diameter was parsed in inches and whose
+ * lengths came from the millimetre columns. Renaming it here to match the unit
+ * words took all three Kennametal tap families out of the store on 2026-09-06
+ * — the inch one refused by name and the two metric ones failing to parse
+ * `M2X0.4` — and a per-family failure costs that family alone, so nothing said
+ * so until they were re-scraped (2026-09-09).
  */
-export const threadSystemOf = (familyId: string): 'millimeters' | 'inches' | null => {
+export const threadSystemOf = (familyId: string): 'metric' | 'inch' | null => {
   const metric = /(^|-)metric(-|$)/.test(familyId)
   const inch = /(^|-)inch(-|$)/.test(familyId)
   if (metric === inch) {
     return null
   }
-  return metric ? 'millimeters' : 'inches'
+  return metric ? 'metric' : 'inch'
 }
 
 /**
@@ -344,27 +357,6 @@ export const sharedDescription = (records: ReadonlyArray<ToolRecord>): string | 
  * whose part-number column was renamed fails by name instead of minting every
  * guid off an empty string.
  */
-/**
- * Whether the record says a tap cuts its thread or forms it.
- *
- * **This exists only because the installed scraper is 2.3.0.** `threadMethod`
- * lands on `ToolRecord` in 2.4.0 (upstream `feat(tool-scraper): record whether
- * a tap cuts its thread or forms it`), and until that version is installed
- * `record.threadMethod` does not type-check. Reading it through a widened view
- * lets the carry-through be written, tested and reviewed now, and it starts
- * returning real labels the moment the dependency moves — no code change, only
- * a re-scrape.
- *
- * **Delete this when 2.4.0 is installed** and inline `record.threadMethod`.
- * Keeping the cast past that point would defeat the seam's own rule that an
- * upstream shape change fails `check-types` here; `ingest.ts` carries the
- * matching note on `ScrapedTool`.
- */
-export const threadMethodOf = (record: ToolRecord): ThreadMethod | null => {
-  const stated = (record as ToolRecord & { readonly threadMethod?: unknown }).threadMethod
-  return stated === 'cutting' || stated === 'forming' ? stated : null
-}
-
 export const scrapeOne = async (
   fetcher: Fetcher,
   csvName: string,
@@ -385,7 +377,7 @@ export const scrapeOne = async (
     geometry: record.geometry,
     materialGroups: record.materialGroups,
     productLine: record.productLine,
-    threadMethod: threadMethodOf(record),
+    threadMethod: record.threadMethod,
     productLink: productLink(record.brand, record.materialNumber),
   }))
 
@@ -466,12 +458,22 @@ export const scrapeCuttingTools = async (options: ScrapeOptions): Promise<void> 
  * get four numbers nobody published.
  */
 
-/** How this package drives one vendor's toolholding scrape. */
-type HoldingScraper = (
-  fetcher: Fetcher,
-  csvName: string,
-  warn?: Warn,
-) => Promise<ScrapeResult> | null
+/** One family's scrape, once the vendor's table has been found to declare it. */
+type HoldingRun = (fetcher: Fetcher, warn?: Warn) => Promise<ScrapeResult>
+
+/**
+ * How this package drives one vendor's toolholding scrape.
+ *
+ * **Resolving the target and performing the scrape are two steps on purpose.**
+ * A brand answers null for a family its table has no target for, and it answers
+ * without a fetcher and without a request — so `holdingReachable` can ask the
+ * same question the scrape asks, off one table, before anything reaches the
+ * network. While this returned the scrape itself, the only way to learn that a
+ * family had no target was to run it: eleven REGO-FIX collet families and seven
+ * Kennametal holder families reported `FAILED` against a gate that had just
+ * called them reachable (2026-09-08).
+ */
+type HoldingScraper = (csvName: string) => HoldingRun | null
 
 /**
  * The vendors whose toolholding this package can reach, and how.
@@ -522,25 +524,34 @@ const HOLDING_SCRAPERS: Readonly<Record<string, HoldingScraper>> = {
    * reports as the family not being one this brand knows — the honest answer,
    * and the one that keeps a missing code from reading as a broken scrape.
    */
-  kennametal: (fetcher, csvName) => {
+  kennametal: (csvName) => {
     const code = KENNAMETAL_HOLDING_CODES[csvName]
-    return code === undefined ? null : scrapeFamily(fetcher, code, 'kennametal', [], AEM_TITLE)
+    return code === undefined
+      ? null
+      : (fetcher) => scrapeFamily(fetcher, code, 'kennametal', [], AEM_TITLE)
   },
-  maritool: (fetcher, csvName, warn) => {
+  maritool: (csvName) => {
     const leaves = MARITOOL_LEAVES[csvName as keyof typeof MARITOOL_LEAVES]
     return leaves === undefined
       ? null
-      : scrapeMaritoolHolders(fetcher, leaves, warn === undefined ? {} : { warn })
+      : (fetcher, warn) =>
+          scrapeMaritoolHolders(fetcher, leaves, warn === undefined ? {} : { warn })
   },
-  regofix: (fetcher, csvName, warn) => {
-    const options = warn === undefined ? {} : { warn }
+  regofix: (csvName) => {
     if (csvName === 'regofix_bt30_pg_holders.csv') {
-      return scrapeRegofixHolders(fetcher, 'BT/PG', 'BT', options)
+      return (fetcher, warn) =>
+        scrapeRegofixHolders(fetcher, 'BT/PG', 'BT', warn === undefined ? {} : { warn })
     }
     const group = REGOFIX_COLLET_GROUPS[csvName]
     return group === undefined
       ? null
-      : scrapeRegofixCollets(fetcher, group, BT30_COLLET_SIZES, options)
+      : (fetcher, warn) =>
+          scrapeRegofixCollets(
+            fetcher,
+            group,
+            BT30_COLLET_SIZES,
+            warn === undefined ? {} : { warn },
+          )
   },
 }
 
@@ -554,9 +565,35 @@ const HOLDING_SCRAPERS: Readonly<Record<string, HoldingScraper>> = {
  */
 const BT30_COLLET_SIZES: ReadonlyArray<string> = ['6', '10', '15', '25']
 
-/** REGO-FIX's own `product_group_name` for each collet family this package scrapes. */
+/**
+ * REGO-FIX's own `product_group_name` for each collet family this package scrapes.
+ *
+ * **Every name here is the family config's own evidence, not a guess.** Each
+ * collet family in the scraper's `families/regofix.ts` cites the group it was
+ * read from — "the ProductFinder index groups these under product_group_name
+ * 'Short'" — so the string below is that citation, transcribed. Where the
+ * vendor's group name is not the one the CSV name suggests, the entry says so.
+ *
+ * Standard was the only entry until 2026-09-08, which meant eleven declared
+ * families reached the network and came back as failures. `holdingReachable`
+ * could not see that: it answers for the brand, and the target is per family.
+ */
 const REGOFIX_COLLET_GROUPS: Readonly<Record<string, string>> = {
   'regofix_pg_collets_standard.csv': 'Standard',
+  'regofix_pg_collets_coolant_flush.csv': 'Coolant flush',
+  'regofix_pg_collets_short.csv': 'Short',
+  'regofix_pg_collets_cool_bore.csv': 'Cool bore',
+  'regofix_pg_collets_long.csv': 'Long',
+  'regofix_pg_collets_microbore.csv': 'Microbore',
+  // The vendor names these three by their product code rather than in prose.
+  'regofix_pgst_collets.csv': 'PGST',
+  'regofix_pg_collets_turning.csv': 'PG-T',
+  'regofix_pg_collets_mql.csv': 'PG-MQL',
+  'regofix_pg_collets_sealed_cap.csv': 'PG-SC',
+  // 'Tapping collet TAP', not 'Tap' — the group name is the whole phrase.
+  'regofix_pg_collets_tap.csv': 'Tapping collet TAP',
+  // Lower-case 'sec', capital 'R': the vendor's own spelling of the mark.
+  'regofix_pg_collets_securgrip.csv': 'secuRgrip',
 }
 
 /**
@@ -569,11 +606,15 @@ const REGOFIX_COLLET_GROUPS: Readonly<Record<string, string>> = {
  */
 export const holdingReachable = (csvName: string, family: BoundToolholding): string | null => {
   const brand = familyBrand(family)
-  if (HOLDING_SCRAPERS[brand] === undefined) {
+  const scraper = HOLDING_SCRAPERS[brand]
+  if (scraper === undefined) {
     return `no toolholding scraper reachable from this package drives ${brand}`
   }
   if (family.records === undefined) {
     return `${brand} has no ${family.kind} record mapper`
+  }
+  if (scraper(csvName) === null) {
+    return `${brand} declares no scrape target for ${csvName}`
   }
   return null
 }
@@ -660,10 +701,12 @@ export const scrapeHoldingOne = async (
     throw new ScrapeError(`no toolholding scraper reachable from this package drives ${brand}`)
   }
 
-  const scrape = await scraper(fetcher, csvName, warn)
-  if (scrape === null) {
+  const run = scraper(csvName)
+  if (run === null) {
     throw new ScrapeError(`${brand} declares no scrape target for ${csvName}`)
   }
+
+  const scrape = await run(fetcher, warn)
 
   const records = toHolding(csvName, scrape, warn === undefined ? {} : { warn })
   const familyId = csvName.replace(/\.csv$/, '')

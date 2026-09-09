@@ -3,14 +3,18 @@ import {
   DRAFT_TREE,
   addAssembly,
   assemblyName,
+  defaultAssemblyName,
+  renameAssembly,
   defaultAssemblies,
   draftKeyFor,
   emptyAssembly,
   firstNode,
   forThread,
   guidAt,
+  hasOverride,
   heldIn,
   isEmpty,
+  isOverride,
   linesOf,
   nextAssemblyId,
   readTrees,
@@ -178,6 +182,73 @@ describe('filling a slot', () => {
 
   it('empties a slot with null', () => {
     expect(setSlot([filled], 'assembly-1', 'tool', null)[0]?.toolGuid).toBeNull()
+  })
+})
+
+/**
+ * **A choice made against the rules is a fact about the choice** (Paul,
+ * 2026-09-08: "a small warning should show in the tree denoting that I chose a
+ * geometrically incompatible tool"). It is kept rather than derived because the
+ * verdict that produced it is a property of the filters that were set at the
+ * time, and those change under the stack.
+ */
+describe('overriding the rules', () => {
+  it('marks the slot the override went into, and no other', () => {
+    const made = setSlot([filled], 'assembly-1', 'tool', 'tool-b', true)
+    expect(isOverride(made[0]!, 'tool')).toBe(true)
+    expect(isOverride(made[0]!, 'holder')).toBe(false)
+    expect(hasOverride(made[0]!)).toBe(true)
+  })
+
+  it('takes the mark off when the same slot is filled with something that fits', () => {
+    const over = setSlot([filled], 'assembly-1', 'tool', 'tool-b', true)
+    const back = setSlot(over, 'assembly-1', 'tool', 'tool-c')
+    expect(isOverride(back[0]!, 'tool')).toBe(false)
+    expect(hasOverride(back[0]!)).toBe(false)
+  })
+
+  it('takes it off when the slot is cleared, so no warning outlives its choice', () => {
+    const over = setSlot([filled], 'assembly-1', 'collet', 'collet-b', true)
+    expect(isOverride(setSlot(over, 'assembly-1', 'collet', null)[0]!, 'collet')).toBe(false)
+  })
+
+  /** The collet goes when the holder changes, so a warning about it goes too. */
+  it('drops the collet mark with the collet on a holder change', () => {
+    const over = setSlot([filled], 'assembly-1', 'collet', 'collet-b', true)
+    const swapped = setSlot(over, 'assembly-1', 'holder', 'holder-b')
+    expect(swapped[0]?.colletGuid).toBeNull()
+    expect(isOverride(swapped[0]!, 'collet')).toBe(false)
+  })
+
+  it('leaves the other stacks of the tree alone', () => {
+    const two = addAssembly([filled])
+    const made = setSlot(two, 'assembly-1', 'tool', 'tool-b', true)
+    expect(hasOverride(made[1]!)).toBe(false)
+  })
+
+  it('clears every mark when a stack is put back to the line the bill holds', () => {
+    const over = setSlot([filled], 'assembly-1', 'tool', 'tool-b', true)
+    const back = restoreAssembly(over, 'assembly-1', { toolGuid: 'tool-a' })
+    expect(hasOverride(back[0]!)).toBe(false)
+  })
+
+  it('survives the round trip through storage', () => {
+    const over = setSlot([filled], 'assembly-1', 'tool', 'tool-b', true)
+    const held = new Map<string, string>()
+    const storage = {
+      getItem: (key: string) => held.get(key) ?? null,
+      setItem: (key: string, value: string) => held.set(key, value),
+    }
+    writeTrees(storage, 'part-1', { 'feature-1': over })
+    expect(isOverride(readTrees(storage, 'part-1')['feature-1']?.[0] as TreeAssembly, 'tool')).toBe(
+      true,
+    )
+  })
+
+  /** A tree stored before the field existed reads as nothing overridden. */
+  it('reads a tree with no record of one as nothing overridden', () => {
+    expect(hasOverride(filled)).toBe(false)
+    expect(isOverride(filled, 'tool')).toBe(false)
   })
 })
 
@@ -353,6 +424,8 @@ describe('putting a stack back to the line the bill holds', () => {
       colletGuid: 'collet-a',
       // What is put back is the *line*, so the stack stands as that line again.
       orderedTool: 'tool-a',
+      // And nothing in it is an unreviewed choice of this session's any more.
+      overrides: [],
     })
   })
 
@@ -408,5 +481,51 @@ describe('what a stack is called, and where a component stands', () => {
 
   it('names nothing for a component standing nowhere', () => {
     expect(heldIn(twoStacks, 'holder-z')).toEqual([])
+  })
+
+  /**
+   * **A number is a position, not a name** (Paul, 2026-09-08). A pocket's
+   * rougher and its finisher are `Assembly 1` and `Assembly 2`, which is the
+   * case where which is which is the whole decision.
+   */
+  it('calls a stack what somebody called it, wherever it is mentioned', () => {
+    const named = renameAssembly(twoStacks, 'assembly-2', '  Finisher  ')
+
+    expect(assemblyName(named, named[1] as TreeAssembly)).toBe('Finisher')
+    // The placeholder a name is typed over is what it goes on being called.
+    expect(defaultAssemblyName(named, named[1] as TreeAssembly)).toBe('Assembly 2')
+    // The badge on a table row reads the same name, so the two cannot disagree.
+    expect(heldIn(named, 'holder-a')).toEqual(['Assembly 1', 'Finisher'])
+  })
+
+  /** Clearing the field is the way back: there is no second un-name control. */
+  it('goes back to its number when the name is cleared', () => {
+    const named = renameAssembly(twoStacks, 'assembly-2', 'Finisher')
+
+    expect(renameAssembly(named, 'assembly-2', '  ')[1]).toEqual(twoStacks[1])
+  })
+
+  /** A tap is called what it is until it is called something else. */
+  it('names a tap over its role', () => {
+    const named = renameAssembly(threaded, 'assembly-1', 'M6 tap')
+
+    expect(assemblyName(named, named[0] as TreeAssembly)).toBe('M6 tap')
+    expect(assemblyName(named, named[1] as TreeAssembly)).toBe('DRILL')
+  })
+
+  it('keeps a name through a slot being filled, and in the browser', () => {
+    const named = renameAssembly(twoStacks, 'assembly-1', 'Rougher')
+    const filled = setSlot(named, 'assembly-1', 'collet', 'collet-a')
+
+    expect(assemblyName(filled, filled[0] as TreeAssembly)).toBe('Rougher')
+
+    const held = new Map<string, string>()
+    const storage = {
+      getItem: (key: string) => held.get(key) ?? null,
+      setItem: (key: string, value: string) => void held.set(key, value),
+    }
+    writeTrees(storage, 'part-a', { 'feature-1': filled })
+
+    expect(readTrees(storage, 'part-a')['feature-1']).toEqual(filled)
   })
 })

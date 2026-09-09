@@ -132,6 +132,34 @@ export interface CatalogDrawingProps {
   readonly materialRoom?: number
 }
 
+/**
+ * The verdict's sentence, and **the length below the holder it is about**.
+ *
+ * The package writes "clears the part"; this writes what follows it. It used
+ * to be the two tightest gaps alone, which left the reading unanswerable
+ * (Paul, 2026-09-08: "it's not clear what length below holder this applies
+ * to"): a stack clears at one stickout and fouls at another, so a verdict with
+ * no length on it is a verdict about nothing in particular. The number is the
+ * one the sheet is drawn at and the one the list's column now prints — the
+ * same `drawnAssembly` stickout in all three places.
+ *
+ * On a tool drawn alone there is no holder and so no such length, and the
+ * sentence is the gaps by themselves as before.
+ */
+const verdictNote = (
+  stickout: number | null,
+  gaps: Gaps | null,
+  margins: Margins,
+  format: (millimetres: number) => string,
+): string | null => {
+  const said = gaps === null ? null : describeGaps(gaps, margins, format)
+  if (stickout === null) {
+    return said
+  }
+  const at = `at ${format(stickout)} below the holder`
+  return said === null ? at : `${at} · ${said}`
+}
+
 export const CatalogDrawing = ({
   tool,
   assembly = null,
@@ -195,7 +223,7 @@ export const CatalogDrawing = ({
           ? null
           : {
               clears: verdict.clears,
-              note: gaps === null ? null : describeGaps(gaps, margins, format),
+              note: verdictNote(viewer.stickout, gaps, margins, format),
             }
       }
       className="size-full"

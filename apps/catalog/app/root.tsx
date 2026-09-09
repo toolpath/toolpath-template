@@ -140,7 +140,7 @@ export const ErrorBoundary = () => {
 
   return (
     <main role="alert" className="mx-auto max-w-2xl p-8 font-body text-zinc-300">
-      <h1 className="mb-2 font-heading text-2xl text-zinc-100">{title}</h1>
+      <h1 className="mb-2 font-heading text-lg text-zinc-100">{title}</h1>
       <p className="mb-4 text-sm text-zinc-400">
         Reload the page. If it comes back to this, restart the dev server (
         <code>pnpm dev:catalog</code>) — a rebuild can leave it serving stale modules.

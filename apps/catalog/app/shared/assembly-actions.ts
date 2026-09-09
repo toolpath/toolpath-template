@@ -76,6 +76,17 @@ import { ROLE_LABEL, isEmpty, type TreeAssembly } from './assembly-tree'
 
 export type AssemblyActionKind = 'confirm' | 'add' | 'replace' | 'update' | 'revert' | 'remove'
 
+/** What one press would put on the list, where it is not on it yet. */
+export type Subject = 'feature' | 'group' | 'assembly'
+
+/** What the press says it is making as well as ordering. */
+const ALSO: Readonly<Record<Subject, string>> = {
+  feature: 'Adds the feature to the list as well — it is not on it yet.',
+  group: 'Adds the group to the list as well — it is not on it yet.',
+  // Named for what it is rather than for a feature it does not have.
+  assembly: 'Adds this tool assembly to the list as well — it is not on it yet.',
+}
+
 export interface AssemblyAction {
   readonly kind: AssemblyActionKind
   readonly label: string
@@ -272,8 +283,14 @@ export const assemblyActions = (
   onSheet: ReadonlyArray<Choice>,
   /** Whether what is being answered is already a row on the list. */
   onList = true,
-  /** What confirming would create, for the button that creates it. */
-  subject: 'feature' | 'group' = 'feature',
+  /**
+   * What confirming would create, for the button that creates it.
+   *
+   * `assembly` is a stack the part needs and no feature asked for (Paul,
+   * 2026-09-08): it is a draft until this press, because an assembly with
+   * nothing on the order list is a row about nothing.
+   */
+  subject: Subject = 'feature',
   /** How to name a component on the button, where the caller can. */
   nameOf: NameOf = () => null,
 ): Array<AssemblyAction> => {
@@ -290,7 +307,7 @@ export const assemblyActions = (
       {
         kind: 'confirm',
         label: 'Add to order list',
-        note: `Adds the ${subject} to the feature list as well — it is not on it yet.`,
+        note: ALSO[subject],
       },
     ]
   }
@@ -381,7 +398,7 @@ export const groupActions = (
   stacks: ReadonlyArray<TreeAssembly>,
   onSheet: ReadonlyArray<Choice>,
   onList = true,
-  subject: 'feature' | 'group' = 'feature',
+  subject: Subject = 'feature',
   nameOf: NameOf = () => null,
 ): Array<AssemblyAction> => {
   const [only, ...rest] = stacks
@@ -403,7 +420,7 @@ export const groupActions = (
       {
         kind: 'confirm',
         label: 'Add to order list',
-        note: `Adds the ${subject} to the feature list as well — it is not on it yet.`,
+        note: ALSO[subject],
       },
     ]
   }

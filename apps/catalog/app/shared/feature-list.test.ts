@@ -4,12 +4,16 @@ import {
   addItem,
   asked,
   groupLabel,
+  isAssemblyKey,
   itemNamed,
+  defaultLabelOf,
   labelOf,
+  renameItem,
   nextId,
   readList,
   removeItem,
   replaceItem,
+  sheetKeysOf,
   typeButtons,
   writeList,
   type GroupItem,
@@ -237,5 +241,106 @@ describe('what is kept in the browser', () => {
     )
 
     expect(readList(storage, 'part-a')).toEqual([])
+  })
+})
+
+/**
+ * **A tool assembly the part needs and no feature asked for** (Paul,
+ * 2026-09-08: "the tool assembly will not be tied to a specific feature or
+ * group, it will just exist at the part level").
+ *
+ * It is a row like any other everywhere the list is read, and different in
+ * exactly two places: it holds no tags, so it asks the tool table nothing —
+ * and it is keyed on the setup sheet by its own id, because there is no feature
+ * to key it by.
+ */
+describe('a tool assembly with no feature', () => {
+  const standalone = (id: string): ListItem => ({ kind: 'assembly', id, tags: [] })
+
+  it('is keyed on the bill by its own id, and a feature by its tags', () => {
+    expect(sheetKeysOf(standalone('assembly-2'))).toEqual(['assembly-2'])
+    expect(sheetKeysOf(feature('feature-1', ['hole-1', 'hole-2']))).toEqual(['hole-1', 'hole-2'])
+    expect(isAssemblyKey('assembly-2')).toBe(true)
+    // A feature tag is the kernel's, so the two cannot be confused.
+    expect(isAssemblyKey('hole-1')).toBe(false)
+    expect(isAssemblyKey('assembly')).toBe(false)
+  })
+
+  /** Numbered off its own id: there is nothing else to name it after. */
+  it('is named for its number, without a feature to be named after', () => {
+    expect(labelOf(standalone('assembly-3'), nameOf)).toBe('Tool assembly 3')
+  })
+
+  /**
+   * **It asks nothing.** With no features there is nothing to judge a tool
+   * against, so the table under it is the whole catalog rather than an answer
+   * to "which tool cuts these no features".
+   */
+  it('asks the tool list nothing at all', () => {
+    expect(asked({ selected: standalone('assembly-1') })).toEqual({
+      tags: [],
+      results: 'all',
+      summary: true,
+    })
+  })
+
+  it('is kept in the browser like every other row', () => {
+    const held = new Map<string, string>()
+    const storage = {
+      getItem: (key: string) => held.get(key) ?? null,
+      setItem: (key: string, value: string) => void held.set(key, value),
+    }
+    const list = [feature('feature-1', ['pocket-1']), standalone('assembly-1')]
+
+    writeList(storage, 'part-a', list)
+
+    expect(readList(storage, 'part-a')).toEqual(list)
+  })
+
+  it('mints its id the way every other row does', () => {
+    expect(nextId([standalone('assembly-1')], 'assembly')).toBe('assembly-2')
+  })
+
+  /**
+   * **It is the one row kind with a name to give** (Paul, 2026-09-08). A
+   * feature is called what it is and a group what it holds; an assembly
+   * answering no feature has only its number until somebody says what the stack
+   * is for.
+   */
+  it('is called what somebody called it, and its number until they do', () => {
+    const named = renameItem([standalone('assembly-3')], 'assembly-3', '  Facing stack  ')
+
+    expect(labelOf(named[0] as ListItem, nameOf)).toBe('Facing stack')
+    // The placeholder a name is typed over is what it goes on being called.
+    expect(defaultLabelOf(named[0] as ListItem, nameOf)).toBe('Tool assembly 3')
+  })
+
+  /** Clearing the field is the way back: there is no second un-name control. */
+  it('goes back to its number when the name is cleared', () => {
+    const named = renameItem([standalone('assembly-3')], 'assembly-3', 'Facing stack')
+    const cleared = renameItem(named, 'assembly-3', '   ')
+
+    expect(cleared[0]).toEqual(standalone('assembly-3'))
+    expect(labelOf(cleared[0] as ListItem, nameOf)).toBe('Tool assembly 3')
+  })
+
+  /** A feature and a group are named by what they hold, and by nothing else. */
+  it('names nothing else on the list', () => {
+    const list = [feature('feature-1', ['pocket-1']), standalone('assembly-1')]
+
+    expect(renameItem(list, 'feature-1', 'Roughing')[0]).toEqual(list[0])
+  })
+
+  it('keeps the name in the browser with the row', () => {
+    const held = new Map<string, string>()
+    const storage = {
+      getItem: (key: string) => held.get(key) ?? null,
+      setItem: (key: string, value: string) => void held.set(key, value),
+    }
+    const list = renameItem([standalone('assembly-1')], 'assembly-1', 'Facing stack')
+
+    writeList(storage, 'part-a', list)
+
+    expect(readList(storage, 'part-a')).toEqual(list)
   })
 })

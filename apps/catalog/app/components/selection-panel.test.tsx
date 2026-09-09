@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { PartFeature } from '@toolpath/part-contracts'
 import { SelectionPanel } from './selection-panel'
 
@@ -61,5 +61,58 @@ describe('what the panel calls the reading', () => {
     draw()
 
     expect(screen.getByRole('status', { name: 'Selected feature' })).toHaveTextContent(/Hole/)
+  })
+})
+
+/**
+ * **Grouping identical holes is offered, not applied** (Paul, 2026-09-09: "In
+ * Add Feature, I should be able to select a single hole. The Add Feature Dialog
+ * should warn me there are other identical holes and ask if I want to add them
+ * in a group"). Every path through `part-interaction` used to expand a hole
+ * into its siblings, so one of a bolt circle could not be asked about; this is
+ * where that rule went, and both answers are here.
+ */
+describe('the offer to group identical holes', () => {
+  const offer = (over: Partial<{ count: number }> = {}) => {
+    const identical = { count: 39, onGroup: vi.fn(), onDismiss: vi.fn(), ...over }
+    draw({ siblings: identical.count, identical })
+    return identical
+  }
+
+  it('says how many others there are, and names the number on the press', () => {
+    offer()
+
+    expect(screen.getByText(/38 other holes on this part are identical/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add all 39 as a group' })).toBeInTheDocument()
+  })
+
+  /** Two holes are one other hole, and the sentence has to read as English. */
+  it('counts one other hole in the singular', () => {
+    offer({ count: 2 })
+
+    expect(screen.getByText(/One other hole on this part is identical/)).toBeInTheDocument()
+  })
+
+  it('takes the offer', () => {
+    const identical = offer()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add all 39 as a group' }))
+
+    expect(identical.onGroup).toHaveBeenCalled()
+  })
+
+  /** And turning it down is a press of its own, so both answers are on screen. */
+  it('turns the offer down', () => {
+    const identical = offer()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Just this hole' }))
+
+    expect(identical.onDismiss).toHaveBeenCalled()
+  })
+
+  it('is not made for a hole with nothing like it', () => {
+    draw({ siblings: 1 })
+
+    expect(screen.queryByText(/identical/)).not.toBeInTheDocument()
   })
 })

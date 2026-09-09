@@ -1,8 +1,13 @@
 import type { PartFeature } from '@toolpath/part-contracts'
-import { TOOL_FORMS, stickoutCeiling, type CatalogTool } from '@toolpath/catalog-data'
+import {
+  TOOL_FORMS,
+  stickoutCeiling,
+  type CatalogTool,
+  type ThreadMethod,
+} from '@toolpath/catalog-data'
 import { asNumber, asRecord } from '@toolpath/part-contracts/datasheet'
 import { partTop } from '@toolpath/part-contracts/measurements'
-import { makerOf, minorOf, type HoleMode, type ThreadSpec } from './threads'
+import { makerOf, methodOf, minorOf, type HoleMode, type ThreadSpec } from './threads'
 
 /**
  * Holes, read as holes.
@@ -21,6 +26,37 @@ export const holeDepthOf = (feature: PartFeature): number | null => {
   const zMin = asNumber(sheet?.zMin)
   const zMax = asNumber(sheet?.zMax)
   return zMin === null || zMax === null ? null : Math.round((zMax - zMin) * 1000) / 1000
+}
+
+/**
+ * The bore the model draws for a feature, in millimetres — `null` where it is
+ * not a hole at all.
+ */
+export const boreOf = (feature: PartFeature): number | null =>
+  asNumber(asRecord(feature.datasheet?.facts)?.diameter)
+
+/**
+ * The holes of one bore among a set of tags.
+ *
+ * **A thread applies to what is selected, and only to the holes in it** (Paul,
+ * 2026-09-09: "only what's selected — but I should be able to apply threads to
+ * the full group in the Group dialog if desired"). What is selected can be a
+ * group holding a pocket and two bores, and a thread choice written across all
+ * of it would name the pocket `M6×1 Pocket` — `threadedName` reads the choice
+ * per tag and cannot tell it was never meant for that feature. A tap has one
+ * nominal size, so the bore is what says which of them it was meant for.
+ *
+ * @param diameter the modelled bore, in millimetres, the choice was made against
+ */
+export const holesAt = (
+  features: ReadonlyArray<PartFeature>,
+  tags: ReadonlyArray<string>,
+  diameter: number,
+): Array<string> => {
+  const wanted = new Set(tags)
+  return features.flatMap((feature) =>
+    wanted.has(feature.featureTag) && boreOf(feature) === diameter ? [feature.featureTag] : [],
+  )
 }
 
 /**
@@ -129,6 +165,26 @@ export const THREADED_FORMS: ReadonlyArray<string> = [
 export const PREDRILL_MILL_FORMS: ReadonlyArray<string> = ['flat end mill', 'bull nose end mill']
 
 /**
+ * The forms a threaded hole's filter must hold, whatever else is written.
+ *
+ * **The thread's forms outrank a suggestion** (Paul, 2026-09-09: "the tap type
+ * is no longer automatically being enabled in tapped holes. It needs to be to
+ * show the taps!"). A feature's own row says a hole is drilled — true before
+ * anybody threads it — and `applySuggestions` overrules the `form` axis
+ * outright, so any write triggered after the thread was chosen erased the taps
+ * that choosing it had added. The tap list reads that axis, so the taps
+ * vanished from a hole whose whole question was which tap.
+ *
+ * `held` is what the filter holds now, and the predrill mills in it survive:
+ * without that, this rule and the one that turns the mills on when no drill
+ * fits would take turns undoing each other.
+ */
+export const threadedFormsWith = (held: ReadonlyArray<string>): Array<string> => [
+  ...THREADED_FORMS,
+  ...millsShown(held),
+]
+
+/**
  * The form filter with the predrilling mills added or taken away.
  *
  * The button is a **filter**, not a second list: the filters are the last word
@@ -160,6 +216,26 @@ export const millsLabel = (forms: ReadonlyArray<string>): string => {
   return `Showing ${on[0] ?? ''}s`
 }
 
+/**
+ * The forms the drill half of a threaded hole may show: drills, and whatever
+ * other cutter the filter is asking for.
+ *
+ * **A tapped hole is drilled, but the filter says with what** (Paul,
+ * 2026-09-08: "End mills are technically a valid tool to predrill for the tap,
+ * just usually not the first choice"). The rule this replaces was `drill` plus
+ * {@link PREDRILL_MILL_FORMS} — the two forms the predrill press writes — so a
+ * type asked for in the Type column was judged, fitted, and then dropped by the
+ * list on its way to the screen, with nothing on the page saying why.
+ *
+ * The taps are still out of it: they are the other half of the same feature and
+ * have a list of their own, so a tap on the drill list would be the same tool
+ * offered twice. Drills still lead, which is {@link drillsFirst}.
+ */
+export const predrillFormsOf = (forms: ReadonlyArray<string>): Array<string> => [
+  'drill',
+  ...forms.filter((form) => form !== 'drill' && !isTap(form)),
+]
+
 export const formsWithMills = (forms: ReadonlyArray<string>, on: boolean): Array<string> =>
   on
     ? [...forms, ...PREDRILL_MILL_FORMS.filter((form) => !forms.includes(form))]
@@ -186,6 +262,34 @@ export const drillsFirst = <T extends { readonly form: string }>(
 const TAP_WITHIN = 0.2
 
 /**
+ * The two numbers the thread and the hole put on a tap, as bounds.
+ *
+ * **What swept the list, said in the columns it swept on** (Paul, 2026-09-09:
+ * "shouldn't thread diameter and thread length be applied from the thread spec
+ * and model feature/group depth respectively?"). Both were already applied —
+ * {@link tapsFor} takes the diameter band and {@link reaches} the cutting
+ * length — and neither was anywhere on screen, so the two columns a shop picks
+ * a tap on looked untouched over a list that had been narrowed by exactly them.
+ *
+ * One function so a header and the sweep cannot disagree about the number.
+ * `hole-mode.test.ts` § *the bounds a thread puts on a tap* is the sensor: it
+ * puts a tap on each edge of the stated band through `tapsFor` and requires the
+ * two to answer the same.
+ *
+ * `reach` is the hole being threaded, which is a feature's depth or a group's
+ * worst case — the depth is read off whatever the selection resolved to, so a
+ * group answers here the same way one hole does. Absent, there is no depth to
+ * state and the diameter stands alone.
+ */
+export const tapBounds = (
+  spec: ThreadSpec,
+  reach: ThreadReach | null,
+): Record<string, { readonly min?: number; readonly max?: number }> => ({
+  DC: { min: spec.major - TAP_WITHIN, max: spec.major + TAP_WITHIN },
+  ...(reach === null ? {} : { LCF: { min: reach.depth } }),
+})
+
+/**
  * The taps that cut this thread, closest first.
  *
  * **By size alone.** A tap's diameter is its nominal size and every vendor
@@ -195,18 +299,62 @@ const TAP_WITHIN = 0.2
  * choice is the person's — which the panel says out loud rather than picking
  * one and being wrong half the time.
  */
-export const tapsFor = (spec: ThreadSpec, tools: ReadonlyArray<CatalogTool>): Array<CatalogTool> =>
-  tools
+export const tapsFor = (
+  spec: ThreadSpec,
+  tools: ReadonlyArray<CatalogTool>,
+  /**
+   * Which kind of tap is being asked for, or `null` for both.
+   *
+   * **The mode is what filters the list** (Paul, 2026-09-09: "these buttons
+   * should filter to show only cut or form taps on the taps table"). A cut tap
+   * and a form tap start from holes half a millimetre apart on an M6, so a list
+   * holding both is a list where half the rows do not fit the drill chosen
+   * beside them.
+   *
+   * **A tap that states no method stays in both.** Silence is not `cutting` —
+   * the rule `CatalogTool.threadMethod` states — and every tap in a store
+   * scraped before `@toolpath/tool-scraper` 2.4.0 is silent, so excluding the
+   * unlabelled would empty this list entirely on an older scrape rather than
+   * narrow it.
+   */
+  method: ThreadMethod | null = null,
+): Array<CatalogTool> => {
+  /*
+    Read off {@link tapBounds} rather than written again as `|size - major| <=
+    TAP_WITHIN`. The two are the same rule to three decimal places and *not* the
+    same in binary: `major - 0.2` is a hair under the band a subtraction here
+    lands on, so a tap sitting exactly on the edge was inside the number the
+    heading states and outside the sweep that states it. One expression, one
+    answer, whichever of the two is being read.
+  */
+  const band = tapBounds(spec, null).DC
+  return tools
     .filter((tool) => isTap(tool.form))
     .filter((tool) => {
+      /*
+        `?? null` because "states none" has two spellings that reach here: an
+        ingested tool carries `null`, and a tool built without the field at all
+        — a fixture, or a document written before it existed — carries
+        `undefined`. Reading only one of them as silence filtered every such tap
+        out of both lists, which is the whole list on an older scrape.
+      */
+      const stated = tool.threadMethod ?? null
+      return method === null || stated === null || stated === method
+    })
+    .filter((tool) => {
       const size = tool.geometry.DC
-      return size !== undefined && Math.abs(size - spec.major) <= TAP_WITHIN
+      return (
+        size !== undefined &&
+        (band?.min === undefined || size >= band.min) &&
+        (band?.max === undefined || size <= band.max)
+      )
     })
     .sort(
       (a, b) =>
         Math.abs((a.geometry.DC ?? 0) - spec.major) - Math.abs((b.geometry.DC ?? 0) - spec.major) ||
         a.catalogNumber.localeCompare(b.catalogNumber),
     )
+}
 
 /**
  * The thread mills that cut this thread, smallest first.
@@ -360,7 +508,7 @@ export const makersFor = (
   if (maker === null) {
     return { made: [], short: false }
   }
-  const sized = maker === 'tap' ? tapsFor(spec, tools) : threadMillsFor(spec, tools)
+  const sized = maker === 'tap' ? tapsFor(spec, tools, methodOf(mode)) : threadMillsFor(spec, tools)
   const reaching = sized.filter((tool) => reaches(tool, reach))
   if (reaching.length > 0 || reach === null || sized.length === 0) {
     return { made: reaching.length > 0 ? reaching : sized, short: false }
@@ -370,3 +518,34 @@ export const makersFor = (
     short: true,
   }
 }
+
+/**
+ * The tap half of a form filter.
+ *
+ * `predrillFormsOf` is the drill half of the same question, and the two are
+ * deliberately disjoint: a threaded hole is one filter read by two lists, and
+ * neither may show the other's tools.
+ */
+export const tapFormsOf = (forms: ReadonlyArray<string>): Array<string> => forms.filter(isTap)
+
+/**
+ * The form filter with its tap half replaced, the drill half untouched.
+ *
+ * **A tick on the tap list's Type column is a tap form asked for** (Paul,
+ * 2026-09-09: "when I am in the TAPs row or table, it should be filtering to
+ * taps"). The tap list is swept out of the catalog by the thread rather than
+ * narrowed by the tool query, so it had no filters at all and its Type heading
+ * said nothing while the chrome over it counted three.
+ *
+ * It moves the taps in the `form` axis rather than writing a second axis of its
+ * own, because that is where choosing a thread already put them
+ * ({@link THREADED_FORMS}) and because the drill list reads that same axis
+ * through {@link predrillFormsOf}, which strips the taps out — so the tap half
+ * can be answered without a drill leaving the tab beside it. A `type` written
+ * here instead would be the same filter under two names and would empty the
+ * drill list, whose phrases are not a tap's.
+ */
+export const formsAskingTaps = (
+  forms: ReadonlyArray<string>,
+  taps: ReadonlyArray<string>,
+): Array<string> => [...forms.filter((form) => !isTap(form)), ...taps]

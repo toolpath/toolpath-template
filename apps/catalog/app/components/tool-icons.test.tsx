@@ -47,14 +47,28 @@ describe('a drawing for every tool the library names', () => {
 })
 
 describe('what a tool is called', () => {
-  /** A real relief on an end mill is the first thing a shop wants to know. */
-  it('leads with the shank where it is reduced', () => {
+  /**
+   * A shank narrower than the cut is the first thing a shop wants to know, and
+   * since 2026-09-08 that is the whole of the rule: `SFDM < DC`, Paul's, rather
+   * than the package's reading of a neck behind the flutes.
+   */
+  it('leads with the shank where it is thinner than the cut', () => {
     expect(
       formLabel({
         form: 'bull nose end mill',
-        geometry: { DC: 6, LCF: 12, 'shoulder-diameter': 5.4, 'shoulder-length': 40 },
+        geometry: { DC: 12, LCF: 20, SFDM: 10 },
       }),
     ).toBe('Reduced shank bull nose end mill')
+  })
+
+  /** A neck behind a full-width shank is not what the words are about. */
+  it('says nothing about the shank of a necked tool whose shank is full width', () => {
+    expect(
+      formLabel({
+        form: 'bull nose end mill',
+        geometry: { DC: 6, LCF: 12, SFDM: 6, 'shoulder-diameter': 5.4, 'shoulder-length': 40 },
+      }),
+    ).toBe('Bull nose end mill')
   })
 
   /**
@@ -65,9 +79,20 @@ describe('what a tool is called', () => {
     expect(
       formLabel({
         form: 'slot mill',
-        geometry: { DC: 22.2, LCF: 1.6, 'shoulder-diameter': 12.7, 'shoulder-length': 20 },
+        geometry: { DC: 22.2, LCF: 1.6, SFDM: 12.7 },
       }),
     ).toBe('Slot mill')
+  })
+
+  /**
+   * A tap's shank is sized to the tapping chuck rather than to the thread it
+   * cuts, so it is under the major diameter on 59% of the taps in the catalog
+   * (Paul, 2026-09-08: "taps should not show reduced shank").
+   */
+  it('says nothing about the shank of a tap', () => {
+    expect(
+      formLabel({ form: 'tap right hand', geometry: { DC: 9.525, LCF: 20, SFDM: 7.938 } }),
+    ).toBe('Tap right hand')
   })
 
   it('names a tool with a full shank by its form alone', () => {

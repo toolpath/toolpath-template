@@ -1,5 +1,5 @@
 import { ArrowSquareOutIcon, DownloadSimpleIcon, TrashIcon } from '@phosphor-icons/react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useParams, useSearchParams } from 'react-router'
 import { Badge, Button, Card, IconButton, cn, Input } from '@toolpath/ui'
 import { formatLength, type UnitSystem } from '@toolpath/tool-support'
@@ -19,6 +19,7 @@ import {
   type Component,
   type SetupSheet,
 } from 'shared/setup-sheet'
+import { isAssemblyKey, itemNamed, labelOf, readList } from 'shared/feature-list'
 import { fusionLibrary } from 'shared/fusion-library'
 import { saveInBrowser } from 'shared/save-file'
 import { recallPart } from 'shared/part-session'
@@ -317,6 +318,16 @@ const Bom = () => {
   const remembered = partId && jobId ? recallPart(partId, jobId) : null
   const features = remembered?.report.features ?? []
   /**
+   * The rows the part page built, for the one thing this list cannot read off
+   * a feature: what a part-level assembly is called (Paul, 2026-09-08: "it
+   * should show the name of the assembly in the order list as well").
+   *
+   * Read once rather than through `useFeatureList`, because nothing here edits
+   * the list — the same store, the same part id, and a part answered in another
+   * tab is a reload away either way.
+   */
+  const list = useMemo(() => readList(globalThis.localStorage ?? null, partId ?? ''), [partId])
+  /**
    * The sheet grouped by **tool**: one row-group per tool, holder and
    * collet, whatever it machines.
    *
@@ -336,6 +347,19 @@ const Bom = () => {
    * the list is the cutter.
    */
 
+  /** What a part-level assembly is called on the bill: its name, or that it answers nothing. */
+  const assemblyLabel = useCallback(
+    (key: string) => {
+      const item = itemNamed(list, key)
+      return item?.kind === 'assembly' && item.name !== undefined
+        ? // `labelOf` rather than the field, so the list and the bill cannot
+          // disagree about what a row is called.
+          labelOf(item, () => '')
+        : 'no feature'
+    },
+    [list],
+  )
+
   const assemblies = useMemo(() => {
     const groups = new Map<
       string,
@@ -352,7 +376,25 @@ const Bom = () => {
     for (const [featureTag, kept] of Object.entries(sheet.choices)) {
       for (const choice of kept) {
         const feature = features.find((each) => each.featureTag === featureTag)
-        const named = featureTag === '*' ? 'the whole part' : (feature?.featureType ?? featureTag)
+        /*
+          **A part-level assembly says so** (Paul, 2026-09-08). Its lines are
+          kept under the row's own id rather than a feature tag — it answers no
+          feature — and printing that id at somebody buying tools would be a
+          row key on a bill. `isAssemblyKey` is the rule, in `feature-list.ts`
+          where the id is minted.
+        */
+        const named = isAssemblyKey(featureTag)
+          ? /*
+              **Called what the shop called it** (Paul, 2026-09-08). A named
+              assembly is the one thing on this page that says *why* a stack
+              nobody's geometry asked for is being bought; unnamed, it is still
+              a row about no feature, which is what the list said before names
+              existed.
+            */
+            assemblyLabel(featureTag)
+          : featureTag === '*'
+            ? 'the whole part'
+            : (feature?.featureType ?? featureTag)
         const tool = allTools.find((each) => each.guid === choice.toolGuid)
         /**
          * **The two ways a shop reads this list.**
@@ -378,7 +420,7 @@ const Bom = () => {
       }
     }
     return [...groups.entries()].map(([key, group]) => ({ key, ...group }))
-  }, [sheet, features])
+  }, [sheet, features, assemblyLabel])
 
   /**
    * The whole bill as a Fusion library, saved from the browser.
@@ -493,7 +535,13 @@ const Bom = () => {
                     ]
                     const named: AssemblyHead = {
                       tool: title,
-                      verb: 'machines',
+                      /*
+                        **A part-level assembly machines nothing** (Paul,
+                        2026-09-08). Its note is what it is *for* — the name the
+                        shop gave the stack — and "machines Facing stack" is a
+                        sentence about a feature that does not exist.
+                      */
+                      verb: tags.every(isAssemblyKey) ? 'for' : 'machines',
                       features: machines,
                       total: totalOf(choice),
                       onTotal: (many: number) =>

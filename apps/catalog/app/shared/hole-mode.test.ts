@@ -6,14 +6,20 @@ import {
   PREDRILL_MILL_FORMS,
   THREADED_FORMS,
   drillsFirst,
+  formsAskingTaps,
   formsWithMills,
   millsLabel,
   millsShown,
+  predrillFormsOf,
   holeAt,
+  holesAt,
   makersFor,
   reaches,
   shortfallOf,
+  tapBounds,
+  tapFormsOf,
   tapsFor,
+  threadedFormsWith,
 } from './hole-mode'
 import { threadNamed } from './threads'
 
@@ -233,6 +239,53 @@ describe('the taps for a thread', () => {
 
     expect(coarse).toEqual(fine)
   })
+
+  /**
+   * **Cut and form are two lists, not one** (Paul, 2026-09-09: "these buttons
+   * should filter to show only cut or form taps on the taps table"). The two
+   * start from holes half a millimetre apart on an M6, so a list holding both
+   * would put half its rows against a drill they cannot use.
+   */
+  describe('and which kind of tap the mode asks for', () => {
+    const made = (catalogNumber: string, method: 'cutting' | 'forming'): CatalogTool =>
+      ({ ...tap(catalogNumber, 6), threadMethod: method }) as unknown as CatalogTool
+    const spec = threadNamed('M6×1')!
+    const cutting = made('cut', 'cutting')
+    const forming = made('form', 'forming')
+
+    it('offers the cutting taps for a cut tap, and the forming ones for a form tap', () => {
+      expect(
+        tapsFor(spec, [cutting, forming], 'cutting').map((each) => each.catalogNumber),
+      ).toEqual(['cut'])
+      expect(
+        tapsFor(spec, [cutting, forming], 'forming').map((each) => each.catalogNumber),
+      ).toEqual(['form'])
+    })
+
+    /**
+     * The silence a store scraped before `@toolpath/tool-scraper` 2.4.0 carries
+     * on every tap in it. Read as `cutting` it would hide every tap from the
+     * form list; excluded outright it would empty both — so it stays in each.
+     */
+    it('keeps a tap that states no method in both lists', () => {
+      const silent = tap('silent', 6)
+
+      expect(tapsFor(spec, [silent], 'cutting').map((each) => each.catalogNumber)).toEqual([
+        'silent',
+      ])
+      expect(tapsFor(spec, [silent], 'forming').map((each) => each.catalogNumber)).toEqual([
+        'silent',
+      ])
+    })
+
+    /** No mode asked is every tap, which is what the bounds tests read. */
+    it('offers both where nothing asked', () => {
+      expect(tapsFor(spec, [cutting, forming]).map((each) => each.catalogNumber)).toEqual([
+        'cut',
+        'form',
+      ])
+    })
+  })
 })
 
 describe('what makes the thread', () => {
@@ -448,5 +501,188 @@ describe('the tool forms a threaded hole takes', () => {
       expect(THREADED_FORMS).toContain(tap.form)
     }
     expect(THREADED_FORMS).not.toContain('tapered mill')
+  })
+})
+
+/**
+ * **A tapped hole is drilled, but the filter says with what** (Paul,
+ * 2026-09-08: "End mills are technically a valid tool to predrill for the tap,
+ * just usually not the first choice"). The list was drills plus the two forms
+ * the predrill press writes, so a type asked for in the Type column was judged,
+ * fitted, and then dropped on its way to the screen.
+ */
+describe('the forms a threaded hole\u2019s drill list shows', () => {
+  it('is drills wherever the filter asks for nothing else', () => {
+    expect(predrillFormsOf(['drill', 'tap right hand'])).toEqual(['drill'])
+    expect(predrillFormsOf([])).toEqual(['drill'])
+  })
+
+  it('adds whatever cutter the filter asks for, taps excepted', () => {
+    expect(predrillFormsOf(['drill', 'tap right hand', 'ball end mill'])).toEqual([
+      'drill',
+      'ball end mill',
+    ])
+  })
+
+  /** The taps are the other half of the same feature and have a list of their own. */
+  it('never lists a tap, however it got into the filter', () => {
+    expect(predrillFormsOf(['tap left hand', 'tap right hand'])).toEqual(['drill'])
+  })
+})
+
+/**
+ * **What swept the list, said in the columns it swept on** (Paul, 2026-09-09:
+ * "shouldn't thread diameter and thread length be applied from the thread spec
+ * and model feature/group depth respectively?").
+ *
+ * The lockstep sensor: a number the header states and a number the sweep
+ * applies have to be the same number, or a shop reads a bound off a column and
+ * finds rows that break it.
+ */
+describe('the bounds a thread puts on a tap', () => {
+  const spec = threadNamed('M6×1')!
+  const tap = (guid: string, DC: number, LCF = 30): CatalogTool =>
+    ({
+      guid,
+      catalogNumber: guid,
+      brand: 'Acme',
+      form: 'tap right hand',
+      geometry: { DC, LCF },
+    }) as unknown as CatalogTool
+
+  it('states the diameter band the sweep actually takes', () => {
+    const { DC } = tapBounds(spec, null)
+    expect(DC).toBeDefined()
+    const inside = tap('inside', DC!.max!)
+    const outside = tap('outside', DC!.max! + 0.01)
+    const listed = tapsFor(spec, [inside, outside]).map((each) => each.guid)
+
+    expect(listed).toContain('inside')
+    expect(listed).not.toContain('outside')
+  })
+
+  it('states the low edge of the band the same way', () => {
+    const { DC } = tapBounds(spec, null)
+    const listed = tapsFor(spec, [tap('low', DC!.min!), tap('under', DC!.min! - 0.01)]).map(
+      (each) => each.guid,
+    )
+
+    expect(listed).toEqual(['low'])
+  })
+
+  /**
+   * The depth of whatever is selected — a feature's or a group's worst case,
+   * since `ThreadReach` is built from the reading either way. `reaches` is what
+   * applies it, and this is the number the Thread length heading shows.
+   */
+  it('states the depth as the least thread length, and reaches agrees', () => {
+    const reach = { depth: 12, below: 40 }
+    expect(tapBounds(spec, reach).LCF).toEqual({ min: 12 })
+    expect(reaches(tap('deep', spec.major, 12), reach)).toBe(true)
+    expect(reaches(tap('short', spec.major, 11.9), reach)).toBe(false)
+  })
+
+  /** With no hole to reach there is no depth to state, and the band stands alone. */
+  it('says nothing about length where there is no reach', () => {
+    expect(Object.keys(tapBounds(spec, null))).toEqual(['DC'])
+  })
+})
+
+/**
+ * **A tick on the tap list's Type column is a tap form asked for** (Paul,
+ * 2026-09-09: "when I am in the TAPs row or table, it should be filtering to
+ * taps"). The tap half of the filter moves; the drill half never does, which is
+ * what keeps the drill tab from emptying while somebody narrows the taps.
+ */
+describe('the tap half of a threaded hole’s form filter', () => {
+  const threaded = ['drill', 'tap right hand', 'tap left hand']
+
+  it('reads the taps out of the filter and nothing else', () => {
+    expect(tapFormsOf(threaded)).toEqual(['tap right hand', 'tap left hand'])
+    expect(tapFormsOf(['drill', 'flat end mill'])).toEqual([])
+  })
+
+  /** `predrillFormsOf` is the other half, and the two never overlap. */
+  it('is disjoint from what the drill list shows', () => {
+    expect(tapFormsOf(threaded).filter((form) => predrillFormsOf(threaded).includes(form))).toEqual(
+      [],
+    )
+  })
+
+  it('replaces the taps and leaves the drill half exactly as it was', () => {
+    expect(formsAskingTaps(threaded, ['tap right hand'])).toEqual(['drill', 'tap right hand'])
+    expect(predrillFormsOf(formsAskingTaps(threaded, ['tap right hand']))).toEqual(['drill'])
+  })
+
+  /**
+   * Unticking every kind of tap asks for no tap, not for every tap: the drill
+   * half is still naming a form, so the filter is somebody's answer rather than
+   * an empty axis nobody has touched.
+   */
+  it('leaves the drill standing when no tap is asked for', () => {
+    expect(formsAskingTaps(threaded, [])).toEqual(['drill'])
+  })
+
+  /** A mill the predrill press added is not a tap, so it stays. */
+  it('keeps what the predrill press put in the filter', () => {
+    expect(formsAskingTaps([...threaded, 'flat end mill'], ['tap left hand'])).toEqual([
+      'drill',
+      'flat end mill',
+      'tap left hand',
+    ])
+  })
+})
+
+/**
+ * **A thread applies to what is selected, and to the holes in it** (Paul,
+ * 2026-09-09: "only what's selected — but I should be able to apply threads to
+ * the full group in the Group dialog if desired").
+ */
+describe('the holes one thread choice is written to', () => {
+  const part = [hole('a', 5, 12), hole('b', 5, 12), hole('c', 6, 12), pocket]
+
+  it('takes the holes of that bore and leaves the rest of the selection alone', () => {
+    expect(holesAt(part, ['a', 'b', 'c', 'pocket-1'], 5)).toEqual(['a', 'b'])
+  })
+
+  /**
+   * A group holds a pocket as readily as a hole, and `threadedName` reads the
+   * choice per tag — so a thread written across everything selected would have
+   * named the pocket `M6×1 Pocket`.
+   */
+  it('never writes a thread onto something that is not a hole', () => {
+    expect(holesAt(part, ['pocket-1'], 5)).toEqual([])
+  })
+
+  it('is the one hole where the one hole is all that is selected', () => {
+    expect(holesAt(part, ['a'], 5)).toEqual(['a'])
+  })
+})
+
+/**
+ * **What a threaded hole's filter must hold, whatever a suggestion says**
+ * (Paul, 2026-09-09: "the tap type is no longer automatically being enabled in
+ * tapped holes. It needs to be to show the taps!"). The taps came off the form
+ * axis on a write the feature triggered, and the tap list reads that axis — so
+ * a hole whose question was which tap answered "no tap of that size".
+ */
+describe('the forms a threaded hole keeps', () => {
+  it('holds the taps, so the tap list has something to read', () => {
+    expect(threadedFormsWith([]).some((form) => form.startsWith('tap '))).toBe(true)
+  })
+
+  it('holds the drill that makes the hole', () => {
+    expect(threadedFormsWith([])).toContain('drill')
+  })
+
+  /** Or this rule and the one that turns the mills on undo each other. */
+  it('keeps a predrill mill somebody already turned on', () => {
+    expect(threadedFormsWith(['flat end mill'])).toContain('flat end mill')
+    expect(threadedFormsWith(['bull nose end mill'])).toContain('bull nose end mill')
+  })
+
+  /** And adds none that were not asked for: the mills are a switch, not a default. */
+  it('adds no mill that is not already on', () => {
+    expect(threadedFormsWith([])).not.toContain('flat end mill')
   })
 })

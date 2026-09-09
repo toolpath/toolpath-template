@@ -3,6 +3,7 @@ import { act, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Assembly, CatalogTool, Collet, Holder } from '@toolpath/catalog-data'
 import { assemblyOutline } from '@toolpath/tool-drawing/geometry'
+import { formatLength } from '@toolpath/tool-support'
 import { toViewerAssembly } from 'shared/tool-drawing-input'
 import { CatalogDrawing, MATERIAL_ROOM } from './catalog-drawing'
 
@@ -251,6 +252,24 @@ describe('the overlay this application draws', () => {
     // The material it would have been lettered against is still drawn.
     expect(container.querySelector('[data-part="material"]')).not.toBeNull()
     expect(container.textContent).toMatch(/tightest: .*(above|into) the wall at the/)
+  })
+
+  /**
+   * **A verdict with no length on it is a verdict about nothing in
+   * particular** (Paul, 2026-09-08: "it's not clear what length below holder
+   * this applies to"). The same stack clears at one stickout and fouls at
+   * another, so the sentence under "clears the part" has to name the one it
+   * was reached at — and it is the length the sheet is drawn at and the list's
+   * column prints, not a third number.
+   */
+  it('says the length below the holder the verdict was reached at', () => {
+    const container = drawn(
+      <CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" curve={curve} />,
+    )
+
+    expect(container.textContent).toContain(
+      `at ${formatLength(assembly.stickout ?? 0, 'millimeters')} below the holder`,
+    )
   })
 
   it('draws the tool alone when there is no feature to clear', () => {

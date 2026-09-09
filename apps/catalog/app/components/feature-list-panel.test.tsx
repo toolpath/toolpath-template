@@ -9,6 +9,7 @@ const tool = (catalogNumber: string, DC: number): CatalogTool =>
   ({
     guid: catalogNumber,
     catalogNumber,
+    brand: 'WIDIA',
     form: 'drill',
     geometry: { DC },
   }) as unknown as CatalogTool
@@ -68,10 +69,11 @@ const show = (props: Partial<Parameters<typeof FeatureListPanel>[0]> = {}) => {
   const handlers = {
     onSelect: vi.fn(),
     onOpen: vi.fn(),
-    onAddFeature: vi.fn(),
-    onAddGroup: vi.fn(),
     onEdit: vi.fn(),
     onRemove: vi.fn(),
+    onRename: vi.fn(),
+    onRenameStart: vi.fn(),
+    onRenameCancel: vi.fn(),
   }
   render(
     <FeatureListPanel
@@ -80,7 +82,6 @@ const show = (props: Partial<Parameters<typeof FeatureListPanel>[0]> = {}) => {
       open={[]}
       nameOf={nameOf}
       directionOf={() => '+Z'}
-      addingFeature={false}
       unit="millimeters"
       {...handlers}
       {...props}
@@ -144,51 +145,108 @@ describe('the list of what has been asked about', () => {
   })
 
   /**
-   * **Two buttons, not one that asks** (Paul, 2026-09-02: "it should show
-   * buttons for Add Feature or Add Group, not the weird combined one"). A `+`
-   * that opened a menu of two hid both of them until it was pressed.
+   * **The three ways to add are not in here** (Paul, 2026-09-08: they live over
+   * the part now — `components/add-bar.tsx`, tested there). An empty list draws
+   * nothing at all, because there is nothing on it yet.
    */
-  it('offers both on show, without a menu in between', () => {
-    const { onAddGroup } = show()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Add group' }))
-
-    expect(screen.getByRole('button', { name: 'Add feature' })).toBeInTheDocument()
-    expect(onAddGroup).toHaveBeenCalled()
-  })
-
-  /**
-   * **Pressable, then asking** (Paul, 2026-09-02: "Add feature is greyed out by
-   * default, which makes it confusing — it should be clickable, then just
-   * prompt you to click on the part"). Disabled, it read as broken rather than
-   * as waiting for the one thing it needs.
-   */
-  it('asks for a face rather than refusing to be pressed', () => {
-    const { onAddFeature } = show()
-
-    const add = screen.getByRole('button', { name: 'Add feature' })
-    expect(add).toBeEnabled()
-    fireEvent.click(add)
-
-    expect(onAddFeature).toHaveBeenCalled()
-  })
-
-  it('says what it is waiting for once it has been pressed', () => {
-    show({ addingFeature: true })
-
-    expect(screen.getByText(/Click a face on the part, then press Add feature/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Add feature' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-  })
-
-  /** An empty list is the two buttons and nothing else: there is nothing to draw yet. */
   it('draws no list at all until something is on it', () => {
     show({ items: [] })
 
     expect(screen.queryByRole('list', { name: /Features/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Add group' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^\+ /u })).not.toBeInTheDocument()
+  })
+
+  /**
+   * **A tool assembly the part needs and no feature asked for** (Paul,
+   * 2026-09-08). It is a row like any other — it can be selected and removed —
+   * and it says on the row that it answers no feature, because a stack against
+   * a feature nobody can see any more looks exactly the same otherwise.
+   */
+  it('draws a part-level assembly as a row that says it has no feature', () => {
+    const { onEdit } = show({
+      items: [{ kind: 'assembly', id: 'assembly-2', tags: [] }],
+    })
+
+    expect(screen.getByRole('button', { name: 'Tool assembly 2' })).toBeInTheDocument()
+    expect(screen.getByText('no feature')).toBeInTheDocument()
+
+    // Nothing to edit: it holds no features for an editor to ask about.
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Tool assembly 2' }))
+    expect(screen.getByRole('menuitem', { name: 'Remove' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /^Edit/ })).not.toBeInTheDocument()
+    expect(onEdit).not.toHaveBeenCalled()
+  })
+
+  /**
+   * **The one row kind with a name to give** (Paul, 2026-09-08: naming a tool
+   * assembly when it is made, and from the right-click menu afterwards). A
+   * feature is called what it is and a group what it holds; an assembly
+   * answering no feature has only its number.
+   */
+  it('names a part-level assembly where its name is drawn', () => {
+    const { onRename, onRenameCancel } = show({
+      items: [{ kind: 'assembly', id: 'assembly-2', tags: [] }],
+      renamingId: 'assembly-2',
+    })
+
+    const field = screen.getByRole('textbox', { name: 'Name for Tool assembly 2' })
+    // The placeholder is what the row goes on being called, not a prompt.
+    expect(field).toHaveAttribute('placeholder', 'Tool assembly 2')
+    fireEvent.change(field, { target: { value: 'Facing stack' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save the name for Tool assembly 2' }))
+
+    expect(onRename).toHaveBeenCalledWith('assembly-2', 'Facing stack')
+    expect(onRenameCancel).not.toHaveBeenCalled()
+  })
+
+  it('draws the name it was given, and offers a rename on a right-click', () => {
+    const { onRenameStart } = show({
+      items: [{ kind: 'assembly', id: 'assembly-2', tags: [], name: 'Facing stack' }],
+    })
+
+    expect(screen.getByRole('button', { name: 'Facing stack' })).toBeInTheDocument()
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Facing stack' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Rename…' }))
+
+    expect(onRenameStart).toHaveBeenCalledWith('assembly-2')
+  })
+
+  /**
+   * **The name is on the stack, and the line stands for the stack** (Paul,
+   * 2026-09-08: "it still isn't showing the name in the order list in the parts
+   * page"). A feature's row answers with tools; what the shop called the stack
+   * one of them stands in is the most readable thing about it.
+   */
+  it('says what the shop called the stack a line stands for', () => {
+    show({
+      answers: ANSWERS,
+      assemblyOf: (itemId, toolGuid) =>
+        itemId === 'feature-1' && toolGuid === '5510VXD375' ? 'big stupid' : null,
+    })
+
+    expect(screen.getByText('big stupid')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'big stupid: WIDIA 5510VXD375, Drill, for Pocket' }),
+    ).toBeInTheDocument()
+  })
+
+  /** Most stacks are never named, and a number over a catalog number is noise. */
+  it('says nothing where the stack was never named', () => {
+    show({ answers: ANSWERS })
+
+    expect(
+      screen.getByRole('button', { name: 'WIDIA 5510VXD375, Drill, for Pocket' }),
+    ).toBeInTheDocument()
+  })
+
+  /** A feature and a group are named by what they hold, and by nothing else. */
+  it('offers no rename on a feature or a group', () => {
+    show()
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Pocket' }))
+
+    expect(screen.queryByRole('menuitem', { name: 'Rename…' })).not.toBeInTheDocument()
   })
 
   /**
@@ -202,6 +260,19 @@ describe('the list of what has been asked about', () => {
 
     expect(screen.getByText('5510VXD375')).toBeInTheDocument()
     expect(screen.getByText('9.53 mm')).toBeInTheDocument()
+  })
+
+  /**
+   * **A catalog number on its own is unreadable** (Paul, 2026-09-09: "I'd like
+   * to add the tool type and vendor into the order list … it should say 'Emuge
+   * 2810.0250 - Flat End Mill'"). The words are the Vendor and Type columns',
+   * so the line says what the table beside it says about the same tool.
+   */
+  it('says who makes the tool and what it is, beside its catalog number', () => {
+    show({ answers: ANSWERS })
+
+    expect(screen.getByText('WIDIA')).toBeInTheDocument()
+    expect(screen.getByText('- Drill')).toBeInTheDocument()
   })
 
   it('distinguishes a pending recommendation from nothing fitting', () => {
@@ -224,7 +295,7 @@ describe('the list of what has been asked about', () => {
   it('asks for everything that fits when its tool is pressed', () => {
     const { onSelect } = show({ answers: ANSWERS })
 
-    fireEvent.click(screen.getByRole('button', { name: '5510VXD375 for Pocket' }))
+    fireEvent.click(screen.getByRole('button', { name: 'WIDIA 5510VXD375, Drill, for Pocket' }))
 
     expect(onSelect).toHaveBeenCalledWith('feature-1', null, '5510VXD375')
   })
@@ -238,7 +309,9 @@ describe('the list of what has been asked about', () => {
     const { onSelect } = show({ answers: ANSWERS, open: ['group-1'] })
 
     expect(screen.getByText('nothing fits')).toBeInTheDocument()
-    fireEvent.click(screen.getAllByRole('button', { name: 'B976Z02500 for Through Hole' })[0]!)
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'WIDIA B976Z02500, Drill, for Through Hole' })[0]!,
+    )
 
     expect(onSelect).toHaveBeenCalledWith('group-1', 'hole-1', 'B976Z02500')
   })

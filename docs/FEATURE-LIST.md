@@ -27,21 +27,73 @@ A list holds **items**, in the order they were added. New items go on the end;
 an edit lands where the row already was, so the list never jumps under a
 right-click.
 
-| Kind      | Holds                              | Extra                      |
-| --------- | ---------------------------------- | -------------------------- |
-| `feature` | one decision — usually one feature | —                          |
-| `group`   | several, chosen together           | `results: 'all' \| 'each'` |
+| Kind       | Holds                              | Extra                      |
+| ---------- | ---------------------------------- | -------------------------- |
+| `feature`  | one decision — usually one feature | —                          |
+| `group`    | several, chosen together           | `results: 'all' \| 'each'` |
+| `assembly` | **no feature at all**              | —                          |
+
+**A part-level assembly is the third kind** (Paul, 2026-09-08: "the tool
+assembly will not be tied to a specific feature or group, it will just exist at
+the part level"). A shop buys tools for reasons the part cannot state — a facing
+mill for the first op, a spare collet — and every way onto the order list ran
+through a feature. It holds no tags, so it is never painted on the part and asks
+the tool table nothing; it is built in the same tree, with the same three slots,
+the same tables and the same one press onto the bill.
+
+**Its lines are keyed by its own id**, `sheetKeysOf` — the sheet is keyed by
+feature tag and it has none, so it stands for itself. `isAssemblyKey` is what
+lets the order list say _no feature_ rather than print a row id at somebody
+buying tools.
 
 **Either kind can hold more than one tool.** A hole is a spot drill and a drill;
 a pocket is a rougher and a finisher. The sheet has always kept a feature's
 choices as a list, and the page treated it as one — which made the second tool
 for a feature a thing nobody could add.
 
-Both kinds carry **tags**, plural. A bolt circle of eight identical holes is one
-decision and one row everywhere else on the page (`groupOf` in
-`part-interaction`), so a `feature` item already holds eight tags. The
-difference between the two kinds is not how many tags they hold — it is whether
-somebody chose them together.
+Both kinds carry **tags**, plural. The difference between them is not how many
+tags they hold — it is whether somebody chose them together.
+
+**Identical holes group in a group, and nowhere else** (Paul, 2026-09-09: "the
+current hole grouping should only be applied in GROUP. In Add Feature, I should
+be able to select a single hole"). A bolt circle of eight was one decision on
+every path: `groupOf` in `part-interaction` expanded a hole into its siblings
+whatever was being asked, so a click on one of them made a `feature` holding all
+eight and a single hole could not be asked about at all. The expansion is now
+gated on `Interaction.collecting`, which only a group turns on — so a `feature`
+made by clicking a hole holds one tag, and one made from a group holds as many
+as were picked.
+
+What replaced the silent grouping is an **offer**: a hole with siblings raises a
+notice in the reading panel saying how many others are identical, with _Add all
+39 as a group_ and _Just this hole_. `shared/group-offer.ts` is the rule for
+when it is made, and it is four sentences:
+
+- never for a hole with nothing like it, and never while a group or a part-level
+  assembly is being built;
+- never about a group row — a group is what the offer makes;
+- **on a feature row as well as on a bare reading**, and there it _changes that
+  row into a group_ rather than opening a second one beside it. A group beside
+  the feature it came from is two rows for one decision;
+- and only while the decision is open: a feature with tools on the order list is
+  one somebody is buying against, so the offer stands down — unless that row is
+  the one open in the editor, which is exactly the moment for changing one's
+  mind (Paul, 2026-09-09: "when I'm editing the feature … always").
+
+**_Just this hole_ lasts as long as that reading is held**, and no longer (Paul,
+2026-09-09: "if I choose 'just this hole' but then exit without adding a tool
+assembly to the order list, clicking the same hole again does not show the group
+again. It should"). It quiets the notice while somebody works on the hole in
+front of them; it is not an answer about the part, so putting the hole down and
+clicking it again asks afresh.
+
+**A row changed into a group keeps its id and its lines.** The tree is keyed by
+row id, so the stack built on the feature comes with it; the sheet is keyed by
+feature tag and the row's key is its first tag, so `confirmDraft` writes what
+the feature had ordered across the group's tags — where confirming a stack
+writes them. Nothing infers a row's kind from its id, and `nextId` reads id
+prefixes, so a group that began as `feature-3` keeps that id and nothing else is
+ever minted onto it. § 3 has where the offer appears.
 
 ### Result options
 
@@ -67,8 +119,20 @@ option` in `tests/on-the-part.spec.ts` as the pair to turn back over.
   a random suffix makes a component test that renders twice fail differently
   each run.
 - **Names are derived**, never typed: `4 × Through Hole`,
-  `Pocket + 2 × Through Hole`, `Pocket + Through Hole + 2 more`. A name somebody
+  `Pocket + 2 × Through Hole`, `Pocket + Through Hole + 2 more`. A part-level
+  assembly is `Tool assembly 2`, off its own id: there is nothing else to name
+  it after until it has a tool in it. A name somebody
   has to invent for every group is a name most groups will not get.
+- **Except a part-level assembly, which can be given one** (Paul, 2026-09-08:
+  "I need to be able to name tool assemblies — when they are created, and
+  through the right-click menu in the list"). It is the one row kind that
+  answers no feature, so `Tool assembly 2` is a number rather than a name, and
+  the stack in it is exactly the thing whose reason nothing else on the page can
+  state. `AssemblyItem.name` is optional and stays optional; `labelOf` falls
+  back to the number, `defaultLabelOf` is that number on its own — the
+  placeholder a name is typed _over_ — and `renameItem` trims what is typed and
+  treats an empty name as no name, which is the way back. Only an assembly: a
+  feature and a group are named by what they hold.
 - **A thread is part of the name** (Paul, 2026-09-08: "once a thread is applied
   to a hole, the feature should be named '<thread spec> <type of hole> Hole'").
   `Blind Hole` becomes `M8×1.25 Blind Hole` the moment a spec is chosen on the
@@ -89,10 +153,24 @@ Hole` sat under a heading reading `Blind Hole`. `SelectionPanel` and
   heading and the order dialog under it read `Cuts the #4-40 UNC blind hole`
   through `namedInline`, which lowercases the kind and leaves the spec alone:
   `#4-40 unc` is not how a shop writes it.
-- **And the thread is the group's**, not the clicked hole's. Identical holes are
-  one decision (`part-interaction.ts` § `groupOf`) and the demands a thread
-  writes already went to the whole group; keeping the choice against the one tag
-  that was clicked left the row named after a plain hole.
+- **And the thread is what is selected's** (Paul, 2026-09-09: "only what's
+  selected — but I should be able to apply threads to the full group in the
+  Group dialog if desired"). It was written across `groupOf(focused)` — every
+  identical hole on the part — which was the same thing while a hole stood for
+  its siblings, and is a thread on thirty-eight holes nobody chose it for now
+  that one can be asked about alone. `writeThread` in `routes/part.tsx` is the
+  scope: the row or draft being asked about where the hole is part of one, the
+  hole alone where it is not, and in both cases only the holes of that bore —
+  `holesAt` in `shared/hole-mode.ts`, because a choice written across everything
+  selected named a group's pocket `M6×1 Pocket`. `PredrillChoice` writes through
+  the same rule, having written to the focused hole alone until then.
+- **A group is threaded in the group editor.** The editor stands where the
+  reading panel would be, so a bolt circle picked out there had to be taken
+  apart again to say it was tapped. It carries a `ThreadPicker` of its own where
+  every feature in the group is a hole of one bore — `sharedHoleDiameter` in
+  `shared/group-geometry.ts` — and where they are holes that disagree it says
+  so, because a tap has one nominal size and a control that quietly vanished
+  when a second diameter joined would read as a bug.
 
 ### Persistence
 
@@ -120,6 +198,12 @@ Four things can be true at once, and the order they win in is the whole rule.
 | 3   | a face previewed on the part       | its hole group   | `all`       | tools that cut it                |
 | 4   | none of the above                  | nothing          | `all`       | every tool in the catalog        |
 
+A **part-level assembly row asks nothing** and falls to row 4 on purpose: it has
+no features, so there is nothing to judge a tool against — the table under it is
+the catalog, the two racks are the crib, and the tree beside it is what is being
+decided. It is the one case where a row is selected and `asking` is false, so
+`treeKey` names it explicitly.
+
 A **draft with nothing in it yet is asking nothing** and falls through to 4: the
 panel would otherwise have to answer "these no features", and what it answered
 with was the whole catalog.
@@ -145,6 +229,14 @@ Opens the largest reading of the face, previews it, and offers the two ways in.
 Clicking the same face again walks its readings. Clicking a **different** face
 swaps the guess rather than piling up.
 
+**It keeps the one reading, not its identical siblings** (Paul, 2026-09-09).
+Outside a group a hole stands for itself; where it has siblings, the panel
+offers the group instead of taking it — see § 1 — and the offer is made for any
+hole being read rather than only inside the dialog, because a plain click
+followed by _+ Feature_ adds a feature just as the dialog does. It is withheld
+once a row is selected, or while a group or a part-level assembly is being
+built, where there is nothing left to offer.
+
 A click also **puts down whatever row was selected**. A selected row outranks
 the face under the mouse, which is right until somebody clicks the part — at
 which point the page went on answering the row and the click did nothing anybody
@@ -152,7 +244,15 @@ could see. A click on nothing (the whitespace) does the same.
 
 ### A click while a group is being built
 
-A **toggle**, and nothing else:
+**Identical holes group from here.** `{ type: 'group' }` is what turns
+`collecting` on, and it also **grows what is already kept** into whole hole
+groups — so _+ Group_ pressed over a previewed hole, and the offer beside that
+hole, both arrive at the same thirty-nine. The flag is in the state rather than
+on the action because `click`, `read`, `arm`, `step` and `toggle` all expand and
+all have to agree: with it on `click` alone, choosing a direction mid-group
+re-read the face without its group and left the rest of it in `kept` as orphans.
+
+A click itself is a **toggle**, and nothing else:
 
 - a face not in the group goes in;
 - a face already in comes out;
@@ -175,18 +275,62 @@ have the page answering the same question twice.
 
 ## 4. Adding
 
-Two buttons, always visible, never a menu between you and them.
+Three buttons, always visible, never a menu between you and them —
+`app/components/add-bar.tsx`, and **over the top-left of the part** rather than
+in the list (Paul, 2026-09-08: "move the add feature, add group, and add tool
+assembly buttons so they are always at the top left of the part viewer"). They
+were the last thing inside the Features card, which is the one place they cannot
+be relied on to be: the list fills the space it has and then scrolls, so on a
+long list all three were below the fold. They are named for what they make —
+**+ Feature**, **+ Group**, **+ Tool Assembly** — because the `+` is the verb.
 
-### Add feature
+The row is as wide as its buttons and only they take the pointer: an invisible
+box over the canvas carrying `pointer-events: auto` is a curtain, which is what
+`tests/on-the-part.spec.ts` § _at a laptop width_ exists for.
+
+### + Feature
 
 - Pressed with **nothing being read**, it asks: _"Click a face on the part, then
-  press Add feature."_ It is never disabled — greyed out, it read as broken
-  rather than as waiting.
+  press + Feature."_ It is never disabled — greyed out, it read as broken rather
+  than as waiting.
 - Pressed with a face being read, the reading is what gets added.
 - The confirm sits under what it is confirming: **Use this tool** / **Cancel**,
   below the reading in the feature box.
 
-### Add group
+### + Tool Assembly
+
+Opens an empty `TOOL` / `HOLDER` / `COLLET` tree with the catalog under it, and
+puts down whatever was being read — a face left selected under a stack for the
+whole part would have the page answering a question the stack is not about.
+
+**It is a draft until it is ordered** (Paul, 2026-09-08: "if I don't add anything
+to the order list when creating a tool assembly, the command was cancelled and
+the empty tool assembly row should not show"). A feature is a question worth
+keeping on the list with no tool against it yet; a part-level assembly _is_ its
+order, so an empty one is a row about nothing.
+
+- The press under the stack — **Add to order list**, the `confirm` action
+  `assembly-actions` already offers a question that is not a row yet — makes the
+  row and writes the lines in one go, under the id `pendingAssemblyId` minted
+  before the row exists so the two cannot disagree about where they wrote.
+- **There is no _+ Add assembly_ under it** (Paul, 2026-09-08). A part-level
+  assembly answers no feature, so nothing about it could need a second stack:
+  another stack the part needs is another _+ Tool Assembly_, a row with a name
+  of its own rather than an unnamed `Assembly 2` inside this one.
+- **Cancel**, under the tree, drops the stacks and the draft and leaves nothing
+  behind — and so does **Escape** (Paul, 2026-09-08: "escape key should also get
+  me out of tool assembly dialog"). It is the newest thing on the page and it
+  answers no feature, so there is nothing underneath for the press to walk out
+  to; `escapeRef` in `routes/part.tsx` takes it before the reducer's own
+  outward step.
+- **Remove from order list** takes the row with it, for the same reason: the
+  assembly is the order.
+- **And the row is named as it is made.** The press that makes it opens the name
+  field on it (`renamingId` in `routes/part.tsx`), because the moment the row
+  appears is the one moment somebody knows what the stack is for — a name asked
+  for later is a name most rows will not get.
+
+### + Group
 
 Opens the group editor, seeded with whatever is already clicked.
 
@@ -200,6 +344,25 @@ Opens the group editor, seeded with whatever is already clicked.
   one question, so the box states it rather than spending two controls on it.
   `typeButtons` in `shared/feature-list.ts` is the rule the quick buttons used
   and is kept, unused, for the same reason `each` is.
+- **The worst case**, once there is something in it: every field the group's
+  features are shown by, folded to the hardest of their readings (Paul,
+  2026-09-08). One tool for all of them is a question about the hardest of
+  them — the deepest reach, the tightest corner — and neither of those is
+  readable off the feature boxes one at a time. The strip is drawn the way the
+  feature box draws its own readings, off the same sheet.
+  - Which end is hard is the field's own to say: `GroupBound` in
+    `app/shared/feature-defaults.ts`. A **ceiling** is a limit on the tool, so
+    the smallest in the group binds; a **floor** is a demand on it, so the
+    largest does.
+  - A field with no hard end — two holes of different diameters — says
+    **differs** rather than picking one of them and hiding the other. It has no
+    worst case; it has no one drill.
+  - **Which feature a number came from is not on screen** (Paul, 2026-09-08).
+    It was named beside every number, and the chips above already say what is in
+    the group. It stays in the tooltip — every number carries the features it
+    was folded from, deduplicated, so a group of thirty-nine identical holes
+    says its line once — and `featureTag` on the fold's answer still says it for
+    anything that wants to.
 - The confirm reads **Create group and add tool** (or _…and add tools_ for
   `each`), because that is what pressing it does.
 
@@ -241,7 +404,12 @@ table — see §8.
 
 Glyph, name, and — for a group — what it wants back (`one for all` / `one each`)
 and how many features it stands for (`×16`). A feature row shows its way up
-instead.
+instead, and a part-level assembly says **no feature**, because a stack answering
+nothing looks exactly like one answering a feature nobody can see any more.
+
+**The heading over it says _Order list_** (Paul, 2026-09-08). Every row on it is
+a thing being ordered, and nothing reaches the bill except because a row here put
+it there; the page in the header is the same list read the other way round.
 
 ### The answers under it
 
@@ -264,10 +432,29 @@ one.
   the drill.
 - A row with no answer says which question failed: `nothing fits` for a feature,
   `no one tool cuts all of these` for a group.
+- **A line names the vendor and says what the tool is**: `WIDIA TDMX1200 - Bull
+nose end mill`, with the diameter at the right (Paul, 2026-09-09: "I'd like to
+  add the tool type and vendor into the order list … it should say 'Emuge
+  2810.0250 - Flat End Mill'"). A catalog number on its own says neither who
+  makes it nor what it cuts. The words are the tool table's own — `brand` is the
+  Vendor column and `typeLabel` in `shared/tool-type.ts` is the one place a form
+  becomes a phrase — so a line says what the table beside it says about the same
+  tool. The phrase takes the ellipsis before the number does: what a shop orders
+  by keeps its width.
+- **A line wears the name of the stack it stands for**, over the catalog number,
+  where the shop called that stack anything (Paul, 2026-09-08: "it still isn't
+  showing the name in the order list in the parts page"). The bill holds tools
+  and the tree holds names, so the route matches a line to a stack by what the
+  stack was _ordered_ as — `assemblyOf` in `routes/part.tsx` — and a swapped
+  cutter still points at its own stack. Nothing is drawn for the stacks nobody
+  named, which is most of them.
 
 ### Right-click
 
-**Edit…** and **Remove**, fixed to the window at the click point. Positioned
+**Edit…** and **Remove**, fixed to the window at the click point. A part-level
+assembly is offered **Rename…** and **Remove**: it holds no features, so there
+is nothing an editor could ask about — what it does have is a name, which is the
+second way in after the one the press that made it opened. Positioned
 inside the list it was clipped by the list's own scroll, so the menu for a row
 near the bottom opened where nobody could reach it — the very thing the scroll
 was supposed to make safe.
@@ -275,12 +462,70 @@ was supposed to make safe.
 **Remove takes the row off the bill and off the part**, not just off the list.
 An edit that drops features drops their lines too.
 
+### Naming a tool assembly
+
+Minimal, and in place (Paul, 2026-09-08: "the UI should be minimal — enter the
+text where the placeholder is shown then click a small check mark or hit enter
+on the keyboard to confirm"). `components/name-field.tsx` is the one control,
+shared with the tree's cards so the two cannot answer _does Escape cancel_
+differently:
+
+- The field replaces the row's label, and carries a width floor of its own
+  (Paul, 2026-09-08: "this text entry box needs to be wider so I can see what
+  I'm typing"). The list stands on the part and is only as wide as its rows, so
+  a field taking its width from the row it is in got the width of a caret — and
+  the placeholder saying what the row is called now was invisible with it.
+- **The placeholder is what it is called now** — `Tool assembly 2` — rather than
+  a prompt, so the field never hides the one thing needed to decide whether to
+  bother naming it.
+- **It opens where naming is the work** — right-click → _Rename…_ on a row, the
+  card's heading in the tree, and the card the tree's _+ Add assembly_ makes.
+  Never over a row a press has just ordered.
+- **Enter or the tick keeps it**; **Escape leaves it alone**; a click elsewhere
+  keeps what was typed, because a field that throws a name away on a misclick is
+  worse than one that keeps a name somebody can retype.
+- **Nothing typed keeps the default** (Paul, 2026-09-08: "the name needs to add
+  the default if I don't enter one") — the row goes on being `Tool assembly 2`.
+  That is also how a name is taken off again; there is no un-name control.
+
 ### Layout
 
+- **It never scrolls sideways** (Paul, 2026-09-08: "I should never have to
+  horizontally scroll in the feature list — long names should …"). The column is
+  a fixed 320px over the part and every name in a row already carried
+  `truncate`, and it still scrolled: a `@toolpath/ui` `Button` puts the
+  `className` it is given on the box _inside_ it, so the `<button>` keeps
+  `min-width: auto` — the whole unbroken name — and that box takes its width
+  from its own contents. Three things together are the fix, and none of them
+  works alone: `[&>button]:min-w-0` on the row, `w-full` on what reaches the
+  inner box, and `[&>div]:flex` where the children have to lay out in a line
+  (`FITS` / `STACKS` in `components/feature-list-panel.tsx`). The tree's cards
+  carry the same treatment for the same reason.
+  `tests/on-the-part.spec.ts` § "never scrolls sideways" is the sensor: nothing
+  overflows, and a long name is clipped rather than the row grown.
+- **And a `<button>` needs `full`.** A button sizes to fit its contents even as a
+  flex container, so the row's name button takes the width of the whole unbroken
+  name unless the kit is told `full` — the one prop that reaches the `<button>`
+  rather than the box inside it. The name button and the answer lines both carry
+  it.
+- **The caret is the gutter, not a control beside it** (Paul, 2026-09-08: "the
+  arrow is so big, then the text is so short … the arrow should be to the left
+  of other rows — this is not indented"). Stretching every button in a row to
+  fill it stretched the caret too, and a group row became half chevron and half
+  ellipsis. Only the name is a flex item that grows: the caret is exactly the
+  width of the spacer every other row keeps in its place, so a group's name
+  starts where a feature's name starts.
+  `tests/on-the-part.spec.ts` § "opens a group from a caret the width of the
+  gutter" measures both.
+- **The rows stand on the part, not in a box** (Paul, 2026-09-08: "make the list
+  rows sit on top of the 3d viewer rather than in the box"). The card around
+  them was a solid panel the width of the list whether the list was one row or
+  twelve, covering the part with its own ground to say nothing. Each row carries
+  just enough ground of its own to be read; the column they stand in takes no
+  pointer at all, and the `<ul>` takes it for its own rows.
 - The list **fills the space it has, then scrolls**: `max-h-full` is the top of
   the tool table, because the overlay is floored to the viewer and the viewer
-  stops where the table starts. The Add buttons and the reading below stay
-  pinned.
+  stops where the table starts.
 - The **editor is a card of its own beside the list**, and decides where it goes
   by itself: a wrapping column stacks the two while the pair is shorter than the
   viewer, and moves the editor into a column to the right the moment it is not.
@@ -311,6 +556,8 @@ nobody had asked anything about yet.
 | What is asked            | Heading                         | Contents                       |
 | ------------------------ | ------------------------------- | ------------------------------ |
 | nothing                  | Every tool in the catalog       | the filtered catalog           |
+| a part-level assembly    | Tool assembly 2 — no feature    | the filtered catalog           |
+| one being built          | New tool assembly — no feature  | the filtered catalog           |
 | a feature                | Cuts the _pocket_               | what fits it, then near misses |
 | a group, `all`           | Cuts every feature in the group | what fits all of them          |
 | a group or draft, `each` | One tool per feature            | the notice, not a list         |
@@ -326,6 +573,15 @@ for the rule that took the tool off the list, amber for a caution, a grey `i`
 for a figure worth reading, a green tick for a number the rules read and passed.
 The two words used to sit on a second line, which made a failing row taller than
 a passing one.
+
+**The filters outrank the rules, on request, one column at a time.** The
+suggested ranges are written from the same `must` rows that judge the tools, so
+widening one asks for exactly what the rules then remove and the table came back
+empty. Changing a number the geometry set raises a warning **in that column's own
+filter dialog**, with a press that forgives that column's rules and no other; the
+tools it puts back are listed with their marks, and a row picked from them is
+recorded on the stack it goes into. Every filter dialog also closes on a tick.
+`docs/TOOL-ASSEMBLY-TREE.md` § 5a is the rule.
 
 ---
 
@@ -377,6 +633,13 @@ One sheet, `tool-catalog.setup.<partId>`, keyed by feature tag.
   and are what confirming without a holder writes.
 - `addChoice` replaces by tool guid, so adding a holder to a tool already on the
   list updates that line.
+- **A part-level assembly's lines are keyed by its row id**, which the order
+  list reads back through `isAssemblyKey` — and the note under such a row is
+  **for _its name_** rather than **machines _a feature_** (Paul, 2026-09-08:
+  "it should show the name of the assembly in the order list as well"). Unnamed
+  it still reads _for no feature_, which is what a stack nobody's geometry asked
+  for is. `routes/order-list.tsx` reads the list out of the browser to resolve
+  the name; nothing on that page edits it.
 
 ---
 
@@ -403,19 +666,36 @@ true of the work the worker does:
 
 ## 11. Where the rules live
 
-| Rule                                     | File                                    |
-| ---------------------------------------- | --------------------------------------- |
-| what the list holds, names, ids, storage | `app/shared/feature-list.ts`            |
-| what the bottom of the page is asked     | `asked()`, same file                    |
-| a row's answer, and what opens           | `app/shared/recommendations.ts`         |
-| what a click means                       | `app/shared/part-interaction.ts`        |
-| the list on screen                       | `app/components/feature-list-panel.tsx` |
-| building a group                         | `app/components/group-editor.tsx`       |
-| the reading and its thread               | `app/components/selection-panel.tsx`    |
-| what a threaded hole is called           | `threadedName`, `app/shared/threads.ts` |
-| what the panel and the ⓘ dialog call it  | `nameOf`, handed down by `part.tsx`     |
-| the tool table and its marks             | `app/components/part-tool-table.tsx`    |
-| everything wired together                | `app/routes/part.tsx`                   |
+| Rule                                       | File                                             |
+| ------------------------------------------ | ------------------------------------------------ |
+| what the list holds, names, ids, storage   | `app/shared/feature-list.ts`                     |
+| the name a shop gave an assembly row       | `renameItem` / `defaultLabelOf`, same file       |
+| the field that name is typed in            | `app/components/name-field.tsx`                  |
+| what the bottom of the page is asked       | `asked()`, same file                             |
+| which key a row's lines are kept under     | `sheetKeysOf`, same file                         |
+| the three presses that grow the list       | `app/components/add-bar.tsx`                     |
+| a row's answer, and what opens             | `app/shared/recommendations.ts`                  |
+| what a click means                         | `app/shared/part-interaction.ts`                 |
+| the list on screen                         | `app/components/feature-list-panel.tsx`          |
+| building a group                           | `app/components/group-editor.tsx`                |
+| a group's worst case, and whose it is      | `app/shared/group-geometry.ts`                   |
+| the one bore a group shares                | `sharedHoleDiameter`, same file                  |
+| whether identical holes group              | `Interaction.collecting`, `part-interaction.ts`  |
+| whether the offer to group them is made    | `app/shared/group-offer.ts`                      |
+| the offer on screen, and both answers      | `identical`, `components/selection-panel.tsx`    |
+| a feature row turned into a group          | `changeToGroup`, `app/routes/part.tsx`           |
+| which key a reading's lines are kept under | `choiceKey`, same file                           |
+| which holes a thread choice is written to  | `writeThread` / `holesAt`, `shared/hole-mode.ts` |
+| the reading and its thread                 | `app/components/selection-panel.tsx`             |
+| what a threaded hole is called             | `threadedName`, `app/shared/threads.ts`          |
+| what the panel and the ⓘ dialog call it    | `nameOf`, handed down by `part.tsx`              |
+| the tool table and its marks               | `app/components/part-tool-table.tsx`             |
+| what overruling the rules offers           | `overridableTools`, `shared/tool-fit.ts`         |
+| the warning and its confirm                | `OverrideNotice`, `components/column-filter.tsx` |
+| what a filter is not showing, and the `…`  | `TermFilter`, `components/column-filter.tsx`     |
+| what a tick on Type asks of the forms      | `formsAsking`, `app/shared/tool-type.ts`         |
+| which slots were filled against them       | `overrides`, `shared/assembly-tree.ts`           |
+| everything wired together                  | `app/routes/part.tsx`                            |
 
 Each pure module owns its tests. `tests/on-the-part.spec.ts` walks the paths that
 begin with a click on the part, against the cube fixture — the only fixture that

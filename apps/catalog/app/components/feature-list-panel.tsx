@@ -1,17 +1,13 @@
 import { Button, IconButton, Menu, cn } from '@toolpath/ui'
 import type { ReactNode } from 'react'
-import {
-  CaretDownIcon,
-  CaretRightIcon,
-  FolderIcon,
-  FolderOpenIcon,
-  PlusIcon,
-} from '@phosphor-icons/react'
+import { CaretDownIcon, CaretRightIcon, FolderIcon, FolderOpenIcon } from '@phosphor-icons/react'
 import { formatGeometry } from 'shared/geometry'
 import type { UnitSystem } from '@toolpath/tool-support'
-import { labelOf, type ListItem } from 'shared/feature-list'
+import { defaultLabelOf, labelOf, type ListItem } from 'shared/feature-list'
+import { typeLabel } from 'shared/tool-type'
 import type { Pick, RecommendationRow } from 'shared/recommendations'
-import { ToolTypeIcon } from './tool-icons'
+import { NameField } from './name-field'
+import { HolderIcon, ToolTypeIcon } from './tool-icons'
 
 /**
  * The features somebody has asked about, as a list they built.
@@ -63,21 +59,63 @@ export interface FeatureListPanelProps {
   readonly iconOf?: (tag: string) => ReactNode
   /** Which way up a feature is cut, for the corner of its row. */
   readonly directionOf?: (tag: string) => string | null
-  readonly onAddFeature: () => void
-  readonly onAddGroup: () => void
   /**
-   * Whether *Add feature* is waiting for a face to be clicked.
-   *
-   * The button was disabled until something was read, which read as broken
-   * rather than as waiting (Paul, 2026-09-02: "Add feature is greyed out by
-   * default, which makes it confusing — it should be clickable, then just
-   * prompt you to click on the part"). It is always pressable now, and this is
-   * the state pressing it puts the panel in.
+   * **The three presses that grow the list are not in it** (Paul, 2026-09-08:
+   * "move the add feature, add group, and add tool assembly buttons so they are
+   * always at the top left of the part viewer"). They sat under the rows, which
+   * put them below the fold on any list long enough to scroll — the one state
+   * where somebody most wants to add another. `components/add-bar.tsx` is where
+   * they live now; this panel is the list and nothing else.
    */
-  readonly addingFeature: boolean
   readonly onEdit: (id: string) => void
   readonly onRemove: (id: string) => void
+  /**
+   * The part-level assembly being named, where one is.
+   *
+   * **Naming is opened from outside as well as from here** (Paul, 2026-09-08:
+   * a tool assembly is named when it is created, and from the right-click menu
+   * afterwards). The row a press has just made is named without a second
+   * gesture, and the route is what knows a row has just been made — so which
+   * row is open for naming is the route's, and this draws it.
+   */
+  readonly renamingId?: string | null
+  /** Right-click → *Rename*: an assembly already on the list. */
+  readonly onRenameStart?: (id: string) => void
+  /** Kept. Empty is no name at all — `feature-list.ts` `renameItem` is the rule. */
+  readonly onRename?: (id: string, name: string) => void
+  /** Escape or a press elsewhere: leave the row called what it was called. */
+  readonly onRenameCancel?: () => void
+  /**
+   * What the shop called the stack behind one of a row's lines, or null where
+   * they called it nothing (Paul, 2026-09-08: "it still isn't showing the name
+   * in the order list in the parts page").
+   *
+   * A line on this list is a stack the tree holds, and the name lives on the
+   * stack — so the route reads it off the tree for the row and the tool, and
+   * this draws it. Null keeps every unnamed line exactly as it was.
+   */
+  readonly assemblyOf?: (itemId: string, toolGuid: string) => string | null
 }
+
+/**
+ * What makes a kit `Button` narrower than the words in it.
+ *
+ * **The list must never scroll sideways** (Paul, 2026-09-08: "I should never
+ * have to horizontally scroll in the feature list — long names should …").
+ * `@toolpath/ui` wraps a button's children in a `whitespace-nowrap` box of its
+ * own, and that box takes its width from its contents: a `truncate` on a span
+ * inside one never fires, because the box grows to fit the span instead. The
+ * row grew with it, the column is a fixed 320px, and what was left was a
+ * horizontal scrollbar under a list whose ends nobody could read.
+ *
+ * These make that box a line that may be narrower than what is in it, which is
+ * all an ellipsis needs. `FITS` also lays the children out, because a block box
+ * puts them inline and `truncate` does nothing to an inline span; `STACKS`
+ * leaves the block flow alone for a button whose children are already lines.
+ */
+const FITS = '[&>div]:flex [&>div]:w-full [&>div]:min-w-0 [&>div]:items-center [&>div]:gap-1.5'
+
+const STACKS = '[&>div]:w-full [&>div]:min-w-0'
 
 /** What a group's result option is called where it has to fit in a row. */
 const RESULT_LABEL = {
@@ -98,6 +136,7 @@ const Answer = ({
   unit,
   here,
   label,
+  assembly,
   onOpen,
 }: {
   pick: Pick
@@ -105,9 +144,31 @@ const Answer = ({
   here: boolean
   /** What the row is, for the press to name what it opens. */
   label: string
+  /**
+   * What the shop called the stack this line stands for, where they called it
+   * anything (Paul, 2026-09-08: "it still isn't showing the name in the order
+   * list in the parts page").
+   *
+   * Null on every stack nobody named, which is most of them: a number over a
+   * catalog number would be noise on every line.
+   */
+  assembly: string | null
   onOpen: () => void
 }) => {
   const diameter = pick.tool.geometry.DC
+  /*
+    **A catalog number is not a tool** (Paul, 2026-09-09: "I'd like to add the
+    tool type and vendor into the order list — it should say 'Emuge 2810.0250 -
+    Flat End Mill'"). `2810.0250` is what a shop orders by and nothing else: it
+    says neither who makes it nor what it cuts, so a list of them is a list
+    nobody can read without opening every row.
+
+    The words are the Vendor column's and the Type column's — `brand` is what
+    that column is called, and `typeLabel` is the one place a form becomes a
+    phrase (`shared/tool-type.ts`), so a line here says exactly what the table
+    beside it says about the same tool.
+  */
+  const type = typeLabel(pick.tool)
   /*
     **What it is held in, under it** (Paul, 2026-09-02: "holders and collets
     should also be shown with the tool in the feature list"). A decision is a
@@ -120,22 +181,42 @@ const Answer = ({
       type="button"
       variant="muted"
       size="sm"
+      // The `<button>` itself, rather than the box inside it — see the row's own.
+      full
       aria-pressed={here}
-      aria-label={`${pick.tool.catalogNumber} for ${label}`}
-      title={`${pick.tool.catalogNumber}${holding === '' ? '' : ` in ${holding}`} — every tool that fits ${label}`}
+      aria-label={`${assembly === null ? '' : `${assembly}: `}${pick.tool.brand} ${pick.tool.catalogNumber}, ${type}, for ${label}`}
+      title={`${assembly === null ? '' : `${assembly} — `}${pick.tool.brand} ${pick.tool.catalogNumber} - ${type}${holding === '' ? '' : ` in ${holding}`} — every tool that fits ${label}`}
       onClick={onOpen}
       className={cn(
-        'text-2xs flex w-full flex-col gap-0.5 rounded border px-1.5 py-0.5 text-left transition',
+        STACKS,
+        'text-2xs flex w-full min-w-0 flex-col gap-0.5 rounded border px-1.5 py-0.5 text-left transition',
         here
           ? 'border-info/60 bg-info/15 text-info'
           : 'border-transparent text-zinc-400 hover:border-zinc-800 hover:bg-zinc-900/60 hover:text-zinc-200',
       )}
     >
-      <span className="flex w-full items-center gap-1.5">
+      {/*
+        **The name over the stack it names**, the way the tree's card carries
+        it: it is the most human-readable thing on the line, and a shop that
+        troubled to call a stack something is a shop that will look for it here.
+      */}
+      {assembly === null ? null : (
+        <span className="w-full truncate font-medium text-zinc-300">{assembly}</span>
+      )}
+      <span className="flex w-full min-w-0 items-center gap-1.5">
         <span className="shrink-0">
           <ToolTypeIcon toolType={pick.tool.form} />
         </span>
-        <span className="min-w-0 flex-1 truncate font-mono">{pick.tool.catalogNumber}</span>
+        {/*
+          **What it is truncates before what it is called.** The vendor and the
+          catalog number are what a shop orders by, so they keep their width and
+          the phrase behind them takes the ellipsis — a row narrow enough to cut
+          something still reads `Emuge 2810.0250 - Flat end…` rather than
+          `Emuge 2810.02…`.
+        */}
+        <span className="shrink-0">{pick.tool.brand}</span>
+        <span className="min-w-0 shrink truncate font-mono">{pick.tool.catalogNumber}</span>
+        <span className="min-w-0 flex-1 truncate text-zinc-500">- {type}</span>
         <span className="shrink-0 font-mono text-zinc-500">
           {diameter === undefined ? '' : formatGeometry('DC', diameter, unit)}
         </span>
@@ -153,6 +234,7 @@ const Answers = ({
   unit,
   chosenTool,
   here,
+  assemblyOf,
   onOpen,
 }: {
   row: RecommendationRow | undefined
@@ -160,6 +242,8 @@ const Answers = ({
   /** The tool the panel is showing, so the row can mark which of its lines it is. */
   chosenTool: string | null
   here: boolean
+  /** What the shop called the stack behind one of this row's lines, or null. */
+  assemblyOf: (toolGuid: string) => string | null
   onOpen: (toolGuid: string) => void
 }) => {
   if (row === undefined) {
@@ -187,6 +271,7 @@ const Answers = ({
           pick={pick}
           unit={unit}
           label={row.label}
+          assembly={assemblyOf(pick.tool.guid)}
           here={here && (chosenTool === null || chosenTool === pick.tool.guid)}
           onOpen={() => onOpen(pick.tool.guid)}
         />
@@ -208,11 +293,13 @@ export const FeatureListPanel = ({
   nameOf,
   iconOf,
   directionOf,
-  onAddFeature,
-  onAddGroup,
-  addingFeature,
   onEdit,
   onRemove,
+  renamingId = null,
+  onRenameStart,
+  onRename,
+  onRenameCancel,
+  assemblyOf,
 }: FeatureListPanelProps) => {
   /** The row a right-click is asking about, and where it was asked. */
   return (
@@ -233,7 +320,15 @@ export const FeatureListPanel = ({
           scroll inside whatever it is given.
         */
         <ul
-          className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto"
+          /*
+            **The rows take the pointer; the column they stand in does not**
+            (Paul, 2026-09-08: "make the list rows sit on top of the 3d viewer
+            rather than in the box"). With the card gone this is the only thing
+            over the canvas that is meant to be clicked, and an invisible box
+            carrying `pointer-events: auto` is a curtain — the defect
+            `tests/on-the-part.spec.ts` § "at a laptop width" exists for.
+          */
+          className="pointer-events-auto flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto"
           aria-label="Features being asked about"
         >
           {items.map((item) => {
@@ -241,10 +336,25 @@ export const FeatureListPanel = ({
             const here = item.id === selectedId && selectedTag === null
             const opened = open.includes(item.id)
             const label = labelOf(item, nameOf)
+            /* Only an assembly is named: a feature and a group are called what
+               the part calls them — `feature-list.ts` `renameItem`. */
+            const naming = item.kind === 'assembly' && item.id === renamingId
             return (
-              <li key={item.id} className="relative">
+              /*
+                **Each row is its own plate.** Standing on the part rather than
+                in a panel, a row has whatever the part is painted in behind it
+                — so it carries just enough ground of its own to be read, which
+                is a row on the viewer rather than a box around the list.
+              */
+              <li key={item.id} className="relative rounded bg-zinc-950/75">
                 <Menu context>
-                  <Menu.Trigger>
+                  {/*
+                    **Block, not the kit's `inline-block`.** A shrink-to-fit box
+                    takes the width of its contents wherever they cannot be made
+                    narrower, which is how one long name pushed the whole list
+                    past its column and put a scrollbar under it.
+                  */}
+                  <Menu.Trigger className="block w-full min-w-0">
                     <div
                       className={cn(
                         'flex items-center gap-1 rounded border px-1.5 py-1 text-left transition',
@@ -258,85 +368,164 @@ export const FeatureListPanel = ({
                       {item.kind === 'group' ? (
                         <IconButton
                           type="button"
-                          size="md"
+                          size="sm"
                           variant="muted"
                           aria-expanded={opened}
                           aria-label={`${opened ? 'Close' : 'Open'} ${label}`}
                           onClick={() => onOpen(item.id)}
-                          className="shrink-0 rounded p-0.5 text-zinc-500 hover:text-zinc-200"
+                          /*
+                            **The caret is the gutter, not a control beside it**
+                            (Paul, 2026-09-08: "the arrow is so big, then the
+                            text is so short … the arrow should be to the left
+                            of other rows"). It is exactly the width of the
+                            spacer every other row keeps in its place, so a
+                            group's name starts where a feature's name starts
+                            and the caret hangs to the left of both.
+                          */
+                          className="!size-4 shrink-0 rounded border-0 bg-transparent p-0 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 [&_svg]:!size-3"
                         >
                           {opened ? <CaretDownIcon /> : <CaretRightIcon />}
                         </IconButton>
                       ) : (
                         <span aria-hidden="true" className="size-4 shrink-0" />
                       )}
-                      <Button
-                        type="button"
-                        variant="muted"
-                        size="sm"
-                        aria-pressed={here}
-                        // Named for what it is, so the caret beside it — "Open 4 ×
-                        // Through Hole" — is a different control by its name as
-                        // well as by its shape.
-                        aria-label={label}
-                        // Selecting the row already on screen puts it down again,
-                        // which is the way back to the list's own answers.
-                        onClick={() => onSelect(here ? null : item.id)}
-                        className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-                      >
-                        <span className="shrink-0 text-zinc-400">
-                          {item.kind === 'group' ? (
-                            opened ? (
-                              <FolderOpenIcon />
-                            ) : (
-                              <FolderIcon />
-                            )
-                          ) : (
-                            (iconOf?.(item.tags[0] ?? '') ?? null)
-                          )}
-                        </span>
-                        <span
-                          className={cn(
-                            'min-w-0 flex-1 truncate text-xs',
-                            here ? 'text-zinc-100' : 'text-zinc-300',
-                          )}
-                        >
-                          {label}
-                        </span>
-                        {/* What the group was asked for, on the row: it changes the
+                      {naming ? (
+                        <NameField
+                          value={item.name ?? ''}
+                          /* What it goes on being called if nothing is typed,
+                             rather than a prompt — `name-field.tsx` says why. */
+                          placeholder={defaultLabelOf(item, nameOf)}
+                          /* What it is called *now*, so the tick beside a named
+                             row says which row it is about. */
+                          label={label}
+                          onCommit={(name) => onRename?.(item.id, name)}
+                          onCancel={() => onRenameCancel?.()}
+                        />
+                      ) : (
+                        /*
+                          **A box the button can fill, rather than a button the
+                          row stretches.** A kit `Button` puts the className it
+                          is given on the box inside it, so the `<button>` keeps
+                          `min-width: auto` — the whole unbroken name — and a
+                          row that made every button in it `flex-1` stretched
+                          the caret to half the row along with it. This is the
+                          one flex item, and the button fills it.
+                        */
+                        <div className="min-w-0 flex-1">
+                          <Button
+                            type="button"
+                            variant="muted"
+                            size="sm"
+                            /*
+                              **`full` is the only way to widen the `<button>`
+                              itself.** A `<button>` sizes to fit its contents
+                              even as a flex container, and the className a kit
+                              `Button` is given lands on the box inside it — so
+                              without this the button takes the width of the
+                              whole unbroken name and hangs out of the row.
+                            */
+                            full
+                            aria-pressed={here}
+                            // Named for what it is, so the caret beside it — "Open 4 ×
+                            // Through Hole" — is a different control by its name as
+                            // well as by its shape.
+                            aria-label={label}
+                            // Selecting the row already on screen puts it down again,
+                            // which is the way back to the list's own answers.
+                            onClick={() => onSelect(here ? null : item.id)}
+                            /*
+                          `w-full` is load-bearing: the className reaches the
+                          box *inside* the button, and that box is sized by what
+                          is in it unless it is told to be the width of the
+                          button — which is what leaves the ellipsis somewhere
+                          to happen.
+                        */
+                            className={cn(
+                              FITS,
+                              'flex w-full min-w-0 flex-1 items-center gap-1.5 text-left',
+                            )}
+                          >
+                            <span className="shrink-0 text-zinc-400">
+                              {item.kind === 'group' ? (
+                                opened ? (
+                                  <FolderOpenIcon />
+                                ) : (
+                                  <FolderIcon />
+                                )
+                              ) : item.kind === 'assembly' ? (
+                                /* No feature to draw, so it wears what it is: a
+                               stack in a holder. */
+                                <HolderIcon />
+                              ) : (
+                                (iconOf?.(item.tags[0] ?? '') ?? null)
+                              )}
+                            </span>
+                            <span
+                              className={cn(
+                                'min-w-0 flex-1 truncate text-xs',
+                                here ? 'text-zinc-100' : 'text-zinc-300',
+                              )}
+                            >
+                              {label}
+                            </span>
+                            {/* What the group was asked for, on the row: it changes the
                         answer underneath, and a shop should not have to open a
                         dialog to see which question it is. */}
-                        {item.kind === 'group' ? (
-                          <span
-                            className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-zinc-400"
-                            title={
-                              item.results === 'all'
-                                ? 'One tool that cuts every feature in this group'
-                                : 'The best tool for each feature in this group'
-                            }
-                          >
-                            {RESULT_LABEL[item.results]}
-                          </span>
-                        ) : (
-                          <span className="text-2xs shrink-0 font-mono text-zinc-500">
-                            {directionOf?.(item.tags[0] ?? '') ?? ''}
-                          </span>
-                        )}
-                        {item.tags.length > 1 ? (
-                          <span
-                            className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 font-semibold text-zinc-300"
-                            title={`${String(item.tags.length)} features`}
-                          >
-                            ×{item.tags.length}
-                          </span>
-                        ) : null}
-                      </Button>
+                            {item.kind === 'group' ? (
+                              <span
+                                className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-zinc-400"
+                                title={
+                                  item.results === 'all'
+                                    ? 'One tool that cuts every feature in this group'
+                                    : 'The best tool for each feature in this group'
+                                }
+                              >
+                                {RESULT_LABEL[item.results]}
+                              </span>
+                            ) : item.kind === 'assembly' ? (
+                              /* **It says what it is on the row** (Paul,
+                             2026-09-08). A stack that answers no feature looks
+                             exactly like one that answers a feature nobody can
+                             see any more, and the two are different things. */
+                              <span
+                                className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-zinc-400"
+                                title="A tool assembly for the part, not for a feature"
+                              >
+                                no feature
+                              </span>
+                            ) : (
+                              <span className="text-2xs shrink-0 font-mono text-zinc-500">
+                                {directionOf?.(item.tags[0] ?? '') ?? ''}
+                              </span>
+                            )}
+                            {item.tags.length > 1 ? (
+                              <span
+                                className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 font-semibold text-zinc-300"
+                                title={`${String(item.tags.length)} features`}
+                              >
+                                ×{item.tags.length}
+                              </span>
+                            ) : null}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </Menu.Trigger>
                   <Menu.Popover>
-                    <Menu.Item onClick={() => onEdit(item.id)}>
-                      Edit {item.kind === 'group' ? 'group' : 'feature'}…
-                    </Menu.Item>
+                    {/* An assembly has no features to pick, so there is nothing
+                        an editor could ask about: it is built in its own tree
+                        and removed here. */}
+                    {item.kind === 'assembly' ? (
+                      /* **The one row kind with a name to give** (Paul,
+                         2026-09-08). It answers no feature, so "Tool assembly
+                         3" is the whole of what the list can say about it
+                         until somebody says what it is for. */
+                      <Menu.Item onClick={() => onRenameStart?.(item.id)}>Rename…</Menu.Item>
+                    ) : (
+                      <Menu.Item onClick={() => onEdit(item.id)}>
+                        Edit {item.kind === 'group' ? 'group' : 'feature'}…
+                      </Menu.Item>
+                    )}
                     <Menu.Item variant="danger" onClick={() => onRemove(item.id)}>
                       Remove
                     </Menu.Item>
@@ -356,6 +545,7 @@ export const FeatureListPanel = ({
                       unit={unit}
                       chosenTool={chosenTool}
                       here={here}
+                      assemblyOf={(toolGuid) => assemblyOf?.(item.id, toolGuid) ?? null}
                       onOpen={(toolGuid) => onSelect(item.id, null, toolGuid)}
                     />
                   </div>
@@ -384,6 +574,7 @@ export const FeatureListPanel = ({
                               unit={unit}
                               chosenTool={chosenTool}
                               here={item.id === selectedId && selectedTag === child.tag}
+                              assemblyOf={(toolGuid) => assemblyOf?.(item.id, toolGuid) ?? null}
                               onOpen={(toolGuid) => onSelect(item.id, child.tag, toolGuid)}
                             />
                           </li>
@@ -407,48 +598,6 @@ export const FeatureListPanel = ({
           })}
         </ul>
       )}
-
-      {/*
-        **Two buttons, not one that asks** (Paul, 2026-09-02: "it should show
-        buttons for Add Feature or Add Group, not the weird combined one"). A
-        `+` that opened a menu of two put a popover between somebody and the
-        two things they could do, and hid both of them until it was pressed.
-        There are two things; there are two buttons.
-      */}
-      <div className="flex items-center gap-1">
-        <Button
-          type="button"
-          variant="muted"
-          size="sm"
-          aria-pressed={addingFeature}
-          title="Add the feature being read"
-          onClick={onAddFeature}
-          className={cn(
-            'focus-visible:ring-info/60 flex flex-1 items-center justify-center gap-1 rounded border border-dashed px-2 py-1 text-xs transition focus-visible:ring-1 focus-visible:outline-none',
-            addingFeature
-              ? 'border-info/60 bg-info/15 text-info'
-              : 'border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-200',
-          )}
-        >
-          <PlusIcon aria-hidden="true" />
-          Add feature
-        </Button>
-        <Button
-          type="button"
-          variant="muted"
-          size="sm"
-          onClick={onAddGroup}
-          className="focus-visible:ring-info/60 flex flex-1 items-center justify-center gap-1 rounded border border-dashed border-zinc-800 px-2 py-1 text-xs text-zinc-500 transition hover:border-zinc-700 hover:text-zinc-200 focus-visible:ring-1 focus-visible:outline-none"
-        >
-          <PlusIcon aria-hidden="true" />
-          Add group
-        </Button>
-      </div>
-      {/* Pressed with nothing being read, the button asks for the one thing it
-          needs rather than refusing to be pressed. */}
-      {addingFeature ? (
-        <p className="text-2xs text-info">Click a face on the part, then press Add feature.</p>
-      ) : null}
     </div>
   )
 }

@@ -22,8 +22,13 @@ import {
   type ComponentKind,
 } from 'shared/component-columns'
 import { askOfComponentColumn } from 'shared/column-filters'
-import { setBound, setTerm, type ComponentQuery } from 'shared/component-query'
-import { ColumnHeading, SORT_ICON } from './column-heading'
+import { setBound, setTerm, setText, type ComponentQuery } from 'shared/component-query'
+import {
+  ColumnFilterMenu,
+  ColumnHeading,
+  SORT_ICON,
+  type ColumnHeadingProps,
+} from './column-heading'
 
 /**
  * A rack of holders, or a drawer of collets, read as a table.
@@ -144,6 +149,41 @@ const columnsShown = (
   ).flatMap((code) => kept.filter((column) => column.code === code))
 }
 
+/** How wide a column starts, by what it holds rather than by its numbers. */
+const WIDTH: Readonly<Record<string, string>> = {
+  catalogNumber: '10rem',
+  brand: '7rem',
+  type: '11rem',
+  familyId: '9rem',
+}
+
+/** Any column that is only a value: read it, format it, draw it. */
+const ValueCell = ({
+  kind,
+  record,
+  column,
+  unit,
+}: {
+  readonly kind: ComponentKind
+  readonly record: Holder | Collet
+  readonly column: ComponentColumn
+  readonly unit: UnitSystem
+}) => {
+  const value = valueOf(kind, record, column.code)
+  return (
+    <span
+      className={cn(
+        'truncate',
+        column.kind === 'length' ? 'font-mono text-zinc-300' : 'text-zinc-300',
+        value === null ? 'text-zinc-600' : '',
+      )}
+      title={typeof value === 'string' ? value : undefined}
+    >
+      {formatValue(value, column.kind, unit)}
+    </span>
+  )
+}
+
 const typeLabel = (kind: ComponentKind, record: Holder | Collet): string =>
   kind === 'holder' ? holderTypeLabel(record as Holder) : colletTypeLabel(record as Collet)
 
@@ -183,6 +223,11 @@ export const ComponentTable = ({
   )
 
   const [selectedRows, setSelectedRows] = useState<Selection>({ id: chosen, ids: [] })
+  /** Which column's filter is open, held by the list rather than by the heading. */
+  const [openFilter, setOpenFilter] = useState<string | null>(null)
+  /** The open column, or nothing where it has since been hidden. */
+  const openColumn = shown.find((column) => column.code === openFilter) ?? null
+  const inside = useRef<HTMLDivElement>(null)
   /**
    * Whose move the selection was — the same guard `PartToolTable` keeps, and
    * for the same reason: without it the row the tree already holds is reported
@@ -222,52 +267,53 @@ export const ComponentTable = ({
    * three of the other columns said as one phrase, so narrowing on it would be
    * a fourth way to ask what Taper, Clamping and Collet series already ask.
    */
-  const heading = (code: string, label: string): ReactNode => {
+  const filterProps = (code: string, label: string): ColumnHeadingProps => {
     if (filtering === undefined) {
-      return <ColumnHeading label={label} />
+      return { code, label }
     }
     const ask = askOfComponentColumn(kind, code)
     const axis = ask !== null && ask.shape === 'terms' ? ask.axis : null
-    return (
-      <ColumnHeading
-        label={label}
-        ask={ask}
-        unit={unit}
-        bound={filtering.query.bounds[code]}
-        onBound={(bound) => filtering.onQuery(setBound(filtering.query, code, bound))}
-        options={
-          axis === null
-            ? undefined
-            : filtering.options(axis).map((option) => ({ ...option, label: option.value }))
-        }
-        chosen={axis === null ? undefined : (filtering.query.terms[axis] ?? [])}
-        onChosen={
-          axis === null
-            ? undefined
-            : (values) => filtering.onQuery(setTerm(filtering.query, axis, values))
-        }
-      />
-    )
+    return {
+      code,
+      label,
+      ask,
+      unit,
+      text: filtering.query.text,
+      onText: (text) => filtering.onQuery(setText(filtering.query, text)),
+      bound: filtering.query.bounds[code],
+      onBound: (bound) => filtering.onQuery(setBound(filtering.query, code, bound)),
+      options:
+        axis === null
+          ? undefined
+          : filtering.options(axis).map((option) => ({ ...option, label: option.value })),
+      chosen: axis === null ? undefined : (filtering.query.terms[axis] ?? []),
+      onChosen:
+        axis === null
+          ? undefined
+          : (values) => filtering.onQuery(setTerm(filtering.query, axis, values)),
+    }
   }
+
+  /**
+   * Read twice: by the heading, for its funnel, and by the menu this list draws
+   * for whichever column is open — `components/column-filter` says why the menu
+   * cannot be the heading's.
+   */
+  const heading = (code: string, label: string): ReactNode => (
+    <ColumnHeading
+      {...filterProps(code, label)}
+      open={openFilter === code}
+      onOpen={() => setOpenFilter((current) => (current === code ? null : code))}
+    />
+  )
 
   const header = (
     <Table.HeaderRow>
-      <Table.HeaderCell sortKey="catalogNumber" sortIcon={SORT_ICON} width={flexible('10rem')}>
-        {heading('catalogNumber', 'Catalog number')}
-      </Table.HeaderCell>
-      <Table.HeaderCell sortKey="brand" sortIcon={SORT_ICON} width={flexible('7rem')}>
-        {heading('brand', 'Vendor')}
-      </Table.HeaderCell>
-      <Table.HeaderCell sortKey="type" sortIcon={SORT_ICON} width={flexible('11rem')}>
-        {heading('type', 'Type')}
-      </Table.HeaderCell>
-      <Table.HeaderCell sortKey="familyId" sortIcon={SORT_ICON} width={flexible('9rem')}>
-        {heading('familyId', 'Family')}
-      </Table.HeaderCell>
       {shown.map((column) => (
         <Table.HeaderCell
           key={column.code}
           sortKey={column.code}
+          sortIcon={SORT_ICON}
           sortFn={(rows) =>
             rows.sort((left, right) => {
               const a = valueOf(kind, (left as Row).record, column.code)
@@ -283,8 +329,7 @@ export const ComponentTable = ({
               return String(a).localeCompare(String(b), 'en', { numeric: true })
             })
           }
-          sortIcon={SORT_ICON}
-          width={flexible('6rem')}
+          width={flexible(WIDTH[column.code] ?? '6rem')}
         >
           {heading(column.code, column.label)}
         </Table.HeaderCell>
@@ -293,7 +338,7 @@ export const ComponentTable = ({
   )
 
   return (
-    <div data-component-table={kind} className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div ref={inside} data-component-table={kind} className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="min-h-0 flex-1">
         <Table
           id={`part-${kind}s`}
@@ -320,92 +365,82 @@ export const ComponentTable = ({
             const used = usedOn?.(record.guid) ?? null
             return (
               <Table.Row>
-                <Table.Cell>
-                  <span className="font-mono text-zinc-100">{record.catalogNumber}</span>
-                  {/*
-                    What is on the feature already, so a swap can be backed out
-                    of by eye as well as by the Cancel beside the drawing.
-                  */}
-                  {saved ? (
-                    <span className="text-2xs border-info/40 text-info ml-2 rounded border px-1">
-                      on the feature
-                    </span>
-                  ) : null}
-                  {elsewhere.length === 0 ? null : (
-                    <span
-                      className="text-2xs ml-2 rounded border border-emerald-500/40 px-1 text-emerald-300"
-                      title={`Standing in ${elsewhere.join(', ')} of this feature`}
-                    >
-                      in {elsewhere.join(', ')}
-                    </span>
-                  )}
-                  {/*
-                    And what it is already bought for elsewhere, named: a rack of
-                    five hundred chucks cannot answer "am I already ordering one
-                    of these, and for what" from a row that only says *in use*.
-                  */}
-                  {used === null ? null : (
-                    <span
-                      className="text-2xs ml-2 rounded border border-zinc-700 px-1 text-zinc-400"
-                      title={used.title}
-                    >
-                      {used.label}
-                    </span>
-                  )}
-                </Table.Cell>
-                <Table.Cell>
-                  <span className="flex min-w-0 items-center gap-1">
-                    <span className="truncate text-zinc-400" title={record.brand}>
-                      {record.brand}
-                    </span>
-                    {record.productLink === null ? null : (
-                      <a
-                        href={record.productLink}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        aria-label={`Open ${record.catalogNumber} at the vendor`}
-                        onClick={(event) => event.stopPropagation()}
-                        className="shrink-0 text-info"
-                      >
-                        <ArrowSquareOutIcon />
-                      </a>
-                    )}
-                  </span>
-                </Table.Cell>
-                <Table.Cell>
-                  <span className="truncate text-zinc-300" title={row.type}>
-                    {row.type}
-                  </span>
-                </Table.Cell>
-                <Table.Cell>
-                  <span className="truncate text-zinc-400" title={row.familyId}>
-                    {row.familyId}
-                  </span>
-                </Table.Cell>
-                {shown.map((column) => {
-                  const value = valueOf(kind, record, column.code)
-                  return (
-                    <Table.Cell
-                      key={column.code}
-                      className={column.kind === 'length' ? 'justify-end' : 'justify-start'}
-                    >
-                      <span
-                        className={cn(
-                          'truncate',
-                          column.kind === 'length' ? 'font-mono text-zinc-300' : 'text-zinc-300',
-                          value === null ? 'text-zinc-600' : '',
+                {shown.map((column) => (
+                  <Table.Cell
+                    key={column.code}
+                    className={column.kind === 'length' ? 'justify-end' : 'justify-start'}
+                  >
+                    {column.code === 'catalogNumber' ? (
+                      <>
+                        <span className="font-mono text-zinc-100">{record.catalogNumber}</span>
+                        {/*
+                          What is on the feature already, so a swap can be
+                          backed out of by eye as well as by the Cancel beside
+                          the drawing.
+                        */}
+                        {saved ? (
+                          <span className="text-2xs border-info/40 text-info ml-2 rounded border px-1">
+                            on the feature
+                          </span>
+                        ) : null}
+                        {elsewhere.length === 0 ? null : (
+                          <span
+                            className="text-2xs ml-2 rounded border border-emerald-500/40 px-1 text-emerald-300"
+                            title={`Standing in ${elsewhere.join(', ')} of this feature`}
+                          >
+                            in {elsewhere.join(', ')}
+                          </span>
                         )}
-                      >
-                        {formatValue(value, column.kind, unit)}
+                        {/*
+                          And what it is already bought for elsewhere, named: a
+                          rack of five hundred chucks cannot answer "am I
+                          already ordering one of these, and for what" from a
+                          row that only says *in use*.
+                        */}
+                        {used === null ? null : (
+                          <span
+                            className="text-2xs ml-2 rounded border border-zinc-700 px-1 text-zinc-400"
+                            title={used.title}
+                          >
+                            {used.label}
+                          </span>
+                        )}
+                      </>
+                    ) : column.code === 'brand' ? (
+                      <span className="flex min-w-0 items-center gap-1">
+                        <span className="truncate text-zinc-400" title={record.brand}>
+                          {record.brand}
+                        </span>
+                        {record.productLink === null ? null : (
+                          <a
+                            href={record.productLink}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            aria-label={`Open ${record.catalogNumber} at the vendor`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="shrink-0 text-info"
+                          >
+                            <ArrowSquareOutIcon />
+                          </a>
+                        )}
                       </span>
-                    </Table.Cell>
-                  )
-                })}
+                    ) : (
+                      <ValueCell kind={kind} record={record} column={column} unit={unit} />
+                    )}
+                  </Table.Cell>
+                ))}
               </Table.Row>
             )
           }}
         </Table>
       </div>
+      {openColumn === null ? null : (
+        <ColumnFilterMenu
+          {...filterProps(openColumn.code, openColumn.label)}
+          anchors={inside}
+          onClose={() => setOpenFilter(null)}
+        />
+      )}
     </div>
   )
 }

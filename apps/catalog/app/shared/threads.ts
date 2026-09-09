@@ -31,6 +31,9 @@
  * per row that could be typed wrong instead of two.
  */
 
+import type { ThreadMethod } from '@toolpath/catalog-data'
+import { formatLength, type UnitSystem } from '@toolpath/tool-support'
+
 export interface ThreadSpec {
   /** How it is written on a drawing: `M6×1`, `1/4-20 UNC`. */
   readonly name: string
@@ -392,3 +395,93 @@ export const drillFor = (spec: ThreadSpec, mode: HoleMode): number | null => {
 /** What the second half of the list offers for each mode. */
 export const makerOf = (mode: HoleMode): 'tap' | 'thread mill' | null =>
   mode === 'plain' ? null : mode === 'thread mill' ? 'thread mill' : 'tap'
+
+/**
+ * Which kind of tap the mode is asking for, in the catalog's own word.
+ *
+ * **One choice, read by both lists** (Paul, 2026-09-09: "if I select a cut tap
+ * first, drills for the cut tap should be selected when I go to the drills
+ * page"). Cut tap and form tap are the same decision whichever list is on
+ * screen — the taps it admits and the predrill it sends the drills to are two
+ * consequences of it, not two settings — so the mode is where it is kept and
+ * this is the one translation into what a tool states about itself.
+ *
+ * `null` for a mode no tap makes: a plain hole and a thread mill are both
+ * "every tap, because none of them is the question".
+ */
+export const methodOf = (mode: HoleMode): ThreadMethod | null =>
+  mode === 'cut tap' ? 'cutting' : mode === 'form tap' ? 'forming' : null
+
+/**
+ * The mode a tap puts the hole in, read back off the tool.
+ *
+ * The other direction of {@link methodOf}, and what makes picking a tap decide
+ * the drills: a form tap in the stack means the hole is rolled, so the drill
+ * list under it is the form drill's. A tap stating no method leaves the mode
+ * alone — silence is not a claim, and a store scraped before
+ * `@toolpath/tool-scraper` 2.4.0 is silent about every tap it holds.
+ */
+export const modeFor = (method: ThreadMethod | null | undefined): HoleMode | null =>
+  method === 'cutting' ? 'cut tap' : method === 'forming' ? 'form tap' : null
+
+/**
+ * What the drill list was swept on, in the words the tap list uses.
+ *
+ * **Two lists, two numbers** (Paul, 2026-09-09: "in drills, the highlighted
+ * message should show the tap or form drill size (the predrill size) it is
+ * looking for the applied thread with the selected tap type"). The taps are
+ * matched on the thread's nominal size and the drills on the predrill under it
+ * — ⌀0.089 in against ⌀0.0995 in on a #4-40 — and the drill list carried the
+ * tap's number, which is a diameter no row in it is anywhere near.
+ *
+ * The tap is what names it, not the hole: a *form tap's predrill*, because the
+ * drill follows from the tap and not the other way round.
+ */
+/**
+ * What the tap list was swept on: the thread's own diameter.
+ *
+ * **The number is labelled, like the drill list's is** (Paul, 2026-09-09: "for
+ * the taps, it should say 'matched on 0.112\" thread diameter'"). A bare
+ * diameter over a list is a number somebody has to work out the meaning of, and
+ * the two lists of a threaded hole are swept on two different ones — so each
+ * says which of them it is.
+ *
+ * The pitch clause stays: a tap's pitch is in its catalog number in a different
+ * shape for every brand and is nowhere in this dataset as a number, so an
+ * M8×1.25 and an M8×1 are both offered and the choice is the person's.
+ * {@link tapsFor} is where that is true; this is where it is said.
+ */
+export const threadNote = (spec: ThreadSpec, unit: UnitSystem): string =>
+  `matched on ⌀${formatLength(spec.major, unit)} thread diameter — this catalog holds no pitch, so check it`
+
+/**
+ * What the drill list says when no drill in the catalog makes the predrill.
+ *
+ * **An empty list is replaced by what can actually make the hole** (Paul,
+ * 2026-09-09: "if there are no drills, it should show 'no drills matching
+ * predrill size, showing end mills', automatically show end mills that could
+ * bore the predrill diameter … It should also show closest miss drills by
+ * default"). A hole modelled at the cut tap's size has no drill at the form
+ * tap's, and a shop still makes it — by interpolating with an end mill, which
+ * is a tool this catalog holds hundreds of at that size.
+ *
+ * So the sentence names the number that came up empty and says what is standing
+ * in, and `routes/part.tsx` turns those mills on in the Type filter where they
+ * can be seen and turned off again.
+ */
+export const millStandInNote = (spec: ThreadSpec, mode: HoleMode, unit: UnitSystem): string => {
+  const drill = drillFor(spec, mode)
+  const tap = mode === 'form tap' ? 'form tap' : 'cut tap'
+  return drill === null
+    ? 'no drill matches this hole — showing end mills that can bore it, and the closest drills'
+    : `no drill matches the ⌀${formatLength(drill, unit)} ${tap} predrill — showing end mills that can bore it, and the closest drills`
+}
+
+export const predrillNote = (spec: ThreadSpec, mode: HoleMode, unit: UnitSystem): string => {
+  const drill = drillFor(spec, mode)
+  if (drill === null) {
+    return 'no predrill: this hole is not threaded'
+  }
+  const tap = mode === 'form tap' ? 'form tap' : 'cut tap'
+  return `matched on ⌀${formatLength(drill, unit)} — the ${tap}'s predrill for ${spec.name}`
+}

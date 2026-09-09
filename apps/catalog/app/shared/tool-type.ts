@@ -1,4 +1,4 @@
-import { TOOL_FORMS, shankOf } from '@toolpath/catalog-data'
+import { TOOL_FORMS } from '@toolpath/catalog-data'
 
 /**
  * What a tool *is*, in one phrase, with the shank in the name where it is
@@ -23,47 +23,80 @@ export const normalise = (toolType: string): string =>
     .replace(/\s+/g, ' ')
     .trim()
 
-/** What a name is called in the library's vocabulary, where it has a proper one. */
-export const toolTypeLabel = (toolType: string): string =>
-  TOOL_FORMS.find((each) => each.value === normalise(toolType))?.label ?? toolType
-
 /**
- * The forms whose shank is reduced by definition, so saying so adds nothing.
+ * The forms the shank says nothing about, so the phrase is left off them.
  *
  * A slot mill — a keyseat or woodruff cutter — is a disc of teeth on a neck;
  * there is no full-shank one to tell it apart from, and "Reduced shank slot
  * mill" is two words of noise on every one of them (Paul, 2026-09-01).
+ *
+ * **A tap is the same** (Paul, 2026-09-08: "taps should not show reduced
+ * shank"). Its shank is sized to the tapping chuck rather than to the thread
+ * it cuts, so it sits under the major diameter as a matter of course: 6,925 of
+ * the 11,566 taps in the scrape, 59% of them, which is a phrase on the majority
+ * of a list saying nothing that tells one tap from another.
  */
-const SHANK_IS_THE_TYPE: ReadonlySet<string> = new Set(['slot mill'])
+const SHANK_IS_THE_TYPE: ReadonlySet<string> = new Set([
+  'slot mill',
+  'tap',
+  'tap left hand',
+  'tap right hand',
+])
 
 /**
- * Whether the cut is wider than what is behind it, either way that happens.
+ * What each form is called and whether its shank is worth saying, worked out
+ * once per name.
  *
- * **Two rules, and they are all but disjoint.** `shankOf` is
- * `@toolpath/tool-support`'s reading of a *neck*: a shoulder narrower than the
- * cut, standing further back than the flutes. Paul's rule (2026-09-08) is the
- * *shank*: `SFDM < DC`, a 12 mm cutter on a 10 mm shank. Over the 38,114-tool
- * scrape the first finds 6,378 tools, the second 7,499 — and exactly **one**
- * tool satisfies both, because a necked tool usually keeps a full-width shank
- * behind the neck and a reduced-shank tool states no neck at all.
+ * **The phrase is read for every tool in the catalog, several times over.** The
+ * `type` axis is a filter and a column, so choosing one runs {@link typeLabel}
+ * across 38,114 tools inside `prepareMatch`, and the `…` row's own value list
+ * runs it across them again — three regular expressions and a linear search
+ * through the vocabulary each time, measured at 48 ms a pass. A form is one of
+ * about twenty-five names, so the answer is worth keeping.
+ */
+const WORDS = new Map<string, { readonly label: string; readonly shankIsType: boolean }>()
+
+const wordsFor = (toolType: string) => {
+  const had = WORDS.get(toolType)
+  if (had !== undefined) {
+    return had
+  }
+  const name = normalise(toolType)
+  const made = {
+    label: TOOL_FORMS.find((each) => each.value === name)?.label ?? toolType,
+    shankIsType: SHANK_IS_THE_TYPE.has(name),
+  }
+  WORDS.set(toolType, made)
+  return made
+}
+
+/** What a name is called in the library's vocabulary, where it has a proper one. */
+export const toolTypeLabel = (toolType: string): string => wordsFor(toolType).label
+
+/**
+ * Whether the shank behind the cut is thinner than the cut.
  *
- * So this is the union: dropping either one would take the phrase off
- * thousands of tools that are exactly what it describes.
+ * **Paul's rule, and only his** (2026-09-08: "use my reduced shank rule rather
+ * than the old one"): `SFDM < DC`, a 12 mm cutter on a 10 mm shank.
  *
- * **What the shank rule does to taps, said out loud.** 6,925 of the 7,499 are
- * taps — 59% of every tap in the scrape — because a tap's shank is usually
- * under its thread's major diameter. They read `Reduced shank tap right hand`
- * now. That is the rule as it was given, applied everywhere; if it turns out
- * to be noise on a tap the way it is on a slot mill, the fix is one entry in
- * {@link SHANK_IS_THE_TYPE} rather than a second rule.
+ * The rule it replaces was `shankOf`, `@toolpath/tool-support`'s reading of a
+ * *neck* — a shoulder narrower than the cut, standing back from the flutes —
+ * and the two are all but disjoint over the 38,114-tool scrape: 7,499 tools
+ * against 6,378, with exactly **one** tool satisfying both, because a necked
+ * tool usually keeps a full-width shank behind the neck. So this is a real
+ * change of population and not a refinement: 6,378 necked tools no longer say
+ * "Reduced shank", and of the tools that now do, all but 574 are taps — which
+ * {@link SHANK_IS_THE_TYPE} then leaves alone.
+ *
+ * `shankOf` is untouched and still answers the `shank` axis, which is parked;
+ * this is the reading the words on screen are built from.
  */
 export const reducedShank = (tool: {
   readonly form: string
   readonly geometry: Readonly<Record<string, number>>
 }): boolean => {
   const { DC, SFDM } = tool.geometry
-  const thinner = DC !== undefined && SFDM !== undefined && SFDM < DC - 1e-9
-  return thinner || shankOf(tool) === 'reduced'
+  return DC !== undefined && SFDM !== undefined && SFDM < DC - 1e-9
 }
 
 /**
@@ -78,8 +111,105 @@ export const typeLabel = (tool: {
   readonly form: string
   readonly geometry: Readonly<Record<string, number>>
 }): string => {
-  const label = toolTypeLabel(tool.form)
-  return reducedShank(tool) && !SHANK_IS_THE_TYPE.has(normalise(tool.form))
-    ? `Reduced shank ${label.toLowerCase()}`
-    : label
+  const { label, shankIsType } = wordsFor(tool.form)
+  return reducedShank(tool) && !shankIsType ? `Reduced shank ${label.toLowerCase()}` : label
+}
+
+/**
+ * The form behind a phrase: {@link typeLabel} read backwards.
+ *
+ * **A type ticked in a column is a form asked for** (Paul, 2026-09-08: "there
+ * is no way to show end mills if I can't find a drill … End mills are
+ * technically a valid tool to predrill for the tap"). The Type column narrows
+ * on the phrase, and the phrase is all it has; what decides whether a tool is
+ * ever *judged* is the `form` filter, which is a different vocabulary. Without
+ * a way back from one to the other, ticking `Flat end mill` on a threaded hole
+ * narrowed a list of drills to nothing instead of asking for end mills.
+ *
+ * Here rather than anywhere else because {@link typeLabel} is here: two places
+ * building and unbuilding one phrase is how a tick stops finding its own tools.
+ * `null` where the phrase is not one this catalog builds — a vendor's own
+ * `toolType` passed through, say — because guessing a form from a word nobody
+ * put in the vocabulary is how a filter asks for something that does not exist.
+ */
+export const formOfTypeLabel = (label: string): string | null => {
+  const plain = normalise(label.replace(/^Reduced shank /i, ''))
+  const found = TOOL_FORMS.find((form) => normalise(form.label) === plain || form.value === plain)
+  return found?.value ?? null
+}
+
+/**
+ * The `form` filter after a change to the chosen types.
+ *
+ * **A tick adds its form and an untick takes it back**, so the Type column can
+ * widen a question the geometry narrowed without becoming a switch nobody can
+ * find their way back out of — the `form` axis has no control of its own
+ * (`column-filters.ts` § `AXES_PARKED`).
+ *
+ * `base` is what the geometry asked for and is never taken away: on a threaded
+ * hole it is the drill and the taps, so unticking `Drill` narrows the list to
+ * nothing for as long as that tick is off and puts the drills back when it
+ * comes off again — rather than emptying the form filter and with it the list.
+ * Everything else in the filter is left exactly as it was, which is what keeps
+ * the predrill press's own additions standing.
+ */
+export const formsAsking = (
+  forms: ReadonlyArray<string>,
+  base: ReadonlyArray<string>,
+  before: ReadonlyArray<string>,
+  after: ReadonlyArray<string>,
+): Array<string> => {
+  const never = new Set(base)
+  const formsOf = (types: ReadonlyArray<string>): Array<string> =>
+    types.flatMap((type) => {
+      const form = formOfTypeLabel(type)
+      return form === null ? [] : [form]
+    })
+  const asked = formsOf(after)
+  const dropped = new Set(
+    formsOf(before).filter((form) => !never.has(form) && !asked.includes(form)),
+  )
+  const kept = forms.filter((form) => !dropped.has(form))
+  // Two phrases of one form — `Flat end mill` and its reduced-shank twin — are
+  // one thing to ask for, so the filter says it once.
+  return [...new Set([...kept, ...asked])]
+}
+
+/**
+ * The Type column's answer, however it was arrived at: {@link formsAsking}
+ * read backwards.
+ *
+ * **A filter the page set itself has to look like one somebody set** (Paul,
+ * 2026-09-09: "the filters automatically applied from feature or group
+ * selection are not shown in the column headers … show which filters are
+ * applied in the column headers, as if the automatically applied filters were
+ * applied manually"). Clicking a face narrowed the list to the forms the
+ * defaults sheet names and wrote them into the URL, and choosing a thread
+ * wrote {@link THREADED_FORMS} — but both write the `form` axis, which has no
+ * control of its own (`column-filters.ts` § `AXES_PARKED`), so the Type
+ * heading over a list holding nothing but drills carried an empty funnel and a
+ * menu with nothing ticked. The chrome said `Clear 3 filters` over a table
+ * with no filter visible anywhere on it.
+ *
+ * `offered` is what the column is showing, so the ticks land on the rows the
+ * menu draws and nothing is ticked in the greyed `…` half — a value the list
+ * is not holding is not one the form filter is asking for, whatever the
+ * catalog has under that phrase elsewhere.
+ *
+ * A `type` somebody has actually set wins outright: from the first untick the
+ * column is answering for itself, and `formsAsking` is what carries that answer
+ * back to the forms.
+ */
+export const typesAsking = (
+  forms: ReadonlyArray<string>,
+  types: ReadonlyArray<string>,
+  offered: ReadonlyArray<string>,
+): ReadonlyArray<string> => {
+  if (types.length > 0) {
+    return types
+  }
+  return offered.filter((label) => {
+    const form = formOfTypeLabel(label)
+    return form !== null && forms.includes(form)
+  })
 }

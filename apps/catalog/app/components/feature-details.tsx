@@ -143,7 +143,7 @@ export const FeatureDetails = ({
           {siblings > 1 ? (
             <span
               className="rounded bg-zinc-800 px-1.5 py-0.5 text-sm font-semibold text-zinc-200"
-              title={`${String(siblings)} identical holes — same diameter, depth and way up`}
+              title={`${String(siblings)} identical holes on this part — same diameter, depth and way up. This is one of them.`}
             >
               ×{siblings}
             </span>

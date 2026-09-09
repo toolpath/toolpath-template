@@ -1,32 +1,38 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { AssemblyTreePanel } from './assembly-tree-panel'
-import { defaultAssemblies, setSlot, type TreeAssembly } from 'shared/assembly-tree'
+import { addAssembly, defaultAssemblies, setSlot, type TreeAssembly } from 'shared/assembly-tree'
 
 /** One stack with a holder in it, so the slots that hold something have one. */
 const held = setSlot(defaultAssemblies(false), 'assembly-1', 'holder', 'holder-a')
 
+/** The panel as an element, so a test can hand it a grown tree without losing its state. */
+const panel = (
+  assemblies: ReadonlyArray<TreeAssembly>,
+  over: Partial<Parameters<typeof AssemblyTreePanel>[0]> = {},
+) => (
+  <AssemblyTreePanel
+    assemblies={assemblies}
+    selected={{ assemblyId: assemblies[0]?.id ?? 'assembly-1', slot: 'tool' }}
+    onSelect={() => undefined}
+    labelFor={(assembly, slot) =>
+      slot === 'holder' && assembly.holderGuid !== null ? 'BT30ER16060M' : null
+    }
+    orderedFor={() => null}
+    warningFor={() => null}
+    onClear={() => undefined}
+    actionsFor={() => []}
+    onAdd={() => undefined}
+    onRemove={() => undefined}
+    title="Cuts the pocket"
+    {...over}
+  />
+)
+
 const draw = (
   assemblies: ReadonlyArray<TreeAssembly>,
   over: Partial<Parameters<typeof AssemblyTreePanel>[0]> = {},
-) =>
-  render(
-    <AssemblyTreePanel
-      assemblies={assemblies}
-      selected={{ assemblyId: assemblies[0]?.id ?? 'assembly-1', slot: 'tool' }}
-      onSelect={() => undefined}
-      labelFor={(assembly, slot) =>
-        slot === 'holder' && assembly.holderGuid !== null ? 'BT30ER16060M' : null
-      }
-      orderedFor={() => null}
-      onClear={() => undefined}
-      actionsFor={() => []}
-      onAdd={() => undefined}
-      onRemove={() => undefined}
-      title="Cuts the pocket"
-      {...over}
-    />,
-  )
+) => render(panel(assemblies, over))
 
 describe('the tree on screen', () => {
   it('draws the three slots of an ordinary feature', () => {
@@ -195,5 +201,124 @@ describe('the tree on screen', () => {
 
     draw(setSlot(defaultAssemblies(false), 'assembly-1', 'tool', 'tool-a'))
     expect(screen.getByRole('button', { name: 'Remove assembly 1' })).toBeInTheDocument()
+  })
+})
+
+/**
+ * **A choice made against the rules has to be visible on the stack it is in**
+ * (Paul, 2026-09-08: "a small warning should show in the tree denoting that I
+ * chose a geometrically incompatible tool"). Drawn exactly like a choice the
+ * rules agreed with, it is a decision nobody can review.
+ */
+describe('a slot filled against the rules', () => {
+  it('marks the slot, with the rule it overrules behind it', () => {
+    draw(held, {
+      warningFor: (_assembly, slot) =>
+        slot === 'holder' ? 'Chosen against the rules: diameter 12 over 10.' : null,
+    })
+
+    const warned = screen.getByRole('img', { name: /Overrides the rules/ })
+    expect(warned).toHaveAttribute('title', 'Chosen against the rules: diameter 12 over 10.')
+  })
+
+  it('says nothing on a slot the rules agreed with', () => {
+    draw(held, { warningFor: () => null })
+
+    expect(screen.queryByRole('img', { name: /Overrides the rules/ })).not.toBeInTheDocument()
+  })
+
+  /** An empty slot has no choice in it, so it has nothing to be wrong about. */
+  it('says nothing on an empty slot, whatever it is asked', () => {
+    draw(defaultAssemblies(false), { warningFor: () => 'never asked' })
+
+    expect(screen.queryByRole('img', { name: /Overrides the rules/ })).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * **A number is a position, not a name** (Paul, 2026-09-08: naming a tool
+ * assembly when it is made, and afterwards). `Assembly 1` and `Assembly 2` say
+ * which of two stacks a component stands in and nothing about why either
+ * exists — and a pocket's rougher and finisher are the case where that is the
+ * whole decision.
+ */
+describe('naming a stack', () => {
+  it('names it where the name is drawn, on the tick', () => {
+    const onRename = vi.fn()
+    draw(defaultAssemblies(false), { onRename })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Assembly 1' }))
+    const field = screen.getByRole('textbox', { name: 'Name for Assembly 1' })
+    // The placeholder is what it goes on being called, not a prompt.
+    expect(field).toHaveAttribute('placeholder', 'Assembly 1')
+    fireEvent.change(field, { target: { value: 'Rougher' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save the name for Assembly 1' }))
+
+    expect(onRename).toHaveBeenCalledWith('assembly-1', 'Rougher')
+  })
+
+  it('names it on Enter, and leaves it alone on Escape', () => {
+    const onRename = vi.fn()
+    const { unmount } = draw(defaultAssemblies(false), { onRename })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Assembly 1' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name for Assembly 1' }), {
+      target: { value: 'Rougher' },
+    })
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Name for Assembly 1' }), {
+      key: 'Enter',
+    })
+    expect(onRename).toHaveBeenCalledWith('assembly-1', 'Rougher')
+    unmount()
+
+    onRename.mockClear()
+    draw(defaultAssemblies(false), { onRename })
+    fireEvent.click(screen.getByRole('button', { name: 'Assembly 1' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name for Assembly 1' }), {
+      target: { value: 'Rougher' },
+    })
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Name for Assembly 1' }), {
+      key: 'Escape',
+    })
+
+    expect(onRename).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Assembly 1' })).toBeInTheDocument()
+  })
+
+  /**
+   * **A part-level assembly is one stack** (Paul, 2026-09-08). It answers no
+   * feature, so another stack the part needs is another _+ Tool Assembly_ — a
+   * row with a name of its own, not an unnamed `Assembly 2` inside this one.
+   */
+  it('draws no add press for a tree that cannot have a second stack', () => {
+    const { rerender } = draw(defaultAssemblies(false), { onAdd: undefined })
+
+    expect(screen.queryByRole('button', { name: 'Add assembly' })).not.toBeInTheDocument()
+
+    rerender(panel(defaultAssemblies(false)))
+    expect(screen.getByRole('button', { name: 'Add assembly' })).toBeInTheDocument()
+  })
+
+  /** A stack is named when it is made, rather than found and named later. */
+  it('opens the field on the stack the add press makes', () => {
+    const over = { onRename: () => undefined }
+    const { rerender } = draw(defaultAssemblies(false), over)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add assembly' }))
+    // The route writes the stack and hands the tree back with it in.
+    rerender(panel(addAssembly(defaultAssemblies(false)), over))
+
+    expect(screen.getByRole('textbox', { name: 'Name for Assembly 2' })).toBeInTheDocument()
+  })
+
+  it('draws the name it was given, and offers it back for editing', () => {
+    draw([{ ...(defaultAssemblies(false)[0] as TreeAssembly), name: 'Rougher' }], {
+      onRename: () => undefined,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rougher' }))
+
+    // Named for what it is called now, so the field says which stack it is on.
+    expect(screen.getByRole('textbox', { name: 'Name for Rougher' })).toHaveValue('Rougher')
   })
 })

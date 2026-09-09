@@ -8,6 +8,7 @@ import {
   matchesQuery,
   optionsOn,
   setBound,
+  setText,
   termOn,
   toggleTerm,
 } from './component-query'
@@ -116,5 +117,35 @@ describe('what a filter offers', () => {
 
   it('offers nothing for an axis nothing states', () => {
     expect(optionsOn('holder', rack, 'nonsense')).toEqual([])
+  })
+})
+
+/**
+ * **The number and the maker at once** — the tool list's rule, to the letter,
+ * because a shop typing `REGO` means the maker and typing `2600` means the
+ * chuck, and neither is worth a second box (Paul, 2026-09-08).
+ */
+describe('searching a rack by its catalog numbers', () => {
+  const chuck = holder({ catalogNumber: 'BT30ER11060M', brand: 'Kennametal' })
+  const other = holder({ guid: 'other', catalogNumber: '2600.12345', brand: 'REGO-FIX' })
+
+  it('matches the number, case for case or not', () => {
+    expect(matchesQuery('holder', chuck, setText(NO_QUERY, 'er11'))).toBe(true)
+    expect(matchesQuery('holder', other, setText(NO_QUERY, 'er11'))).toBe(false)
+  })
+
+  it('matches the vendor from the same box', () => {
+    expect(matchesQuery('holder', other, setText(NO_QUERY, 'rego'))).toBe(true)
+    expect(matchesQuery('holder', chuck, setText(NO_QUERY, 'rego'))).toBe(false)
+  })
+
+  it('narrows nothing while it is empty or spaces', () => {
+    expect(isEmptyQuery(setText(NO_QUERY, '  '))).toBe(true)
+    expect(matchesQuery('holder', chuck, setText(NO_QUERY, '  '))).toBe(true)
+  })
+
+  it('counts as one narrowing, beside the terms and the bounds', () => {
+    expect(countTerms(setText(NO_QUERY, 'er11'))).toBe(1)
+    expect(countTerms(setText(toggleTerm(NO_QUERY, 'taper', 'BT30'), 'er11'))).toBe(2)
   })
 })

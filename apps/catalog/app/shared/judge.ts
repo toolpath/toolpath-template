@@ -88,6 +88,24 @@ export interface JudgeOptions {
   readonly knobs?: ReadonlyArray<Knob>
   /** Words the numbers in the person's unit; the page passes one, tests use the default. */
   readonly format?: Format
+  /**
+   * The forms somebody's own filter asks for, which the type table does not
+   * turn away.
+   *
+   * **A feature's type table is a default, not a wall** (Paul, 2026-09-08:
+   * "there is no way to show end mills if I can't find a drill"). A threaded
+   * hole considers a tap and a drill, so every end mill was removed here before
+   * a rule read one — including the mills the predrill button had just put into
+   * the filter, which is why that button could add them to the question and
+   * still show nothing.
+   *
+   * Only the type table stands down. An asked form is judged by every rule the
+   * feature has, narrowed by every filter, and removed by name where it fails
+   * one — `formsAsking` in `shared/tool-type.ts` is what the Type column
+   * writes, and § 5b of `docs/TOOL-ASSEMBLY-TREE.md` says why this is not an
+   * override.
+   */
+  readonly asked?: ReadonlyArray<string>
 }
 
 const EPSILON = 1e-6
@@ -370,7 +388,7 @@ export const judgeTools = (
   tools: ReadonlyArray<CatalogTool>,
   feature: PartFeature,
   partFeatures: ReadonlyArray<PartFeature>,
-  { rules = RULES.rules, knobs = KNOBS.knobs, format = plainFormat }: JudgeOptions = {},
+  { rules = RULES.rules, knobs = KNOBS.knobs, format = plainFormat, asked = [] }: JudgeOptions = {},
 ): Array<Verdict> => {
   const sheet = sheetOf(feature, partFeatures)
   const applicable = rulesFor(feature, partFeatures, rules)
@@ -392,7 +410,7 @@ export const judgeTools = (
       (rule) => !readsBest(rule),
       format,
     )
-    if (types.length > 0 && !types.includes(tool.form)) {
+    if (types.length > 0 && !types.includes(tool.form) && !asked.includes(tool.form)) {
       pass.removed.unshift({
         rule: null,
         text: `${tool.form} is not a type this feature considers (${types.join(', ')})`,
@@ -490,28 +508,46 @@ export const removedFrom = (verdicts: ReadonlyArray<Verdict>): Array<Verdict> =>
   verdicts.filter((verdict) => verdict.removed.length > 0)
 
 /**
+ * One tool's verdict from an earlier feature, with a later feature's added.
+ *
+ * The rule the whole fold is made of: a tool is removed if any feature removes
+ * it, warnings and demotions are the union, and the key stays the first
+ * feature's — the one the person is looking at.
+ *
+ * Exposed on its own because a group is folded **as it is judged** rather than
+ * afterwards: `tool-fit.ts` § `fittingTools` says why, and holding every
+ * feature's verdicts to fold at the end is what put a 150-hole group out of
+ * memory.
+ */
+export const foldOnto = (before: Verdict, after: Verdict): Verdict => ({
+  ...before,
+  removed: [...before.removed, ...after.removed],
+  warned: [...before.warned, ...after.warned],
+  demoted: [...before.demoted, ...after.demoted],
+})
+
+/**
  * The verdicts of several features on one tool, folded into one.
  *
  * A tool for several features is removed if any feature removes it; warned and
  * demoted are the union; the key is the first feature's, which is the one the
  * person is looking at.
+ *
+ * The whole-array form, which is {@link foldOnto} applied down the columns. It
+ * is what `judge.test.ts` states the rule against; the page folds one tool at a
+ * time so that nothing holds every feature's verdicts at once.
  */
 export const foldVerdicts = (perFeature: ReadonlyArray<ReadonlyArray<Verdict>>): Array<Verdict> => {
   const [head, ...rest] = perFeature
   if (!head) {
     return []
   }
-  return head.map((verdict, index) => {
-    const others = rest
+  return head.map((verdict, index) =>
+    rest
       .map((verdicts) => verdicts[index])
       .filter((each): each is Verdict => each !== undefined)
-    return {
-      ...verdict,
-      removed: [...verdict.removed, ...others.flatMap((each) => each.removed)],
-      warned: [...verdict.warned, ...others.flatMap((each) => each.warned)],
-      demoted: [...verdict.demoted, ...others.flatMap((each) => each.demoted)],
-    }
-  })
+      .reduce(foldOnto, verdict),
+  )
 }
 
 /**

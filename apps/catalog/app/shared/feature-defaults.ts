@@ -2,6 +2,12 @@ import { isReachCurve, type PartFeature, type ReachCurve } from '@toolpath/part-
 import { asNumber, asRecord } from '@toolpath/part-contracts/datasheet'
 import { partTop } from '@toolpath/part-contracts/measurements'
 import { TOOL_FORMS, isToolForm, type ToolForm } from '@toolpath/catalog-data'
+import {
+  UNIT_ABBREVIATION,
+  convertLength,
+  decimalsFor,
+  type UnitSystem,
+} from '@toolpath/tool-support'
 import sheet from './feature-defaults.csv?raw'
 
 /**
@@ -110,10 +116,25 @@ const widestCutter = ({ facts }: Sheet): number | null => {
   return positive(number(facts, 'cd', 'ignore', 'min'))
 }
 
+/**
+ * Which way a field binds when several features are asked one question.
+ *
+ * A group is *one tool for all of them*, so every number it shows is the
+ * hardest of the group's — and which end is hardest is the field's own to say
+ * (Paul, 2026-09-08). A ceiling is a limit on the tool, so the **smallest**
+ * one in the group is what a tool has to clear; a floor is a demand on it, so
+ * the **largest** is. A `match` is neither: two holes of different diameters
+ * do not have a worst one, they have no one drill, and `shared/group-geometry`
+ * says they differ rather than picking a side.
+ */
+export type GroupBound = 'ceiling' | 'floor' | 'match'
+
 export interface Field {
   readonly unit: Unit
   /** Which `MeasurementIcon` draws it. */
   readonly icon: string
+  /** Which end of the group's readings is the hard one. */
+  readonly bound: GroupBound
   readonly read: (sheet: Sheet) => number | string | null
 }
 
@@ -127,21 +148,25 @@ export const FIELDS: Readonly<Record<string, Field>> = {
   'depth below top': {
     unit: 'mm',
     icon: 'depthBelowTop',
+    bound: 'floor',
     read: ({ top, zMin }) => (top !== null && zMin !== null && top > zMin ? top - zMin : null),
   },
   'feature depth': {
     unit: 'mm',
     icon: 'featureDepth',
+    bound: 'floor',
     read: ({ zMax, zMin }) => (zMax !== null && zMin !== null && zMax > zMin ? zMax - zMin : null),
   },
   'largest tool diameter': {
     unit: 'mm',
     icon: 'maxTool',
+    bound: 'ceiling',
     read: widestCutter,
   },
   'widest tool diameter': {
     unit: 'mm',
     icon: 'maxTool',
+    bound: 'ceiling',
     // The top of the clearance band: the widest tool that fits *somewhere*
     // in the feature, as against the largest that reaches every corner. A
     // tool between the two can rough but cannot finish; one past this cannot
@@ -157,16 +182,19 @@ export const FIELDS: Readonly<Record<string, Field>> = {
   'largest end mill diameter': {
     unit: 'mm',
     icon: 'maxTool',
+    bound: 'ceiling',
     read: (sheet) => positive(number(sheet.facts, 'maxEndmillDiameter')) ?? widestCutter(sheet),
   },
   'largest drill diameter': {
     unit: 'mm',
     icon: 'maxDrill',
+    bound: 'ceiling',
     read: ({ facts }) => positive(number(facts, 'maxDrillDiameter') ?? number(facts, 'diameter')),
   },
   'smallest tool diameter': {
     unit: 'mm',
     icon: 'minRadius',
+    bound: 'floor',
     read: ({ facts }) => {
       const inner = number(facts, 'bevel', 'countersink', 'innerRadius')
       return inner === null ? null : positive(inner * 2)
@@ -175,6 +203,7 @@ export const FIELDS: Readonly<Record<string, Field>> = {
   'hole diameter': {
     unit: 'mm',
     icon: 'diameter',
+    bound: 'match',
     read: ({ facts }) => positive(number(facts, 'diameter')),
   },
   /**
@@ -187,11 +216,13 @@ export const FIELDS: Readonly<Record<string, Field>> = {
   'terminal corner radius': {
     unit: 'mm',
     icon: 'minRadius',
+    bound: 'ceiling',
     read: ({ facts }) => number(facts, 'cd', 'terminalCornerRadius'),
   },
   'corner radius': {
     unit: 'mm',
     icon: 'minRadius',
+    bound: 'ceiling',
     read: (sheet) => {
       const cutter = widestCutter(sheet)
       return cutter === null ? null : cutter / 2
@@ -200,6 +231,7 @@ export const FIELDS: Readonly<Record<string, Field>> = {
   'L/D': {
     unit: 'ratio',
     icon: 'ld',
+    bound: 'floor',
     // Reach over the widest tool the shape admits; a hole over its bore,
     // because nothing wider than the bore goes in it — the DFM's own rule.
     read: (sheet) => {
@@ -215,6 +247,7 @@ export const FIELDS: Readonly<Record<string, Field>> = {
   'tip angle': {
     unit: 'deg',
     icon: 'bevelAngle',
+    bound: 'match',
     // Full apex angle of the cone at the bottom: 180 is a flat bottom. Shown,
     // not filtered — a drill's point angle is a match, an endmill has none.
     read: ({ facts }) => number(facts, 'fullConeDeg'),
@@ -222,16 +255,19 @@ export const FIELDS: Readonly<Record<string, Field>> = {
   'floor fillet radius': {
     unit: 'mm',
     icon: 'floorFillet',
+    bound: 'ceiling',
     read: ({ facts }) => positive(number(facts, 'filletRadius')),
   },
   'chamfer angle': {
     unit: 'deg',
     icon: 'bevelAngle',
+    bound: 'match',
     read: ({ facts }) => number(facts, 'bevel', 'angleDeg'),
   },
   'chamfer included angle': {
     unit: 'deg',
     icon: 'bevelAngle',
+    bound: 'match',
     // What a chamfer mill's point angle is compared with: the bevel is stated
     // from the tool axis, the tool's angle is the whole cone.
     read: ({ facts }) => {
@@ -242,32 +278,38 @@ export const FIELDS: Readonly<Record<string, Field>> = {
   'slant length': {
     unit: 'mm',
     icon: 'featureDepth',
+    bound: 'floor',
     // The length of cutting edge a tool needs to span the bevel in one pass.
     read: ({ facts }) => positive(number(facts, 'bevel', 'slant')),
   },
   'entry width': {
     unit: 'mm',
     icon: 'entryCutter',
+    bound: 'ceiling',
     read: ({ facts }) => positive(number(facts, 'maxEntryCd')),
   },
   'undercut depth': {
     unit: 'mm',
     icon: 'featureDepth',
+    bound: 'floor',
     read: ({ facts }) => positive(number(facts, 'undercutDepth')),
   },
   'taper angle': {
     unit: 'deg',
     icon: 'bevelAngle',
+    bound: 'match',
     read: ({ facts }) => number(facts, 'taperDeg'),
   },
   stepdown: {
     unit: 'mm',
     icon: 'featureDepth',
+    bound: 'ceiling',
     read: ({ facts }) => positive(number(facts, 'maxStepdown')),
   },
   thread: {
     unit: 'text',
     icon: 'diameter',
+    bound: 'match',
     read: ({ facts }) => {
       const threading = asRecord(facts?.threading)
       if (!threading) {
@@ -524,6 +566,29 @@ export interface Reading {
   readonly unit: Unit
   readonly icon: string
   readonly value: number | string
+}
+
+/**
+ * One reading in words, in the unit the page is being read in.
+ *
+ * Here rather than in the panel that draws it, because two panels draw the
+ * same readings now — the feature box and the group's worst case beside it —
+ * and a number worded two ways is two panels disagreeing about one part.
+ */
+export const readingText = (reading: Pick<Reading, 'unit' | 'value'>, unit: UnitSystem): string => {
+  if (typeof reading.value === 'string') {
+    return reading.value
+  }
+  switch (reading.unit) {
+    case 'mm':
+      return `${convertLength(reading.value, 'millimeters', unit).toFixed(decimalsFor(unit))} ${UNIT_ABBREVIATION[unit]}`
+    case 'deg':
+      return `${reading.value.toFixed(1)}°`
+    case 'ratio':
+      return reading.value.toFixed(2)
+    default:
+      return String(reading.value)
+  }
 }
 
 /** The sheet's fields for this feature, with their values, in the sheet's order. Fields with nothing to say are left out. */

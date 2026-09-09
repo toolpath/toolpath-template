@@ -1,18 +1,27 @@
 import { Toggle, cn } from '@toolpath/ui'
-import { XCircleIcon } from '@phosphor-icons/react'
 import { convertLength, decimalsFor, formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { HOLE_MODES, drillFor, type HoleMode, type ThreadSpec } from 'shared/threads'
 
 /**
- * Which hole the thread is started from: the tap drill, or the form drill.
+ * How the thread is made: cut, or formed.
  *
- * **It belongs beside the drills, not on the feature dialog** (Paul,
+ * **It belongs beside the lists it decides, not on the feature dialog** (Paul,
  * 2026-09-07: "we should no longer show the 'cut tap' and 'form tap' rows in
  * the feature dialog when applying threads to a hole — it should just return
  * the right tap drills"). Saying *this hole is an M6* and saying *and I will
  * roll the thread rather than cut it* are two decisions, and the second one is
- * only ever made while looking at the drills it decides. On the dialog it was
- * two rows of numbers between somebody and the thread they were choosing.
+ * only ever made while looking at what it decides. On the dialog it was two
+ * rows of numbers between somebody and the thread they were choosing.
+ *
+ * **Over both lists, because it decides both** (Paul, 2026-09-09: "I'd like Cut
+ * Tap and Form Tap buttons to show up at the top of the table, like it does for
+ * Drills in a tapped hole right now … these buttons should filter to show only
+ * cut or form taps on the taps table, and for the correct diameter on the
+ * drills table"). It sat over the drills alone while the tap list could not be
+ * filtered by it — nothing on a tap said which kind it was. Now every tap
+ * states it, so one control answers both stacks and the two cannot disagree:
+ * pressing *Form Tap* over the taps sends the drill list to the form drill, and
+ * pressing it over the drills leaves the form taps standing in the tap list.
  *
  * **And it is two words, not two rows of figures** (Paul, 2026-09-07: "don't
  * show the numbers, just tap or form drill"). The predrill each starts from is
@@ -21,33 +30,48 @@ import { HOLE_MODES, drillFor, type HoleMode, type ThreadSpec } from 'shared/thr
  * difference again up here said the same thing twice, in a control whose whole
  * question is which of two drills this is. What the numbers carried that the
  * list cannot is the one case where **neither** works — a predrill further from
- * the model than the shop's own drill deviation allows — so that survives as
- * the label in red under an `✗` carrying the figures on hover.
+ * the model than the shop's own drill deviation allows — and that lives on the
+ * hover too now.
  *
- * **Ideally the tap would say** (Paul, same day: "it should be pulled from the
- * tap itself, but I don't think we have that data yet"). It cannot yet: a
- * catalog tool's `form` is `tap left hand` or `tap right hand`, and the vendor's
- * product line names the material rather than the method — EMUGE files cut and
- * cold-forming taps alike under *Rekord B-Z Taps*, *Steel Taps*, *VA Taps*. A
- * fact this control could read belongs upstream in `@toolpath/tool-scraper`,
- * beside the tests that would check it against each vendor's own pages; until
- * there is one, the shop says which.
+ * **Nothing here is marked** (Paul, 2026-09-09: "we also shouldn't show the X
+ * on drills - if there are no drills, it should show 'no drills matching
+ * predrill size, showing end mills'"). A red `✗` on the control said *no
+ * standard drill makes this predrill from the model as drawn*, which was true
+ * and was read as *this option is unavailable* — over a list of thirty-four
+ * form taps, and over a drill list that end mills can still fill by boring the
+ * hole. The list underneath is where that belongs, in words, beside the mills
+ * that answer it: `routes/part.tsx` prints it and turns the mills on.
+ *
+ * **And the tap does say, as of 2026-09-09** (Paul, 2026-09-07: "it should be
+ * pulled from the tap itself, but I don't think we have that data yet"). It is
+ * pulled from the tap now: `@toolpath/tool-scraper` 2.4.0 records
+ * `threadMethod` off each vendor's own category — EMUGE's `FG02`, *Cold forming
+ * tap*, which is also where the catalog's only 1,432 forming taps come from —
+ * so picking one in the tap list writes the mode this control shows, and this
+ * control filters the list back. The shop still says which where nothing has
+ * been picked; what has gone is its being the *only* thing that could say.
  *
  * `ThreadPicker` is the other half: it says which thread, and nothing about how
  * it is made.
  */
 
 /**
- * The two drills a thread can be started from, in the order a shop reaches for
- * them, named after the hole rather than the tool that makes it — the control
- * is a predrill and its options are predrills.
+ * The two ways a thread is made, in the order a shop reaches for them, named
+ * after the **tap** rather than the hole under it.
+ *
+ * **"Form drill" is not a thing anybody asks for** (Paul, 2026-09-09: "the
+ * 'form drill' term doesn't make a lot of sense, it's more that the appropriate
+ * drill is defined by the type of tap"). The drill is a consequence: choose the
+ * tap and the hole it starts from follows, on both lists and in that order. So
+ * the words are the tap's on the drill list too, where they used to be the
+ * hole's.
  *
  * Read off {@link HOLE_MODES}, so taking one out of the offer takes it out of
  * here too — thread milling went that way on 2026-09-01 (Paul).
  */
 const MAKING: ReadonlyArray<{ mode: HoleMode; label: string }> = HOLE_MODES.filter(
   (mode) => mode !== 'plain',
-).map((mode) => ({ mode, label: mode === 'form tap' ? 'Form drill' : 'Tap drill' }))
+).map((mode) => ({ mode, label: mode === 'form tap' ? 'Form Tap' : 'Cut Tap' }))
 
 export interface PredrillChoiceProps {
   /** The thread the hole is for: there is no predrill to choose without one. */
@@ -94,7 +118,13 @@ export const PredrillChoice = ({
 
   return (
     <span className="flex items-center gap-1.5">
-      <span className="text-2xs tracking-wide text-zinc-500 uppercase">Predrill</span>
+      {/*
+        **The caption is the thread, not the hole** (Paul, 2026-09-09). Over the
+        tap list "Predrill" would be naming the wrong list entirely, and over
+        the drills it named the consequence rather than the decision — the same
+        reason the two options are the tap's words now.
+      */}
+      <span className="text-2xs tracking-wide text-zinc-500 uppercase">Thread</span>
       <Toggle
         value={mode}
         onValueChange={(next) => {
@@ -108,7 +138,6 @@ export const PredrillChoice = ({
         {MAKING.map((way) => {
           const drill = drillFor(spec, way.mode)
           const on = mode === way.mode
-          const refused = drill !== null && past(holeDiameter - drill)
           /*
             The figures, on the hover: the chart size this starts from and how
             far the model is from it. Nobody reads them to press the button —
@@ -119,8 +148,8 @@ export const PredrillChoice = ({
           const says =
             drill === null
               ? way.label
-              : refused
-                ? `⌀${formatLength(drill, unit)} — further from the modelled hole (${deviation(holeDiameter - drill)}) than the shop's max drill deviation allows (+${formatLength(band.over, unit)} / −${formatLength(band.under, unit)}): no standard drill makes both`
+              : past(holeDiameter - drill)
+                ? `⌀${formatLength(drill, unit)} — further from the modelled hole (${deviation(holeDiameter - drill)}) than the shop's max drill deviation allows (+${formatLength(band.over, unit)} / −${formatLength(band.under, unit)}), so it is an end mill that bores it`
                 : `⌀${formatLength(drill, unit)} — the modelled hole is ${deviation(holeDiameter - drill)}`
           return (
             <Toggle.Item
@@ -131,15 +160,6 @@ export const PredrillChoice = ({
                 on
                   ? 'border-info/60 bg-info/15 text-info'
                   : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
-                /*
-                  **The one state worth stopping on keeps its colour** (Paul,
-                  2026-09-02, on the three states the tool table settled on).
-                  The tick and the grey `i` annotated figures that are no longer
-                  shown; red says something the list underneath cannot, which is
-                  that this predrill is not a hole any standard drill makes from
-                  the model as drawn.
-                */
-                refused ? 'text-danger' : '',
               )}
             >
               {/* The kit's toggle does not pass `title` through, so the hover
@@ -147,7 +167,6 @@ export const PredrillChoice = ({
               <span className="text-2xs whitespace-nowrap" title={says}>
                 {way.label}
               </span>
-              {refused ? <XCircleIcon aria-label={says} className="size-3 shrink-0" /> : null}
             </Toggle.Item>
           )
         })}

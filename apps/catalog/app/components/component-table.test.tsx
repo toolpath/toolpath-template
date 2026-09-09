@@ -66,7 +66,24 @@ describe('the filters a holder heading asks', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Filter by Taper' }))
     fireEvent.click(await screen.findByRole('checkbox', { name: 'BT30' }))
 
-    expect(onQuery).toHaveBeenCalledWith({ terms: { taper: ['BT30'] }, bounds: {} })
+    expect(onQuery).toHaveBeenCalledWith({ text: '', terms: { taper: ['BT30'] }, bounds: {} })
+  })
+
+  /**
+   * **A rack is a list somebody arrives at already knowing the answer to**
+   * (Paul, 2026-09-08: "catalog number needs a text search in holders and
+   * collets as well"). The same search the tool table carries, on the same
+   * column, matching the number and the vendor together.
+   */
+  it('searches the catalog number from the column that shows it', () => {
+    const onQuery = show()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter by Catalog number' }))
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search by catalog number' }), {
+      target: { value: 'BT30ER' },
+    })
+
+    expect(onQuery).toHaveBeenCalledWith({ text: 'BT30ER', terms: {}, bounds: {} })
   })
 
   it('bounds a length from the column that shows it', () => {
@@ -75,10 +92,40 @@ describe('the filters a holder heading asks', () => {
     expect(screen.getByRole('button', { name: 'Filter by Gauge length' })).toBeVisible()
   })
 
-  /** Three of its columns said as one phrase; each of those asks for itself. */
-  it('asks nothing of the type a holder reads as', () => {
+  /**
+   * **A dropdown opened from inside the filter is inside it.** The kit draws a
+   * `Combobox` popover in a portal of its own, outside the menu's own box, so
+   * the press that chose an operator read as a press on the page and shut the
+   * filter before the box to type in had been drawn. The press is dispatched
+   * rather than clicked because that rule is written against `pointerdown`.
+   */
+  it('stays open while the compare dropdown is used', () => {
     show()
 
-    expect(screen.queryByRole('button', { name: 'Filter by Type' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Filter by Gauge length' }))
+    fireEvent.click(screen.getByRole('combobox', { name: 'How to compare Gauge length' }))
+    const option = screen.getByRole('option', { name: '≥ at least' })
+    fireEvent.pointerDown(option)
+    fireEvent.click(option)
+
+    expect(screen.getByRole('group', { name: 'Gauge length' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Gauge length — value' })).toBeInTheDocument()
+  })
+
+  /**
+   * **The type is a list of its own** (Paul, 2026-09-08: "I should be able to
+   * filter by holder type as a list … same with collet type"). It is three of
+   * a holder's columns said as one phrase — `BT30 ER11 collet chuck` — and
+   * that phrase is what a shop calls the thing; the three behind it still ask
+   * for themselves, so one press can take every BT30 or every BT30 ER11 collet
+   * chuck.
+   */
+  it('offers the type a holder reads as, as a list', () => {
+    const onQuery = show()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter by Type' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'BT30' }))
+
+    expect(onQuery).toHaveBeenCalledWith({ text: '', terms: { type: ['BT30'] }, bounds: {} })
   })
 })

@@ -50,6 +50,19 @@ read straight off the feature's datasheet.
 | `stepdown`               | The deepest cut a surface takes in one pass                                     | —                                                  |
 | `thread`                 | The thread a hole is to receive                                                 | —                                                  |
 
+Each field also says **which end of it is hard** when a group of features is
+asked one question — a group is one tool for all of them, so the group's box
+shows the worst of its features' readings and names the feature that set it
+(`docs/FEATURE-LIST.md` § Add group). A _ceiling_ is a limit on the tool, so the
+smallest in the group binds — `largest tool diameter`, `largest drill diameter`,
+`floor fillet radius`, `entry width`, `stepdown`. A _floor_ is a demand on it,
+so the largest binds — `depth below top`, `feature depth`, `L/D`,
+`slant length`, `undercut depth`, `smallest tool diameter`. The rest —
+`hole diameter`, `tip angle`, `chamfer angle`, `taper angle`, `thread` — have no
+hard end, and a group whose features disagree on one is told they _differ_
+rather than shown one of them. That is code, not a column: `GroupBound` in
+`feature-defaults.ts`.
+
 ## Conditions
 
 For `when`: `filleted`, `not filleted`, `flat bottom` (tip angle is 180°),

@@ -104,3 +104,70 @@ export const drawnAssembly = (
     collisions,
   }
 }
+
+/**
+ * What the list's **Length below holder** column says about one candidate.
+ *
+ * The column used to print `geometry.LBH`, which is the length a tool would be
+ * set up at with **no holder and no feature** — the one figure `stickout.ts`
+ * says is that same function asked with no arguments. Beside a stack that had a
+ * holder in it and a pocket to reach down into, that was a wrong number rather
+ * than an incomplete one (Paul, 2026-09-08: "we can plainly see that more of
+ * the tool is beneath the holder"): the panel drew the tool 2.125 in out and
+ * the row beside it read 0.625 in.
+ *
+ * There was machinery for this and the tree walked away from it. The column
+ * asked `Holding.requiredStickout`, which reads the holder somebody picked in a
+ * dropdown *on the row* — and the dropdowns came out on 2026-09-08 when the
+ * assembly tree took over, so nothing has set that holder since and every row
+ * fell back to the tool's own figure. The holder is the stack's now, so the
+ * question is asked of the stack once instead of per row.
+ *
+ * Null with no holder in the stack, which is the column falling back to the
+ * tool's own setup length — the honest answer while nothing holds it.
+ */
+export interface BelowHolder {
+  /** The length the tool stands below the nose in this stack, mm: the column's number. */
+  readonly length: number | null
+  /** The least that clears the part by the shop's margins, mm. */
+  readonly needs: number | null
+  /** The furthest this tool can stand out and keep hold, mm; null where nothing caps it. */
+  readonly most: number | null
+  /** True when what clearing needs is more than the tool can be set out at. */
+  readonly overLimit: boolean
+}
+
+/**
+ * One candidate tool, in the stack that is open.
+ *
+ * `drawnAssembly` and nothing else, so the number in the row is the number on
+ * the drawing beside it — the four-way disagreement `stickout.ts` was written
+ * to end started as two of these worked out in two places.
+ */
+export const belowHolder = (
+  tool: CatalogTool,
+  stack: { readonly holder: Holder | null; readonly collet: Collet | null },
+  curve: ReachCurve | null,
+  margins: Margins,
+  thresholds: HoldThresholds,
+  collets: ReadonlyArray<Collet> = allCollets,
+): BelowHolder | null => {
+  if (stack.holder === null) {
+    return null
+  }
+  const drawn = drawnAssembly(
+    tool,
+    { holder: stack.holder.guid, collet: stack.collet?.guid ?? null, stickout: null },
+    curve,
+    margins,
+    thresholds,
+    [stack.holder],
+    collets,
+  )
+  return {
+    length: drawn.stickout,
+    needs: drawn.least,
+    most: drawn.limits?.max ?? null,
+    overLimit: drawn.overLimit,
+  }
+}

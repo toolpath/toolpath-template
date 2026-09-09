@@ -32,8 +32,34 @@ const show = (props: Partial<Parameters<typeof PredrillChoice>[0]> = {}) => {
 }
 
 const rows = () => ({
-  cut: screen.getByRole('button', { name: /^Tap drill/ }),
-  form: screen.getByRole('button', { name: /^Form drill/ }),
+  cut: screen.getByRole('button', { name: /^Cut Tap/ }),
+  form: screen.getByRole('button', { name: /^Form Tap/ }),
+})
+
+/**
+ * **Nothing on the control is marked** (Paul, 2026-09-09: "we also shouldn't
+ * show the X on drills"). The `✗` said no standard drill makes this predrill
+ * from the model as drawn — true, and read as "this option is unavailable",
+ * which it never meant: the taps are there and an end mill bores the hole. The
+ * figures stay on the hover, and the list underneath says the rest in words.
+ */
+describe('what it never marks', () => {
+  /** ⌀5.50 form predrill against a ⌀5.00 hole: 0.50 mm out of a 0.1016 band. */
+  const refusing = { holeDiameter: 5, mode: 'cut tap' as const }
+
+  it('marks a predrill the model cannot be read as with nothing at all', () => {
+    show(refusing)
+
+    expect(screen.queryByLabelText(/drill deviation/)).not.toBeInTheDocument()
+    expect(document.querySelector('.text-danger')).toBeNull()
+  })
+
+  /** The figures survive the mark going: they are what the hover is for. */
+  it('still says the predrill and the difference on the hover', () => {
+    show(refusing)
+
+    expect(within(rows().form).getByTitle(/⌀5\.50 mm/)).toBeVisible()
+  })
 })
 
 describe('what it offers', () => {
@@ -87,44 +113,52 @@ describe('what it offers', () => {
 })
 
 /**
- * **The one state worth stopping on keeps its colour** (Paul, 2026-09-02:
- * "warning visualization is not right for form taps — this should follow the
- * conventions you just said to me").
+ * **A predrill the model cannot be read as is said, not marked** (Paul,
+ * 2026-09-09: "we also shouldn't show the X on drills - if there are no drills,
+ * it should show 'no drills matching predrill size, showing end mills'").
  *
- * The tick and the grey `i` annotated figures the control no longer shows. Red
- * says what the list underneath cannot: this predrill is not a hole any
- * standard drill makes from the model as drawn.
+ * It was a red `✗` here from 2026-09-02 until then, and it read as *this option
+ * is unavailable* — which it never was: the taps are in the list beside it, and
+ * an end mill bores the hole the drills cannot. What it actually says belongs
+ * in the list underneath, in words, beside the mills that answer it.
  */
 describe('a predrill the model cannot be read as', () => {
-  it('paints it red, and leaves the other alone', () => {
+  /** ⌀5.00 is the cut tap's own drill, and 0.50 under the form tap's. */
+  it('is painted no differently from the one the model is on', () => {
     show()
     const { cut, form } = rows()
 
-    // ⌀5.00 is the cut tap's own drill, and 0.50 under the form tap's.
-    expect(cut).not.toHaveClass(/text-danger/)
-    expect(form.className).toContain('text-danger')
+    expect(cut.className).not.toContain('text-danger')
+    expect(form.className).not.toContain('text-danger')
   })
 
-  /**
-   * **A refusal has a glyph carrying the words** (Paul, 2026-09-02: "a red x
-   * icon to hover over to see info"), and the figures are in them.
-   */
-  it('hangs a red x carrying the refusal, with the numbers in it', () => {
+  it('hangs no glyph on either', () => {
     show()
 
-    const refusal = within(rows().form).getByLabelText(/no standard drill makes both/)
-    expect(refusal).toBeInTheDocument()
-    expect(refusal.getAttribute('aria-label')).toContain('⌀5.50 mm')
-    expect(
-      within(rows().cut).queryByLabelText(/no standard drill makes both/),
-    ).not.toBeInTheDocument()
+    expect(within(rows().form).queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/drill deviation/)).not.toBeInTheDocument()
+  })
+
+  /** The figures are still one hover away, and say what it means for the list. */
+  it('says the predrill, the difference, and that a mill is what bores it', () => {
+    show()
+
+    const says =
+      within(rows().form)
+        .getByTitle(/⌀5\.50 mm/)
+        .getAttribute('title') ?? ''
+    expect(says).toContain('further from the modelled hole')
+    expect(says).toContain('end mill that bores it')
   })
 
   /** Widen the band past it and the same figure is a difference like any other. */
   it('reads the band rather than a number of its own', () => {
     show({ deviation: { over: 1, under: 1 } })
 
-    expect(rows().form.className).not.toContain('text-danger')
-    expect(screen.queryByLabelText(/no standard drill makes both/)).not.toBeInTheDocument()
+    expect(
+      within(rows().form)
+        .getByTitle(/⌀5\.50 mm/)
+        .getAttribute('title'),
+    ).toContain('the modelled hole is')
   })
 })

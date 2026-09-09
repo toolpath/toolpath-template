@@ -4,7 +4,12 @@ import {
   readLabel,
   threadOptions,
   makerOf,
+  methodOf,
   minorOf,
+  modeFor,
+  millStandInNote,
+  predrillNote,
+  threadNote,
   threadNamed,
   threadedName,
   threadsFor,
@@ -214,5 +219,85 @@ describe('what a threaded hole is called', () => {
   /** The kind is kept whatever it is: the spec is a prefix, not a replacement. */
   it('keeps whatever the feature is called', () => {
     expect(threadedName('Through Hole', spec)).toBe('M8×1.25 Through Hole')
+  })
+})
+
+/**
+ * **One decision, read by two lists** (Paul, 2026-09-09: "if I select a cut tap
+ * first, drills for the cut tap should be selected when I go to the drills
+ * page"). The mode is where cut-or-form is kept; these two are the whole
+ * translation between it and what a tap states about itself, so a list filtered
+ * one way and a drill chosen the other cannot happen.
+ */
+describe('which kind of tap a mode asks for', () => {
+  it('asks for the method the mode is named after', () => {
+    expect(methodOf('cut tap')).toBe('cutting')
+    expect(methodOf('form tap')).toBe('forming')
+  })
+
+  /** Neither is made with a tap, so neither asks anything of a tap list. */
+  it('asks for nothing where no tap makes the thread', () => {
+    expect(methodOf('plain')).toBeNull()
+    expect(methodOf('thread mill')).toBeNull()
+  })
+
+  it('reads the mode back off the tap that was picked', () => {
+    expect(modeFor('cutting')).toBe('cut tap')
+    expect(modeFor('forming')).toBe('form tap')
+  })
+
+  /**
+   * A tap scraped before `@toolpath/tool-scraper` 2.4.0 says nothing about how
+   * it makes a thread, and reading that silence as `cut tap` would move the
+   * drills of a hole nobody had decided about.
+   */
+  it('leaves the mode alone where the tap states no method', () => {
+    expect(modeFor(null)).toBeNull()
+    expect(modeFor(undefined)).toBeNull()
+  })
+})
+
+/**
+ * **The drill list says the number it was actually swept on** (Paul,
+ * 2026-09-09). It carried the tap's nominal size, which on a #4-40 is ⌀0.112 in
+ * over a list of ⌀0.0995 in predrills — a diameter no row in it is near.
+ */
+describe('what each list was swept on', () => {
+  const four40 = threadNamed('#4-40 UNC')!
+
+  /** The taps: the thread's own diameter, said to be that rather than left bare. */
+  it('names the thread diameter for the taps, and that the pitch is unknown', () => {
+    expect(threadNote(four40, 'inches')).toBe(
+      'matched on ⌀0.112 in thread diameter — this catalog holds no pitch, so check it',
+    )
+  })
+
+  /* Three decimals in inches, the same rounding every length on the page uses. */
+  it('names the cut tap predrill, and the tap that decides it', () => {
+    expect(predrillNote(four40, 'cut tap', 'inches')).toBe(
+      "matched on ⌀0.089 in — the cut tap's predrill for #4-40 UNC",
+    )
+  })
+
+  it('names the form tap predrill instead when the thread is rolled', () => {
+    expect(predrillNote(four40, 'form tap', 'inches')).toBe(
+      "matched on ⌀0.099 in — the form tap's predrill for #4-40 UNC",
+    )
+  })
+
+  /**
+   * **And what it says when that number matched nothing** (Paul, 2026-09-09).
+   * The hole is drawn at the cut tap's size, so a form tap's ⌀0.099 in predrill
+   * has no drill — and the shop still makes it, by boring with an end mill.
+   */
+  it('names the number that came up empty, and what stands in', () => {
+    expect(millStandInNote(four40, 'form tap', 'inches')).toBe(
+      'no drill matches the ⌀0.099 in form tap predrill — showing end mills that can bore it, and the closest drills',
+    )
+  })
+
+  /** A hole nobody threaded has no predrill to be swept on. */
+  it('says so where there is no predrill at all', () => {
+    expect(predrillNote(four40, 'plain', 'inches')).toBe('no predrill: this hole is not threaded')
   })
 })
