@@ -153,7 +153,7 @@ const monogram = (brand: string): string => {
 }
 
 const Monogram = ({ brand }: { brand: string }) => (
-  <span className="grid size-6 place-items-center rounded-sm bg-zinc-800 text-[0.6rem] font-bold text-current">
+  <span className="grid size-6 place-items-center rounded-sm bg-zinc-800 text-2xs font-bold text-current">
     {monogram(brand)}
   </span>
 )
@@ -600,7 +600,7 @@ const ToolbarOptions = ({
               )}
             >
               <span className="min-w-0 flex-1 truncate">{option.label}</span>
-              <span className="shrink-0 text-[0.65em] text-zinc-600">{count}</span>
+              <span className="shrink-0 text-zinc-600">{count}</span>
             </Button>
           )
         })}
@@ -674,7 +674,7 @@ const Tile = ({
     )}
   >
     {icon}
-    <span className="w-full truncate text-center text-[0.6rem] leading-tight">{option.label}</span>
+    <span className="w-full truncate text-center text-2xs leading-tight">{option.label}</span>
   </Button>
 )
 
@@ -968,7 +968,7 @@ const TilePicker = ({
             className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-zinc-800 px-1 py-1.5 text-zinc-500 transition hover:border-zinc-700 hover:text-zinc-200"
           >
             <DotsThreeIcon weight="bold" className="size-6" />
-            <span className="text-[0.6rem] leading-tight">{String(rest)} more</span>
+            <span className="text-2xs leading-tight">{String(rest)} more</span>
           </Button>
         ) : null}
       </div>
@@ -1398,13 +1398,14 @@ export const FilterPanel = ({
                           {/*
                             **The count of flutes, and the count of tools, are
                             two numbers** (Paul, 2026-09-01: "differentiate the
-                            count in # flutes"). Side by side and in the same
-                            type, "3 5688" read as one figure. The tally is the
-                            small print, in brackets, the way every other count
-                            on this panel is set.
+                            count in # flutes"). Side by side and undifferentiated,
+                            "3 5688" read as one figure. The tally is set apart by
+                            brackets and a dimmer zinc, against a value set in
+                            monospace — not by a smaller type, because the interface
+                            holds four sizes and `type-scale.test.ts` says so.
                           */}
                           <span className="font-mono">{each.value}</span>
-                          <span className="ml-1 text-[0.65em] text-zinc-500">({each.count})</span>
+                          <span className="ml-1 text-zinc-500">({each.count})</span>
                         </Button>
                       ))}
                     </div>

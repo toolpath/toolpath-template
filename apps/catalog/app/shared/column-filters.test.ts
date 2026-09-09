@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   AXES_IN_TOOL_COLUMNS,
   askOfComponentColumn,
+  askOfTapColumn,
   askOfToolColumn,
+  narrowingNames,
   sayBound,
 } from './column-filters'
 import { columnsFor } from './component-columns'
@@ -45,6 +47,44 @@ describe('what a tool column asks', () => {
   it('names every axis a header takes over from the button row', () => {
     for (const axis of AXES_IN_TOOL_COLUMNS) {
       expect(askOfToolColumn(axis)).not.toBeNull()
+    }
+  })
+})
+
+/**
+ * **A tap list answers two questions and sorts on the rest** (Paul, 2026-09-09:
+ * "when I am in the TAPs row or table, it should be filtering to taps"). Its
+ * rows are the thread's rather than the query's, so a funnel over its numbers
+ * would be a control that changes nothing.
+ */
+describe('what a tap column asks', () => {
+  it('searches the catalog number and narrows the type', () => {
+    expect(askOfTapColumn('catalogNumber')).toEqual({ shape: 'text' })
+    expect(askOfTapColumn('type')).toEqual({ shape: 'terms', axis: 'type' })
+  })
+
+  /**
+   * **The two the sweep narrowed on** (Paul, 2026-09-09: "shouldn't thread
+   * diameter and thread length be applied from the thread spec and model
+   * feature/group depth respectively?"). They are ranges like any other here;
+   * what makes them stated rather than asked is that the list hands in no
+   * `onBound` for them — `column-heading.tsx` § `Asked`.
+   */
+  it('states the two numbers the thread and the depth set', () => {
+    expect(askOfTapColumn('DC')).toEqual({ shape: 'range', kind: 'length' })
+    expect(askOfTapColumn('LCF')).toEqual({ shape: 'range', kind: 'length' })
+  })
+
+  it('asks nothing of the columns the thread already decided', () => {
+    for (const code of ['brand', 'family', 'LBH', 'NOF', 'OAL', 'SFDM']) {
+      expect(askOfTapColumn(code)).toBeNull()
+    }
+  })
+
+  /** The two it does ask are the tool list's own questions, not a second pair. */
+  it('asks them exactly as the tool list does', () => {
+    for (const code of ['catalogNumber', 'type', 'DC', 'LCF']) {
+      expect(askOfTapColumn(code)).toEqual(askOfToolColumn(code))
     }
   })
 })
@@ -101,6 +141,79 @@ describe('what a holder or collet column asks', () => {
  * The words a filter dialog warns with, in the unit being read in — a warning
  * about a number has to say the number.
  */
+/**
+ * **A count nobody can decompose is not an answer** (Paul, 2026-09-09: "in Tap,
+ * it shows 'Clear 4 filters' but I only see tool type. What are the 4 filters
+ * active? It needs to be visible.").
+ */
+describe('what is narrowing a list, named', () => {
+  const tools = [
+    { code: 'catalogNumber', label: 'Catalog number' },
+    { code: 'brand', label: 'Vendor' },
+    { code: 'DC', label: 'Diameter' },
+    { code: 'LCF', label: 'Flute length' },
+    { code: 'type', label: 'Type' },
+  ]
+
+  it('names a term axis and a bound by the column that shows it', () => {
+    expect(
+      narrowingNames({ terms: { brand: ['Acme'] }, bounds: { DC: { max: 8 } } }, tools),
+    ).toEqual(['Vendor', 'Diameter'])
+  })
+
+  /**
+   * `form` has no column of its own; the Type column asks it in the trade's
+   * phrases, so that is the name a shop can go and look at.
+   */
+  it('names the form filter after the column that asks it', () => {
+    expect(narrowingNames({ terms: { form: ['drill'] }, bounds: {} }, tools)).toEqual(['Type'])
+  })
+
+  /**
+   * Two axes wearing one column's label are one filter to anybody reading the
+   * table — counting both is how `Clear 4 filters` stood over three funnels.
+   */
+  it('counts one question once however many axes carry it', () => {
+    expect(
+      narrowingNames({ terms: { form: ['drill'], type: ['Drill'] }, bounds: {} }, tools),
+    ).toEqual(['Type'])
+    expect(
+      narrowingNames({ terms: { familyId: ['a'], productLine: ['b'] }, bounds: {} }, tools),
+    ).toEqual(['Family'])
+  })
+
+  /** The same axis reads out under whichever list is open. */
+  it('names a column by the words that list uses for it', () => {
+    const taps = [{ code: 'DC', label: 'Thread diameter' }]
+    expect(narrowingNames({ terms: {}, bounds: { DC: { min: 2 } } }, taps)).toEqual([
+      'Thread diameter',
+    ])
+  })
+
+  it('names the catalog-number search, and ignores an empty one', () => {
+    expect(narrowingNames({ text: ' M6 ', terms: {}, bounds: {} }, tools)).toEqual([
+      'Catalog number',
+    ])
+    expect(narrowingNames({ text: '   ', terms: {}, bounds: {} }, tools)).toEqual([])
+  })
+
+  /** An axis with no values and a bound with no ends are nobody asking. */
+  it('says nothing about an axis that is not narrowing', () => {
+    expect(narrowingNames({ terms: { brand: [] }, bounds: { DC: {} } }, tools)).toEqual([])
+  })
+
+  /**
+   * An axis nothing on the page names still counts, under its own key. Dropping
+   * it would make the count lie in the other direction — a list narrowed by
+   * something with no name, reported as narrowed by nothing.
+   */
+  it('names an axis no column and no rule knows, rather than dropping it', () => {
+    expect(narrowingNames({ terms: { unitSystem: ['metric'] }, bounds: {} }, tools)).toEqual([
+      'unitSystem',
+    ])
+  })
+})
+
 describe('a bound said in words', () => {
   it('converts a length and leaves a count alone', () => {
     expect(sayBound('length', { max: 8 }, 'millimeters')).toBe('at most 8.00 mm')

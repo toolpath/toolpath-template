@@ -9,6 +9,7 @@ const tool = (catalogNumber: string, DC: number): CatalogTool =>
   ({
     guid: catalogNumber,
     catalogNumber,
+    brand: 'WIDIA',
     form: 'drill',
     geometry: { DC },
   }) as unknown as CatalogTool
@@ -226,7 +227,7 @@ describe('the list of what has been asked about', () => {
 
     expect(screen.getByText('big stupid')).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'big stupid: 5510VXD375 for Pocket' }),
+      screen.getByRole('button', { name: 'big stupid: WIDIA 5510VXD375, Drill, for Pocket' }),
     ).toBeInTheDocument()
   })
 
@@ -234,7 +235,9 @@ describe('the list of what has been asked about', () => {
   it('says nothing where the stack was never named', () => {
     show({ answers: ANSWERS })
 
-    expect(screen.getByRole('button', { name: '5510VXD375 for Pocket' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'WIDIA 5510VXD375, Drill, for Pocket' }),
+    ).toBeInTheDocument()
   })
 
   /** A feature and a group are named by what they hold, and by nothing else. */
@@ -259,6 +262,19 @@ describe('the list of what has been asked about', () => {
     expect(screen.getByText('9.53 mm')).toBeInTheDocument()
   })
 
+  /**
+   * **A catalog number on its own is unreadable** (Paul, 2026-09-09: "I'd like
+   * to add the tool type and vendor into the order list … it should say 'Emuge
+   * 2810.0250 - Flat End Mill'"). The words are the Vendor and Type columns',
+   * so the line says what the table beside it says about the same tool.
+   */
+  it('says who makes the tool and what it is, beside its catalog number', () => {
+    show({ answers: ANSWERS })
+
+    expect(screen.getByText('WIDIA')).toBeInTheDocument()
+    expect(screen.getByText('- Drill')).toBeInTheDocument()
+  })
+
   it('distinguishes a pending recommendation from nothing fitting', () => {
     show({
       answers: [
@@ -279,7 +295,7 @@ describe('the list of what has been asked about', () => {
   it('asks for everything that fits when its tool is pressed', () => {
     const { onSelect } = show({ answers: ANSWERS })
 
-    fireEvent.click(screen.getByRole('button', { name: '5510VXD375 for Pocket' }))
+    fireEvent.click(screen.getByRole('button', { name: 'WIDIA 5510VXD375, Drill, for Pocket' }))
 
     expect(onSelect).toHaveBeenCalledWith('feature-1', null, '5510VXD375')
   })
@@ -293,7 +309,9 @@ describe('the list of what has been asked about', () => {
     const { onSelect } = show({ answers: ANSWERS, open: ['group-1'] })
 
     expect(screen.getByText('nothing fits')).toBeInTheDocument()
-    fireEvent.click(screen.getAllByRole('button', { name: 'B976Z02500 for Through Hole' })[0]!)
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'WIDIA B976Z02500, Drill, for Through Hole' })[0]!,
+    )
 
     expect(onSelect).toHaveBeenCalledWith('group-1', 'hole-1', 'B976Z02500')
   })

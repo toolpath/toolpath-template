@@ -46,9 +46,9 @@ _Two tools, chosen on different numbers._
 2. Pick _M3×0.5_. That is the whole of the question the panel asks: which
    thread. How the thread is made is asked over the drills it decides.
 3. The table splits into **Taps** and **Drills**. Taps first, because the thread
-   is the decision. Over the drills sits **Predrill: Tap drill / Form drill** —
-   two words, no figures; red means no standard drill makes that predrill from
-   the hole as modelled.
+   is the decision. Over **both** sits **Cut Tap / Form Tap** — two words, no
+   figures; red means no standard drill makes that tap's predrill from the hole
+   as modelled.
 4. Pick a tap, press **Add tool**.
 5. Switch to **Drills** — already judged against the tap drill, not the hole as
    modelled. Pick one and press **Add this tool**.
@@ -148,15 +148,15 @@ the tools that answer them.
 └────────────────────────────────────────────────────┴─────────────────────┘
 ```
 
-| #   | Region        | Its job                                                                   | Reads                 | Writes                |
-| --- | ------------- | ------------------------------------------------------------------------- | --------------------- | --------------------- |
-| 1   | Filter rail   | Narrow the catalog to what a shop would buy                               | the URL               | the URL               |
-| 2   | Feature list  | Hold what has been asked about, and its answers                           | the part, the sheet   | the list, the sheet   |
-| 3   | Tool table    | Offer every tool that answers the current question                        | rules, filters, crib  | nothing               |
-| 4   | Tool panel    | Assemble a tool, and decide what happens to it                            | the selected tool     | the sheet, the list   |
-| 5   | Order list    | Show what has been decided, as a thing to buy                             | the sheet             | quantities            |
-| 6   | Thread picker | Say what a hole is threaded for (how it is made is asked over the drills) | the hole's diameter   | the predrill, filters |
-| 7   | Matching      | Decide which tools fit, and in what order                                 | three CSVs, datasheet | nothing               |
+| #   | Region        | Its job                                                                  | Reads                 | Writes                |
+| --- | ------------- | ------------------------------------------------------------------------ | --------------------- | --------------------- |
+| 1   | Filter rail   | Narrow the catalog to what a shop would buy                              | the URL               | the URL               |
+| 2   | Feature list  | Hold what has been asked about, and its answers                          | the part, the sheet   | the list, the sheet   |
+| 3   | Tool table    | Offer every tool that answers the current question                       | rules, filters, crib  | nothing               |
+| 4   | Tool panel    | Assemble a tool, and decide what happens to it                           | the selected tool     | the sheet, the list   |
+| 5   | Order list    | Show what has been decided, as a thing to buy                            | the sheet             | quantities            |
+| 6   | Thread picker | Say what a hole is threaded for (how it is made is asked over the lists) | the hole's diameter   | the predrill, filters |
+| 7   | Matching      | Decide which tools fit, and in what order                                | three CSVs, datasheet | nothing               |
 
 ### How a click becomes a bill line
 
@@ -598,12 +598,18 @@ it is two tools, chosen on different numbers.
 
 ### Cut tap or form tap
 
-- **It is asked over the drills, not on the feature dialog** (Paul,
+- **It is asked over the lists, not on the feature dialog** (Paul,
   2026-09-07). Saying what thread a hole is for and saying whether it will be
-  cut or rolled are two decisions, and only the second is about the drill list.
+  cut or rolled are two decisions, and only the second is about the lists.
   Two rows of figures under the thread put it in front of somebody answering
   the first. `components/predrill-choice.tsx` is the control; the dialog is
   `components/thread-picker.tsx` and asks one thing.
+- **Over the taps as well, and named after the tap** (Paul, 2026-09-09: "the
+  'form drill' term doesn't make a lot of sense, it's more that the appropriate
+  drill is defined by the type of tap"). One mode, two consequences: the tap
+  list holds only that kind of tap, and the drills are judged against that tap's
+  predrill. Picking a tap writes the mode back, so choosing a form tap first
+  puts the drill list on the form drill without a second press.
 - **A form tap wants a bigger hole than a cut tap** — ⌀0.201 in against
   ⌀0.2244 in on a 1/4-20 — because it displaces metal rather than cutting it.
   Starting a form tap at a cut-tap size snaps the tap.
@@ -617,13 +623,16 @@ it is two tools, chosen on different numbers.
   say: red, with an `✗`, where the predrill is further from the model than the
   shop's max drill deviation allows, meaning no standard drill makes both.
 - **Choosing a mode writes the type filter**, where it can be seen and undone.
-- **The tap cannot say which it is, yet** (Paul, 2026-09-07: "ideally it should
-  be pulled from the tap itself, but I don't think we have that data yet"). A
-  tool's `form` is `tap left hand` or `tap right hand`, and a vendor's product
-  line names the material rather than the method — EMUGE files cut and
-  cold-forming taps alike under _Rekord B-Z Taps_, _Steel Taps_, _VA Taps_. The
-  fact belongs upstream in `@toolpath/tool-scraper`, beside the tests that would
-  check it against each vendor's pages; until there is one, the shop says which.
+- **The tap says which it is, since 2026-09-09** (Paul, 2026-09-07: "ideally it
+  should be pulled from the tap itself, but I don't think we have that data
+  yet"). It was true that a tool's `form` is only `tap left hand` or `tap right
+hand` and that a vendor's product line names the material rather than the
+  method. The fact went upstream where it belonged:
+  `@toolpath/tool-scraper` 2.4.0 records `threadMethod` off each vendor's own
+  category, which is also what reaches EMUGE's `FG02` — the catalog's only
+  forming taps, 1,432 of them. `CatalogTool.threadMethod` carries it, a tap
+  stating none stays in both lists, and catalog version 10 is the store that
+  holds the labels.
 
 ### The two tabs
 
@@ -660,7 +669,7 @@ it is two tools, chosen on different numbers.
 **Where it lives**
 
 - `app/shared/threads.ts` — the thread table, the Engine's tap-drill charts, reading a hole
-- `app/components/predrill-choice.tsx` — cut tap or form tap, over the drills
+- `app/components/predrill-choice.tsx` — cut tap or form tap, over both lists
 - `app/shared/hole-mode.ts` — standing a hole in at its predrill; which taps reach
 - `app/components/thread-picker.tsx` — the picker, and the deviation marks
 - `app/shared/thread-panes.ts` — which tool leads each tab

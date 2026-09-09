@@ -278,6 +278,11 @@ application unless that application says otherwise.
 | reading and filtering a holder or a collet      | `app/shared/component-columns.ts`                    |
 | which column header asks which filter           | `app/shared/column-filters.ts`                       |
 | what a tool is, in one phrase with its shank    | `app/shared/tool-type.ts`                            |
+| which ticks a filter the page set puts on Type  | `typesAsking`, `app/shared/tool-type.ts`             |
+| which of its columns a tap list narrows on      | `askOfTapColumn`, `app/shared/column-filters.ts`     |
+| what a tick on the tap list's Type column asks  | `formsAskingTaps`, `app/shared/hole-mode.ts`         |
+| what is narrowing a list, named for its button  | `narrowingNames`, `app/shared/column-filters.ts`     |
+| the numbers a thread and a depth put on a tap   | `tapBounds`, `app/shared/hole-mode.ts`               |
 | the form behind a Type phrase, and what it asks | `app/shared/tool-type.ts`                            |
 | the list, its answers and its right-click       | `app/components/feature-list-panel.tsx`              |
 | building a group                                | `app/components/group-editor.tsx`                    |

@@ -55,6 +55,22 @@ export interface Interaction {
    */
   readonly guessed: ReadonlyArray<string>
   /**
+   * Whether a **group** is being built.
+   *
+   * **This is the one thing that turns identical-hole grouping on** (Paul,
+   * 2026-09-09: "the current hole grouping should only be applied in GROUP. In
+   * Add Feature, I should be able to select a single hole"). Grouping used to
+   * be unconditional — every path here expanded a tag into {@link groupOf}'s
+   * whole set — so a click on one hole of a bolt circle made a row holding all
+   * thirty-nine of them and there was no way to ask about one.
+   *
+   * Held in the state rather than passed on each action, because `click`,
+   * `read`, `arm`, `step` and `toggle` all expand and all have to agree: with
+   * the flag on `click` alone, choosing a direction mid-group re-read the face
+   * without its group and left the other thirty-eight in `kept` as orphans.
+   */
+  readonly collecting: boolean
+  /**
    * Whether the reading on screen was **named** rather than guessed.
    *
    * A face click opens the largest of five to eight readings, which is a
@@ -72,6 +88,7 @@ export const IDLE: Interaction = {
   focused: null,
   kept: [],
   guessed: [],
+  collecting: false,
   chose: false,
 }
 
@@ -82,14 +99,15 @@ export type InteractionAction =
    * A click on the part: a face, or `null` for a click that hit nothing on the
    * mesh.
    *
-   * `collecting` is a click made **while a group is being built**, which is a
-   * different act: an ordinary click swaps the guess for whatever was clicked
-   * last, and a group is built by clicking six faces in a row (Paul,
-   * 2026-09-02). So a collecting click adds — and, on a face already in, takes
-   * it out again, which is the only way to correct a mis-click on the part
-   * itself.
+   * A click **while a group is being built** is a different act: an ordinary
+   * click swaps the guess for whatever was clicked last, and a group is built
+   * by clicking six faces in a row (Paul, 2026-09-02). So a collecting click
+   * adds — and, on a face already in, takes it out again, which is the only
+   * way to correct a mis-click on the part itself. Which of the two it is
+   * comes off {@link Interaction.collecting}, not off the action: the mode
+   * outlives the click.
    */
-  | { readonly type: 'click'; readonly pick: PartPick | null; readonly collecting?: boolean }
+  | { readonly type: 'click'; readonly pick: PartPick | null }
   /** A click on nothing at all — the viewer's `onPointerMissed`. */
   | { readonly type: 'miss' }
   /** A reading named from a list. */
@@ -107,7 +125,28 @@ export type InteractionAction =
    * walking a face's readings afterwards must not quietly take one of them
    * away again.
    */
-  | { readonly type: 'collect'; readonly tags: ReadonlyArray<string> }
+  | {
+      readonly type: 'collect'
+      readonly tags: ReadonlyArray<string>
+      /**
+       * Whether what is being edited is a **group**.
+       *
+       * A feature row and a group row are both edited this way and only one of
+       * them groups identical holes, so the kind travels with the tags.
+       */
+      readonly collecting: boolean
+    }
+  /**
+   * A group, begun: what is being asked about becomes a set somebody is
+   * building, and identical holes group from here on.
+   *
+   * **It grows what is already there** (Paul, 2026-09-09: hole grouping is a
+   * GROUP rule). Pressing *+ Group* over a previewed hole, or taking the
+   * offer the reading panel makes, means asking about that hole *and its
+   * identical siblings* — so the tags standing when a group opens are expanded
+   * to their whole hole groups rather than carried across one at a time.
+   */
+  | { readonly type: 'group' }
   /**
    * Everything down at once.
    *
@@ -121,13 +160,18 @@ export type InteractionAction =
 export type InteractionPart = Pick<PublicInspectionReport, 'features' | 'candidateDirections'>
 
 /**
- * Identical holes are one decision.
+ * The identical holes a hole belongs to — same way up, diameter and depth.
  *
  * A part carries eight holes on a bolt circle and the kernel reports each
- * separately, because each is its own geometry — but to a shop they are one
- * tool and one operation. So keeping one keeps its group, and taking one out
- * takes the group out: the same rule the DFM application groups by, on the
- * same three facts (way up, diameter, depth).
+ * separately, because each is its own geometry; to a shop they are one tool and
+ * one operation, which is the same rule the DFM application groups by.
+ *
+ * **It is applied while a group is being built and nowhere else** (Paul,
+ * 2026-09-09: "the current hole grouping should only be applied in GROUP. In
+ * Add Feature, I should be able to select a single hole"). Grouping used to
+ * happen on every path here, so one hole could not be asked about at all — the
+ * reading panel offers the group instead, and taking the offer is what turns
+ * {@link Interaction.collecting} on.
  */
 export const groupOf = (
   features: ReadonlyArray<PartFeature>,
@@ -166,19 +210,32 @@ export const interactionFor = (part: InteractionPart) => {
     }
   }
 
+  /**
+   * What one tag stands for: itself, or every hole identical to it.
+   *
+   * The one place {@link groupOf} is reached from, so every path through this
+   * reducer answers the question the same way. Outside a group a tag stands for
+   * itself — that is what makes a single hole askable (Paul, 2026-09-09).
+   */
+  const expand = (state: Interaction, featureTag: string): Array<string> =>
+    state.collecting ? groupOf(part.features, featureTag) : [featureTag]
+
   /** A click on nothing puts the reading down, leaving what is kept by hand alone. */
   const putDown = (state: Interaction): Interaction => ({
     selection: NOTHING_SELECTED,
     focused: null,
     activeDirection: null,
     chose: false,
+    // The group being built outlives the reading inside it: putting a face down
+    // is not backing out of the group, which is `reset`.
+    collecting: state.collecting,
     // The guess goes with the reading it came from; a tick made by hand stays.
     kept: dropAll(state.kept, state.guessed),
     guessed: [],
   })
 
   const read = (state: Interaction, featureTag: string): Interaction => {
-    const group = groupOf(part.features, featureTag)
+    const group = expand(state, featureTag)
     return {
       ...state,
       // Naming a reading from inside the list is an answer, not a new question:
@@ -250,7 +307,7 @@ export const interactionFor = (part: InteractionPart) => {
         if (scoped.focused === state.focused) {
           return { ...state, activeDirection: next, chose: true }
         }
-        const group = groupOf(part.features, scoped.focused)
+        const group = expand(state, scoped.focused)
         return {
           ...state,
           activeDirection: next,
@@ -277,8 +334,8 @@ export const interactionFor = (part: InteractionPart) => {
         }
 
         const selection = pickFace(state.selection, action.pick, preferArmed(state.activeDirection))
-        const group = selection.focused === null ? [] : groupOf(part.features, selection.focused)
-        if (action.collecting) {
+        const group = selection.focused === null ? [] : expand(state, selection.focused)
+        if (state.collecting) {
           /**
            * **While a group is being built, a click is a toggle** (Paul,
            * 2026-09-02: "if I click on a new one, it should add it to the list
@@ -310,6 +367,7 @@ export const interactionFor = (part: InteractionPart) => {
               activeDirection: null,
               kept: dropAll(state.kept, state.guessed),
               guessed: [],
+              collecting: true,
               chose: false,
             }
           }
@@ -321,6 +379,7 @@ export const interactionFor = (part: InteractionPart) => {
             selection,
             focused: selection.focused,
             activeDirection: null,
+            collecting: true,
             kept: inAlready ? dropAll(state.kept, group) : keepAll(state.kept, group),
             // What this face stands for, so choosing its direction replaces it
             // rather than leaving both readings in the group.
@@ -335,6 +394,8 @@ export const interactionFor = (part: InteractionPart) => {
           // the arrow to one way up and left clicking the same face again with
           // nothing to cycle to.
           activeDirection: null,
+          // Not collecting, or the branch above would have taken this click.
+          collecting: false,
           // The best reading goes on the list at once — one click from a face
           // to a tool list. Clicking again swaps the guess for the next reading
           // rather than piling them up; a tick made by hand is not a guess.
@@ -375,7 +436,7 @@ export const interactionFor = (part: InteractionPart) => {
       }
 
       case 'toggle': {
-        const group = groupOf(part.features, action.featureTag)
+        const group = expand(state, action.featureTag)
         const taking = !state.kept.includes(action.featureTag)
         return {
           ...state,
@@ -387,7 +448,35 @@ export const interactionFor = (part: InteractionPart) => {
       }
 
       case 'collect':
-        return { ...state, kept: [...action.tags], guessed: [] }
+        return {
+          ...state,
+          kept: [...action.tags],
+          guessed: [],
+          collecting: action.collecting,
+        }
+
+      case 'group': {
+        /**
+         * **Grouping starts here.** Whatever was being asked about is expanded
+         * to its identical holes, because that is what a group means and what
+         * the offer beside a hole promises — pressing *Add all 39 as a group*
+         * with one hole read has to arrive at all thirty-nine.
+         *
+         * The guess is grown with it, so choosing a direction afterwards
+         * replaces the whole set rather than leaving thirty-eight behind.
+         */
+        const grow = (tags: ReadonlyArray<string>): Array<string> =>
+          keepAll(
+            [],
+            tags.flatMap((tag) => groupOf(part.features, tag)),
+          )
+        return {
+          ...state,
+          collecting: true,
+          kept: grow(state.kept),
+          guessed: grow(state.guessed),
+        }
+      }
 
       case 'reset':
         return IDLE

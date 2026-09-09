@@ -670,6 +670,159 @@ alphabetical (`ChipPicker`). Before that the front twelve were simply the
 twelve earliest in the alphabet, so filtering to one vendor led with families
 that vendor does not have.
 
+### A filter the page set looks like one somebody set
+
+Paul, 2026-09-09: "the filters automatically applied from feature or group
+selection are not shown in the column headers. I'd like to automatically apply
+them and show which filters are applied in the column headers, as if the
+automatically applied filters were applied manually."
+
+Clicking a face writes two kinds of filter: the rules sheet's `must` bounds into
+the ranges, and the defaults sheet's tool types into the `form` axis — and a
+thread writes `THREADED_FORMS` into that same axis. Every range has a column, so
+those funnels filled; `form` has none. The Type column asks the same question in
+the trade's phrases (`column-filters.ts` § `AXES_PARKED`), so on a threaded hole
+the chrome read `Clear 3 filters` over a table on which nothing looked narrowed
+at all.
+
+`typesAsking` in `shared/tool-type.ts` is the rule, and it is `formsAsking` read
+backwards: **the Type column shows the phrases the `form` filter is asking for,
+out of the ones it is offering, until somebody answers it themselves.** Three
+things follow from that wording.
+
+- **Out of the ones it is offering.** The ticks are intersected with the values
+  the column actually draws, so nothing is ticked in the greyed `…` half — a
+  phrase the list is not holding is not one the filter is asking for, whatever
+  the catalog has under it elsewhere.
+- **Shown, not written.** `form` stays the one place the filter lives; the
+  phrases go into the query the headings read and no further. Writing them into
+  the filters would leave a stale `type` behind every other press that touches
+  the `form` axis — the thread picker and the predrill mills both do.
+- **From the first untick the column answers for itself.** A `type` somebody set
+  wins outright, and `formsAsking` carries it back to the forms, which is why
+  unticking one phrase of a form narrows to the other rather than dropping the
+  form the geometry asked for.
+
+### The tap list asks two of them
+
+The tap list was outside all of this and it was the sharpest case of the same
+defect (Paul, 2026-09-09: "when I change a hole to threaded — when I am in the
+TAPs row or table, it should be filtering to taps"). Its rows are swept out of
+the catalog by the thread — `makersFor` — rather than narrowed by the tool
+query, so it carried no funnels at all while the chrome over it counted three
+filters.
+
+`askOfTapColumn` is what it answers, and it is two questions: the catalog
+number, which every list of tools searches, and **Type**, because a threaded
+hole's `form` filter is the drill _and_ the taps and this list is the tap half
+of it. Everything else about a tap — its vendor, its thread length, its flutes —
+is the thread's, and a funnel over one would be a control that changes nothing.
+`ToolColumnFiltering.ask` is how a list says which rule it is under, and an
+absent `onRange` says the same thing from the other side: a range column with
+nowhere to send its answer asks nothing.
+
+A tick there writes `formsAskingTaps` (`shared/hole-mode.ts`) — **the tap half
+of the `form` axis moves and the drill half never does.** That is the whole
+reason it is one axis rather than two: the drill list reads the same axis
+through `predrillFormsOf`, which strips the taps out, so the tap half can be
+answered without a drill leaving the tab beside it. A `type` written there
+instead would be the same filter under two names, and since a drill's phrases
+are not a tap's it would empty the drill list on the next tick.
+
+Two edges, both deliberate:
+
+- **Unticking every kind of tap asks for no tap, not for every tap.** The drill
+  half is still naming a form, so `tapRows` reads the whole `form` filter rather
+  than its tap half: a filter naming forms with no tap among them is a question
+  this list has no answer to, where an _empty_ axis is nobody asking.
+- **The column is offered only while `form` is saying something**, which on a
+  threaded hole it always is — choosing a thread writes `THREADED_FORMS`. With
+  the filters cleared the list is genuinely unconstrained, the column has no
+  answer to show, and a tick would then be the only form in the filter, which is
+  the one shape that empties the drills.
+
+None of it is keyed to a single feature: the ticks are read off `makers.made`
+and the `form` axis, both of which follow whatever `threadSpec` the selection
+resolves to. A thread chosen for a group answers the same way a thread chosen
+for one hole does.
+
+### The count is the funnels somebody can see
+
+Paul, 2026-09-09: "in Tap, it shows _Clear 4 filters_ but I only see tool type.
+What are the 4 filters active? It needs to be visible."
+
+`ToolTableToolbar` counted axes on the whole tool query, which was wrong three
+ways at once:
+
+- **`form` and `type` are one question**, asked in one column, counted twice.
+  So are `familyId` and `productLine`, which have been one Family column since
+  2026-09-08.
+- **A filter is only a filter over the rows it reaches.** The drill half of the
+  form filter and every range the rules put on a drill narrow nothing on a tap
+  list, so counting them there named filters that table does not have and
+  cannot show.
+- **A number cannot be checked against the table under it.** Four funnels and
+  the figure four is a coincidence a shop has to take on trust.
+
+`narrowingNames` (`shared/column-filters.ts`) replaces the number with the
+**names**, and `ToolTableToolbar` takes a list rather than a count:
+
+- Deduplicated on the name, not the axis, because two axes wearing one column's
+  label are one filter to anybody reading the table. `OFF_COLUMN` is where an
+  axis with no column of its own gets the name of the column that asks it —
+  `form` reads out as **Type**.
+- `columns` is whichever list is open, so the same `DC` reads as `Diameter` over
+  the tools and `Thread diameter` over the taps.
+- An axis nothing knows still counts, under its own key: dropping it would make
+  the count lie in the other direction.
+- The press names them in its title — _Narrowed by Type, Diameter, Flute
+  length_ — which is what makes the figure checkable against the funnels.
+
+Each list counts its own: the holder and collet racks their own queries, the tap
+list the two `askOfTapColumn` asks, the tool list the whole query. Clearing
+follows the same split — the tap list's clear puts every kind of tap back and
+leaves the drill half alone, because clearing the list somebody is looking at
+must not silently widen the one on the tab beside it.
+
+`tests/on-the-part.spec.ts` § _says in the headings what the feature narrowed
+the list by_ is the sensor: it counts the filled funnels on the page and
+requires the button to say that number.
+
+### Stated, not asked
+
+Two of the tap list's columns are narrowed by the part rather than by an answer
+(Paul, 2026-09-09: "shouldn't thread diameter and thread length be applied from
+the thread spec and model feature/group depth respectively?"). Both already
+were — `tapsFor` takes a diameter band around the thread's major, `reaches`
+takes a cutting length covering the depth — and neither was anywhere on screen,
+so the two columns a shop picks a tap on looked untouched over a list narrowed
+by exactly them.
+
+They are **stated**, and that is a third thing a heading can do beside sorting
+and asking:
+
+- `tapBounds` (`shared/hole-mode.ts`) is the pair, and it is what the sweep
+  reads too. `tapsFor` used to write the band a second time as
+  `|size - major| <= TAP_WITHIN`, which is the same rule to three decimals and
+  **not** the same in binary — `major - 0.2` lands a hair under it, so a tap
+  sitting exactly on the edge was inside the number the heading states and
+  outside the sweep that states it. One expression now, and
+  `hole-mode.test.ts` § _the bounds a thread puts on a tap_ puts a tap on each
+  edge through `tapsFor` and requires the two to agree.
+- A range whose list hands in **no `onBound`** is stated rather than asked —
+  `column-heading.tsx` § `Asked`. The menu says the bound in words (`sayBound`,
+  which existed for the override notice) and why, and offers no boxes, because
+  the list is swept on the number rather than filtered by it and a short list's
+  near misses are the very rows that break it. A box there would hide the rows
+  the page is deliberately showing, along with the reason it is showing them.
+- The funnel is **filled but grey**, not lit: the column is genuinely narrowed,
+  and `Clear n filters` cannot clear the thread. That is also what keeps the
+  count honest — it counts what it can clear, and a mark it cannot clear does
+  not wear the colour of one it can.
+
+The depth is read off `ThreadReach`, which is built from whatever the selection
+resolved to, so a group states its own worst case with no extra wiring.
+
 ## Shared code
 
 The rule is in `AGENTS.md`: the second application to need something triggers

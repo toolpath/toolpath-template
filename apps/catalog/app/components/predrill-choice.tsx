@@ -4,15 +4,25 @@ import { convertLength, decimalsFor, formatLength, type UnitSystem } from '@tool
 import { HOLE_MODES, drillFor, type HoleMode, type ThreadSpec } from 'shared/threads'
 
 /**
- * Which hole the thread is started from: the tap drill, or the form drill.
+ * How the thread is made: cut, or formed.
  *
- * **It belongs beside the drills, not on the feature dialog** (Paul,
+ * **It belongs beside the lists it decides, not on the feature dialog** (Paul,
  * 2026-09-07: "we should no longer show the 'cut tap' and 'form tap' rows in
  * the feature dialog when applying threads to a hole — it should just return
  * the right tap drills"). Saying *this hole is an M6* and saying *and I will
  * roll the thread rather than cut it* are two decisions, and the second one is
- * only ever made while looking at the drills it decides. On the dialog it was
- * two rows of numbers between somebody and the thread they were choosing.
+ * only ever made while looking at what it decides. On the dialog it was two
+ * rows of numbers between somebody and the thread they were choosing.
+ *
+ * **Over both lists, because it decides both** (Paul, 2026-09-09: "I'd like Cut
+ * Tap and Form Tap buttons to show up at the top of the table, like it does for
+ * Drills in a tapped hole right now … these buttons should filter to show only
+ * cut or form taps on the taps table, and for the correct diameter on the
+ * drills table"). It sat over the drills alone while the tap list could not be
+ * filtered by it — nothing on a tap said which kind it was. Now every tap
+ * states it, so one control answers both stacks and the two cannot disagree:
+ * pressing *Form Tap* over the taps sends the drill list to the form drill, and
+ * pressing it over the drills leaves the form taps standing in the tap list.
  *
  * **And it is two words, not two rows of figures** (Paul, 2026-09-07: "don't
  * show the numbers, just tap or form drill"). The predrill each starts from is
@@ -24,30 +34,36 @@ import { HOLE_MODES, drillFor, type HoleMode, type ThreadSpec } from 'shared/thr
  * the model than the shop's own drill deviation allows — so that survives as
  * the label in red under an `✗` carrying the figures on hover.
  *
- * **Ideally the tap would say** (Paul, same day: "it should be pulled from the
- * tap itself, but I don't think we have that data yet"). It cannot yet: a
- * catalog tool's `form` is `tap left hand` or `tap right hand`, and the vendor's
- * product line names the material rather than the method — EMUGE files cut and
- * cold-forming taps alike under *Rekord B-Z Taps*, *Steel Taps*, *VA Taps*. A
- * fact this control could read belongs upstream in `@toolpath/tool-scraper`,
- * beside the tests that would check it against each vendor's own pages; until
- * there is one, the shop says which.
+ * **And the tap does say, as of 2026-09-09** (Paul, 2026-09-07: "it should be
+ * pulled from the tap itself, but I don't think we have that data yet"). It is
+ * pulled from the tap now: `@toolpath/tool-scraper` 2.4.0 records
+ * `threadMethod` off each vendor's own category — EMUGE's `FG02`, *Cold forming
+ * tap*, which is also where the catalog's only 1,432 forming taps come from —
+ * so picking one in the tap list writes the mode this control shows, and this
+ * control filters the list back. The shop still says which where nothing has
+ * been picked; what has gone is its being the *only* thing that could say.
  *
  * `ThreadPicker` is the other half: it says which thread, and nothing about how
  * it is made.
  */
 
 /**
- * The two drills a thread can be started from, in the order a shop reaches for
- * them, named after the hole rather than the tool that makes it — the control
- * is a predrill and its options are predrills.
+ * The two ways a thread is made, in the order a shop reaches for them, named
+ * after the **tap** rather than the hole under it.
+ *
+ * **"Form drill" is not a thing anybody asks for** (Paul, 2026-09-09: "the
+ * 'form drill' term doesn't make a lot of sense, it's more that the appropriate
+ * drill is defined by the type of tap"). The drill is a consequence: choose the
+ * tap and the hole it starts from follows, on both lists and in that order. So
+ * the words are the tap's on the drill list too, where they used to be the
+ * hole's.
  *
  * Read off {@link HOLE_MODES}, so taking one out of the offer takes it out of
  * here too — thread milling went that way on 2026-09-01 (Paul).
  */
 const MAKING: ReadonlyArray<{ mode: HoleMode; label: string }> = HOLE_MODES.filter(
   (mode) => mode !== 'plain',
-).map((mode) => ({ mode, label: mode === 'form tap' ? 'Form drill' : 'Tap drill' }))
+).map((mode) => ({ mode, label: mode === 'form tap' ? 'Form Tap' : 'Cut Tap' }))
 
 export interface PredrillChoiceProps {
   /** The thread the hole is for: there is no predrill to choose without one. */

@@ -35,7 +35,7 @@ import { describeApi } from '@toolpath/tool-scraper/node'
 
 import { ingestProfiles } from '../dist/index.js'
 import { measureHolders } from '../dist/scrape.js'
-import { ROOT, HOLDING } from './store.mjs'
+import { ROOT, HOLDING, isFamilyDocument } from './store.mjs'
 
 const STEP = resolve(ROOT, 'step')
 
@@ -58,7 +58,9 @@ console.log(`Scrape root: ${ROOT}`)
 console.log(`${describeApi()}\n`)
 
 const families = readdirSync(HOLDING)
-  .filter((name) => name.endsWith('.json'))
+  // Not this command's own output from a previous run: it writes
+  // `<family>.profiles.json` beside the families it reads.
+  .filter(isFamilyDocument)
   .filter((name) => only === undefined || name === only.replace(/\.csv$/, '.json'))
   .sort()
 

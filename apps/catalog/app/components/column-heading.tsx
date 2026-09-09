@@ -2,6 +2,7 @@ import { Table } from '@toolpath/ui'
 import type { RefObject } from 'react'
 import type { UnitSystem } from '@toolpath/tool-support'
 import type { ColumnAsk } from 'shared/column-filters'
+import { sayBound } from 'shared/column-filters'
 import {
   FilterFunnel,
   FilterMenu,
@@ -104,6 +105,16 @@ export interface ColumnHeadingProps {
    * its own two numbers. `column-filter.tsx` § `TermFilter` is the rule.
    */
   readonly hidden?: ReadonlyArray<{ readonly value: string; readonly label: string }>
+  /**
+   * Where a bound this column cannot be argued with came from.
+   *
+   * A tap list is **swept** on its thread diameter and its thread length rather
+   * than filtered by them (`column-filters.ts` § `askOfTapColumn`), and the near
+   * misses a short list falls back to are the rows that break them — so the two
+   * numbers are stated with the reason and no boxes. Absent, a range is the
+   * ordinary editable one.
+   */
+  readonly why?: string
 }
 
 /**
@@ -130,6 +141,14 @@ type Asked =
       readonly onChosen: (values: ReadonlyArray<string>) => void
     }
   | { readonly shape: 'text'; readonly value: string; readonly onValue: (value: string) => void }
+  /** A bound the list was swept on: said, with why, and nothing to type into. */
+  | {
+      readonly shape: 'stated'
+      readonly kind: Kind
+      readonly unit: UnitSystem
+      readonly bound: Bound
+      readonly why: string
+    }
 
 const asked = ({
   ask,
@@ -141,14 +160,21 @@ const asked = ({
   onChosen,
   text,
   onText,
+  why,
 }: ColumnHeadingProps): Asked | null => {
   if (ask === undefined || ask === null) {
     return null
   }
   if (ask.shape === 'range') {
-    return unit === undefined || onBound === undefined
-      ? null
-      : { shape: 'range', kind: ask.kind, unit, bound, onBound }
+    if (unit === undefined) {
+      return null
+    }
+    if (onBound === undefined) {
+      return why === undefined || bound === undefined
+        ? null
+        : { shape: 'stated', kind: ask.kind, unit, bound, why }
+    }
+    return { shape: 'range', kind: ask.kind, unit, bound, onBound }
   }
   if (ask.shape === 'terms') {
     return onChosen === undefined
@@ -167,6 +193,9 @@ const narrowing = (what: Asked | null): boolean => {
       return what.chosen.length > 0
     case 'text':
       return what.value.trim() !== ''
+    // A stated bound is always narrowing: it is why the list holds what it holds.
+    case 'stated':
+      return true
     default:
       return false
   }
@@ -193,6 +222,7 @@ export const ColumnHeading = ({
               code={props.code}
               label={props.label}
               set={narrowing(what)}
+              stated={what.shape === 'stated'}
               open={open}
               onToggle={onOpen}
             />
@@ -229,6 +259,24 @@ export const ColumnFilterMenu = ({
     number has left the geometry's *and* there is something being held back —
     a press that lists nothing is a press with nothing to say.
   */
+  if (what.shape === 'stated') {
+    return (
+      <FilterMenu
+        label={props.label}
+        code={props.code}
+        anchors={anchors}
+        align="right"
+        onClose={onClose}
+      >
+        <div className="max-w-56 min-w-44 px-2 py-1.5">
+          <p className="text-2xs text-zinc-200">
+            {props.label} {sayBound(what.kind, what.bound, what.unit)}
+          </p>
+          <p className="text-2xs mt-1 text-zinc-500">{what.why}</p>
+        </div>
+      </FilterMenu>
+    )
+  }
   const offered = what.shape === 'range' && overrideOffered(what.bound, props.override)
   return (
     <FilterMenu

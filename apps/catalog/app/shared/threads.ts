@@ -31,6 +31,8 @@
  * per row that could be typed wrong instead of two.
  */
 
+import type { ThreadMethod } from '@toolpath/catalog-data'
+
 export interface ThreadSpec {
   /** How it is written on a drawing: `M6×1`, `1/4-20 UNC`. */
   readonly name: string
@@ -392,3 +394,31 @@ export const drillFor = (spec: ThreadSpec, mode: HoleMode): number | null => {
 /** What the second half of the list offers for each mode. */
 export const makerOf = (mode: HoleMode): 'tap' | 'thread mill' | null =>
   mode === 'plain' ? null : mode === 'thread mill' ? 'thread mill' : 'tap'
+
+/**
+ * Which kind of tap the mode is asking for, in the catalog's own word.
+ *
+ * **One choice, read by both lists** (Paul, 2026-09-09: "if I select a cut tap
+ * first, drills for the cut tap should be selected when I go to the drills
+ * page"). Cut tap and form tap are the same decision whichever list is on
+ * screen — the taps it admits and the predrill it sends the drills to are two
+ * consequences of it, not two settings — so the mode is where it is kept and
+ * this is the one translation into what a tool states about itself.
+ *
+ * `null` for a mode no tap makes: a plain hole and a thread mill are both
+ * "every tap, because none of them is the question".
+ */
+export const methodOf = (mode: HoleMode): ThreadMethod | null =>
+  mode === 'cut tap' ? 'cutting' : mode === 'form tap' ? 'forming' : null
+
+/**
+ * The mode a tap puts the hole in, read back off the tool.
+ *
+ * The other direction of {@link methodOf}, and what makes picking a tap decide
+ * the drills: a form tap in the stack means the hole is rolled, so the drill
+ * list under it is the form drill's. A tap stating no method leaves the mode
+ * alone — silence is not a claim, and a store scraped before
+ * `@toolpath/tool-scraper` 2.4.0 is silent about every tap it holds.
+ */
+export const modeFor = (method: ThreadMethod | null | undefined): HoleMode | null =>
+  method === 'cutting' ? 'cut tap' : method === 'forming' ? 'form tap' : null

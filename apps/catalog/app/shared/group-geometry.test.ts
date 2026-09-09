@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PartFeature } from '@toolpath/part-contracts'
-import { groupReadings } from './group-geometry'
+import { groupReadings, sharedHoleDiameter } from './group-geometry'
 
 /**
  * A feature as the kernel reports one, cut straight down.
@@ -141,5 +141,29 @@ describe('what a group measures', () => {
 
   it('has nothing to say about an empty group', () => {
     expect(groupReadings([])).toEqual([])
+  })
+})
+
+/**
+ * **A tap has one nominal size** (Paul, 2026-09-09: threading the full group
+ * from the Group dialog). So a group can be threaded as a group only where it
+ * is holes of one bore, and the editor says so rather than offering a control
+ * that would have to pick one of two.
+ */
+describe('the bore a group shares', () => {
+  it('answers the diameter when every hole is the same', () => {
+    expect(sharedHoleDiameter([hole('a', 20, 5), hole('b', 30, 5)])).toBe(5)
+  })
+
+  it('answers nothing when the holes disagree', () => {
+    expect(sharedHoleDiameter([hole('a', 20, 5), hole('b', 20, 6)])).toBeNull()
+  })
+
+  it('answers nothing for a group holding anything that is not a hole', () => {
+    expect(sharedHoleDiameter([hole('a', 20, 5), pocket('p', 10, 4)])).toBeNull()
+  })
+
+  it('answers nothing for an empty group', () => {
+    expect(sharedHoleDiameter([])).toBeNull()
   })
 })

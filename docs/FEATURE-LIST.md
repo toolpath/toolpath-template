@@ -51,11 +51,49 @@ a pocket is a rougher and a finisher. The sheet has always kept a feature's
 choices as a list, and the page treated it as one — which made the second tool
 for a feature a thing nobody could add.
 
-Both kinds carry **tags**, plural. A bolt circle of eight identical holes is one
-decision and one row everywhere else on the page (`groupOf` in
-`part-interaction`), so a `feature` item already holds eight tags. The
-difference between the two kinds is not how many tags they hold — it is whether
-somebody chose them together.
+Both kinds carry **tags**, plural. The difference between them is not how many
+tags they hold — it is whether somebody chose them together.
+
+**Identical holes group in a group, and nowhere else** (Paul, 2026-09-09: "the
+current hole grouping should only be applied in GROUP. In Add Feature, I should
+be able to select a single hole"). A bolt circle of eight was one decision on
+every path: `groupOf` in `part-interaction` expanded a hole into its siblings
+whatever was being asked, so a click on one of them made a `feature` holding all
+eight and a single hole could not be asked about at all. The expansion is now
+gated on `Interaction.collecting`, which only a group turns on — so a `feature`
+made by clicking a hole holds one tag, and one made from a group holds as many
+as were picked.
+
+What replaced the silent grouping is an **offer**: a hole with siblings raises a
+notice in the reading panel saying how many others are identical, with _Add all
+39 as a group_ and _Just this hole_. `shared/group-offer.ts` is the rule for
+when it is made, and it is four sentences:
+
+- never for a hole with nothing like it, and never while a group or a part-level
+  assembly is being built;
+- never about a group row — a group is what the offer makes;
+- **on a feature row as well as on a bare reading**, and there it _changes that
+  row into a group_ rather than opening a second one beside it. A group beside
+  the feature it came from is two rows for one decision;
+- and only while the decision is open: a feature with tools on the order list is
+  one somebody is buying against, so the offer stands down — unless that row is
+  the one open in the editor, which is exactly the moment for changing one's
+  mind (Paul, 2026-09-09: "when I'm editing the feature … always").
+
+**_Just this hole_ lasts as long as that reading is held**, and no longer (Paul,
+2026-09-09: "if I choose 'just this hole' but then exit without adding a tool
+assembly to the order list, clicking the same hole again does not show the group
+again. It should"). It quiets the notice while somebody works on the hole in
+front of them; it is not an answer about the part, so putting the hole down and
+clicking it again asks afresh.
+
+**A row changed into a group keeps its id and its lines.** The tree is keyed by
+row id, so the stack built on the feature comes with it; the sheet is keyed by
+feature tag and the row's key is its first tag, so `confirmDraft` writes what
+the feature had ordered across the group's tags — where confirming a stack
+writes them. Nothing infers a row's kind from its id, and `nextId` reads id
+prefixes, so a group that began as `feature-3` keeps that id and nothing else is
+ever minted onto it. § 3 has where the offer appears.
 
 ### Result options
 
@@ -115,10 +153,24 @@ Hole` sat under a heading reading `Blind Hole`. `SelectionPanel` and
   heading and the order dialog under it read `Cuts the #4-40 UNC blind hole`
   through `namedInline`, which lowercases the kind and leaves the spec alone:
   `#4-40 unc` is not how a shop writes it.
-- **And the thread is the group's**, not the clicked hole's. Identical holes are
-  one decision (`part-interaction.ts` § `groupOf`) and the demands a thread
-  writes already went to the whole group; keeping the choice against the one tag
-  that was clicked left the row named after a plain hole.
+- **And the thread is what is selected's** (Paul, 2026-09-09: "only what's
+  selected — but I should be able to apply threads to the full group in the
+  Group dialog if desired"). It was written across `groupOf(focused)` — every
+  identical hole on the part — which was the same thing while a hole stood for
+  its siblings, and is a thread on thirty-eight holes nobody chose it for now
+  that one can be asked about alone. `writeThread` in `routes/part.tsx` is the
+  scope: the row or draft being asked about where the hole is part of one, the
+  hole alone where it is not, and in both cases only the holes of that bore —
+  `holesAt` in `shared/hole-mode.ts`, because a choice written across everything
+  selected named a group's pocket `M6×1 Pocket`. `PredrillChoice` writes through
+  the same rule, having written to the focused hole alone until then.
+- **A group is threaded in the group editor.** The editor stands where the
+  reading panel would be, so a bolt circle picked out there had to be taken
+  apart again to say it was tapped. It carries a `ThreadPicker` of its own where
+  every feature in the group is a hole of one bore — `sharedHoleDiameter` in
+  `shared/group-geometry.ts` — and where they are holes that disagree it says
+  so, because a tap has one nominal size and a control that quietly vanished
+  when a second diameter joined would read as a bug.
 
 ### Persistence
 
@@ -177,6 +229,14 @@ Opens the largest reading of the face, previews it, and offers the two ways in.
 Clicking the same face again walks its readings. Clicking a **different** face
 swaps the guess rather than piling up.
 
+**It keeps the one reading, not its identical siblings** (Paul, 2026-09-09).
+Outside a group a hole stands for itself; where it has siblings, the panel
+offers the group instead of taking it — see § 1 — and the offer is made for any
+hole being read rather than only inside the dialog, because a plain click
+followed by _+ Feature_ adds a feature just as the dialog does. It is withheld
+once a row is selected, or while a group or a part-level assembly is being
+built, where there is nothing left to offer.
+
 A click also **puts down whatever row was selected**. A selected row outranks
 the face under the mouse, which is right until somebody clicks the part — at
 which point the page went on answering the row and the click did nothing anybody
@@ -184,7 +244,15 @@ could see. A click on nothing (the whitespace) does the same.
 
 ### A click while a group is being built
 
-A **toggle**, and nothing else:
+**Identical holes group from here.** `{ type: 'group' }` is what turns
+`collecting` on, and it also **grows what is already kept** into whole hole
+groups — so _+ Group_ pressed over a previewed hole, and the offer beside that
+hole, both arrive at the same thirty-nine. The flag is in the state rather than
+on the action because `click`, `read`, `arm`, `step` and `toggle` all expand and
+all have to agree: with it on `click` alone, choosing a direction mid-group
+re-read the face without its group and left the rest of it in `kept` as orphans.
+
+A click itself is a **toggle**, and nothing else:
 
 - a face not in the group goes in;
 - a face already in comes out;
@@ -364,6 +432,15 @@ one.
   the drill.
 - A row with no answer says which question failed: `nothing fits` for a feature,
   `no one tool cuts all of these` for a group.
+- **A line names the vendor and says what the tool is**: `WIDIA TDMX1200 - Bull
+nose end mill`, with the diameter at the right (Paul, 2026-09-09: "I'd like to
+  add the tool type and vendor into the order list … it should say 'Emuge
+  2810.0250 - Flat End Mill'"). A catalog number on its own says neither who
+  makes it nor what it cuts. The words are the tool table's own — `brand` is the
+  Vendor column and `typeLabel` in `shared/tool-type.ts` is the one place a form
+  becomes a phrase — so a line says what the table beside it says about the same
+  tool. The phrase takes the ellipsis before the number does: what a shop orders
+  by keeps its width.
 - **A line wears the name of the stack it stands for**, over the catalog number,
   where the shop called that stack anything (Paul, 2026-09-08: "it still isn't
   showing the name in the order list in the parts page"). The bill holds tools
@@ -589,29 +666,36 @@ true of the work the worker does:
 
 ## 11. Where the rules live
 
-| Rule                                      | File                                             |
-| ----------------------------------------- | ------------------------------------------------ |
-| what the list holds, names, ids, storage  | `app/shared/feature-list.ts`                     |
-| the name a shop gave an assembly row      | `renameItem` / `defaultLabelOf`, same file       |
-| the field that name is typed in           | `app/components/name-field.tsx`                  |
-| what the bottom of the page is asked      | `asked()`, same file                             |
-| which key a row's lines are kept under    | `sheetKeysOf`, same file                         |
-| the three presses that grow the list      | `app/components/add-bar.tsx`                     |
-| a row's answer, and what opens            | `app/shared/recommendations.ts`                  |
-| what a click means                        | `app/shared/part-interaction.ts`                 |
-| the list on screen                        | `app/components/feature-list-panel.tsx`          |
-| building a group                          | `app/components/group-editor.tsx`                |
-| a group's worst case, and whose it is     | `app/shared/group-geometry.ts`                   |
-| the reading and its thread                | `app/components/selection-panel.tsx`             |
-| what a threaded hole is called            | `threadedName`, `app/shared/threads.ts`          |
-| what the panel and the ⓘ dialog call it   | `nameOf`, handed down by `part.tsx`              |
-| the tool table and its marks              | `app/components/part-tool-table.tsx`             |
-| what overruling the rules offers          | `overridableTools`, `shared/tool-fit.ts`         |
-| the warning and its confirm               | `OverrideNotice`, `components/column-filter.tsx` |
-| what a filter is not showing, and the `…` | `TermFilter`, `components/column-filter.tsx`     |
-| what a tick on Type asks of the forms     | `formsAsking`, `app/shared/tool-type.ts`         |
-| which slots were filled against them      | `overrides`, `shared/assembly-tree.ts`           |
-| everything wired together                 | `app/routes/part.tsx`                            |
+| Rule                                       | File                                             |
+| ------------------------------------------ | ------------------------------------------------ |
+| what the list holds, names, ids, storage   | `app/shared/feature-list.ts`                     |
+| the name a shop gave an assembly row       | `renameItem` / `defaultLabelOf`, same file       |
+| the field that name is typed in            | `app/components/name-field.tsx`                  |
+| what the bottom of the page is asked       | `asked()`, same file                             |
+| which key a row's lines are kept under     | `sheetKeysOf`, same file                         |
+| the three presses that grow the list       | `app/components/add-bar.tsx`                     |
+| a row's answer, and what opens             | `app/shared/recommendations.ts`                  |
+| what a click means                         | `app/shared/part-interaction.ts`                 |
+| the list on screen                         | `app/components/feature-list-panel.tsx`          |
+| building a group                           | `app/components/group-editor.tsx`                |
+| a group's worst case, and whose it is      | `app/shared/group-geometry.ts`                   |
+| the one bore a group shares                | `sharedHoleDiameter`, same file                  |
+| whether identical holes group              | `Interaction.collecting`, `part-interaction.ts`  |
+| whether the offer to group them is made    | `app/shared/group-offer.ts`                      |
+| the offer on screen, and both answers      | `identical`, `components/selection-panel.tsx`    |
+| a feature row turned into a group          | `changeToGroup`, `app/routes/part.tsx`           |
+| which key a reading's lines are kept under | `choiceKey`, same file                           |
+| which holes a thread choice is written to  | `writeThread` / `holesAt`, `shared/hole-mode.ts` |
+| the reading and its thread                 | `app/components/selection-panel.tsx`             |
+| what a threaded hole is called             | `threadedName`, `app/shared/threads.ts`          |
+| what the panel and the ⓘ dialog call it    | `nameOf`, handed down by `part.tsx`              |
+| the tool table and its marks               | `app/components/part-tool-table.tsx`             |
+| what overruling the rules offers           | `overridableTools`, `shared/tool-fit.ts`         |
+| the warning and its confirm                | `OverrideNotice`, `components/column-filter.tsx` |
+| what a filter is not showing, and the `…`  | `TermFilter`, `components/column-filter.tsx`     |
+| what a tick on Type asks of the forms      | `formsAsking`, `app/shared/tool-type.ts`         |
+| which slots were filled against them       | `overrides`, `shared/assembly-tree.ts`           |
+| everything wired together                  | `app/routes/part.tsx`                            |
 
 Each pure module owns its tests. `tests/on-the-part.spec.ts` walks the paths that
 begin with a click on the part, against the cube fixture — the only fixture that

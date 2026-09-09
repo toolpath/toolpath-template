@@ -1,5 +1,6 @@
 import type { PartFeature } from '@toolpath/part-contracts'
 import { FIELDS, defaultsFor, readingsFor, type GroupBound, type Unit } from './feature-defaults'
+import { boreOf } from './hole-mode'
 
 /**
  * What a group measures, when the group is asked as one question.
@@ -137,4 +138,33 @@ export const groupReadings = (
       },
     ]
   })
+}
+
+/**
+ * The bore every feature in the group shares, where they share one.
+ *
+ * **A thread has one nominal size**, so a group can be threaded as a group only
+ * when it is holes of one diameter (Paul, 2026-09-09: "I should be able to
+ * apply threads to the full group in the Group dialog if desired"). Six ⌀5
+ * holes take one tap; a ⌀5 and a ⌀6 take two, and offering one control over
+ * both would be picking one of them and hiding the other — the same reason
+ * {@link groupReadings} answers `null` for a `match` field whose features
+ * disagree.
+ *
+ * `null` for an empty group, for anything that is not a hole, and for holes
+ * that disagree.
+ */
+export const sharedHoleDiameter = (features: ReadonlyArray<PartFeature>): number | null => {
+  let held: number | null = null
+  for (const feature of features) {
+    const bore = boreOf(feature)
+    if (bore === null) {
+      return null
+    }
+    if (held !== null && held !== bore) {
+      return null
+    }
+    held = bore
+  }
+  return held
 }

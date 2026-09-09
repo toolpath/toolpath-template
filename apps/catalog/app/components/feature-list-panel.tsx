@@ -4,6 +4,7 @@ import { CaretDownIcon, CaretRightIcon, FolderIcon, FolderOpenIcon } from '@phos
 import { formatGeometry } from 'shared/geometry'
 import type { UnitSystem } from '@toolpath/tool-support'
 import { defaultLabelOf, labelOf, type ListItem } from 'shared/feature-list'
+import { typeLabel } from 'shared/tool-type'
 import type { Pick, RecommendationRow } from 'shared/recommendations'
 import { NameField } from './name-field'
 import { HolderIcon, ToolTypeIcon } from './tool-icons'
@@ -156,6 +157,19 @@ const Answer = ({
 }) => {
   const diameter = pick.tool.geometry.DC
   /*
+    **A catalog number is not a tool** (Paul, 2026-09-09: "I'd like to add the
+    tool type and vendor into the order list — it should say 'Emuge 2810.0250 -
+    Flat End Mill'"). `2810.0250` is what a shop orders by and nothing else: it
+    says neither who makes it nor what it cuts, so a list of them is a list
+    nobody can read without opening every row.
+
+    The words are the Vendor column's and the Type column's — `brand` is what
+    that column is called, and `typeLabel` is the one place a form becomes a
+    phrase (`shared/tool-type.ts`), so a line here says exactly what the table
+    beside it says about the same tool.
+  */
+  const type = typeLabel(pick.tool)
+  /*
     **What it is held in, under it** (Paul, 2026-09-02: "holders and collets
     should also be shown with the tool in the feature list"). A decision is a
     tool *and* what puts it in the spindle, and the cards that used to say so
@@ -170,8 +184,8 @@ const Answer = ({
       // The `<button>` itself, rather than the box inside it — see the row's own.
       full
       aria-pressed={here}
-      aria-label={`${assembly === null ? '' : `${assembly}: `}${pick.tool.catalogNumber} for ${label}`}
-      title={`${assembly === null ? '' : `${assembly} — `}${pick.tool.catalogNumber}${holding === '' ? '' : ` in ${holding}`} — every tool that fits ${label}`}
+      aria-label={`${assembly === null ? '' : `${assembly}: `}${pick.tool.brand} ${pick.tool.catalogNumber}, ${type}, for ${label}`}
+      title={`${assembly === null ? '' : `${assembly} — `}${pick.tool.brand} ${pick.tool.catalogNumber} - ${type}${holding === '' ? '' : ` in ${holding}`} — every tool that fits ${label}`}
       onClick={onOpen}
       className={cn(
         STACKS,
@@ -189,11 +203,20 @@ const Answer = ({
       {assembly === null ? null : (
         <span className="w-full truncate font-medium text-zinc-300">{assembly}</span>
       )}
-      <span className="flex w-full items-center gap-1.5">
+      <span className="flex w-full min-w-0 items-center gap-1.5">
         <span className="shrink-0">
           <ToolTypeIcon toolType={pick.tool.form} />
         </span>
-        <span className="min-w-0 flex-1 truncate font-mono">{pick.tool.catalogNumber}</span>
+        {/*
+          **What it is truncates before what it is called.** The vendor and the
+          catalog number are what a shop orders by, so they keep their width and
+          the phrase behind them takes the ellipsis — a row narrow enough to cut
+          something still reads `Emuge 2810.0250 - Flat end…` rather than
+          `Emuge 2810.02…`.
+        */}
+        <span className="shrink-0">{pick.tool.brand}</span>
+        <span className="min-w-0 shrink truncate font-mono">{pick.tool.catalogNumber}</span>
+        <span className="min-w-0 flex-1 truncate text-zinc-500">- {type}</span>
         <span className="shrink-0 font-mono text-zinc-500">
           {diameter === undefined ? '' : formatGeometry('DC', diameter, unit)}
         </span>

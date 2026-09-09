@@ -81,7 +81,7 @@ export const PartUploadOverlay = ({
           <div className={full ? 'flex size-full max-w-2xl flex-col justify-center' : undefined}>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="font-heading text-xl font-bold text-zinc-100">{title}</h2>
+                <h2 className="font-heading text-lg font-bold text-zinc-100">{title}</h2>
                 <p className="mt-2 max-w-xl text-sm text-zinc-400">{description}</p>
               </div>
               {!busy && onClose ? (
@@ -129,7 +129,7 @@ export const PartUploadOverlay = ({
                     : 'border-zinc-700 bg-zinc-950/70 text-zinc-300 hover:border-zinc-500 hover:bg-zinc-900/70'
                 }`}
               >
-                <span className="text-base font-semibold">Choose or drop a CAD file</span>
+                <span className="text-sm font-semibold">Choose or drop a CAD file</span>
                 <span className="mt-2 text-xs text-zinc-500">{CAD_EXTENSIONS.join(', ')}</span>
                 <input
                   id="replacement-cad"

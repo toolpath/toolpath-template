@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formOfTypeLabel, formsAsking, reducedShank, typeLabel } from './tool-type'
+import { formOfTypeLabel, formsAsking, reducedShank, typeLabel, typesAsking } from './tool-type'
 
 const tool = (geometry: Record<string, number>, form = 'flat end mill') => ({ form, geometry })
 
@@ -117,6 +117,50 @@ describe('what a tick on the Type column asks the form filter', () => {
       ...base,
       'flat end mill',
     ])
+  })
+})
+
+/**
+ * **A filter the page set itself has to look like one somebody set** (Paul,
+ * 2026-09-09: "the filters automatically applied from feature or group
+ * selection are not shown in the column headers"). The forms a feature or a
+ * thread writes have no control of their own, so the Type column reads its
+ * ticks off them.
+ */
+describe('what the Type column shows the form filter asking for', () => {
+  const offered = ['Bull nose end mill', 'Drill', 'Flat end mill', 'Reduced shank flat end mill']
+
+  it('ticks every phrase of a form the filter is asking for', () => {
+    expect(typesAsking(['flat end mill'], [], offered)).toEqual([
+      'Flat end mill',
+      'Reduced shank flat end mill',
+    ])
+  })
+
+  it('ticks nothing where the form filter says nothing', () => {
+    expect(typesAsking([], [], offered)).toEqual([])
+  })
+
+  /**
+   * From the first untick the column is answering for itself, and `formsAsking`
+   * carries that answer back to the forms — so the ticks have to be that answer
+   * rather than the forms it was made from, or the untick would be drawn on again.
+   */
+  it('shows what somebody set over what the forms would say', () => {
+    expect(typesAsking(['flat end mill'], ['Flat end mill'], offered)).toEqual(['Flat end mill'])
+  })
+
+  /**
+   * Only what the column is showing: a tick in the greyed `…` half would say
+   * the list is holding a tool it is not.
+   */
+  it('never ticks a phrase the list is not offering', () => {
+    expect(typesAsking(['drill', 'flat end mill'], [], ['Drill'])).toEqual(['Drill'])
+  })
+
+  /** A phrase this catalog did not build is not a form, so it is not ticked. */
+  it('leaves a phrase outside the vocabulary alone', () => {
+    expect(typesAsking(['flat end mill'], [], ['Multi-flute wonder cutter'])).toEqual([])
   })
 })
 

@@ -361,31 +361,33 @@ export interface Catalog {
  * existing dataset and writes what a fresh ingest would. A tool that states no
  * flute length now carries neither field, where a version-7 document gave it
  * both from `OAL` and `SFDM` alone.
- */
-/**
- * Bumped when the catalog document changes shape in a way a reader must handle.
  *
  * 9 renamed `unitSystem`'s two values from `metric`/`inch` to
  * `@toolpath/tool-support`'s `millimeters`/`inches`. A version-8 document
  * carries the old spelling in `families[].unitSystem`, `tools[].unitSystem` and
  * the `unitSystem` facet, and reading one as a 9 would silently give every tool
  * a unit system this vocabulary has no word for.
- *
- * **10 is owed, and deliberately not taken yet.** `threadMethod` is in the
- * shape as of this change, but no scraped store holds a value for it: the
- * label arrives with `@toolpath/tool-scraper` 2.4.0, which is not published,
- * and every tap in an existing store stays `null` until its families are
- * scraped again. Adding a field nothing fills is readable at 9 — an unaware
- * reader ignores it, an aware one reads the silence the `productLine` rule
- * already defines — so a bump now would buy nothing and cost something:
- * `dataset-source.ts` refuses a version-mismatched `scrape-out/catalog.json`
- * and falls back to the nine-tool sample, so bumping ahead of the re-scrape
- * would quietly empty a working build.
- *
- * Take the bump **with** the re-scrape, for the reason 6 took one: a labelled
- * store and an unlabelled one are both version 9 and nothing tells them apart,
- * which is the same ambiguity `productLine` bumped to escape. Re-ingest the
- * store rather than rebuild — `rebuild.mjs` works forwards from a built
- * dataset and would only write `null` again.
  */
-export const CATALOG_VERSION = 9
+/**
+ * Bumped when the catalog document changes shape in a way a reader must handle.
+ *
+ * 10 — every tap states whether it cuts its thread or forms it, and there are
+ * forming taps to state it about. `threadMethod` entered the shape at 9 with
+ * nothing to fill it: the label arrives on a record with
+ * `@toolpath/tool-scraper` 2.4.0, which also reaches EMUGE's `FG02` — the only
+ * forming-tap family any of these vendors publishes, and 1,432 tools that were
+ * not in a version-9 store at all.
+ *
+ * **The bump is taken with the re-scrape, not before it**, for the reason 6
+ * took one: a labelled store and an unlabelled one are both version 9 and
+ * nothing tells them apart, and reading an unlabelled one as a 10 would say
+ * every tap in it is of unknown method when in fact nobody ever asked. Ahead of
+ * the re-scrape it would have cost something too — `dataset-source.ts` refuses
+ * a version-mismatched `scrape-out/catalog.json` and falls back to the
+ * nine-tool sample, so a bump with no re-ingest behind it quietly empties a
+ * working build.
+ *
+ * Re-ingest the store rather than rebuild: `rebuild.mjs` works forwards from a
+ * built dataset and would only write `null` again.
+ */
+export const CATALOG_VERSION = 10

@@ -22,10 +22,23 @@ export const ensureStore = () => {
   mkdirSync(HOLDING, { recursive: true })
 }
 
+/**
+ * A family document in the store, as opposed to something written beside it.
+ *
+ * `profiles.mjs` writes its measurements into `toolholding/` as
+ * `<family>.profiles.json`, so "every `.json` in the directory" stopped meaning
+ * "every family" the day the first holder was measured. A profiles document
+ * keys its `holders` by guid rather than listing them, and `flatMap` folds an
+ * object in as a single element — so each one became one holder with no
+ * catalog number and no clamping, and `ingest` refused the whole run on the
+ * first of them (2026-09-08). Five junk holders, and every re-ingest blocked.
+ */
+export const isFamilyDocument = (name) => name.endsWith('.json') && !name.endsWith('.profiles.json')
+
 const documentsIn = (directory) =>
   existsSync(directory)
     ? readdirSync(directory)
-        .filter((name) => name.endsWith('.json'))
+        .filter(isFamilyDocument)
         .sort()
         .map((name) => JSON.parse(readFileSync(resolve(directory, name), 'utf8')))
     : []

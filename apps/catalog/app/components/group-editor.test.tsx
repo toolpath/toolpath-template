@@ -210,3 +210,41 @@ describe('what the group measures', () => {
     expect(screen.queryByText('Worst case in the group')).toBeNull()
   })
 })
+
+/**
+ * **A group of holes is threaded as a group** (Paul, 2026-09-09: "I should be
+ * able to apply threads to the full group in the Group dialog if desired").
+ * The thread is named on the reading panel and this box stands in its place
+ * while a group is being built, so without it a bolt circle picked out here had
+ * to be taken apart again to say it was tapped.
+ */
+describe('threading the whole group', () => {
+  it('offers the thread where every hole in the group is one bore', () => {
+    show({
+      tags: ['hole-1', 'hole-2'],
+      thread: { holeDiameter: 5, mode: 'plain', spec: null, onChange: vi.fn() },
+    })
+
+    expect(screen.getByRole('combobox', { name: /Thread/ })).toBeInTheDocument()
+  })
+
+  /**
+   * A tap has one nominal size, so a group of a ⌀5 and a ⌀6 is two threads —
+   * and a control that quietly disappeared when the second hole joined would
+   * read as a bug rather than as a fact about the group.
+   */
+  it('says why it cannot, where the holes are different sizes', () => {
+    show({ tags: ['hole-1', 'hole-2'], mixed: true })
+
+    expect(screen.getByText(/different sizes, so they cannot share one thread/)).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /Thread/ })).not.toBeInTheDocument()
+  })
+
+  /** And a group holding no holes at all is asked nothing about threads. */
+  it('says nothing about threads for a group that is not holes', () => {
+    show()
+
+    expect(screen.queryByText(/cannot share one thread/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /Thread/ })).not.toBeInTheDocument()
+  })
+})

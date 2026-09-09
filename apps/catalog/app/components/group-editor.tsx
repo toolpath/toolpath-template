@@ -4,8 +4,10 @@ import type { UnitSystem } from '@toolpath/tool-support'
 import type { Results } from 'shared/feature-list'
 import { readingText } from 'shared/feature-defaults'
 import type { GroupReading } from 'shared/group-geometry'
+import type { HoleMode, ThreadSpec } from 'shared/threads'
 import { useEscape } from 'shared/use-escape'
 import { MeasurementIcon } from './feature-icons'
+import { ThreadPicker } from './thread-picker'
 
 /**
  * Building a group: which features are in it.
@@ -71,6 +73,34 @@ export interface GroupEditorProps {
   readonly readings?: ReadonlyArray<GroupReading>
   /** The unit the numbers are read in. */
   readonly unit: UnitSystem
+  /**
+   * The thread the whole group is for, where the group can have one.
+   *
+   * **A group of holes is threaded as a group** (Paul, 2026-09-09: "I should be
+   * able to apply threads to the full group in the Group dialog if desired").
+   * The reading panel is where a thread is named, and this box replaces it
+   * while a group is being built — so a bolt circle picked out here had no way
+   * to say it was tapped without being taken apart again.
+   *
+   * Absent unless every feature in the group is a hole of one bore
+   * (`sharedHoleDiameter`): a tap has one nominal size, so a group of a ⌀5 and
+   * a ⌀6 is two threads and this control would have to pick one of them. That
+   * case says so in {@link mixed} instead.
+   */
+  readonly thread?: {
+    readonly holeDiameter: number
+    readonly mode: HoleMode
+    readonly spec: ThreadSpec | null
+    readonly onChange: (choice: { mode: HoleMode; spec: ThreadSpec | null }) => void
+  }
+  /**
+   * Whether the group holds holes that cannot share one thread.
+   *
+   * Said rather than left blank: a control that disappears when a second
+   * diameter joins the group reads as a bug, and the reason is a fact about the
+   * group worth knowing before it is quoted.
+   */
+  readonly mixed?: boolean
 }
 
 /**
@@ -106,6 +136,8 @@ export const GroupEditor = ({
   matching = 'ready',
   readings = [],
   unit,
+  thread,
+  mixed = false,
 }: GroupEditorProps) => {
   /*
     Escape puts the draft down, the same as Cancel.
@@ -214,6 +246,28 @@ export const GroupEditor = ({
             ))}
           </dl>
         </div>
+      ) : null}
+
+      {/*
+        **A group of holes is threaded as a group** (Paul, 2026-09-09). The
+        thread is named on the reading panel, and this box stands in its place
+        while a group is being built; without it a bolt circle picked out here
+        had to be taken apart again to say it was tapped. It applies to every
+        hole in the group — `writeThread` in the route is the scope.
+      */}
+      {thread ? (
+        <ThreadPicker
+          holeDiameter={thread.holeDiameter}
+          mode={thread.mode}
+          spec={thread.spec}
+          onChange={thread.onChange}
+          unit={unit}
+        />
+      ) : mixed ? (
+        <p className="text-2xs border-t border-zinc-900 pt-1.5 text-zinc-500">
+          The holes in this group are different sizes, so they cannot share one thread. Thread them
+          one at a time.
+        </p>
       ) : null}
 
       <div className="flex items-center gap-1.5">

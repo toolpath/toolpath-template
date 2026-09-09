@@ -32,8 +32,8 @@ const show = (props: Partial<Parameters<typeof PredrillChoice>[0]> = {}) => {
 }
 
 const rows = () => ({
-  cut: screen.getByRole('button', { name: /^Tap drill/ }),
-  form: screen.getByRole('button', { name: /^Form drill/ }),
+  cut: screen.getByRole('button', { name: /^Cut Tap/ }),
+  form: screen.getByRole('button', { name: /^Form Tap/ }),
 })
 
 describe('what it offers', () => {

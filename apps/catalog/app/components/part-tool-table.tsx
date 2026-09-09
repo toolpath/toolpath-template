@@ -18,7 +18,7 @@ import { Button, Combobox, Table, cn } from '@toolpath/ui'
 import type { CatalogTool, Holder } from '@toolpath/catalog-data'
 import type { UnitSystem } from '@toolpath/tool-support'
 import { formatGeometry } from 'shared/geometry'
-import { askOfToolColumn } from 'shared/column-filters'
+import { askOfToolColumn, type ColumnAsk } from 'shared/column-filters'
 import { familyName } from 'shared/catalog'
 import { typeLabel } from 'shared/tool-type'
 import type { ToolQuery } from 'shared/filter'
@@ -403,6 +403,17 @@ export interface ToolColumnFiltering {
   /** The catalog-number search, which every list of tools narrows on. */
   readonly search: { readonly value: string; readonly onChange: (value: string) => void }
   /**
+   * Which question each heading asks, where it is not the tool list's own.
+   *
+   * A tap list answers two of them and sorts on the rest — its rows are swept
+   * out of the catalog by the thread rather than narrowed by the whole query —
+   * so it hands in `askOfTapColumn`. The rule is still
+   * `shared/column-filters.ts`'s either way; this only says which of its rules
+   * this list is under, so a heading cannot end up with a funnel over a filter
+   * nothing applies.
+   */
+  readonly ask?: (code: string) => ColumnAsk | null
+  /**
    * The tool query, where the rows are drawn from it.
    *
    * **A tap list is not.** Its rows come from the thread — `makersFor` sweeps
@@ -413,7 +424,14 @@ export interface ToolColumnFiltering {
   readonly catalog?: {
     readonly query: ToolQuery
     readonly onTerm: (axis: string, values: ReadonlyArray<string>) => void
-    readonly onRange: (code: string, bound: Bound | undefined) => void
+    /**
+     * A column's limit, where this list narrows on numbers at all.
+     *
+     * Absent on the tap list, whose numbers are what the thread already
+     * decided — and a range column with nowhere to send its answer asks
+     * nothing, which is the same silence `ask` states from the other side.
+     */
+    readonly onRange?: (code: string, bound: Bound | undefined) => void
     /** What an axis has among the tools on show, with how many wear each. */
     readonly options: (
       axis: string,
@@ -436,6 +454,15 @@ export interface ToolColumnFiltering {
     readonly hidden?: (
       axis: string,
     ) => ReadonlyArray<{ readonly value: string; readonly label: string }>
+    /**
+     * Where a bound this list was swept on came from, for the columns that
+     * state one rather than asking it.
+     *
+     * A tap's thread diameter and thread length are the thread's and the hole's
+     * — `shared/hole-mode.ts` § `tapBounds` — and no box here can argue with
+     * them, so the heading says the number and why instead of offering two.
+     */
+    readonly stated?: (code: string) => string | undefined
   }
 }
 
@@ -575,7 +602,7 @@ export const PartToolTable = ({
     if (filtering === undefined) {
       return { code, label }
     }
-    const ask = askOfToolColumn(code)
+    const ask = (filtering.ask ?? askOfToolColumn)(code)
     const catalog = filtering.catalog
     if (ask?.shape === 'text') {
       return {
@@ -590,17 +617,23 @@ export const PartToolTable = ({
       return { code, label }
     }
     const axis = ask !== null && ask.shape === 'terms' ? ask.axis : null
+    const onRange = catalog.onRange
     return {
       code,
       label,
       ask,
       unit,
       bound: catalog.query.ranges[code],
-      onBound: (bound) => catalog.onRange(code, bound),
+      ...(onRange === undefined
+        ? {}
+        : { onBound: (bound: Bound | undefined) => onRange(code, bound) }),
       options: axis === null ? undefined : catalog.options(axis),
       chosen: axis === null ? undefined : (catalog.query.terms[axis] ?? []),
       onChosen: axis === null ? undefined : (values) => catalog.onTerm(axis, values),
       ...(ask?.shape === 'range' ? { override: catalog.override?.(code) } : {}),
+      ...(ask?.shape === 'range' && catalog.stated?.(code) !== undefined
+        ? { why: catalog.stated(code) }
+        : {}),
       ...(axis === null ? {} : { hidden: catalog.hidden?.(axis) }),
     }
   }
@@ -807,21 +840,29 @@ export const ToolTableToolbar = ({
   filters?: ReactNode
   actions?: ReactNode
   onClear: () => void
-  /** How many questions are narrowing the list, in a header or on a button. */
-  set: number
+  /**
+   * What is narrowing the list, named the way the list names it.
+   *
+   * **A count nobody can decompose is not an answer** (Paul, 2026-09-09: "in
+   * Tap, it shows 'Clear 4 filters' but I only see tool type. What are the 4
+   * filters active? It needs to be visible."). Names rather than a number, so
+   * the press can say which — `shared/column-filters.ts` § `narrowingNames`
+   * builds them, and the list that is open is what names them.
+   */
+  set: ReadonlyArray<string>
 }) => (
   <>
     <div data-part-tool-table-toolbar className="flex flex-wrap items-center justify-end gap-1">
-      {set === 0 ? null : (
+      {set.length === 0 ? null : (
         <Button
           type="button"
           size="sm"
           variant="secondary"
-          title="Clear every filter, including the ones set in a column header"
+          title={`Narrowed by ${set.join(', ')}. Clearing puts every one of them back, including the ones set in a column header.`}
           onClick={onClear}
           className="rounded border border-zinc-800 px-2 py-1 text-xs text-zinc-300 hover:border-zinc-700"
         >
-          Clear {set} filter{set === 1 ? '' : 's'}
+          Clear {set.length} filter{set.length === 1 ? '' : 's'}
         </Button>
       )}
       {filters}

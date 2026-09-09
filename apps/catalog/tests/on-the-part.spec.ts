@@ -377,7 +377,9 @@ test('a tool is read in the panel and reaches the bill with its feature', async 
   await expect(list).toBeHidden()
 
   await tree.getByRole('button', { name: 'Add to order list' }).click()
-  await expect(list.getByRole('button', { name: new RegExp(`^${number} for `) })).toBeVisible()
+  // The line leads with the vendor and carries what the tool is, so the number
+  // it is ordered by sits in the middle of it.
+  await expect(list.getByRole('button', { name: new RegExp(`${number}, .+ for `) })).toBeVisible()
 
   /**
    * **And it reaches the bill, under the number a shop orders by** (Paul,
@@ -616,6 +618,60 @@ test('offers what the Type column is not showing, and asks for it', async ({ pag
   // Both halves, in the URL where every filter on this page lives.
   await expect(page).toHaveURL(/type=Drill/)
   await expect(page).toHaveURL(/form=drill/)
+})
+
+/**
+ * **A filter the page set itself has to look like one somebody set** (Paul,
+ * 2026-09-09: "the filters automatically applied from feature or group
+ * selection are not shown in the column headers. I'd like to automatically
+ * apply them and show which filters are applied in the column headers, as if
+ * the automatically applied filters were applied manually").
+ *
+ * Clicking a face writes the defaults sheet's tool types into the `form` axis
+ * and the rules sheet's `must` bounds into the ranges. The ranges have columns
+ * and their funnels filled; `form` has none — the Type column asks the same
+ * question in the trade's phrases (`column-filters.ts` § `AXES_PARKED`) — so
+ * the chrome read `Clear 2 filters` over a table whose every heading looked
+ * untouched. `shared/tool-type.ts` § `typesAsking` is the rule.
+ */
+test('says in the headings what the feature narrowed the list by', async ({ page }) => {
+  await ready(page)
+
+  // The bound the rules put on a column of its own, and the tool types that
+  // have none — both filled, both saying what they are narrowing on.
+  await expect(
+    page.getByRole('button', { name: 'Filter by Flute length', exact: true }),
+  ).toHaveAttribute('title', 'Filtered by Flute length')
+  await expect(page.getByRole('button', { name: 'Filter by Type', exact: true })).toHaveAttribute(
+    'title',
+    'Filtered by Type',
+  )
+
+  await page.getByRole('button', { name: 'Filter by Type', exact: true }).click()
+  const types = page.getByRole('group', { name: 'Type' })
+  for (const each of await types.getByRole('checkbox').all()) {
+    await expect(each).toBeChecked()
+  }
+
+  // Ticked without being written: the forms stay the one place the filter
+  // lives, so every other press that writes them cannot leave a stale phrase
+  // behind it.
+  await expect(page).toHaveURL(/form=flat\+end\+mill/)
+  await expect(page).not.toHaveURL(/[?&]type=/)
+
+  /*
+    **And the count is the funnels somebody can see** (Paul, 2026-09-09: "it
+    shows 'Clear 4 filters' but I only see tool type. What are the 4 filters
+    active? It needs to be visible."). It named axes, so `form` and the Type
+    column it is asked in counted twice; it names the columns now, and the
+    press says which.
+  */
+  await page.keyboard.press('Escape')
+  const clear = page.getByRole('button', { name: /^Clear \d+ filters?$/ })
+  const filled = page.locator('[data-column-funnel] button[title^="Filtered by"]')
+  await expect(clear).toHaveAttribute('title', /Narrowed by .*Type/)
+  await expect(clear).toHaveAttribute('title', /Flute length/)
+  expect(await clear.innerText()).toBe(`Clear ${String(await filled.count())} filters`)
 })
 
 /**
@@ -1452,13 +1508,21 @@ test.describe('the tool assembly tree', () => {
     const before = await offered()
     expect(before.length).toBeGreaterThan(1)
 
-    await picker.getByRole('checkbox', { name: before[0]!, exact: true }).click()
+    /*
+      The column arrives ticked: the feature's own tool types are what the list
+      is narrowed by, and since 2026-09-09 the heading says so rather than
+      leaving the page's filter invisible. So answering it yourself starts by
+      taking one off.
+    */
     await expect(picker.getByRole('checkbox', { name: before[0]!, exact: true })).toBeChecked()
+    await picker.getByRole('checkbox', { name: before[0]!, exact: true }).click()
+    await expect(picker.getByRole('checkbox', { name: before[0]!, exact: true })).not.toBeChecked()
     expect(await offered()).toEqual(before)
 
-    await picker.getByRole('checkbox', { name: before[1]!, exact: true }).click()
-    await expect(picker.getByRole('checkbox', { name: before[1]!, exact: true })).toBeChecked()
+    // And putting it back is a press, rather than a clear-and-start-again.
+    await picker.getByRole('checkbox', { name: before[0]!, exact: true }).click()
     await expect(picker.getByRole('checkbox', { name: before[0]!, exact: true })).toBeChecked()
+    await expect(picker.getByRole('checkbox', { name: before[1]!, exact: true })).toBeChecked()
   })
 
   /**

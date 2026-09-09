@@ -1,4 +1,4 @@
-import { Combobox, IconButton, cn } from '@toolpath/ui'
+import { Button, Combobox, IconButton, cn } from '@toolpath/ui'
 import { InfoIcon } from '@phosphor-icons/react'
 import type { PartFeature } from '@toolpath/part-contracts'
 import {
@@ -33,7 +33,15 @@ export interface SelectionPanelProps {
    * without one, the kernel's own kind stands in.
    */
   readonly nameOf?: (featureTag: string) => string
-  /** Identical holes this one stands for, so the field can say how many. */
+  /**
+   * Identical holes on the part, this one included.
+   *
+   * **It is a count of the part, not of this reading** (Paul, 2026-09-09).
+   * Until then a hole *stood for* its siblings — every path through
+   * `part-interaction` expanded it — so the badge said how many features the
+   * row would hold. A hole is asked about on its own now, and the number is
+   * what makes {@link SelectionPanelProps.identical} worth offering.
+   */
   readonly siblings: number
   readonly onInfo: () => void
   /**
@@ -51,6 +59,26 @@ export interface SelectionPanelProps {
   readonly directionOf?: (feature: PartFeature) => number | null
   /** Whether the reading was named rather than guessed by the click. */
   readonly chose?: boolean
+  /**
+   * The offer to ask about every identical hole at once, where there are some.
+   *
+   * **Grouping identical holes is a GROUP rule** (Paul, 2026-09-09: "In Add
+   * Feature, I should be able to select a single hole. The Add Feature Dialog
+   * should warn me there are other identical holes and ask if I want to add
+   * them in a group"). So the panel states the fact and offers both answers:
+   * taking it switches to the group editor with all of them in, and *Just this
+   * hole* puts the offer away for this reading and leaves an individual
+   * feature to be added.
+   *
+   * Absent for a lone hole, for anything that is not a hole, and while a group
+   * is already being built — there is nothing left to offer there.
+   */
+  readonly identical?: {
+    /** How many, this one included: the number the press names. */
+    readonly count: number
+    readonly onGroup: () => void
+    readonly onDismiss: () => void
+  }
   /**
    * Hole mode: what this hole is threaded for, and how to say otherwise.
    *
@@ -105,6 +133,7 @@ export const SelectionPanel = ({
   directionOf,
   colourOf,
   chose = true,
+  identical,
   thread,
 }: SelectionPanelProps) => {
   const ways = new Set(
@@ -210,7 +239,7 @@ export const SelectionPanel = ({
             {siblings > 1 ? (
               <span
                 className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 font-semibold text-zinc-300"
-                title={`${String(siblings)} identical holes — same diameter, depth and way up`}
+                title={`${String(siblings)} identical holes on this part — same diameter, depth and way up. This is one of them.`}
               >
                 ×{siblings}
               </span>
@@ -240,6 +269,33 @@ export const SelectionPanel = ({
        *which way up* — so the field points at them (Paul, 2026-08-31). */}
       {ways.size > 1 ? (
         <p className="text-2xs text-zinc-500">click an arrow for machining direction</p>
+      ) : null}
+
+      {/*
+        **The offer, not the grouping** (Paul, 2026-09-09). A hole used to be
+        kept with its identical siblings whatever was being asked, so a bolt
+        circle could not be asked about one hole at a time; the grouping is a
+        group's rule now and this is where it is offered. Both answers are
+        here — taking it opens the group editor with all of them in it, and
+        *Just this hole* leaves the individual feature the footer will add.
+      */}
+      {identical ? (
+        <div className="border-info/40 bg-info/10 flex flex-col gap-1.5 rounded border px-2 py-1.5">
+          <p className="text-2xs text-zinc-300">
+            {identical.count - 1 === 1
+              ? 'One other hole on this part is identical'
+              : `${String(identical.count - 1)} other holes on this part are identical`}{' '}
+            — same diameter, depth and way up.
+          </p>
+          <div className="flex items-center gap-1.5">
+            <Button size="sm" variant="secondary" onClick={identical.onGroup}>
+              Add all {identical.count} as a group
+            </Button>
+            <Button size="sm" variant="muted" onClick={identical.onDismiss}>
+              Just this hole
+            </Button>
+          </div>
+        </div>
       ) : null}
 
       {/* The measurement row keeps its height while it is empty, for the same

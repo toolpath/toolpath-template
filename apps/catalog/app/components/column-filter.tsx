@@ -557,12 +557,24 @@ export const FilterFunnel = ({
   code,
   label,
   set,
+  stated = false,
   open,
   onToggle,
 }: {
   readonly code: string
   readonly label: string
   readonly set: boolean
+  /**
+   * Whether this column is narrowed by the part rather than by an answer.
+   *
+   * **A filter somebody set and a bound the thread set are not the same mark**
+   * (Paul, 2026-09-09). A tap's thread diameter and thread length come from the
+   * spec and the depth — `column-filters.ts` § `askOfTapColumn` — so they are
+   * filled, because the list is genuinely narrowed on them, and grey rather than
+   * lit, because `Clear n filters` cannot clear them and nothing on the page
+   * should suggest it can. Pressing one says the number and why.
+   */
+  readonly stated?: boolean
   readonly open: boolean
   readonly onToggle: () => void
 }) => (
@@ -578,7 +590,13 @@ export const FilterFunnel = ({
       variant="muted"
       aria-label={`Filter by ${label}`}
       aria-expanded={open}
-      title={set ? `Filtered by ${label}` : `Filter by ${label}`}
+      title={
+        stated
+          ? `Narrowed by ${label} — set by what is being cut, not by a filter. Press to see why.`
+          : set
+            ? `Filtered by ${label}`
+            : `Filter by ${label}`
+      }
       onPointerDown={onToggle}
       onClick={(event) => {
         if (event.detail === 0) {
@@ -595,9 +613,11 @@ export const FilterFunnel = ({
       */
       style={{ pointerEvents: 'auto' }}
       className={
-        set
-          ? 'text-info rounded p-0.5 hover:bg-zinc-800'
-          : 'rounded p-0.5 text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300'
+        stated
+          ? 'rounded p-0.5 text-zinc-400 hover:bg-zinc-800'
+          : set
+            ? 'text-info rounded p-0.5 hover:bg-zinc-800'
+            : 'rounded p-0.5 text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300'
       }
     >
       {set ? <FunnelIcon weight="fill" /> : <FunnelSimpleIcon />}

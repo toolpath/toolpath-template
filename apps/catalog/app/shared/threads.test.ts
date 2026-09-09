@@ -4,7 +4,9 @@ import {
   readLabel,
   threadOptions,
   makerOf,
+  methodOf,
   minorOf,
+  modeFor,
   threadNamed,
   threadedName,
   threadsFor,
@@ -214,5 +216,40 @@ describe('what a threaded hole is called', () => {
   /** The kind is kept whatever it is: the spec is a prefix, not a replacement. */
   it('keeps whatever the feature is called', () => {
     expect(threadedName('Through Hole', spec)).toBe('M8×1.25 Through Hole')
+  })
+})
+
+/**
+ * **One decision, read by two lists** (Paul, 2026-09-09: "if I select a cut tap
+ * first, drills for the cut tap should be selected when I go to the drills
+ * page"). The mode is where cut-or-form is kept; these two are the whole
+ * translation between it and what a tap states about itself, so a list filtered
+ * one way and a drill chosen the other cannot happen.
+ */
+describe('which kind of tap a mode asks for', () => {
+  it('asks for the method the mode is named after', () => {
+    expect(methodOf('cut tap')).toBe('cutting')
+    expect(methodOf('form tap')).toBe('forming')
+  })
+
+  /** Neither is made with a tap, so neither asks anything of a tap list. */
+  it('asks for nothing where no tap makes the thread', () => {
+    expect(methodOf('plain')).toBeNull()
+    expect(methodOf('thread mill')).toBeNull()
+  })
+
+  it('reads the mode back off the tap that was picked', () => {
+    expect(modeFor('cutting')).toBe('cut tap')
+    expect(modeFor('forming')).toBe('form tap')
+  })
+
+  /**
+   * A tap scraped before `@toolpath/tool-scraper` 2.4.0 says nothing about how
+   * it makes a thread, and reading that silence as `cut tap` would move the
+   * drills of a hole nobody had decided about.
+   */
+  it('leaves the mode alone where the tap states no method', () => {
+    expect(modeFor(null)).toBeNull()
+    expect(modeFor(undefined)).toBeNull()
   })
 })

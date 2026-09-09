@@ -202,8 +202,9 @@ describe('a click on a face', () => {
 describe('a click while a group is being built', () => {
   it('adds the face to what is kept rather than swapping the last one out', () => {
     const state = run(
-      { type: 'click', pick: pickForRegion(5, ['hole-a']), collecting: true },
-      { type: 'click', pick: face(), collecting: true },
+      { type: 'group' },
+      { type: 'click', pick: pickForRegion(5, ['hole-a']) },
+      { type: 'click', pick: face() },
     )
 
     // The two holes are identical, so one click keeps both: a bolt circle is
@@ -215,9 +216,10 @@ describe('a click while a group is being built', () => {
   /** And clicking one that is already in takes it out (Paul, 2026-09-02). */
   it('takes a face out again when it is already in', () => {
     const state = run(
-      { type: 'click', pick: pickForRegion(5, ['hole-a']), collecting: true },
-      { type: 'click', pick: face(), collecting: true },
-      { type: 'click', pick: pickForRegion(5, ['hole-a']), collecting: true },
+      { type: 'group' },
+      { type: 'click', pick: pickForRegion(5, ['hole-a']) },
+      { type: 'click', pick: face() },
+      { type: 'click', pick: pickForRegion(5, ['hole-a']) },
     )
 
     expect(state.kept).toEqual(['pocket'])
@@ -231,9 +233,10 @@ describe('a click while a group is being built', () => {
    */
   it('takes the face out on a second press rather than walking its readings', () => {
     const state = run(
-      { type: 'click', pick: pickForRegion(5, ['hole-a']), collecting: true },
-      { type: 'click', pick: face(), collecting: true },
-      { type: 'click', pick: face(), collecting: true },
+      { type: 'group' },
+      { type: 'click', pick: pickForRegion(5, ['hole-a']) },
+      { type: 'click', pick: face() },
+      { type: 'click', pick: face() },
     )
 
     expect(state.kept).toEqual(['hole-a', 'hole-b'])
@@ -246,8 +249,9 @@ describe('a click while a group is being built', () => {
    */
   it('replaces the guess when a direction is chosen for it', () => {
     const state = run(
-      { type: 'click', pick: pickForRegion(5, ['hole-a']), collecting: true },
-      { type: 'click', pick: face(), collecting: true },
+      { type: 'group' },
+      { type: 'click', pick: pickForRegion(5, ['hole-a']) },
+      { type: 'click', pick: face() },
       { type: 'arm', direction: 1 },
     )
 
@@ -263,8 +267,9 @@ describe('a click while a group is being built', () => {
 describe('putting everything down at once', () => {
   it('leaves nothing read and nothing kept', () => {
     const state = run(
-      { type: 'click', pick: pickForRegion(5, ['hole-a']), collecting: true },
-      { type: 'click', pick: face(), collecting: true },
+      { type: 'group' },
+      { type: 'click', pick: pickForRegion(5, ['hole-a']) },
+      { type: 'click', pick: face() },
       { type: 'reset' },
     )
 
@@ -281,7 +286,7 @@ describe('what is kept by hand', () => {
     )
 
     // The walk swapped the guess for `wall`; the hole, ticked by hand, stayed.
-    expect(state.kept).toEqual(['hole-a', 'hole-b', 'wall'])
+    expect(state.kept).toEqual(['hole-a', 'wall'])
     expect(state.guessed).toEqual(['wall'])
   })
 
@@ -293,14 +298,85 @@ describe('what is kept by hand', () => {
     expect(state.guessed).toEqual([])
   })
 
-  it('keeps and drops a hole with its identical siblings', () => {
+  /**
+   * **A hole stands for itself outside a group** (Paul, 2026-09-09: "the current
+   * hole grouping should only be applied in GROUP. In Add Feature, I should be
+   * able to select a single hole"). Every path here used to expand a hole into
+   * its identical siblings, so one hole of a bolt circle could not be asked
+   * about at all — the row it made held all of them.
+   */
+  it('keeps one hole alone, siblings or no siblings', () => {
     expect(groupOf(PART.features, 'hole-a')).toEqual(['hole-a', 'hole-b'])
 
     const kept = run({ type: 'toggle', featureTag: 'hole-a' })
+    expect(kept.kept).toEqual(['hole-a'])
+
+    const dropped = reduce(kept, { type: 'toggle', featureTag: 'hole-a' })
+    expect(dropped.kept).toEqual([])
+  })
+
+  /** And inside a group it keeps and drops the whole set, as it always did. */
+  it('keeps and drops a hole with its identical siblings while a group is being built', () => {
+    const kept = run({ type: 'group' }, { type: 'toggle', featureTag: 'hole-a' })
     expect(kept.kept).toEqual(['hole-a', 'hole-b'])
 
     const dropped = reduce(kept, { type: 'toggle', featureTag: 'hole-b' })
     expect(dropped.kept).toEqual([])
+  })
+})
+
+/**
+ * **Grouping identical holes is what opening a group means** (Paul,
+ * 2026-09-09). Pressing *+ Group* over a previewed hole, or taking the offer
+ * the reading panel makes beside one, has to arrive at every hole like it.
+ */
+describe('opening a group', () => {
+  it('grows the hole being read into its identical siblings', () => {
+    const read = run({ type: 'click', pick: pickForRegion(5, ['hole-a']) })
+    expect(read.kept).toEqual(['hole-a'])
+
+    const grouped = reduce(read, { type: 'group' })
+    expect(grouped.kept).toEqual(['hole-a', 'hole-b'])
+    // The guess grows with it, so choosing a direction next replaces the whole
+    // set rather than leaving the sibling behind.
+    expect(grouped.guessed).toEqual(['hole-a', 'hole-b'])
+    expect(grouped.collecting).toBe(true)
+  })
+
+  it('leaves a feature that is not a hole exactly as it was', () => {
+    const grouped = run({ type: 'click', pick: face() }, { type: 'group' })
+
+    expect(grouped.kept).toEqual(['pocket'])
+  })
+
+  /** And from there a reading names its whole group, not one hole of it. */
+  it('groups what is read from the list once it is open', () => {
+    const state = run({ type: 'group' }, { type: 'read', featureTag: 'hole-a' })
+
+    expect(state.kept).toEqual(['hole-a', 'hole-b'])
+  })
+})
+
+/**
+ * Editing a row picks up where it left off, and the kind of row says whether
+ * clicking another hole from there groups (Paul, 2026-09-09).
+ */
+describe('editing a row already on the list', () => {
+  it('groups on for a group and off for a feature', () => {
+    const group = run({ type: 'collect', tags: ['pocket'], collecting: true })
+    expect(group.collecting).toBe(true)
+    expect(reduce(group, { type: 'toggle', featureTag: 'hole-a' }).kept).toEqual([
+      'pocket',
+      'hole-a',
+      'hole-b',
+    ])
+
+    const feature = run({ type: 'collect', tags: ['hole-a'], collecting: false })
+    expect(feature.collecting).toBe(false)
+    expect(reduce(feature, { type: 'toggle', featureTag: 'hole-b' }).kept).toEqual([
+      'hole-a',
+      'hole-b',
+    ])
   })
 })
 
@@ -320,7 +396,7 @@ describe('putting things down', () => {
 
     const twice = reduce(once, { type: 'miss' })
     expect(twice.focused).toBeNull()
-    expect(twice.kept).toEqual(['hole-a', 'hole-b'])
+    expect(twice.kept).toEqual(['hole-a'])
     expect(twice.activeDirection).toBeNull()
   })
 
@@ -339,7 +415,7 @@ describe('putting things down', () => {
 
     const once = reduce(reading, { type: 'escape' })
     expect(once.focused).toBeNull()
-    expect(once.kept).toEqual(['hole-a', 'hole-b'])
+    expect(once.kept).toEqual(['hole-a'])
 
     const twice = reduce(once, { type: 'escape' })
     expect(twice.kept).toEqual([])

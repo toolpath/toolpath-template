@@ -1,13 +1,13 @@
 import { AEM_BRANDS, familyBrand, type ToolRecord } from '@toolpath/tool-scraper'
-import { boundFamilies } from '@toolpath/tool-scraper/registry'
+import { boundFamilies, boundToolholding } from '@toolpath/tool-scraper/registry'
 import { describe, expect, it } from 'vitest'
 
 import { statedForm } from './forms.js'
 import {
   familyTitle,
+  holdingReachable,
   reachable,
   sharedDescription,
-  threadMethodOf,
   threadSystemOf,
 } from './scrape.js'
 
@@ -27,6 +27,7 @@ import {
  */
 
 const families = [...boundFamilies()]
+const holding = [...boundToolholding()]
 
 describe('the family table this package scrapes', () => {
   it('has families to check, so a silent empty table cannot pass every test below', () => {
@@ -74,9 +75,15 @@ describe('a tap family states its thread system in its id', () => {
     expect(silent).toEqual([])
   })
 
-  it('reads the system the id names', () => {
-    expect(threadSystemOf('khsst-hand-metric-plug')).toBe('millimeters')
-    expect(threadSystemOf('khsst-spiral-point-plug-inch')).toBe('inches')
+  /**
+   * The scraper's own tag vocabulary, which is a thread standard rather than a
+   * unit system: `Thread System` is refused upstream unless it is exactly
+   * `metric` or `inch`. Spelling it in catalog 9's unit words instead is what
+   * silently emptied all three Kennametal tap families — see `threadSystemOf`.
+   */
+  it('reads the system the id names, in the tag the scrape carries', () => {
+    expect(threadSystemOf('khsst-hand-metric-plug')).toBe('metric')
+    expect(threadSystemOf('khsst-spiral-point-plug-inch')).toBe('inch')
   })
 
   it('refuses an id that names both or neither, rather than guessing one', () => {
@@ -157,6 +164,55 @@ describe('which families this package can actually scrape', () => {
   })
 })
 
+describe('which toolholding families this package can actually scrape', () => {
+  /**
+   * The counterpart of the cutting-tool check above, and it holds a list where
+   * that one demands an empty one.
+   *
+   * Seven Kennametal holder families are declared upstream and have no AEM
+   * family code here. The code cannot be derived: Kennametal's category pages
+   * build their family lists in the browser, so each is read by hand off a
+   * `fam.<slug>.<code>.html` URL, which is why `KENNAMETAL_HOLDING_CODES` is
+   * typed out at all. Until somebody reads those seven, they are a gap, and
+   * this is where the gap is written down.
+   *
+   * **The list may shrink and may not grow.** A family joining it is either one
+   * that arrived upstream with no target wired, or a target that stopped
+   * resolving — both worth knowing while the scrape is being set up rather than
+   * after a run has quietly missed them. That is not hypothetical: eleven
+   * REGO-FIX collet families sat unreachable through every scrape until
+   * 2026-09-08, because nothing asked this question.
+   */
+  const WITHOUT_A_TARGET: ReadonlyArray<string> = [
+    'bt30_hydraulic_chucks_form_ad_inch.csv',
+    'bt30_hydraulic_chucks_form_ad_metric.csv',
+    'bt30_shrink_fit_fc_form_ad_inch.csv',
+    'bt30_shrink_fit_fc_form_ad_metric.csv',
+    'bt30_shrink_fit_hpv_form_ad_inch.csv',
+    'bt30_shrink_fit_hpv_form_ad_metric.csv',
+    'btkv30_er_collet_chucks_metric.csv',
+  ]
+
+  it('names every toolholding family it cannot reach, and no others', () => {
+    expect(holding.length).toBeGreaterThan(20)
+
+    const refused = holding
+      .filter(([name, family]) => holdingReachable(name, family) !== null)
+      .map(([name]) => name)
+
+    expect([...refused].sort()).toEqual([...WITHOUT_A_TARGET].sort())
+  })
+
+  it('answers before a request, naming the brand and the family', () => {
+    const missing = holding.filter(([name]) => name === 'btkv30_er_collet_chucks_metric.csv')
+
+    expect(missing).toHaveLength(1)
+    expect(missing.map(([name, family]) => holdingReachable(name, family))).toEqual([
+      'kennametal declares no scrape target for btkv30_er_collet_chucks_metric.csv',
+    ])
+  })
+})
+
 describe('the vendor’s own name for a family', () => {
   /**
    * Kennametal and WIDIA state it in the `h1` above the variants table, and
@@ -215,39 +271,30 @@ describe('the name a vendor states once for a whole family', () => {
 })
 
 /**
- * The carry-through for `@toolpath/tool-scraper` 2.4.0's `threadMethod`,
- * written against 2.3.0 — see `threadMethodOf`'s own note for why it reads the
- * field through a widened view rather than off `ToolRecord`.
+ * That both ways of making a thread are reachable at all.
  *
- * These pin the two things that shim must not get wrong. When 2.4.0 is
- * installed and the cast goes, they keep passing unchanged, which is how the
- * seam is checked either side of the upgrade.
+ * The shim this block used to check is gone: `@toolpath/tool-scraper` 2.4.0
+ * states `threadMethod` on a tap record and `scrapeOne` carries it straight
+ * through, so the field's type is the compiler's to pin and the carry-through
+ * is `ingest.test.ts`'s. What neither can see is the **table**: a `form tap`
+ * hole is answered from EMUGE's `FG02`, the only forming-tap family any of
+ * these vendors reaches, and losing it upstream would quietly go back to
+ * offering cutting taps for a rolled thread with nothing saying so.
  */
-describe('whether a tap cuts its thread or forms it', () => {
-  const record = (over: Record<string, unknown>): ToolRecord =>
-    ({ guid: 'g', catalogNumber: 'c', ...over }) as unknown as ToolRecord
+describe('the taps this package scrapes state how they make a thread', () => {
+  const taps = families.filter(([, family]) => family.kind === 'tap')
 
-  it('carries the two values the record states', () => {
-    expect(threadMethodOf(record({ threadMethod: 'cutting' }))).toBe('cutting')
-    expect(threadMethodOf(record({ threadMethod: 'forming' }))).toBe('forming')
+  it('states a method on every tap family', () => {
+    expect(taps.length).toBeGreaterThan(0)
+    expect(
+      taps.filter(([, family]) => family.threadMethod === undefined).map(([csvName]) => csvName),
+    ).toEqual([])
   })
 
-  /**
-   * A record from 2.3.0 has no such key, and every tap in the committed scrape
-   * is one. Reading that silence as `cutting` would send a form tap's hole to a
-   * tool that cannot use it, so the default is `null` and never a method.
-   */
-  it('is null where the record states none, and never defaults to cutting', () => {
-    expect(threadMethodOf(record({}))).toBeNull()
-    expect(threadMethodOf(record({ threadMethod: null }))).toBeNull()
-  })
-
-  /**
-   * The shim's own risk: it reads an untyped field, so a value the union has no
-   * word for must not reach the catalog as one. Refused rather than carried.
-   */
-  it('refuses a value this catalog has no word for', () => {
-    expect(threadMethodOf(record({ threadMethod: 'rolling' }))).toBeNull()
-    expect(threadMethodOf(record({ threadMethod: 7 }))).toBeNull()
+  it('reaches a forming family as well as a cutting one', () => {
+    expect([...new Set(taps.map(([, family]) => family.threadMethod))].sort()).toEqual([
+      'cutting',
+      'forming',
+    ])
   })
 })

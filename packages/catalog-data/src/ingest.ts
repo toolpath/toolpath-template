@@ -6,7 +6,6 @@ import {
   MATERIAL_GROUPS,
   type CatalogTool,
   type Provenance,
-  type ThreadMethod,
   type ToolInput,
   type ToolType,
 } from './types.js'
@@ -65,28 +64,15 @@ export type ScrapedUnit = UnitSystem
 export interface ScrapedTool
   extends Pick<ToolRecord, 'guid' | 'catalogNumber' | 'kind' | 'geometry' | 'materialGroups'>,
     /**
-     * `productLine` is the record's own field and its own type, and optional
-     * only here: a store written before `@toolpath/tool-scraper` recorded one
-     * has no such key, and a required field would make every file on disk
-     * unreadable to say something a `?? null` already says. Picked rather than
-     * restated so that the day the record's type moves, this fails to compile.
+     * `productLine` and `threadMethod` are the record's own fields and its own
+     * types, and optional only here: a store written before
+     * `@toolpath/tool-scraper` recorded one has no such key, and a required
+     * field would make every file on disk unreadable to say something a
+     * `?? null` already says. Picked rather than restated so that the day the
+     * record's type moves, this fails to compile.
      */
-    Partial<Pick<ToolRecord, 'productLine'>> {
+    Partial<Pick<ToolRecord, 'productLine' | 'threadMethod'>> {
   readonly materialNumber?: string | null
-  /**
-   * Whether a tap cuts its thread or forms it, as the record states it.
-   *
-   * **Declared here rather than picked, and only until the scraper ships it.**
-   * Every other shared field is `Pick<ToolRecord, …>` so that a shape moving
-   * upstream fails `check-types` here — see this interface's own note. This one
-   * cannot be, because `@toolpath/tool-scraper` 2.3.0 is what is installed and
-   * its `ToolRecord` has no such field; picking it would not compile.
-   *
-   * When 2.4.0 is installed, delete this member and add `'threadMethod'` to
-   * the `Pick` above — the types are the same, and the seam goes back to being
-   * checked against the producer. `scrape.ts` carries the matching change.
-   */
-  readonly threadMethod?: ThreadMethod | null
   /**
    * What the tool is, where the vendor's own page says it outright.
    *

@@ -174,3 +174,42 @@ export const formsAsking = (
   // one thing to ask for, so the filter says it once.
   return [...new Set([...kept, ...asked])]
 }
+
+/**
+ * The Type column's answer, however it was arrived at: {@link formsAsking}
+ * read backwards.
+ *
+ * **A filter the page set itself has to look like one somebody set** (Paul,
+ * 2026-09-09: "the filters automatically applied from feature or group
+ * selection are not shown in the column headers … show which filters are
+ * applied in the column headers, as if the automatically applied filters were
+ * applied manually"). Clicking a face narrowed the list to the forms the
+ * defaults sheet names and wrote them into the URL, and choosing a thread
+ * wrote {@link THREADED_FORMS} — but both write the `form` axis, which has no
+ * control of its own (`column-filters.ts` § `AXES_PARKED`), so the Type
+ * heading over a list holding nothing but drills carried an empty funnel and a
+ * menu with nothing ticked. The chrome said `Clear 3 filters` over a table
+ * with no filter visible anywhere on it.
+ *
+ * `offered` is what the column is showing, so the ticks land on the rows the
+ * menu draws and nothing is ticked in the greyed `…` half — a value the list
+ * is not holding is not one the form filter is asking for, whatever the
+ * catalog has under that phrase elsewhere.
+ *
+ * A `type` somebody has actually set wins outright: from the first untick the
+ * column is answering for itself, and `formsAsking` is what carries that answer
+ * back to the forms.
+ */
+export const typesAsking = (
+  forms: ReadonlyArray<string>,
+  types: ReadonlyArray<string>,
+  offered: ReadonlyArray<string>,
+): ReadonlyArray<string> => {
+  if (types.length > 0) {
+    return types
+  }
+  return offered.filter((label) => {
+    const form = formOfTypeLabel(label)
+    return form !== null && forms.includes(form)
+  })
+}
