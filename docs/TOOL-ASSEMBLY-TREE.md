@@ -279,6 +279,12 @@ as a loose bound — an ER11 is never an answer for a 25 mm shank — because th
 real capacity table is the vendor's and inventing one would be a clamping claim
 made up on the spot.
 
+**The tool list follows the same rule** (`holdable` in
+`app/shared/holder-choice.ts`). A tool nothing in the crib can hold is counted
+rather than offered — Paul's rule from 2026-08-29 — and left strict it undid
+this one: the tool never appeared, so the rack it would have led to was
+unreachable. It asks `holderMayTake` too, and keeps its geometry half whole.
+
 **Every widened row says why it cannot be built** (`colletGap`), as a `no collet`
 badge on the row carrying the reason, in two kinds: _the crib stocks no ER11
 collet_ is a drawer nobody has bought, and _no ER20 collet in the crib closes on
