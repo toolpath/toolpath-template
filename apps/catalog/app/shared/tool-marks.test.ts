@@ -3,7 +3,14 @@ import type { CatalogTool } from '@toolpath/catalog-data'
 import type { PartFeature } from '@toolpath/part-contracts'
 import { judgeTools } from './judge'
 import type { Rule } from './rules'
-import { columnOfRule, marksFor, overrideNote, shortfallMarks, testedCodes } from './tool-marks'
+import {
+  columnOfRule,
+  markWords,
+  marksFor,
+  overrideNote,
+  shortfallMarks,
+  testedCodes,
+} from './tool-marks'
 
 const tool = (
   catalogNumber: string,
@@ -247,6 +254,40 @@ describe('a drill against the hole it is for', () => {
   /** Past the knob it is still refused: the band is a band. */
   it('still refuses a drill past the deviation', () => {
     expect(noteFor(tool('WIDE', { DC: 12.5, LCF: 40, LD: 3, SIG: 140 }, 'drill'))).toBe('not ok')
+  })
+
+  /**
+   * **And says the refusal in the words the fit is said in** (Paul,
+   * 2026-09-09, on the near misses shown under a cut tap predrill that nothing
+   * matched: they "should read '+0.011 from tap drill'"). The hover was the
+   * sheet explaining itself — "too large — diameter 0.098 in over 0.093 in
+   * (hole diameter + drill oversize) — The API's largest drill diameter is
+   * this with the engine's 0.001 in" — and the one number a shop picks the
+   * nearest miss on was nowhere in it.
+   *
+   * Still a refusal: the level stays `must`, so the number stays red under the
+   * glyph that means the rules say no.
+   */
+  it('says how far off a refused drill is, in the words a fitting one uses', () => {
+    const wide = tool('WIDE', { DC: 12.5, LCF: 40, LD: 3, SIG: 140 }, 'drill')
+    const mark = marksFor(judgeTools([wide], hole, [hole])[0]!, testedCodes(hole, [hole]), {
+      format: (value) => `${value.toFixed(2)} mm`,
+      holeDiameter: 12,
+      measuredFrom: 'the tap drill',
+    }).DC
+
+    expect(mark?.ok === false && mark.level).toBe('must')
+    expect(mark?.ok === false && markWords(mark)).toBe('+0.50 mm from the tap drill')
+  })
+
+  /** Every other refusal keeps the rule's own sentence behind its two words. */
+  it('keeps the rule behind a refusal that is not a drill in a hole', () => {
+    const mill = tool('WIDE', { DC: 12.5, LCF: 40, LD: 3 })
+    const mark = marksFor(judgeTools([mill], hole, [hole])[0]!, testedCodes(hole, [hole]), {
+      holeDiameter: 12,
+    }).DC
+
+    expect(mark?.ok === false && markWords(mark)?.startsWith('too large — ')).toBe(true)
   })
 
   /**

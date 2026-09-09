@@ -257,6 +257,8 @@ application unless that application says otherwise.
 | ----------------------------------------------- | ---------------------------------------------------- |
 | what the list holds, its names, ids, storage    | `app/shared/feature-list.ts`                         |
 | which key a row's lines reach the bill under    | `sheetKeysOf`, same file                             |
+| what is on the order list, for both pages       | `app/shared/order-list.ts`                           |
+| which rows the list draws, and what to buy      | `listedItems` / `componentTotals`, same file         |
 | which of four things the page is being asked    | `asked()`, same file                                 |
 | the three presses over the part that add a row  | `app/components/add-bar.tsx`                         |
 | a row's answer, and what it opens to            | `app/shared/recommendations.ts`                      |
@@ -471,6 +473,14 @@ original. For the catalog:
 - **Anything that begins with a click on the part goes in
   `tests/on-the-part.spec.ts`**, against `tests/cube-fixture.ts` — the only
   fixture that mounts geometry. Nothing else can reach that stack.
+- **A threaded hole goes in `tests/threaded-hole.spec.ts`**, against the same
+  fixture's `openCubeWithHole`, which serves the cube with every reading rewritten
+  as a hole. A separate file because the fixture is the difference: the other
+  spec mounts the plain cube in a `beforeEach` and a spec that needs holes cannot
+  inherit it. Before it existed, every rule a _thread_ decides — which taps the
+  list holds, which predrill the drills are judged against, which forms the
+  filter keeps — was verified by somebody looking at the screen, and three
+  defects shipped into that gap on 2026-09-09 alone.
 - **The cube fixture carries nine tools**, so most of its features answer
   "nothing fits". That is the fixture, not a bug: a test that needs a tool to
   fit must pick one the nine can cut, and a near miss is still a row the list

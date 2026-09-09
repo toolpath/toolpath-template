@@ -65,7 +65,10 @@ quoting._
    than offering it (Paul, 2026-09-08).
 3. The table below is already showing only what cuts _every_ feature in the
    group. If it is empty, no single tool does it.
-4. Press **Create group and add tool**.
+4. Pick the tool from the table, then press **Add to order list** under the
+   stack. That one press makes the group and orders the assembly together
+   (Paul, 2026-09-09) — the box itself has no confirm, and the **X** in its top
+   right is the way out.
 
 ### 4 · Let it choose, for a mixed group
 
@@ -73,7 +76,7 @@ _Six different features, six different answers, one press._
 
 1. **Add group**, pick the features, then choose _The best tool for each_.
 2. The table stops listing tools and says why: the question is one per feature.
-3. Press **Create group and add tools**.
+3. Press **Add to order list** under the stack.
 4. Open the folder in the list. Every feature has its own tool underneath it.
 5. Press any of those tools to see the full offer for that one feature, if you
    want to overrule it.

@@ -8,7 +8,6 @@ const nameOf = (tag: string): string => (tag.startsWith('hole') ? 'Through Hole'
 const show = (props: Partial<Parameters<typeof GroupEditor>[0]> = {}) => {
   const handlers = {
     onDrop: vi.fn(),
-    onConfirm: vi.fn(),
     onCancel: vi.fn(),
   }
   render(
@@ -66,39 +65,53 @@ describe('building a group', () => {
     expect(screen.queryByRole('button', { name: /^Add every/ })).toBeNull()
   })
 
-  /** A group of nothing is not a group, so the way out of an empty draft is Cancel. */
-  it('will not confirm an empty group', () => {
+  /**
+   * **The box confirms nothing, and cancels nothing** (Paul, 2026-09-09: "I no
+   * longer need these cancel or create group and add tool buttons — the group
+   * is created and added when a tool assembly is created and added to the order
+   * list"). The press under the stack makes the row and writes the assembly in
+   * one go, and the X in the corner of the box is the way out; a second confirm
+   * here is the two-ways-to-do-it defect `docs/FEATURE-LIST.md` exists to stop.
+   */
+  it('offers no confirm and no cancel of its own', () => {
+    show()
+
+    expect(screen.queryByRole('button', { name: /^Create group and add tools?$/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Save group' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
+  })
+
+  /** A group of nothing is not a group, and the box says which it is. */
+  it('says an empty group is empty', () => {
     show({ tags: [] })
 
     expect(screen.getByText('Nothing in this group yet.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Create group and add tool' })).toBeDisabled()
   })
 
   /**
    * **Picking a tool is what finishes it** (Paul, 2026-09-02: "I must select a
    * tool from the list when creating a feature, and that is what adds it to the
    * BOM"). The list under the part is already showing what fits the group as it
-   * stands.
+   * stands, and the press that orders it is under the stack.
    */
-  it('waits for a tool to be picked from the list', () => {
+  it('says a tool has still to be picked from the list', () => {
     show({ picked: false })
 
-    expect(screen.getByRole('button', { name: 'Create group and add tool' })).toBeDisabled()
-    expect(screen.getByText('Pick a tool from the list below.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Pick a tool from the list below, then add the assembly to the order list.'),
+    ).toBeInTheDocument()
   })
 
-  it('waits for one-each recommendations before confirming', () => {
+  it('says while one-each recommendations are still being found', () => {
     show({ results: 'each', matching: 'pending' })
 
-    expect(screen.getByRole('button', { name: 'Create group and add tools' })).toBeDisabled()
     expect(screen.getByText('Finding compatible tools...')).toBeInTheDocument()
     expect(screen.getByRole('status').firstElementChild).toHaveClass('animate-spin')
   })
 
-  it('will not confirm a one-each group where a feature has no fitting tool', () => {
+  it('says where a one-each group has a feature nothing fits', () => {
     show({ results: 'each', matching: 'nothing-fits', picked: false })
 
-    expect(screen.getByRole('button', { name: 'Create group and add tools' })).toBeDisabled()
     expect(
       screen.getByText('Nothing in the catalog fits at least one feature.'),
     ).toBeInTheDocument()
@@ -118,12 +131,11 @@ describe('building a group', () => {
     expect(onCancel).toHaveBeenCalledTimes(1)
   })
 
-  /** An edit says it is one, in the heading and on the button. */
+  /** An edit says it is one in the heading; the press that saves it is the route's. */
   it('says whether it is making a group or changing one', () => {
     show({ editing: true })
 
     expect(screen.getByText('Edit group')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save group' })).toBeInTheDocument()
   })
 })
 
@@ -225,7 +237,7 @@ describe('threading the whole group', () => {
       thread: { holeDiameter: 5, mode: 'plain', spec: null, onChange: vi.fn() },
     })
 
-    expect(screen.getByRole('combobox', { name: /Thread/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Thread' })).toBeInTheDocument()
   })
 
   /**
@@ -237,7 +249,7 @@ describe('threading the whole group', () => {
     show({ tags: ['hole-1', 'hole-2'], mixed: true })
 
     expect(screen.getByText(/different sizes, so they cannot share one thread/)).toBeInTheDocument()
-    expect(screen.queryByRole('combobox', { name: /Thread/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Thread' })).not.toBeInTheDocument()
   })
 
   /** And a group holding no holes at all is asked nothing about threads. */
@@ -245,6 +257,6 @@ describe('threading the whole group', () => {
     show()
 
     expect(screen.queryByText(/cannot share one thread/)).not.toBeInTheDocument()
-    expect(screen.queryByRole('combobox', { name: /Thread/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Thread' })).not.toBeInTheDocument()
   })
 })

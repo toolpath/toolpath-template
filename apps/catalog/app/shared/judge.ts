@@ -572,3 +572,31 @@ export const closestMisses = (verdicts: ReadonlyArray<Verdict>, count: number): 
     .sort((a, b) => a.miss - b.miss)
     .slice(0, Math.max(0, count))
     .map((each) => each.verdict)
+
+/**
+ * The closest misses of each form the list is asking about, that form's own
+ * ranking, in the order the forms are given.
+ *
+ * **A form somebody asked for gets an answer of its own** (Paul, 2026-09-09:
+ * "I have clicked the check after adding end mills to the filter list. None
+ * are being shown. We should always show closest match tools if none meet the
+ * feature requirements"). {@link closestMisses} ranks the whole removed set by
+ * how far it missed, so one form fills every slot: on a #4-40 predrill the
+ * drills miss the ⌀0.089 in bore by five per cent while an end mill misses the
+ * helix limit or the flute length by more, and the eight nearest were eight
+ * drills — under a note promising the end mills the page had just turned on.
+ *
+ * Ranking each form separately is what makes "the closest" mean the closest
+ * *of that kind*, which is the only reading that answers a Type filter.
+ */
+export const closestPerForm = (
+  verdicts: ReadonlyArray<Verdict>,
+  forms: ReadonlyArray<string>,
+  count: number,
+): Array<Verdict> =>
+  forms.flatMap((form) =>
+    closestMisses(
+      verdicts.filter((verdict) => verdict.tool.form === form),
+      count,
+    ),
+  )

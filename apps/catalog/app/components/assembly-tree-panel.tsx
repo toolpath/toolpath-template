@@ -1,4 +1,4 @@
-import { PlusIcon, TrashIcon, WarningIcon, XIcon } from '@phosphor-icons/react'
+import { PlusIcon, TrashIcon, XCircleIcon, XIcon } from '@phosphor-icons/react'
 import { Button, IconButton, cn } from '@toolpath/ui'
 import { useState } from 'react'
 import {
@@ -44,6 +44,14 @@ export interface AssemblyRowAction {
   readonly quiet?: boolean
   /** What else the press changes, said under it before it is pressed. */
   readonly note?: string
+  /**
+   * On screen, and not pressable yet.
+   *
+   * **The press is drawn from the start** (Paul, 2026-09-09: "Add to order list
+   * should be shown by default but greyed out until a component is selected").
+   * `shared/assembly-actions` decides it; this draws it.
+   */
+  readonly disabled?: boolean
 }
 
 export interface AssemblyTreePanelProps {
@@ -220,6 +228,11 @@ const SlotRow = ({
         allowed to overrule, so this is a caution rather than a fault: one glyph
         in the colour the page already uses for "allowed, and here is what you
         allowed", with the rule's own sentence behind it on hover.
+
+        The glyph is the table's — the circled X every incompatibility wears
+        since 2026-09-09 — in the caution's amber rather than the refusal's
+        red, so the tree and the column it came from say the same thing the
+        same way (Paul: "the same red X icon … for all incompatibilities").
       */}
       {warning === null ? null : (
         <span
@@ -228,7 +241,7 @@ const SlotRow = ({
           title={warning}
           className="shrink-0 text-amber-400"
         >
-          <WarningIcon aria-hidden="true" className="size-3" weight="fill" />
+          <XCircleIcon aria-hidden="true" className="size-3" />
         </span>
       )}
     </Button>
@@ -483,6 +496,7 @@ export const AssemblyTreePanel = ({
                     variant={
                       action.danger === true || action.quiet === true ? 'secondary' : 'primary'
                     }
+                    disabled={action.disabled === true}
                     onClick={action.onClick}
                     className={cn(
                       'w-full justify-center text-xs',

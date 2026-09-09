@@ -7,13 +7,7 @@ import {
   type SetStateAction,
   type ReactNode,
 } from 'react'
-import {
-  ArrowSquareOutIcon,
-  CheckIcon,
-  InfoIcon,
-  WarningIcon,
-  XCircleIcon,
-} from '@phosphor-icons/react'
+import { ArrowSquareOutIcon, CheckIcon, InfoIcon, XCircleIcon } from '@phosphor-icons/react'
 import { Button, Combobox, Table, cn } from '@toolpath/ui'
 import type { CatalogTool, Holder } from '@toolpath/catalog-data'
 import type { UnitSystem } from '@toolpath/tool-support'
@@ -22,7 +16,7 @@ import { askOfToolColumn, type ColumnAsk } from 'shared/column-filters'
 import { familyName } from 'shared/catalog'
 import { typeLabel } from 'shared/tool-type'
 import type { ToolQuery } from 'shared/filter'
-import type { Mark } from 'shared/tool-marks'
+import { markWords, type Mark } from 'shared/tool-marks'
 import type { BelowHolder } from 'shared/drawn-assembly'
 import { orderedCodes } from 'shared/column-order'
 import { ToolTypeIcon } from './tool-icons'
@@ -281,24 +275,30 @@ const HoldingCell = ({
   )
 }
 
+/**
+ * **One glyph for anything the rules have something against** (Paul,
+ * 2026-09-09: "can we use the same red X icon instead of the warning triangle
+ * in tip angle, and for all incompatibilities?"). A refusal wore the circled
+ * X and everything short of one wore a filled triangle, so a column read as
+ * two different kinds of thing depending on which rule spoke.
+ *
+ * The colour still carries which: red is a refusal, amber is a caution the
+ * tool survives — the same colour the number itself is painted in.
+ */
 const MarkIcon = ({ mark }: { mark: Mark | undefined }) => {
   if (mark === undefined) {
     return null
   }
   if (!mark.ok) {
-    const Icon = mark.level === 'must' ? XCircleIcon : WarningIcon
     return (
-      <Icon
-        weight={mark.level === 'must' ? undefined : 'fill'}
-        aria-label={`${mark.why} — ${mark.detail}`}
+      <XCircleIcon
+        aria-label={markWords(mark)}
         className={mark.level === 'must' ? 'size-3.5 text-danger' : 'size-3.5 text-amber-300'}
       />
     )
   }
   if (mark.caution !== undefined) {
-    return (
-      <WarningIcon weight="fill" aria-label={mark.caution} className="size-3.5 text-amber-300" />
-    )
+    return <XCircleIcon aria-label={mark.caution} className="size-3.5 text-amber-300" />
   }
   if (mark.note !== undefined) {
     return <InfoIcon aria-label={mark.note} className="size-3.5 text-zinc-400" />
@@ -375,15 +375,7 @@ const GeometryCell = ({
       )}
     >
       <span>{value === undefined ? '—' : formatGeometry(code, value, unit)}</span>
-      <span
-        title={
-          mark === undefined
-            ? undefined
-            : !mark.ok
-              ? `${mark.why} — ${mark.detail}`
-              : (mark.caution ?? mark.note)
-        }
-      >
+      <span title={mark === undefined ? undefined : markWords(mark)}>
         <MarkIcon mark={mark} />
       </span>
     </span>

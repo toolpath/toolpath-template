@@ -30,8 +30,17 @@ describe('the line a stack would write', () => {
 })
 
 describe('what is offered', () => {
-  it('offers nothing for a stack with no tool', () => {
-    expect(assemblyActions(stack({ toolGuid: null }), [])).toEqual([])
+  /**
+   * **The press is on screen from the start, greyed** (Paul, 2026-09-09: "Add
+   * to order list should be shown by default but greyed out until a component
+   * is selected. Right now it is hidden by default"). Same words and same
+   * place as the press it becomes, so picking a tool changes whether it can be
+   * pressed and nothing else about it.
+   */
+  it('offers the press greyed out for a stack with no tool', () => {
+    expect(assemblyActions(stack({ toolGuid: null }), [])).toEqual([
+      { kind: 'add', label: 'Add to order list', disabled: true },
+    ])
   })
 
   it('offers Add to order list where the tool is not on the bill for this feature', () => {
@@ -135,8 +144,10 @@ describe('a feature that is not a row yet', () => {
     expect(assemblyActions(stack(), on, false).map((each) => each.kind)).toEqual(['confirm'])
   })
 
-  it('offers nothing while the stack has no tool, row or not', () => {
-    expect(assemblyActions(stack({ toolGuid: null }), [], false)).toEqual([])
+  it('greys the press while the stack has no tool, row or not', () => {
+    expect(assemblyActions(stack({ toolGuid: null }), [], false)).toEqual([
+      { kind: 'confirm', label: 'Add to order list', disabled: true },
+    ])
   })
 
   it('treats a row as a row by default, so existing callers are unchanged', () => {
@@ -345,10 +356,10 @@ describe('what a whole assembly offers', () => {
     expect(offered([tap, drill], []).map((each) => each.kind)).toEqual(['add'])
   })
 
-  it('offers nothing where no stack of it has a tool', () => {
+  it('greys the one press where no stack of it has a tool', () => {
     expect(
       offered([emptyAssembly('assembly-1', 'tap'), emptyAssembly('assembly-2', 'drill')], []),
-    ).toEqual([])
+    ).toEqual([{ kind: 'add', label: 'Add to order list', disabled: true }])
   })
 
   it('makes the feature and writes the assembly in one press', () => {

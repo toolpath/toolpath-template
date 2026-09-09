@@ -59,6 +59,67 @@ const forWire = (request: MatchRequest, sent: string | null): MatchRequest => ({
   },
 })
 
+/**
+ * The one matcher worker in this tab, **kept across visits to the part page**
+ * (Paul, 2026-09-09: "many workflows will start in the parts page, then go to
+ * the order list, then back to the parts page multiple times … it is still
+ * loading the parts page a bit slowly").
+ *
+ * It used to be built in the hook's effect and terminated in its cleanup, so
+ * leaving the part page threw the worker away and coming back built another.
+ * A new worker imports the catalog again — 25 MB of tools, fetched and parsed
+ * a second time — and starts with both caches empty, so every question the
+ * last visit had already answered was matched against the whole catalog again.
+ * Measured on the round trip a shop makes many times a job: 438 ms to remount
+ * and 565 ms to re-answer the feature it had just answered.
+ *
+ * A worker is a tab-lived thing rather than a component-lived one, so it lives
+ * here. {@link stopMatcherWorker} is the only way to end it.
+ */
+let shared: Worker | null = null
+
+/**
+ * The features that worker holds, **beside it rather than in the hook**.
+ *
+ * The report crosses once (see {@link forWire}), and "once" has to outlive the
+ * component or every return to the part page resends it — megabytes on a part
+ * with several hundred features, which is exactly the part this is slow on.
+ */
+let heldFeatures: string | null = null
+
+/**
+ * Request ids, per tab rather than per mount.
+ *
+ * The handler drops any response whose id is not the one it is waiting for. A
+ * counter that restarted at zero on every mount could hand a new request the
+ * id of one still in flight from the last one, and the stale answer would be
+ * taken for the new one.
+ */
+let nextRequestId = 0
+
+const matcherWorker = (): Worker => {
+  if (shared === null) {
+    shared = new Worker(new URL('./catalog-matcher.worker.ts', import.meta.url), {
+      type: 'module',
+    })
+    // A new worker holds nothing, so the next request carries the part again.
+    heldFeatures = null
+  }
+  return shared
+}
+
+/**
+ * End this tab's worker, so the next mount builds a fresh one.
+ *
+ * Two callers: a worker that failed — where a new one is the only way back —
+ * and a test, which would otherwise inherit the previous test's worker.
+ */
+export const stopMatcherWorker = (): void => {
+  shared?.terminate()
+  shared = null
+  heldFeatures = null
+}
+
 /** Owns the one per-tab matcher worker and rejects stale response slots. */
 export const useCatalogMatcher = () => {
   const worker = useRef<Worker | null>(null)
@@ -75,8 +136,6 @@ export const useCatalogMatcher = () => {
     table: null,
     recommendations: null,
   })
-  /** The features the worker is known to hold, so they cross the boundary once. */
-  const held = useRef<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [ready, setReady] = useState(false)
   const [table, setTable] = useState<MatchState<DetailedResult>>(idle)
@@ -94,8 +153,8 @@ export const useCatalogMatcher = () => {
         continue
       }
       queued.current[kind] = null
-      current.postMessage(forWire(request, held.current))
-      held.current = request.featuresKey
+      current.postMessage(forWire(request, heldFeatures))
+      heldFeatures = request.featuresKey
     }
   }, [])
 
@@ -106,14 +165,8 @@ export const useCatalogMatcher = () => {
   }, [flush])
 
   useEffect(() => {
-    const current = new Worker(new URL('./catalog-matcher.worker.ts', import.meta.url), {
-      type: 'module',
-    })
+    const current = matcherWorker()
     worker.current = current
-    // A new worker holds nothing, so the next request carries the part again.
-    // The `needs-features` answer is the backstop; this is the ordinary path,
-    // and it saves a round trip on every remount.
-    held.current = null
     setReady(true)
     schedule()
     current.onmessage = (event: MessageEvent<MatchResponse>) => {
@@ -133,7 +186,7 @@ export const useCatalogMatcher = () => {
       */
       if (response.kind === 'needs-features') {
         const previous = latestRequest.current[slot]
-        held.current = null
+        heldFeatures = null
         if (previous !== null) {
           queued.current[slot] = previous
           schedule()
@@ -156,6 +209,11 @@ export const useCatalogMatcher = () => {
       }
     }
     current.onerror = () => {
+      // A worker that failed to start answers nothing ever again, and the page
+      // used to get a new one only because leaving it terminated this one.
+      // Dropping it here is what keeps that way back now that it is shared.
+      stopMatcherWorker()
+      worker.current = null
       const message = 'Catalog matching worker failed. Retry the current selection.'
       if (latest.current.table > 0) {
         setTable((state) =>
@@ -173,7 +231,12 @@ export const useCatalogMatcher = () => {
         clearTimeout(timer.current)
         timer.current = null
       }
-      current.terminate()
+      // **Not terminated.** The worker outlives this page on purpose; the
+      // handlers are what belong to this mount, so only they come off.
+      if (current.onmessage !== null) {
+        current.onmessage = null
+        current.onerror = null
+      }
       if (worker.current === current) {
         worker.current = null
       }
@@ -191,7 +254,8 @@ export const useCatalogMatcher = () => {
       if (latestKey.current[kind] === key) {
         return key
       }
-      const requestId = latest.current[kind] + 1
+      nextRequestId += 1
+      const requestId = nextRequestId
       latest.current[kind] = requestId
       latestKey.current[kind] = key
       const pending = { status: 'pending', key } as const
@@ -232,7 +296,8 @@ export const useCatalogMatcher = () => {
       if (previous === null) {
         return
       }
-      const requestId = latest.current[kind] + 1
+      nextRequestId += 1
+      const requestId = nextRequestId
       latest.current[kind] = requestId
       const request = { ...previous, requestId }
       latestRequest.current[kind] = request

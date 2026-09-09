@@ -31,8 +31,8 @@ import { ROLE_LABEL, isEmpty, type TreeAssembly } from './assembly-tree'
  *
  * | The stack                                     | Offered                      |
  * | --------------------------------------------- | ---------------------------- |
- * | nothing chosen in it                          | nothing to confirm           |
- * | no tool yet — a holder or collet on its own   | nothing to confirm, and why  |
+ * | nothing chosen in it                          | **Add to order list**, greyed |
+ * | no tool yet — a holder or collet on its own   | **Add to order list**, greyed |
  * | a tool, and not a row on the list yet         | **Add to order list**, and   |
  * |                                               | it makes the row as well     |
  * | a tool, not on the bill for this feature      | **Add to order list**        |
@@ -95,7 +95,31 @@ export interface AssemblyAction {
   readonly quiet?: boolean
   /** What else changes with it, where pressing the button moves more than one slot. */
   readonly note?: string
+  /**
+   * Offered but not pressable yet, because the stack has nothing to order.
+   *
+   * **The press is on screen from the start** (Paul, 2026-09-09: "Add to order
+   * list should be shown by default but greyed out until a component is
+   * selected. Right now it is hidden by default"). A button that appears the
+   * moment a row is clicked in the table says nothing about what the table is
+   * for; one standing greyed under an empty stack says the stack is what fills
+   * it in.
+   */
+  readonly disabled?: boolean
 }
+
+/**
+ * The press under a stack with nothing in it to order.
+ *
+ * Same words and same place as the press it becomes, so choosing a tool changes
+ * whether it can be pressed and nothing else about it. `nothingToConfirm` is
+ * what says *why* it cannot be, beside the component being read.
+ */
+const nothingYet = (onList: boolean): AssemblyAction => ({
+  kind: onList ? 'add' : 'confirm',
+  label: 'Add to order list',
+  disabled: true,
+})
 
 /** The line this stack would write, or null while it has no tool to write one for. */
 export const lineOf = (assembly: TreeAssembly): Choice | null =>
@@ -296,7 +320,7 @@ export const assemblyActions = (
 ): Array<AssemblyAction> => {
   const line = lineOf(assembly)
   if (line === null) {
-    return []
+    return [nothingYet(onList)]
   }
   /*
     Not a row yet, so there is nothing to add *to*: one press makes the feature
@@ -382,7 +406,7 @@ const groupSaid = (
  *
  * | The group                                    | Offered                     |
  * | -------------------------------------------- | --------------------------- |
- * | no tool anywhere in it                       | nothing to confirm          |
+ * | no tool anywhere in it                       | **Add to order list**, greyed|
  * | not a row on the list yet                    | **Add to order list**       |
  * | no stack of it on the bill                   | **Add to order list**       |
  * | every stack on the bill, unchanged           | **Remove from order list**  |
@@ -413,7 +437,7 @@ export const groupActions = (
     return line === null ? [] : [{ stack, line, had: savedFor(stack, onSheet) }]
   })
   if (parts.length === 0) {
-    return []
+    return [nothingYet(onList)]
   }
   if (!onList) {
     return [

@@ -262,6 +262,52 @@ export interface MarkOptions {
 }
 
 /**
+ * How far a drill stands from the hole it is making, in words — `null` where
+ * there is no such number to say.
+ *
+ * **One phrase, whichever way the rules went** (Paul, 2026-09-09: the refused
+ * near misses "should match" the drills that fit, and read "+0.011 from tap
+ * drill"). A drill judged against a predrill was ticked with its deviation
+ * when it passed and given the rule's two sentences when it did not — the same
+ * column, the same question, told two ways, and the long one buried the number
+ * a shop actually acts on.
+ *
+ * Silent where the deviation is too small to print: "±0.000 in from the tap
+ * drill" is a deviation of none announced as one (Paul, 2026-09-02: "exact
+ * match drills don't need anything").
+ */
+const deviationOf = (
+  verdict: Verdict,
+  holeDiameter: number | null,
+  measuredFrom: string,
+  format: Format,
+): string | null => {
+  const bore = verdict.tool.geometry.DC
+  if (holeDiameter === null || bore === undefined || verdict.tool.form !== 'drill') {
+    return null
+  }
+  const off = bore - holeDiameter
+  const shown = format(Math.abs(off), 'mm')
+  return Number.parseFloat(shown) === 0
+    ? null
+    : `${off > 0 ? '+' : '−'}${shown} from ${measuredFrom}`
+}
+
+/**
+ * The words a mark hangs on its glyph.
+ *
+ * A refusal carries the rule's own sentence behind its two words, except where
+ * the mark is already the whole of what there is to say — a drill's distance
+ * from its hole — and an empty `detail` says so.
+ */
+export const markWords = (mark: Mark): string | undefined =>
+  mark.ok
+    ? (mark.caution ?? mark.note)
+    : mark.detail === ''
+      ? mark.why
+      : `${mark.why} — ${mark.detail}`
+
+/**
  * The mark for each column, for one tool.
  *
  * A column the rules never read gets nothing at all — a tick on a number
@@ -283,25 +329,9 @@ export const marksFor = (
   for (const code of tested) {
     marks[code] = { ok: true }
   }
-  const bore = verdict.tool.geometry.DC
-  if (
-    marks.DC?.ok === true &&
-    holeDiameter !== null &&
-    bore !== undefined &&
-    verdict.tool.form === 'drill'
-  ) {
-    const off = bore - holeDiameter
-    const shown = format(Math.abs(off), 'mm')
-    /*
-      **A drill on the size has nothing to say** (Paul, 2026-09-02: "exact
-      match drills don't need anything"). It read "±0.000 in from the tap
-      drill", which is a deviation of none announced as a deviation. Measured
-      by what the column would *print*: a difference too small to show at this
-      precision is not one somebody can act on, so the tick stands alone.
-    */
-    if (Number.parseFloat(shown) !== 0) {
-      marks.DC = { ok: true, note: `${off > 0 ? '+' : '−'}${shown} from ${measuredFrom}` }
-    }
+  const deviation = deviationOf(verdict, holeDiameter, measuredFrom, format)
+  if (marks.DC?.ok === true && deviation !== null) {
+    marks.DC = { ok: true, note: deviation }
   }
   /**
    * A drill point that differs from the bottom it cuts, **within tolerance**.
@@ -384,12 +414,24 @@ export const marksFor = (
     if (code === undefined) {
       continue
     }
-    marks[code] = {
-      ok: false,
-      level: 'must',
-      why: shortly(reason.rule, reason.text),
-      detail: reason.text,
-    }
+    /*
+      **A refused drill says the same thing a kept one says.** The rule's own
+      sentence — "diameter 0.098 in over 0.093 in (hole diameter + drill
+      oversize) — The API's largest drill diameter is this with the engine's
+      0.001 in" — is the sheet explaining itself, and the list is already
+      headed with the predrill nothing matched. What is left to say is how far
+      off this row is (Paul, 2026-09-09). Still a refusal: the number stays
+      red, and the glyph beside it stays the one that means "the rules say no".
+    */
+    marks[code] =
+      code === 'DC' && deviation !== null
+        ? { ok: false, level: 'must', why: deviation, detail: '' }
+        : {
+            ok: false,
+            level: 'must',
+            why: shortly(reason.rule, reason.text),
+            detail: reason.text,
+          }
   }
   return marks
 }

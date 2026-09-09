@@ -23,7 +23,7 @@ import { ThreadPicker } from './thread-picker'
  * there is. *The best tool for each* is parked (Paul, 2026-09-07) and the model
  * behind it is untouched: `Results` still has `each`, a group already saved as
  * one still answers and still opens, and this editor still reads `results` for
- * the words on its confirm.
+ * what it says while the tools are being matched.
  *
  * **The quick buttons came off with it** (Paul, 2026-09-08). Every feature of a
  * kind in one press was `typeButtons` in `shared/feature-list.ts`, which stands
@@ -43,14 +43,14 @@ export interface GroupEditorProps {
   /**
    * What the group is being asked for. Every group made here is `all`; a group
    * saved as `each` before that option was parked still reads back as one, and
-   * this is what the confirm's words are chosen from.
+   * this is what the note under the box is chosen from.
    */
   readonly results: Results
   readonly onDrop: (tag: string) => void
   readonly nameOf: (tag: string) => string
-  readonly onConfirm: () => void
+  /** Escape's answer: the draft is put down, and nothing was ever written. */
   readonly onCancel: () => void
-  /** Whether this is an edit of a group that already exists, for the words on the button. */
+  /** Whether this is an edit of a group that already exists, for the heading. */
   readonly editing?: boolean
   /**
    * Whether a tool has been picked from the list below.
@@ -129,7 +129,6 @@ export const GroupEditor = ({
   results,
   onDrop,
   nameOf,
-  onConfirm,
   onCancel,
   editing = false,
   picked = false,
@@ -270,30 +269,18 @@ export const GroupEditor = ({
         </p>
       ) : null}
 
+      {/*
+        **No confirm, and no Cancel** (Paul, 2026-09-09: "I no longer need these
+        cancel or create group and add tool buttons — the group is created and
+        added when a tool assembly is created and added to the order list").
+        *Create group and add tool* did what the press under the stack already
+        does: the group reaches the order list with the assembly that answers
+        it, in one press, and the X in the corner of the box is the way out.
+
+        What is left is what the buttons were saying: which of the group's
+        conditions is not met yet.
+      */}
       <div className="flex items-center gap-1.5">
-        <Button size="sm" variant="secondary" onClick={onCancel}>
-          Cancel
-        </Button>
-        {/* A group of nothing is not a group, and a group with no tool is not an
-          answer: the way out of either is Cancel, so the confirm says nothing
-          it cannot do. */}
-        <Button
-          size="sm"
-          disabled={tags.length === 0 || !picked || (results === 'each' && matching !== 'ready')}
-          onClick={onConfirm}
-        >
-          {editing
-            ? 'Save group'
-            : /*
-              **The button says what it does** (Paul, 2026-09-02: "create group
-              button should be 'create group and add tool'"). Confirming a group
-              is what puts its tool on the bill, and a button called *Create
-              group* did not say that it was also ordering something.
-            */
-              results === 'each'
-              ? 'Create group and add tools'
-              : 'Create group and add tool'}
-        </Button>
         {tags.length > 0 && results === 'each' && matching === 'pending' ? (
           <span role="status" className="text-2xs flex items-center gap-1 text-zinc-500">
             <span
@@ -314,7 +301,9 @@ export const GroupEditor = ({
           </span>
         ) : null}
         {tags.length > 0 && !picked && !(results === 'each' && matching !== 'ready') ? (
-          <span className="text-2xs text-zinc-500">Pick a tool from the list below.</span>
+          <span className="text-2xs text-zinc-500">
+            Pick a tool from the list below, then add the assembly to the order list.
+          </span>
         ) : null}
       </div>
     </div>

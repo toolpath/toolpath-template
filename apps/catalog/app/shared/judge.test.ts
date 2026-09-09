@@ -3,6 +3,7 @@ import type { PartFeature } from '@toolpath/part-contracts'
 import type { CatalogTool } from '@toolpath/catalog-data'
 import {
   closestMisses,
+  closestPerForm,
   compareKeys,
   foldVerdicts,
   judgeTools,
@@ -266,6 +267,67 @@ describe('closest to eligible', () => {
     expect(by(verdicts, 'C').removed[0]?.shortfall).toBeCloseTo(0.05, 6)
     const drill = tool('Z', 'drill', { DC: 8, LCF: 30, LD: 4, SIG: 118 })
     expect(closestMisses(judgeTools([drill], pocket(), [pocket()]), 5)).toEqual([])
+  })
+})
+
+/**
+ * **The closest of each kind the list asks about** (Paul, 2026-09-09): a
+ * threaded hole's drill list holds drills and, once the Type filter says so,
+ * the end mills that could bore the predrill. The drills miss a small bore by
+ * the width of the next size up and the mills by far more, so ranked together
+ * the drills take every slot — which is a Type filter that answers nothing.
+ */
+describe('closest of each form', () => {
+  const hole = {
+    featureTag: 'hole-1',
+    featureType: 'BlindHole',
+    machiningDirection: { x: 0, y: 0, z: 1 },
+    regionIdxs: [1],
+    datasheet: {
+      zMin: -6,
+      zMax: 0,
+      extendedZMax: 0,
+      facts: { kind: 'Hole', diameter: 4, maxDrillDiameter: 4, maxEndmillDiameter: 3.6 },
+    },
+  } as unknown as PartFeature
+  const drilling = (name: string, DC: number) =>
+    tool(name, 'drill', { DC, LCF: 30, LD: 5, SIG: 140, LBH: 40, 'shoulder-diameter': DC })
+  const milling = (name: string, DC: number) =>
+    tool(name, 'flat end mill', { DC, RE: 0, LCF: 20, LD: 4, LBH: 40, 'shoulder-diameter': DC })
+  const near = drilling('DRILL-NEAR', 4.3)
+  const far = drilling('DRILL-FAR', 5)
+  const mill = milling('MILL-NEAR', 4.5)
+  const wide = milling('MILL-FAR', 8)
+  const asked = ['drill', 'flat end mill']
+  const verdicts = judgeTools([near, far, mill, wide], hole, [hole], { asked })
+
+  it('ranks a form on its own, where ranking them together shows one form only', () => {
+    // Every one of the four missed by a number, and the two drills missed by
+    // the least: the whole point of the case.
+    expect(closestMisses(verdicts, 4).map((verdict) => verdict.tool.catalogNumber)).toEqual([
+      'DRILL-NEAR',
+      'DRILL-FAR',
+      'MILL-NEAR',
+      'MILL-FAR',
+    ])
+    expect(closestMisses(verdicts, 2).map((verdict) => verdict.tool.catalogNumber)).toEqual([
+      'DRILL-NEAR',
+      'DRILL-FAR',
+    ])
+    expect(closestPerForm(verdicts, asked, 1).map((verdict) => verdict.tool.catalogNumber)).toEqual(
+      ['DRILL-NEAR', 'MILL-NEAR'],
+    )
+  })
+
+  /** In the order the forms are given, which is the order the list wants them. */
+  it('keeps the forms in the order asked, and offers nothing for a form nobody asked about', () => {
+    expect(
+      closestPerForm(verdicts, ['flat end mill', 'drill'], 1).map(
+        (verdict) => verdict.tool.catalogNumber,
+      ),
+    ).toEqual(['MILL-NEAR', 'DRILL-NEAR'])
+    expect(closestPerForm(verdicts, ['ball end mill'], 8)).toEqual([])
+    expect(closestPerForm(verdicts, [], 8)).toEqual([])
   })
 })
 

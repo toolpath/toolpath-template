@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CatalogTool } from '@toolpath/catalog-data'
-import { firstBy, keptFirst } from './tool-order'
+import { firstBy, keptFirst, oneEach } from './tool-order'
 
 const tools = ['a', 'b', 'c', 'd'].map((guid) => ({ guid }) as CatalogTool)
 const guids = (of: ReadonlyArray<CatalogTool>) => of.map((each) => each.guid)
@@ -39,5 +39,21 @@ describe('the rows a predicate picks out', () => {
 
   it('are the list itself when the predicate picks none', () => {
     expect(firstBy(rows, (each) => each.guid === 'z')).toBe(rows)
+  })
+})
+
+/**
+ * **A tool the fill and a forgiven column both offer is still one row**
+ * (2026-09-09): both are drawn from the set the rules removed, and the table
+ * drew `TDMX0500` twice.
+ */
+describe('one row per tool', () => {
+  it('keeps the first of each and the order they arrived in', () => {
+    const [a, b, c] = tools
+    expect(guids(oneEach([a!, b!, a!, c!, b!]))).toEqual(['a', 'b', 'c'])
+  })
+
+  it('leaves a list with nothing repeated as it is', () => {
+    expect(guids(oneEach(tools))).toEqual(['a', 'b', 'c', 'd'])
   })
 })

@@ -397,9 +397,15 @@ What changed is where a line comes from:
   standing in the stack only as a fallback, so a swap offers **Replace TDMX0800
   with TDMX1200** — one press that takes the old line off and puts the new one
   on, with whatever holding moved with it said underneath.
-- **The stack's own button is where it is confirmed.** `assemblyActions` decides
-  which of **Add to order list** (row or no row), **Replace A with B**, the
-  update and **Remove from order list** apply — the same states `tool-actions` distinguishes for one tool,
+- **The stack's own button is where it is confirmed, and it is on screen from
+  the start.** `assemblyActions` decides which of **Add to order list** (row or
+  no row), **Replace A with B**, the update and **Remove from order list**
+  apply. A stack with nothing in it to order gets the same **Add to order list**
+  in the same place, **greyed** (Paul, 2026-09-09: "Add to order list should be
+  shown by default but greyed out until a component is selected. Right now it is
+  hidden by default") — `nothingYet` in `assembly-actions.ts`; a button that
+  appears the moment a table row is clicked says nothing about what the table is
+  for — the same states `tool-actions` distinguishes for one tool,
   asked of a stack. The update appears only when the holding differs from what is
   saved. Named for the page the press is _for_: "Add to feature" named the row it
   wrote against, and the order list is what a shop reads.
@@ -688,7 +694,11 @@ flag enabled … the flag should now be removed"). `app/shared/flags.ts`, its te
 the **Tool tree** chip and the `assemblyTree` props on `AppHeader` are gone,
 every branch was taken on its tree side, and the panel it replaced went with it:
 no `holding` dropdowns on a tool row, no tap/drill tabs, no count badge beside
-the list heading, and `Use this tool` is `Add this feature`.
+the list heading, and `Use this tool` became `Add this feature` — which came off
+in turn on 2026-09-09, along with the group editor's confirm and both Cancels:
+the press under the stack makes the row and orders the assembly in one go, and
+an **X** in the top right of the box is the way out of all three. See
+`docs/FEATURE-LIST.md` § _The X in the corner_.
 
 What went with it that had no home under the tree: the **Show compatible end
 mills** press, which lived inside the drill tab and so had already been

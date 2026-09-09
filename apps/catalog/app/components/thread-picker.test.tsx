@@ -13,6 +13,17 @@ const closestMatches = (): HTMLElement =>
 /** ⌀5.00 is M6×1's tap drill, which is the reading a hole is likeliest to be drawn at. */
 const TAP_DRILL_FOR_M6 = 5
 
+/**
+ * The control that opens the list, and the one that carries the chosen thread.
+ *
+ * With a search box in the box the button is a button and the *input* is the
+ * combobox — the kit swaps one for the other on `data-popup-open`. While the
+ * list is open the kit marks everything behind it inert, so the button has no
+ * accessible name to be found by until the list closes; its label is what it is
+ * found by either way.
+ */
+const threadButton = (): HTMLElement => screen.getByLabelText('Thread')
+
 const show = (props: Partial<Parameters<typeof ThreadPicker>[0]> = {}) => {
   const onChange = vi.fn()
   render(
@@ -25,7 +36,7 @@ const show = (props: Partial<Parameters<typeof ThreadPicker>[0]> = {}) => {
       {...props}
     />,
   )
-  fireEvent.click(screen.getByRole('combobox', { name: /Thread/ }))
+  fireEvent.click(threadButton())
   return onChange
 }
 
@@ -106,7 +117,7 @@ describe('what the panel says about a hole before anything is chosen', () => {
     show({ holeDiameter: 0.4 })
 
     expect(screen.queryByRole('group', { name: /Closest match/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: /Thread/ })).toBeInTheDocument()
+    expect(threadButton()).toBeInTheDocument()
   })
 })
 
@@ -148,7 +159,7 @@ describe('picking a thread', () => {
   it('shows the full list, labelled for what it is', () => {
     show()
 
-    expect(screen.getByRole('combobox', { name: /Thread/ })).toBeInTheDocument()
+    expect(threadButton()).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'M20×2.5' })).toBeInTheDocument()
   })
 
@@ -156,7 +167,7 @@ describe('picking a thread', () => {
   it('shows a thread that is not on offer as the chosen one', () => {
     show({ spec: threadNamed('M20×2.5'), mode: 'cut tap' })
 
-    expect(screen.getByRole('combobox', { name: 'Thread' })).toHaveTextContent('M20×2.5')
+    expect(threadButton()).toHaveTextContent('M20×2.5')
   })
 
   /** The list is also a way back: a plain hole is one of its options. */
@@ -166,5 +177,78 @@ describe('picking a thread', () => {
     fireEvent.click(screen.getByRole('option', { name: 'No thread — a plain hole' }))
 
     expect(onChange).toHaveBeenCalledWith({ mode: 'plain', spec: null })
+  })
+})
+
+/**
+ * **The list can be typed into as well as scrolled** (Paul, 2026-09-09: "I need
+ * to be able to either select from the list we have now or enter text to search
+ * the list and select from it"). Thirty-seven threads is a long scroll on the
+ * hole that reads as the wrong thing, or as nothing.
+ */
+describe('searching the list', () => {
+  const search = (): HTMLElement => screen.getByRole('combobox', { name: 'Search threads' })
+
+  const type = (text: string) => {
+    fireEvent.change(search(), { target: { value: text } })
+  }
+
+  it('opens with a search box, and the whole list under it', () => {
+    show()
+
+    expect(search()).toHaveValue('')
+    expect(screen.getByRole('option', { name: 'M20×2.5' })).toBeInTheDocument()
+  })
+
+  /** Both groups narrow together: one list, one question. */
+  it('narrows the list to what was typed', () => {
+    show()
+    type('M20')
+
+    expect(screen.getByRole('option', { name: 'M20×2.5' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'M3×0.5' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /Closest match/ })).not.toBeInTheDocument()
+  })
+
+  /**
+   * A thread is written half a dozen ways, and none of them is the table's:
+   * `1/4-20`, `1420`, `m6x1`, `#10 32`. ⌀5 is within a tenth of a 1/4-20's tap
+   * drill, so it is listed twice — under the closest matches and again below.
+   */
+  it('reads a thread written the way a shop writes it', () => {
+    show()
+    type('1/4-20')
+
+    expect(screen.getAllByRole('option', { name: /1\/4-20 UNC/ })).not.toHaveLength(0)
+    expect(screen.queryByRole('option', { name: /1\/2-13 UNC/ })).not.toBeInTheDocument()
+  })
+
+  /** And the choice is made from the narrowed list, like any other. */
+  it('takes the thread that was searched for', () => {
+    const onChange = show()
+    type('3/8-24')
+
+    fireEvent.click(screen.getByRole('option', { name: '3/8-24 UNF' }))
+
+    expect(onChange).toHaveBeenCalledWith({ mode: 'cut tap', spec: threadNamed('3/8-24 UNF') })
+  })
+
+  /** Text no thread answers says so, rather than showing an empty box. */
+  it('says when nothing in the catalog is that thread', () => {
+    show()
+    type('M99')
+
+    expect(screen.getByText(/No thread matches/)).toBeInTheDocument()
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
+  })
+
+  /** The way back to a plain hole is a searchable option like the rest. */
+  it('keeps the plain-hole option out of a search for a thread', () => {
+    show()
+    type('M6')
+
+    expect(
+      screen.queryByRole('option', { name: 'No thread — a plain hole' }),
+    ).not.toBeInTheDocument()
   })
 })

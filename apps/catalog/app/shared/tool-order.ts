@@ -35,3 +35,26 @@ export const keptFirst = (
   kept: ReadonlySet<string>,
 ): ReadonlyArray<CatalogTool> =>
   kept.size === 0 ? tools : firstBy(tools, (each) => kept.has(each.guid))
+
+/**
+ * One row per tool, in the order the rows arrived.
+ *
+ * **Three sources fill the list and two of them come from the same set.** The
+ * rows that fit are disjoint from the ones the rules removed, so the near-miss
+ * fill was safe beside them — but what a forgiven column offers is drawn from
+ * the removed set as well, and a tool that is both the nearest miss and inside
+ * the widened bound was drawn twice (2026-09-09, a duplicated `TDMX0500`).
+ *
+ * First wins, so the earlier source keeps its place: what fits leads the fill,
+ * and the fill is what stands in for it.
+ */
+export const oneEach = (tools: ReadonlyArray<CatalogTool>): Array<CatalogTool> => {
+  const seen = new Set<string>()
+  return tools.filter((tool) => {
+    if (seen.has(tool.guid)) {
+      return false
+    }
+    seen.add(tool.guid)
+    return true
+  })
+}
