@@ -193,7 +193,9 @@ import {
   holeDepthOf,
   holesAt,
   makersFor,
+  PREDRILL_MILL_FORMS,
   millsShown,
+  threadedFormsWith,
   predrillFormsOf,
 } from 'shared/hole-mode'
 import { hasSharpCorner } from 'shared/feature-defaults'
@@ -202,7 +204,10 @@ import { threadPanes } from 'shared/thread-panes'
 import {
   drillFor,
   minorOf,
+  millStandInNote,
   modeFor,
+  predrillNote,
+  threadNote,
   threadedName,
   type HoleMode,
   type ThreadSpec,
@@ -885,21 +890,84 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * answer. Without it, clicking a hole and then a pocket left the hole's drill
    * in the filters: it was no longer blank, so the pocket filled nothing.
    */
+  const [threads, setThreads] = useState<Readonly<Record<string, HoleChoice>>>({})
+
+  /**
+   * The hole the **filters** are written from: stood in at its predrill.
+   *
+   * **A threaded hole is filtered on the hole it will be drilled at, not the
+   * one it is drawn at** (Paul, 2026-09-09: "shouldn't there be some closest
+   * match drills shown here? There are certainly drills that meet the diameter
+   * and flute length requirements"). They did meet them. The list is *judged*
+   * against the predrill — `tableDemand` carries it as the feature's bore — and
+   * was *filtered* by bounds `rangesFromRules` read off the modelled hole, so
+   * on a #4-40 drawn at ⌀0.089 in the Diameter filter capped at ⌀0.093 in while
+   * the form tap's predrill is ⌀0.099 in. Every drill that fits was cut by the
+   * filter before a rule ever saw it, and the ⌀0.080 in end mills that sat
+   * under the cap were the whole list — twelve drills in the catalog reach that
+   * hole at that size.
+   *
+   * The mode is in it, so pressing *Form Tap* rewrites the bound the same way
+   * choosing the thread wrote it: the two predrills are a different question
+   * and the filters are what says so.
+   */
+  const askedThread = useMemo(
+    () => (focused === null ? null : (threads[focused] ?? null)),
+    [focused, threads],
+  )
+
+  const predrilled = useMemo(() => {
+    const bore = askedThread?.spec == null ? null : drillFor(askedThread.spec, askedThread.mode)
+    return reading === null || bore === null ? reading : holeAt(reading, bore)
+  }, [reading, askedThread])
+
   const suggested = useRef(suggestionsFor(null, null))
 
   useEffect(() => {
-    const next = applySuggestions(query, suggested.current, reading, materialGroup, report.features)
-    suggested.current = suggestionsFor(reading, materialGroup, report.features)
-    if (searchWithQuery(search, next, axes).toString() === search.toString()) {
+    const next = applySuggestions(
+      query,
+      suggested.current,
+      predrilled,
+      materialGroup,
+      report.features,
+    )
+    const made = suggestionsFor(predrilled, materialGroup, report.features)
+    /**
+     * **A threaded hole's forms are the thread's, and this write must not
+     * overrule them** (Paul, 2026-09-09: "the tap type is no longer
+     * automatically being enabled in tapped holes. It needs to be to show the
+     * taps!").
+     *
+     * `applySuggestions` overrules `form` outright — which forms can cut a
+     * thing is a fact about the thing — and the feature's own row says drills
+     * and mills, because a hole is a hole before anybody threads it. That was
+     * harmless while this effect ran on the feature alone; standing the hole in
+     * at its predrill put the thread in its dependencies, so choosing the
+     * thread now re-ran the write that erased the taps it had just added.
+     *
+     * The mills already ticked survive it, or the pair of effects would take
+     * turns: this one putting the thread's forms back and the one below turning
+     * the predrill mills back on.
+     */
+    const threaded =
+      askedThread !== null && askedThread.mode !== 'plain' && askedThread.spec !== null
+        ? threadedFormsWith(query.terms.form ?? [])
+        : null
+    const asked = threaded === null ? next : { ...next, terms: { ...next.terms, form: threaded } }
+    suggested.current =
+      threaded === null ? made : { ...made, terms: { ...made.terms, form: threaded } }
+    if (searchWithQuery(search, asked, axes).toString() === search.toString()) {
       return
     }
-    setSearch(searchWithQuery(search, next, axes), {
+    setSearch(searchWithQuery(search, asked, axes), {
       replace: true,
       preventScrollReset: true,
     })
-    // Only when the feature or the material changes: re-running on every query
-    // edit would put back a filter somebody has just cleared.
-  }, [reading, materialGroup])
+    // Only when the feature, the predrill or the material changes: re-running on
+    // every query edit would put back a filter somebody has just cleared. The
+    // predrill is in it because cut and form are two different questions about
+    // the same hole, and the bound that answers one is wrong for the other.
+  }, [predrilled, askedThread, materialGroup])
 
   /**
    * What this feature asks of the filters, as a value rather than as a write.
@@ -910,8 +978,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * fresh: `suggestionsFor` is pure and this is the same call the effect makes.
    */
   const suggestions = useMemo(
-    () => suggestionsFor(reading, materialGroup, report.features),
-    [reading, materialGroup, report.features],
+    () => suggestionsFor(predrilled, materialGroup, report.features),
+    [predrilled, materialGroup, report.features],
   )
 
   /** Writing the filters back to the URL, which is where they live. */
@@ -1085,7 +1153,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * hole's own diameter the first time a hole is read, so the question is
    * already answered when it is asked (Paul, 2026-08-31).
    */
-  const [threads, setThreads] = useState<Readonly<Record<string, HoleChoice>>>({})
   const holeChoice: HoleChoice = (focused === null ? null : threads[focused]) ?? {
     mode: 'plain',
     spec: null,
@@ -1557,8 +1624,32 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * closest, and by how much, is worth more than an empty one — the marks
    * already paint the failing column red and say by how much it missed.
    */
+  /**
+   * **A tapped hole is drilled, whatever the filters say.**
+   *
+   * Choosing a threading mode writes `form: drill` into the filters, which is
+   * where it belongs — but a filter is somebody's to clear, and clearing it
+   * put end mills back under a heading that says "Drills for the #4-40 UNC
+   * hole". The mode is not a filter: it is what the hole *is*, so the list
+   * enforces it too (Paul, 2026-08-31, twice).
+   */
+  const drillsOnly = holeChoice.mode !== 'plain'
+
+  /**
+   * Whether the drill half of a threaded hole came up with no **drill**.
+   *
+   * The list can be long and still hold none: a hole modelled at the cut tap's
+   * size has no drill at the form tap's, and the end mills that can bore it
+   * fill the table on their own. "Nothing fits" was the only state that stood
+   * anything in, so that list read as the answer (Paul, 2026-09-09).
+   */
+  const shortOfDrills = useMemo(
+    () => drillsOnly && !tools.some((each) => each.form === 'drill'),
+    [drillsOnly, tools],
+  )
+
   const closest = useMemo(() => {
-    if (!asking || tools.length > 0) {
+    if (!asking || (tools.length > 0 && !shortOfDrills)) {
       return []
     }
     const near = [
@@ -1576,20 +1667,60 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
      * this hole's shop has asked for them (Paul, 2026-09-02), in which case
      * they are in the list and its near misses alike, behind the drills.
      */
-    return holeChoice.mode === 'plain'
-      ? near
-      : drillsFirst(near.filter((each) => predrillForms.includes(each.form)))
-  }, [asking, tools.length, nearMisses, query, holeChoice.mode, outOfReach, predrillForms])
+    if (holeChoice.mode === 'plain') {
+      return near
+    }
+    /*
+      **Drills, where drills are the thing that is missing.** Standing in for an
+      empty list means every form the shop asked for; standing in for the drills
+      alone, over a table the mills have already filled, means the drills — a
+      near-miss mill under a mill that fits is the same tool twice.
+    */
+    const forms = tools.length > 0 ? ['drill'] : predrillForms
+    return drillsFirst(near.filter((each) => forms.includes(each.form)))
+  }, [
+    asking,
+    tools.length,
+    shortOfDrills,
+    nearMisses,
+    query,
+    holeChoice.mode,
+    outOfReach,
+    predrillForms,
+  ])
   /**
-   * **A tapped hole is drilled, whatever the filters say.**
+   * **No drill makes it, so the mills that can are turned on** (Paul,
+   * 2026-09-09: "automatically show end mills that could bore the predrill
+   * diameter of the selected hole(s) - meaning add flat and bull nose end mills
+   * to the type filter").
    *
-   * Choosing a threading mode writes `form: drill` into the filters, which is
-   * where it belongs — but a filter is somebody's to clear, and clearing it
-   * put end mills back under a heading that says "Drills for the #4-40 UNC
-   * hole". The mode is not a filter: it is what the hole *is*, so the list
-   * enforces it too (Paul, 2026-08-31, twice).
+   * Written into the **filter** rather than into the list, which is this page's
+   * rule for anything a threaded hole decides: the rail is the last word on
+   * what a list holds, so a shop that does not want them can untick them where
+   * they are shown.
+   *
+   * Once per question, and that is what the ref is for: writing it on every
+   * render would put the mills back the moment somebody took them off, which is
+   * a filter that cannot be cleared. A new feature or the other tap is a new
+   * question and gets one more write.
    */
-  const drillsOnly = holeChoice.mode !== 'plain'
+  const milledFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (!asking || !shortOfDrills) {
+      return
+    }
+    const question = `${askedNow.tags.join('|')}:${holeChoice.mode}`
+    if (milledFor.current === question) {
+      return
+    }
+    milledFor.current = question
+    const forms = query.terms.form ?? []
+    if (millsShown(forms).length > 0) {
+      return
+    }
+    applyTerm('form', [...forms, ...PREDRILL_MILL_FORMS])
+  }, [asking, shortOfDrills, askedNow.tags, holeChoice.mode, query.terms.form, applyTerm])
+
   const listed = useMemo(() => {
     const shownTools = !asking
       ? catalogList
@@ -1602,9 +1733,9 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           construction, so no row appears twice.
         */
         overrideTools.length > 0
-        ? [...tools, ...overrideTools]
+        ? [...tools, ...overrideTools, ...closest]
         : tools.length > 0
-          ? tools
+          ? [...tools, ...closest]
           : closest
     if (!drillsOnly) {
       return shownTools
@@ -1741,28 +1872,25 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         available: detailed?.overridableByCode[code] ?? 0,
         on: overriding.includes(code),
         /**
-         * **Turning it off puts the geometry's number back** (Paul, 2026-09-08:
-         * "if override rules is off, it should go back to the filter defined by
-         * the geometry — right now it is keeping the override").
+         * **The number and the forgiveness are one decision** (Paul,
+         * 2026-09-08: "if override rules is off, it should go back to the
+         * filter defined by the geometry — right now it is keeping the
+         * override"). Dropping only the forgiveness left the widened bound
+         * standing over a list the rules then emptied — the exact dead end this
+         * whole control exists to remove, reached by pressing the control.
          *
-         * The number and the forgiveness are one decision, not two. Dropping
-         * only the forgiveness left the widened bound standing over a list the
-         * rules then emptied — the exact dead end this whole control exists to
-         * remove, reached by pressing the control. So the way out is the whole
-         * way out: the suggested bound is written back, or cleared where the
-         * geometry asked for nothing, which is equally its answer.
+         * So this goes one way, and the number is the way back: clearing it or
+         * typing the geometry's own number in drops the override with it, in
+         * the effect below. There is no press that turns one off any more,
+         * because the press that did was the one that could leave the two
+         * halves disagreeing (Paul, 2026-09-09).
          */
-        onOverride: (on: boolean) => {
-          overrideOn(code, on)
-          if (!on) {
-            applyRange(code, suggested)
-          }
-        },
+        onOverride: () => overrideOn(code, true),
         say: (bound: { readonly min?: number; readonly max?: number }) =>
           sayBound(ask?.shape === 'range' ? ask.kind : 'length', bound, unit),
       }
     },
-    [asking, suggestions, detailed, overriding, overrideOn, applyRange, unit],
+    [asking, suggestions, detailed, overriding, overrideOn, unit],
   )
 
   /**
@@ -2005,6 +2133,18 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * show, and a tick would then be the only form in the filter — which is the
    * one shape that would empty the drills.
    */
+  /**
+   * The two numbers the thread and the depth put on this list, as bounds.
+   *
+   * Read once and used twice — by the headings that state them and by the count
+   * beside them — because a number on a funnel and a number in `Clear n
+   * filters` that disagree is the defect this whole session has been chasing.
+   */
+  const tapRanges = useMemo(
+    () => (threadSpec === null ? {} : tapBounds(threadSpec, threadReach)),
+    [threadSpec, threadReach],
+  )
+
   const tapFiltering = useMemo(
     () => ({
       search: { value: numberSearch, onChange: setNumberSearch },
@@ -2016,7 +2156,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               query: {
                 ...EMPTY_QUERY,
                 terms: { type: shownTapTypes },
-                ranges: threadSpec === null ? {} : tapBounds(threadSpec, threadReach),
+                ranges: tapRanges,
               },
               onTerm: applyTapTerm,
               options: () => tapTypes,
@@ -2044,6 +2184,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       shownTapTypes,
       applyTapTerm,
       tapTypes,
+      tapRanges,
       threadSpec,
       threadReach,
       unit,
@@ -2051,11 +2192,16 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   )
 
   /**
-   * Putting the tap list back: every kind of tap, and no search.
+   * Putting the tap list back to what the part says.
    *
-   * The tap half only, the same halves `formsAskingTaps` keeps apart — clearing
-   * the list somebody is looking at must not silently widen the one on the tab
-   * beside it.
+   * **Every one of its three narrowings is the part's**, which is what makes
+   * this the whole of clearing it: the kinds of tap are the thread's forms, and
+   * the diameter and the length are the thread's and the depth's — there is no
+   * narrower state to return to, and the count stays where it was because the
+   * part is still narrowing the list. What it puts back is the tap half of the
+   * form filter, and the tap half only, the same halves `formsAskingTaps` keeps
+   * apart: clearing the list somebody is looking at must not silently widen the
+   * one on the tab beside it.
    */
   const clearTapFilters = useCallback(() => {
     setNumberSearch('')
@@ -5255,17 +5401,35 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         ) : null
                       ) : perFeature ? null : tapping && threadSpec !== null ? (
                         <>
+                          {/*
+                            **Each list says what it was swept on, and they are
+                            two different numbers** (Paul, 2026-09-09: "in
+                            drills, the highlighted message should show the tap
+                            or form drill size (the predrill size) it is looking
+                            for"). The taps were matched on the thread's nominal
+                            size; the drills on the predrill the chosen tap
+                            starts from — ⌀0.089 in against ⌀0.0995 in on a
+                            #4-40. Printing the tap's number over the drills
+                            named a diameter no row in that list is near, on a
+                            list whose whole sweep is the other one.
+                          */}
                           <span className="text-2xs text-zinc-500">
                             {holeChoice.mode === 'thread mill'
                               ? `inside the ⌀${formatLength(minorOf(threadSpec), unit)} minor diameter`
-                              : `matched on ⌀${formatLength(threadSpec.major, unit)} — this catalog holds no pitch, so check it`}
+                              : tappingNow
+                                ? threadNote(threadSpec, unit)
+                                : shortOfDrills
+                                  ? millStandInNote(threadSpec, holeChoice.mode, unit)
+                                  : predrillNote(threadSpec, holeChoice.mode, unit)}
                           </span>
-                          {makers.short ? (
+                          {/* Both are about the tap list: how far the taps reach
+                            and whether the crib holds one. */}
+                          {makers.short && tappingNow ? (
                             <span className="text-2xs text-amber-300">
                               none reach the bottom — the closest are shown
                             </span>
                           ) : null}
-                          {makers.unheld ? (
+                          {makers.unheld && tappingNow ? (
                             <span className="text-2xs text-amber-300">
                               nothing in the crib holds one at the stickout this needs
                             </span>
@@ -5311,8 +5475,9 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                             changed where it was made** (Paul, 2026-09-08: "the
                             override the rules button should be in the filter
                             dialog rather than always shown"). This is the note,
-                            not the control: the press is in the column's own
-                            dialog, because that is the rule it overrules.
+                            not the control: the tick that confirms one is in
+                            the column's own dialog, because that is the rule it
+                            overrules.
                           */}
                           {overriding.length > 0 && overrideTools.length > 0 ? (
                             <span
@@ -5395,7 +5560,19 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                   {
                                     text: numberSearch,
                                     terms: { type: shownTapTypes },
-                                    bounds: {},
+                                    /*
+                                      **The bounds the part set count too**
+                                      (Paul, 2026-09-09: "button should show to
+                                      clear 3 filters not 1 in this situation").
+                                      They narrow the list and they are drawn on
+                                      it, so leaving them out made the figure
+                                      disagree with the funnels a second time —
+                                      the same defect from the other end. Grey
+                                      rather than lit is what says a number is
+                                      not yours to type; it was never a reason
+                                      to stop counting it.
+                                    */
+                                    bounds: tapRanges,
                                   },
                                   TAP_COLUMNS,
                                 )

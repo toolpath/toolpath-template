@@ -7,7 +7,6 @@ import {
   FilterFunnel,
   FilterMenu,
   OverrideNotice,
-  OverrideToggle,
   RangeFilter,
   TermFilter,
   TextFilter,
@@ -201,6 +200,30 @@ const narrowing = (what: Asked | null): boolean => {
   }
 }
 
+/**
+ * Taking back this column's whole answer, where it has one to take back.
+ *
+ * `null` where the column narrows nothing — an × over a filter nobody set is
+ * an × that does nothing — and `null` on a stated bound, which the part put
+ * there and this menu cannot drop. The shape decides what empty means: no
+ * bound, no ticks, no word.
+ */
+const clearing = (what: Asked | null): (() => void) | null => {
+  if (what === null || !narrowing(what)) {
+    return null
+  }
+  switch (what.shape) {
+    case 'range':
+      return () => what.onBound(undefined)
+    case 'terms':
+      return () => what.onChosen([])
+    case 'text':
+      return () => what.onValue('')
+    default:
+      return null
+  }
+}
+
 export const ColumnHeading = ({
   open = false,
   onOpen,
@@ -253,12 +276,6 @@ export const ColumnFilterMenu = ({
   if (what === null) {
     return null
   }
-  /*
-    The press sits in the chrome beside the tick rather than under the boxes:
-    `column-filter.tsx` § `OverrideToggle` says why. Offered only where the
-    number has left the geometry's *and* there is something being held back —
-    a press that lists nothing is a press with nothing to say.
-  */
   if (what.shape === 'stated') {
     return (
       <FilterMenu
@@ -277,7 +294,22 @@ export const ColumnFilterMenu = ({
       </FilterMenu>
     )
   }
-  const offered = what.shape === 'range' && overrideOffered(what.bound, props.override)
+  /*
+    **The tick is what overrules the rules** (`column-filter.tsx` §
+    `OverrideNotice` says why it is not a chip any more). Offered only where the
+    number has left the geometry's, there is something being held back, and the
+    rules are not already set aside — a confirmation of what is already true is
+    a press with nothing to say, and the way back out of one is the number
+    rather than this button (`part.tsx` § `overrideFor`).
+  */
+  const confirms =
+    what.shape === 'range' &&
+    overrideOffered(what.bound, props.override) &&
+    props.override.available > 0 &&
+    !props.override.on
+      ? props.override
+      : null
+  const onClear = clearing(what)
   return (
     <FilterMenu
       label={props.label}
@@ -285,9 +317,16 @@ export const ColumnFilterMenu = ({
       anchors={anchors}
       align={what.shape === 'range' ? 'right' : 'left'}
       onClose={onClose}
-      {...(offered && props.override !== undefined && props.override.available > 0
-        ? { action: <OverrideToggle label={props.label} override={props.override} /> }
-        : {})}
+      {...(onClear === null ? {} : { onClear })}
+      {...(confirms === null
+        ? {}
+        : {
+            confirm: {
+              label: `Keep this ${props.label.toLowerCase()} and override its rules`,
+              title: `Keep this number and list the ${String(confirms.available)} tools only the ${props.label.toLowerCase()} rules are keeping off this list. They are marked, and so is any assembly one goes into.`,
+              onConfirm: () => confirms.onOverride(),
+            },
+          })}
     >
       {what.shape === 'range' ? (
         <>

@@ -190,6 +190,36 @@ describe('what is narrowing a list, named', () => {
     ])
   })
 
+  /**
+   * The situation in Paul's screenshot, 2026-09-09: a #4-40 blind hole with the
+   * TAP stack open, three funnels on the table — Type from the thread's forms,
+   * Thread diameter from the spec, Thread length from the depth — and the
+   * button reading `Clear 1 filter`. "Button should show to clear 3 filters not
+   * 1 in this situation."
+   *
+   * A bound the part set is grey rather than lit, because there is no number
+   * there to type. That was never a reason to leave it out of the count.
+   */
+  it('counts a bound the part set beside a filter somebody set', () => {
+    const taps = [
+      { code: 'catalogNumber', label: 'Catalog number' },
+      { code: 'type', label: 'Type' },
+      { code: 'DC', label: 'Thread diameter' },
+      { code: 'LCF', label: 'Thread length' },
+    ]
+
+    expect(
+      narrowingNames(
+        {
+          text: '',
+          terms: { type: ['Tap right hand'] },
+          bounds: { DC: { min: 2.645, max: 3.045 }, LCF: { min: 5.512 } },
+        },
+        taps,
+      ),
+    ).toEqual(['Type', 'Thread diameter', 'Thread length'])
+  })
+
   it('names the catalog-number search, and ignores an empty one', () => {
     expect(narrowingNames({ text: ' M6 ', terms: {}, bounds: {} }, tools)).toEqual([
       'Catalog number',

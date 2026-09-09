@@ -1419,12 +1419,17 @@ test.describe('the tool assembly tree', () => {
     const warning = dialog.getByRole('note')
     await expect(warning).toBeVisible()
     await expect(warning).toContainText('The geometry asked for')
-    // The press is one small control beside the tick that closes the filter.
-    const press = dialog.getByRole('button', { name: 'Override the flute length rules' })
-    await expect(press).toHaveAttribute('aria-pressed', 'false')
-    await press.click()
-    await expect(press).toHaveAttribute('aria-pressed', 'true')
-    await page.getByRole('button', { name: 'Done filtering by Flute length' }).click()
+    // **The tick is what confirms it** (Paul, 2026-09-09: "clicking the check
+    // mark should override the rules … the button shouldn't be a button, it
+    // should be a warning"). One press: the rules are set aside and the dialog
+    // closes.
+    await expect(
+      dialog.getByRole('button', { name: 'Override the flute length rules' }),
+    ).toBeHidden()
+    await dialog
+      .getByRole('button', { name: 'Keep this flute length and override its rules' })
+      .click()
+    await expect(dialog).toBeHidden()
 
     // A tool the flute-length rows removed, chosen into the stack.
     const grid = page.getByRole('grid').first()
@@ -1438,16 +1443,17 @@ test.describe('the tool assembly tree', () => {
   })
 
   /**
-   * **Turning it off puts the geometry's number back** (Paul, 2026-09-08: "if
+   * **The number and the forgiveness are one decision** (Paul, 2026-09-08: "if
    * override rules is off, it should go back to the filter defined by the
-   * geometry — right now it is keeping the override").
-   *
-   * The number and the forgiveness are one decision. Dropping only the
+   * geometry — right now it is keeping the override"). Dropping only the
    * forgiveness left the widened bound standing over a list the rules then
    * emptied: the dead end the control exists to remove, reached by pressing the
    * control.
+   *
+   * So there is no press that turns one off (Paul, 2026-09-09) — the way back
+   * is the number, and the × beside the tick is how it goes.
    */
-  test('puts the geometry\u2019s number back when the override goes off', async ({ page }) => {
+  test('drops the override when the number that raised it is cleared', async ({ page }) => {
     await ready(page)
     await page
       .locator('[data-assembly-tree]')
@@ -1465,15 +1471,19 @@ test.describe('the tool assembly tree', () => {
     await page.keyboard.type('10')
     await expect(page).toHaveURL(/min\.LCF=10/)
 
-    const press = dialog.getByRole('button', { name: 'Override the flute length rules' })
-    await press.click()
-    await expect(press).toHaveAttribute('aria-pressed', 'true')
+    await dialog
+      .getByRole('button', { name: 'Keep this flute length and override its rules' })
+      .click()
+    // Said where the list is, once the rules are set aside.
+    await expect(page.getByText(/rules turn down are listed/)).toBeVisible()
 
-    await press.click()
+    await page.getByRole('button', { name: 'Filter by Flute length', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Clear the Flute length filter' }).click()
 
-    // The bound is the geometry's again, in the URL and in the box.
-    await expect(page).toHaveURL(/min\.LCF=50\.9/)
+    // The number is gone, and the forgiveness went with it.
+    await expect(page).not.toHaveURL(/min\.LCF=/)
     await expect(bound).not.toHaveValue('10')
+    await expect(page.getByText(/rules turn down are listed/)).toBeHidden()
     // And with nothing overruled, the dialog has nothing to warn about.
     await expect(dialog.getByRole('note')).toBeHidden()
   })

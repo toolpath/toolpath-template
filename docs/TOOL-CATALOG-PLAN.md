@@ -779,7 +779,7 @@ ways at once:
   length_ — which is what makes the figure checkable against the funnels.
 
 Each list counts its own: the holder and collet racks their own queries, the tap
-list the two `askOfTapColumn` asks, the tool list the whole query. Clearing
+list what `askOfTapColumn` asks and states, the tool list the whole query. Clearing
 follows the same split — the tap list's clear puts every kind of tap back and
 leaves the drill half alone, because clearing the list somebody is looking at
 must not silently widen the one on the tab beside it.
@@ -816,9 +816,16 @@ and asking:
   near misses are the very rows that break it. A box there would hide the rows
   the page is deliberately showing, along with the reason it is showing them.
 - The funnel is **filled but grey**, not lit: the column is genuinely narrowed,
-  and `Clear n filters` cannot clear the thread. That is also what keeps the
-  count honest — it counts what it can clear, and a mark it cannot clear does
-  not wear the colour of one it can.
+  and there is no number there to type. Grey says which of the two a mark is; it
+  does **not** mean uncounted (Paul, 2026-09-09: "button should show to clear 3
+  filters not 1 in this situation"). Leaving these out made the figure disagree
+  with the funnels a second time, from the other end.
+
+Which settles what clearing a tap list means: **every one of its three
+narrowings is the part's** — the kinds of tap are the thread's forms, the
+diameter is the spec's, the length is the depth's — so there is no narrower
+state to return to. Clearing puts it back to what the part says, and the count
+stays where it was, because the part is still narrowing the list.
 
 The depth is read off `ThreadReach`, which is built from whatever the selection
 resolved to, so a group states its own worst case with no extra wiring.

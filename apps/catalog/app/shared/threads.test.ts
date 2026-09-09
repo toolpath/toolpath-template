@@ -7,6 +7,9 @@ import {
   methodOf,
   minorOf,
   modeFor,
+  millStandInNote,
+  predrillNote,
+  threadNote,
   threadNamed,
   threadedName,
   threadsFor,
@@ -251,5 +254,50 @@ describe('which kind of tap a mode asks for', () => {
   it('leaves the mode alone where the tap states no method', () => {
     expect(modeFor(null)).toBeNull()
     expect(modeFor(undefined)).toBeNull()
+  })
+})
+
+/**
+ * **The drill list says the number it was actually swept on** (Paul,
+ * 2026-09-09). It carried the tap's nominal size, which on a #4-40 is ⌀0.112 in
+ * over a list of ⌀0.0995 in predrills — a diameter no row in it is near.
+ */
+describe('what each list was swept on', () => {
+  const four40 = threadNamed('#4-40 UNC')!
+
+  /** The taps: the thread's own diameter, said to be that rather than left bare. */
+  it('names the thread diameter for the taps, and that the pitch is unknown', () => {
+    expect(threadNote(four40, 'inches')).toBe(
+      'matched on ⌀0.112 in thread diameter — this catalog holds no pitch, so check it',
+    )
+  })
+
+  /* Three decimals in inches, the same rounding every length on the page uses. */
+  it('names the cut tap predrill, and the tap that decides it', () => {
+    expect(predrillNote(four40, 'cut tap', 'inches')).toBe(
+      "matched on ⌀0.089 in — the cut tap's predrill for #4-40 UNC",
+    )
+  })
+
+  it('names the form tap predrill instead when the thread is rolled', () => {
+    expect(predrillNote(four40, 'form tap', 'inches')).toBe(
+      "matched on ⌀0.099 in — the form tap's predrill for #4-40 UNC",
+    )
+  })
+
+  /**
+   * **And what it says when that number matched nothing** (Paul, 2026-09-09).
+   * The hole is drawn at the cut tap's size, so a form tap's ⌀0.099 in predrill
+   * has no drill — and the shop still makes it, by boring with an end mill.
+   */
+  it('names the number that came up empty, and what stands in', () => {
+    expect(millStandInNote(four40, 'form tap', 'inches')).toBe(
+      'no drill matches the ⌀0.099 in form tap predrill — showing end mills that can bore it, and the closest drills',
+    )
+  })
+
+  /** A hole nobody threaded has no predrill to be swept on. */
+  it('says so where there is no predrill at all', () => {
+    expect(predrillNote(four40, 'plain', 'inches')).toBe('no predrill: this hole is not threaded')
   })
 })

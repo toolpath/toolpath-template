@@ -7,8 +7,8 @@ import {
   FunnelIcon,
   FunnelSimpleIcon,
   PencilSimpleIcon,
+  XIcon,
 } from '@phosphor-icons/react'
-import { Chip } from './chip'
 import {
   UNIT_ABBREVIATION,
   type UnitSystem,
@@ -280,7 +280,16 @@ export interface ColumnOverride {
   /** How many tools only this column's rules are keeping off the list. */
   readonly available: number
   readonly on: boolean
-  readonly onOverride: (on: boolean) => void
+  /**
+   * Setting this column's rules aside, which the tick is what does.
+   *
+   * One direction only: the way back out of an override is the number itself —
+   * cleared, or typed back to what the geometry asked for — because the number
+   * and the forgiveness are one decision (`part.tsx` § `overrideFor`). A press
+   * that dropped the forgiveness and left the widened number standing was the
+   * dead end this control exists to remove.
+   */
+  readonly onOverride: () => void
   /** The suggested bound in the words the boxes above are using. */
   readonly say: (bound: Bound) => string
 }
@@ -307,45 +316,21 @@ export const overrideOffered = (
   !(override.suggested !== undefined && sameBound(bound, override.suggested))
 
 /**
- * The press, beside the tick that closes the filter.
- *
- * **Small, and one thing** (Paul, 2026-09-08: "the button should be smaller —
- * it should say basically override rules next to the check mark icon and
- * nothing else"). A full-width primary button inside the dialog read as the
- * dialog's main action, which it is not: the main action is the number above
- * it. This is the same `Chip` every other on-or-off control on this page is,
- * and what it is about is in the sentence underneath.
- */
-export const OverrideToggle = ({
-  label,
-  override,
-}: {
-  readonly label: string
-  readonly override: ColumnOverride
-}) => (
-  <Chip
-    pressed={override.on}
-    onClick={() => override.onOverride(!override.on)}
-    label={`Override the ${label.toLowerCase()} rules`}
-    title={
-      override.on
-        ? `Put the ${label.toLowerCase()} back to what the geometry asked for, and take those ${String(override.available)} off the list.`
-        : `List the ${String(override.available)} tools only the ${label.toLowerCase()} rules are keeping off this list. They are marked, and so is any assembly one goes into.`
-    }
-  >
-    Override rules
-  </Chip>
-)
-
-/**
- * The sentence under the boxes: what the geometry asked for, and what changing
- * it does not do.
+ * The sentence under the boxes: what the geometry asked for, what changing it
+ * does not do, and what the tick will do about it.
  *
  * **Quiet** (Paul, 2026-09-08: "the colouring on the messaging should be less
  * dramatic and not yellow"). A shop running a larger cutter than the geometry
  * needs is doing an ordinary thing; an alarm-coloured panel around it said it
- * had done something wrong. It reads as a footnote to the number above it, and
- * the one thing that is not a footnote — the press — is in the chrome.
+ * had done something wrong.
+ *
+ * **It is the warning, and it is the only thing in the dialog saying this**
+ * (Paul, 2026-09-09: "the button shouldn't be a button, it should be a warning,
+ * then I confirm if I want to do it by clicking the check"). There was a chip
+ * in the chrome beside the tick until then; it said the same thing this
+ * sentence says and asked for a second press to do what closing the dialog
+ * could just as well have done. So the warning stands alone and names the tick,
+ * and `FilterMenu` § `confirm` is the tick doing it.
  */
 export const OverrideNotice = ({
   label,
@@ -374,14 +359,15 @@ export const OverrideNotice = ({
         <>Nothing is being held back by the {named} rules alone.</>
       ) : on ? (
         <>
-          <span className="text-zinc-300">Override rules</span> is on: {available} the {named} rules
-          turn down are listed, marked. Turning it off puts the {named} back to{' '}
-          {suggested === undefined ? 'no bound at all' : say(suggested)}.
+          The {named} rules are set aside: {available} tools they turn down are listed, marked.
+          Putting the {named} back to {suggested === undefined ? 'no bound at all' : say(suggested)}{' '}
+          takes them off again.
         </>
       ) : (
         <>
-          {available} tools only the {named} rules turn down are off this list —{' '}
-          <span className="text-zinc-300">Override rules</span> lists them.
+          {available} tools only the {named} rules turn down are off this list.{' '}
+          <span className="text-zinc-300">Keep this number and list them</span> — the ✓ above — sets
+          those rules aside for the {named} alone.
         </>
       )}
     </p>
@@ -415,7 +401,8 @@ export const FilterMenu = ({
   anchors,
   align,
   onClose,
-  action,
+  onClear,
+  confirm,
   children,
 }: {
   readonly label: string
@@ -426,8 +413,33 @@ export const FilterMenu = ({
   /** Which edge of the funnel the menu lines up with. */
   readonly align: 'left' | 'right'
   readonly onClose: () => void
-  /** One control in the chrome beside the tick, where the filter offers one. */
-  readonly action?: ReactNode
+  /**
+   * Taking this column's whole answer back, where there is one to take.
+   *
+   * Absent while the column narrows nothing, and absent on a bound the list was
+   * swept on: an × over a filter nobody set is an × that does nothing, and a
+   * number the part stated is not this menu's to drop.
+   */
+  readonly onClear?: () => void
+  /**
+   * What the tick does besides closing, where this filter has something to
+   * confirm.
+   *
+   * **The warning is the warning, and the tick is the answer to it** (Paul,
+   * 2026-09-09: "the button shouldn't be a button, it should be a warning, then
+   * I confirm if I want to do it by clicking the check"). A press that
+   * overruled the rules standing beside a press that closed the dialog made two
+   * controls out of one decision — and the one that acted looked optional, so
+   * the dialog could be closed on a number whose own list was empty. There is
+   * one way out of this dialog, and where a change needs confirming it is what
+   * confirms it.
+   */
+  readonly confirm?: {
+    /** What the tick is called while it is confirming, for a screen reader. */
+    readonly label: string
+    readonly title: string
+    readonly onConfirm: () => void
+  }
   readonly children: ReactNode
 }) => {
   const box = useRef<HTMLDivElement>(null)
@@ -513,13 +525,35 @@ export const FilterMenu = ({
       */}
       <div className="mb-1.5 flex items-center gap-2">
         <p className="text-2xs flex-1 tracking-wide text-zinc-500 uppercase">{label}</p>
-        {action}
+        {/*
+          **And a way back out that is not a guess either** (Paul, 2026-09-09:
+          "can I get an X next to the check mark to clear all filters"). It
+          drops everything this column is asking in one press and leaves the
+          menu open, because the press after "not that" is usually "this
+          instead". Clearing the last of them takes the × away with the
+          narrowing it undid.
+        */}
+        {onClear === undefined ? null : (
+          <IconButton
+            size="md"
+            variant="muted"
+            aria-label={`Clear the ${label} filter`}
+            title={`Clear the ${label} filter`}
+            onClick={onClear}
+            className="!size-5 rounded border-0 bg-transparent text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100 [&_svg]:!size-3"
+          >
+            <XIcon aria-hidden="true" weight="bold" />
+          </IconButton>
+        )}
         <IconButton
           size="md"
           variant="muted"
-          aria-label={`Done filtering by ${label}`}
-          title="Done — keep this filter and close"
-          onClick={onClose}
+          aria-label={confirm === undefined ? `Done filtering by ${label}` : confirm.label}
+          title={confirm === undefined ? 'Done — keep this filter and close' : confirm.title}
+          onClick={() => {
+            confirm?.onConfirm()
+            onClose()
+          }}
           className="text-info !size-5 rounded border-0 bg-transparent hover:bg-zinc-800 [&_svg]:!size-3"
         >
           <CheckIcon aria-hidden="true" weight="bold" />
@@ -571,8 +605,15 @@ export const FilterFunnel = ({
    * (Paul, 2026-09-09). A tap's thread diameter and thread length come from the
    * spec and the depth — `column-filters.ts` § `askOfTapColumn` — so they are
    * filled, because the list is genuinely narrowed on them, and grey rather than
-   * lit, because `Clear n filters` cannot clear them and nothing on the page
-   * should suggest it can. Pressing one says the number and why.
+   * lit, because there is no number here to type: pressing one says what it is
+   * and where it came from.
+   *
+   * **Grey is not uncounted.** It still counts in `Clear n filters` (Paul,
+   * 2026-09-09: "button should show to clear 3 filters not 1 in this
+   * situation") — a mark on the table is a narrowing whoever set it, and a
+   * figure that skipped these disagreed with the funnels from the other end.
+   * Clearing a tap list returns it to what the part says, which is where these
+   * two already are.
    */
   readonly stated?: boolean
   readonly open: boolean

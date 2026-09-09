@@ -165,6 +165,26 @@ export const THREADED_FORMS: ReadonlyArray<string> = [
 export const PREDRILL_MILL_FORMS: ReadonlyArray<string> = ['flat end mill', 'bull nose end mill']
 
 /**
+ * The forms a threaded hole's filter must hold, whatever else is written.
+ *
+ * **The thread's forms outrank a suggestion** (Paul, 2026-09-09: "the tap type
+ * is no longer automatically being enabled in tapped holes. It needs to be to
+ * show the taps!"). A feature's own row says a hole is drilled — true before
+ * anybody threads it — and `applySuggestions` overrules the `form` axis
+ * outright, so any write triggered after the thread was chosen erased the taps
+ * that choosing it had added. The tap list reads that axis, so the taps
+ * vanished from a hole whose whole question was which tap.
+ *
+ * `held` is what the filter holds now, and the predrill mills in it survive:
+ * without that, this rule and the one that turns the mills on when no drill
+ * fits would take turns undoing each other.
+ */
+export const threadedFormsWith = (held: ReadonlyArray<string>): Array<string> => [
+  ...THREADED_FORMS,
+  ...millsShown(held),
+]
+
+/**
  * The form filter with the predrilling mills added or taken away.
  *
  * The button is a **filter**, not a second list: the filters are the last word

@@ -19,6 +19,7 @@ import {
   tapBounds,
   tapFormsOf,
   tapsFor,
+  threadedFormsWith,
 } from './hole-mode'
 import { threadNamed } from './threads'
 
@@ -655,5 +656,33 @@ describe('the holes one thread choice is written to', () => {
 
   it('is the one hole where the one hole is all that is selected', () => {
     expect(holesAt(part, ['a'], 5)).toEqual(['a'])
+  })
+})
+
+/**
+ * **What a threaded hole's filter must hold, whatever a suggestion says**
+ * (Paul, 2026-09-09: "the tap type is no longer automatically being enabled in
+ * tapped holes. It needs to be to show the taps!"). The taps came off the form
+ * axis on a write the feature triggered, and the tap list reads that axis — so
+ * a hole whose question was which tap answered "no tap of that size".
+ */
+describe('the forms a threaded hole keeps', () => {
+  it('holds the taps, so the tap list has something to read', () => {
+    expect(threadedFormsWith([]).some((form) => form.startsWith('tap '))).toBe(true)
+  })
+
+  it('holds the drill that makes the hole', () => {
+    expect(threadedFormsWith([])).toContain('drill')
+  })
+
+  /** Or this rule and the one that turns the mills on undo each other. */
+  it('keeps a predrill mill somebody already turned on', () => {
+    expect(threadedFormsWith(['flat end mill'])).toContain('flat end mill')
+    expect(threadedFormsWith(['bull nose end mill'])).toContain('bull nose end mill')
+  })
+
+  /** And adds none that were not asked for: the mills are a switch, not a default. */
+  it('adds no mill that is not already on', () => {
+    expect(threadedFormsWith([])).not.toContain('flat end mill')
   })
 })

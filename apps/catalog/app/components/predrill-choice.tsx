@@ -1,5 +1,4 @@
 import { Toggle, cn } from '@toolpath/ui'
-import { XCircleIcon } from '@phosphor-icons/react'
 import { convertLength, decimalsFor, formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { HOLE_MODES, drillFor, type HoleMode, type ThreadSpec } from 'shared/threads'
 
@@ -31,8 +30,17 @@ import { HOLE_MODES, drillFor, type HoleMode, type ThreadSpec } from 'shared/thr
  * difference again up here said the same thing twice, in a control whose whole
  * question is which of two drills this is. What the numbers carried that the
  * list cannot is the one case where **neither** works — a predrill further from
- * the model than the shop's own drill deviation allows — so that survives as
- * the label in red under an `✗` carrying the figures on hover.
+ * the model than the shop's own drill deviation allows — and that lives on the
+ * hover too now.
+ *
+ * **Nothing here is marked** (Paul, 2026-09-09: "we also shouldn't show the X
+ * on drills - if there are no drills, it should show 'no drills matching
+ * predrill size, showing end mills'"). A red `✗` on the control said *no
+ * standard drill makes this predrill from the model as drawn*, which was true
+ * and was read as *this option is unavailable* — over a list of thirty-four
+ * form taps, and over a drill list that end mills can still fill by boring the
+ * hole. The list underneath is where that belongs, in words, beside the mills
+ * that answer it: `routes/part.tsx` prints it and turns the mills on.
  *
  * **And the tap does say, as of 2026-09-09** (Paul, 2026-09-07: "it should be
  * pulled from the tap itself, but I don't think we have that data yet"). It is
@@ -110,7 +118,13 @@ export const PredrillChoice = ({
 
   return (
     <span className="flex items-center gap-1.5">
-      <span className="text-2xs tracking-wide text-zinc-500 uppercase">Predrill</span>
+      {/*
+        **The caption is the thread, not the hole** (Paul, 2026-09-09). Over the
+        tap list "Predrill" would be naming the wrong list entirely, and over
+        the drills it named the consequence rather than the decision — the same
+        reason the two options are the tap's words now.
+      */}
+      <span className="text-2xs tracking-wide text-zinc-500 uppercase">Thread</span>
       <Toggle
         value={mode}
         onValueChange={(next) => {
@@ -124,7 +138,6 @@ export const PredrillChoice = ({
         {MAKING.map((way) => {
           const drill = drillFor(spec, way.mode)
           const on = mode === way.mode
-          const refused = drill !== null && past(holeDiameter - drill)
           /*
             The figures, on the hover: the chart size this starts from and how
             far the model is from it. Nobody reads them to press the button —
@@ -135,8 +148,8 @@ export const PredrillChoice = ({
           const says =
             drill === null
               ? way.label
-              : refused
-                ? `⌀${formatLength(drill, unit)} — further from the modelled hole (${deviation(holeDiameter - drill)}) than the shop's max drill deviation allows (+${formatLength(band.over, unit)} / −${formatLength(band.under, unit)}): no standard drill makes both`
+              : past(holeDiameter - drill)
+                ? `⌀${formatLength(drill, unit)} — further from the modelled hole (${deviation(holeDiameter - drill)}) than the shop's max drill deviation allows (+${formatLength(band.over, unit)} / −${formatLength(band.under, unit)}), so it is an end mill that bores it`
                 : `⌀${formatLength(drill, unit)} — the modelled hole is ${deviation(holeDiameter - drill)}`
           return (
             <Toggle.Item
@@ -147,15 +160,6 @@ export const PredrillChoice = ({
                 on
                   ? 'border-info/60 bg-info/15 text-info'
                   : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
-                /*
-                  **The one state worth stopping on keeps its colour** (Paul,
-                  2026-09-02, on the three states the tool table settled on).
-                  The tick and the grey `i` annotated figures that are no longer
-                  shown; red says something the list underneath cannot, which is
-                  that this predrill is not a hole any standard drill makes from
-                  the model as drawn.
-                */
-                refused ? 'text-danger' : '',
               )}
             >
               {/* The kit's toggle does not pass `title` through, so the hover
@@ -163,7 +167,6 @@ export const PredrillChoice = ({
               <span className="text-2xs whitespace-nowrap" title={says}>
                 {way.label}
               </span>
-              {refused ? <XCircleIcon aria-label={says} className="size-3 shrink-0" /> : null}
             </Toggle.Item>
           )
         })}

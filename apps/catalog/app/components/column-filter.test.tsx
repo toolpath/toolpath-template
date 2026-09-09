@@ -5,7 +5,6 @@ import type { UnitSystem } from '@toolpath/tool-support'
 import {
   ColumnPicker,
   OverrideNotice,
-  OverrideToggle,
   RangeFilter,
   TermFilter,
   boundFor,
@@ -455,12 +454,15 @@ describe('changing a number the geometry set', () => {
     expect(screen.getByRole('note')).toHaveTextContent('The rules still judge the diameter')
   })
 
-  it('names the number the geometry asked for, and what is off the list', () => {
+  it('names the number the geometry asked for, what is off the list, and the tick', () => {
     render(<OverrideNotice label="Diameter" bound={{ max: 20 }} override={offer()} />)
 
     const note = screen.getByRole('note')
     expect(note).toHaveTextContent('at most 8 mm')
     expect(note).toHaveTextContent('3 tools only the diameter rules turn down are off this list')
+    // The warning is the warning and the tick is the answer to it: there is no
+    // second press in the chrome any more.
+    expect(note).toHaveTextContent('Keep this number and list them — the ✓ above')
   })
 
   /** Nothing to forgive is not the same as nothing to say. */
@@ -474,14 +476,14 @@ describe('changing a number the geometry set', () => {
     )
   })
 
-  it('says the override is on, and what turning it off puts back', () => {
+  it('says the rules are set aside, and what puts them back', () => {
     render(<OverrideNotice label="Diameter" bound={{ max: 20 }} override={offer({ on: true })} />)
 
     const note = screen.getByRole('note')
-    expect(note).toHaveTextContent('is on: 3 the diameter rules turn down')
+    expect(note).toHaveTextContent('The diameter rules are set aside: 3 tools they turn down')
     // The number and the forgiveness are one decision — see `overrideFor` in
-    // the part route.
-    expect(note).toHaveTextContent('Turning it off puts the diameter back to at most 8 mm')
+    // the part route — so the way back is the number, not a press.
+    expect(note).toHaveTextContent('Putting the diameter back to at most 8 mm takes them off again')
   })
 
   it('says a column the geometry never bounded goes back to no bound at all', () => {
@@ -497,27 +499,12 @@ describe('changing a number the geometry set', () => {
   })
 
   /**
-   * The press itself is one small control in the dialog's chrome — the number
-   * above it is the dialog's own action, and this is a footnote to it.
+   * The press this warning used to stand under is gone — `column-heading.test`
+   * § "confirming an override" is the tick that replaced it.
    */
-  it('confirms and un-confirms from the one press', () => {
-    const onOverride = vi.fn()
-    const { rerender } = render(
-      <OverrideToggle label="Diameter" override={offer({ onOverride })} />,
-    )
+  it('leaves the acting to the tick, with no press of its own', () => {
+    render(<OverrideNotice label="Diameter" bound={{ max: 20 }} override={offer()} />)
 
-    const press = screen.getByRole('button', { name: 'Override the diameter rules' })
-    expect(press).toHaveTextContent('Override rules')
-    expect(press).toHaveAttribute('aria-pressed', 'false')
-    fireEvent.click(press)
-    expect(onOverride).toHaveBeenCalledWith(true)
-
-    rerender(<OverrideToggle label="Diameter" override={offer({ on: true, onOverride })} />)
-    expect(screen.getByRole('button', { name: 'Override the diameter rules' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Override the diameter rules' }))
-    expect(onOverride).toHaveBeenCalledWith(false)
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 })
