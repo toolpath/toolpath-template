@@ -113,8 +113,9 @@ _What all of this was for._
 2. Every component is its own row — tool, holder, collet — with its own quantity
    and its own way to the vendor's page.
 3. Type the quantities.
-4. Press **Fusion tool library** to save the whole bill as a file CAM can
-   import.
+4. Press **Export Fusion library**, give the library a name, choose the
+   workpiece material and the machine's maximum RPM, then save the whole bill
+   as a `.json` library Fusion can import.
 
 > **Open question — there is no walkthrough for "I already know the tool".**
 > Every path above starts from the part. A shop that wants to check whether a
@@ -575,10 +576,12 @@ every render, so it can never disagree with the catalog about a diameter.
 - **Quantity is typed**, not spun.
 - **A line whose tool has left the catalog shows as gone**, not as a stale
   number.
-- **Fusion tool library** — the whole bill as a `.json` Fusion can import. The
-  form vocabulary and the geometry keys are already Fusion's, so it is a copy
-  rather than a translation. A tool the dataset cannot name is left out, and the
-  count comes back with the file.
+- **Export Fusion library** — the whole bill as a Fusion `.json` library. The
+  export names the file/library, asks for Aluminum, Low Carbon Steel or
+  Stainless Steel and a spindle RPM ceiling, then applies the catalog-local
+  PreTool Excel presets. It exports one record per distinct assembly, carries
+  its selected setout and published holder shape, and names every omitted tool
+  or holder shape rather than inventing vendor geometry.
 
 > **Open questions — this page has had the least attention**
 >
@@ -588,8 +591,9 @@ every render, so it can never disagree with the catalog about a diameter.
 >   end mill" would match how the work was decided.
 > - **Nothing says what a tool is for.** A line does not name the feature it was
 >   chosen for, so the reasoning is lost the moment you leave the part page.
-> - **Fusion export is lowest priority** and unproven against Fusion itself.
->   Treat it as untested until somebody imports one.
+> - **Fusion export uses PreTool's default Excel model.** Its feeds and speeds
+>   are CAM starting values for the selected material and spindle ceiling, not a
+>   substitute for a shop's own verification.
 
 **Where it lives**
 

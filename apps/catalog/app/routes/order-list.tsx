@@ -13,6 +13,7 @@ import { Badge, Button, Card, IconButton, cn, Input } from '@toolpath/ui'
 import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import type { CatalogTool, Collet, Holder } from '@toolpath/catalog-data'
 import { AppHeader } from 'components/app-header'
+import { FusionExportDialog } from 'components/fusion-export-dialog'
 import { ColletIcon, HolderIcon, ToolTypeIcon, formLabel } from './../components/tool-icons'
 import { allTools, getCollet, getHolder, getTool } from 'shared/catalog'
 import {
@@ -37,10 +38,12 @@ import {
   type ComponentTotal,
   type OrderAssembly,
 } from 'shared/order-list'
-import { fusionLibrary } from 'shared/fusion-library'
+import { fusionLibrary, type FusionExportSettings } from 'shared/fusion-library'
 import { saveInBrowser } from 'shared/save-file'
 import { recallPart } from 'shared/part-session'
 import { useUnit } from 'shared/use-unit'
+import { usePartMaterial } from 'shared/use-preferences'
+import type { PretoolMaterial } from 'shared/pretool-presets'
 
 /**
  * The order list: what has been decided for this part, in one list.
@@ -101,6 +104,27 @@ const KIND: Readonly<Record<Component, string>> = {
   tool: 'Tool',
   holder: 'Holder',
   collet: 'Collet',
+}
+
+const pretoolMaterialFor = (group: string | null): PretoolMaterial | null => {
+  if (group === 'N') {
+    return 'AluWrought'
+  }
+  if (group === 'P') {
+    return 'LowCSteel'
+  }
+  if (group === 'M') {
+    return 'StainlessSteel'
+  }
+  return null
+}
+
+const libraryFileName = (name: string): string => {
+  const safe = name
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\.+$/g, '')
+  return safe === '' ? 'tool-library' : safe
 }
 
 const toolLine = (tool: CatalogTool, unit: UnitSystem): Line => {
@@ -415,6 +439,7 @@ const Bom = () => {
   const [search] = useSearchParams()
   const jobId = search.get('job')
   const [unit, setUnit] = useUnit()
+  const { materialGroup } = usePartMaterial(partId ?? '')
   const { sheet, commit } = useSetupSheet(partId ?? '')
   const remembered = partId && jobId ? recallPart(partId, jobId) : null
   const features = remembered?.report.features ?? []
@@ -499,6 +524,7 @@ const Bom = () => {
 
   /** Which way the list is read: by assembly, or by what the assemblies come to. */
   const [view, setView] = useState<'assembly' | 'components'>('assembly')
+  const [fusionDialogOpen, setFusionDialogOpen] = useState(false)
 
   /**
    * The whole bill as a Fusion library, saved from the browser.
@@ -508,14 +534,15 @@ const Bom = () => {
    * `fusion-library.ts` is where the shape of the file lives, and is tested
    * there.
    */
-  const downloadFusion = () => {
-    const { library } = fusionLibrary(
-      assemblies.flatMap(({ choice }) => {
+  const downloadFusion = async (settings: FusionExportSettings, name: string) => {
+    const exported = fusionLibrary(
+      assemblies.flatMap(({ key, choice }) => {
         const tool = getTool(choice.toolGuid)
         return tool === null
           ? []
           : [
               {
+                key,
                 tool,
                 holder:
                   choice.holderGuid == null
@@ -525,15 +552,25 @@ const Bom = () => {
                   choice.colletGuid == null
                     ? undefined
                     : (getCollet(choice.colletGuid) ?? undefined),
+                stickout: choice.stickout,
               },
             ]
       }),
+      settings,
     )
+    if (exported.library.data.length === 0) {
+      return { exported: 0, skipped: exported.skipped, holderWarnings: exported.holderWarnings }
+    }
     saveInBrowser(
-      `${partId ?? 'part'}-tools.json`,
-      JSON.stringify(library, null, 2),
+      `${libraryFileName(name)}.json`,
+      JSON.stringify(exported.library, null, 2),
       'application/json',
     )
+    return {
+      exported: exported.library.data.length,
+      skipped: exported.skipped,
+      holderWarnings: exported.holderWarnings,
+    }
   }
 
   return (
@@ -596,12 +633,12 @@ const Bom = () => {
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={downloadFusion}
-                title="Every tool on this bill, as a library Fusion can import"
+                onClick={() => setFusionDialogOpen(true)}
+                title="Every assembly on this bill, as a Fusion tool library"
                 className="text-2xs focus-visible:ring-info/60 border-info/40 text-info hover:border-info/70 hover:bg-info/10 ml-auto inline-flex items-center gap-1 rounded border px-2 py-1 font-semibold whitespace-nowrap transition focus-visible:ring-1 focus-visible:outline-none"
               >
                 <DownloadSimpleIcon aria-hidden="true" />
-                Fusion tool library
+                Export Fusion library
               </Button>
             )}
           </p>
@@ -866,6 +903,14 @@ const Bom = () => {
           </div>
         </Card>
       </div>
+      {fusionDialogOpen ? (
+        <FusionExportDialog
+          initialMaterial={pretoolMaterialFor(materialGroup)}
+          initialName="tool-library"
+          onCancel={() => setFusionDialogOpen(false)}
+          onExport={downloadFusion}
+        />
+      ) : null}
     </main>
   )
 }

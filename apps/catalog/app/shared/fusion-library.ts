@@ -1,36 +1,31 @@
 import type { CatalogTool, Collet, Holder } from '@toolpath/catalog-data'
+import { pretoolPresets, type FusionPreset, type PretoolMaterial } from './pretool-presets'
 
 /**
- * The order list as a Fusion tool library.
- *
- * Fusion reads a `.json` library of tools, each with its geometry, its holder
- * as a stack of cylinders, and a tool number — which is most of what this
- * application already knows, so a shop that has decided what cuts a part
- * should not then type it into CAM (Paul, 2026-08-31).
- *
- * Two things make this cheap rather than a translation layer:
- *
- * - **The form vocabulary is already Fusion's.** `forms.ts` names a tool the
- *   way Fusion's library does, on purpose, so `type` is the form verbatim.
- * - **The geometry keys are the scraper's**, which are ISO's, which are the
- *   ones Fusion uses — `DC`, `LCF`, `OAL`, `SFDM`, `NOF`, `RE`, `SIG`.
- *
- * A tool the dataset could not name — form `other` — is **left out**, because
- * Fusion refuses a type it does not know and a library that fails to import
- * is worse than one that is short. The count comes back with the file.
- *
- * Everything here is pure, and every number is the dataset's own: nothing is
- * invented to fill a field Fusion has and this catalog does not.
+ * The order list as a current Fusion tool library. This module is deliberately
+ * pure: the route resolves catalog ids, the dialog supplies shop inputs, and
+ * this boundary reports every line Fusion cannot safely receive.
  */
 
-/** What Fusion calls a holder step: a cylinder, bottom-up. */
 interface Segment {
   readonly height: number
   readonly 'lower-diameter': number
   readonly 'upper-diameter': number
 }
 
+interface FusionHolder {
+  readonly guid: string
+  readonly type: 'holder'
+  readonly unit: 'millimeters'
+  readonly description: string
+  readonly vendor: string
+  readonly 'product-id': string
+  readonly gaugeLength: number
+  readonly segments: ReadonlyArray<Segment>
+}
+
 interface FusionTool {
+  readonly BMC: 'unspecified'
   readonly guid: string
   readonly type: string
   readonly unit: 'millimeters'
@@ -38,67 +33,78 @@ interface FusionTool {
   readonly 'product-id': string
   readonly 'product-link'?: string
   readonly description: string
-  readonly geometry: Readonly<Record<string, number>>
-  readonly holder?: {
-    readonly description: string
-    readonly vendor: string
-    readonly 'product-id': string
-    readonly segments: ReadonlyArray<Segment>
-  }
+  readonly geometry: Readonly<Record<string, number | boolean>>
+  readonly holder?: FusionHolder
   readonly 'post-process': {
     readonly number: number
     readonly 'diameter-offset': number
     readonly 'length-offset': number
     readonly live: true
     readonly turret: 0
+    readonly 'break-control': false
+    readonly 'manual-tool-change': false
   }
-  readonly 'start-values': { readonly presets: ReadonlyArray<never> }
+  readonly 'start-values': { readonly presets: ReadonlyArray<FusionPreset> }
 }
 
 export interface FusionLibrary {
-  readonly version: 4
+  readonly version: 33
   readonly data: ReadonlyArray<FusionTool>
 }
 
-/** One line of the bill: what to cut with, and what holds it. */
+/** One distinct stack on the order list, resolved through the current catalog. */
 export interface LibraryLine {
+  readonly key: string
   readonly tool: CatalogTool
   readonly holder?: Holder | undefined
   readonly collet?: Collet | undefined
+  /** The setout selected for this stack; absent means the catalog's LBH setup value. */
+  readonly stickout?: number | undefined
 }
 
-/** The geometry Fusion reads, with anything the vendor did not state left out. */
-const geometryOf = (tool: CatalogTool): Record<string, number> => {
-  const held: Record<string, number> = {}
-  for (const code of ['DC', 'LCF', 'OAL', 'SFDM', 'NOF', 'RE', 'SIG'] as const) {
-    const value = tool.geometry[code]
-    if (value !== undefined) {
-      held[code] = value
-    }
-  }
-  // Fusion's `LB` is the length below the holder — the figure this dataset
-  // derives as `LBH`, under the name Fusion reads it by. Since 2026-09-03
-  // that is the length the tool is set up at rather than the most it could
-  // stand out, which is what Fusion's `LB` means in the first place.
-  if (tool.geometry.LBH !== undefined) {
-    held.LB = tool.geometry.LBH
-  }
-  for (const code of ['shoulder-length', 'shoulder-diameter'] as const) {
-    const value = tool.geometry[code]
-    if (value !== undefined) {
-      held[code] = value
-    }
-  }
-  return held
+export interface FusionExportSettings {
+  readonly material: PretoolMaterial
+  readonly maxRpm: number
 }
 
-/**
- * The holder as cylinders, bottom-up, from what the vendor stated.
- *
- * The nose, then the body, then whatever is left up to the flange face — the
- * same three the drawing sweeps. A holder that states none of them gets no
- * segments rather than a made-up cylinder.
- */
+export interface FusionExportDiagnostic {
+  readonly catalogNumber: string
+  readonly reason: string
+}
+
+export interface FusionExport {
+  readonly library: FusionLibrary
+  readonly skipped: ReadonlyArray<FusionExportDiagnostic>
+  readonly holderWarnings: ReadonlyArray<FusionExportDiagnostic>
+}
+
+export interface FusionLibraryOptions {
+  /** Injected for deterministic tests; the browser passes crypto.randomUUID. */
+  readonly nextGuid?: () => string
+}
+
+const required: Readonly<Record<string, ReadonlyArray<string>>> = {
+  'flat end mill': ['DC', 'LCF', 'OAL', 'NOF', 'SFDM'],
+  'ball end mill': ['DC', 'LCF', 'OAL', 'NOF', 'SFDM'],
+  'bull nose end mill': ['DC', 'LCF', 'OAL', 'NOF', 'RE', 'SFDM'],
+  'face mill': ['DC', 'LCF', 'OAL', 'NOF', 'SFDM'],
+  'chamfer mill': ['DC', 'LCF', 'OAL', 'NOF', 'SFDM', 'TA', 'tip-diameter'],
+  'radius mill': ['DC', 'LCF', 'OAL', 'NOF', 'RE', 'SFDM'],
+  'slot mill': ['DC', 'LCF', 'OAL', 'NOF', 'SFDM'],
+  'thread mill': ['DC', 'LCF', 'OAL', 'NOF', 'SFDM', 'TP'],
+  drill: ['DC', 'LCF', 'OAL', 'NOF', 'SFDM', 'SIG'],
+  'center drill': ['DC', 'LCF', 'OAL', 'NOF', 'SFDM', 'SIG'],
+  'spot drill': ['DC', 'LCF', 'OAL', 'NOF', 'SFDM', 'SIG'],
+  reamer: ['DC', 'LCF', 'OAL', 'NOF', 'SFDM'],
+  'counter sink': ['DC', 'LCF', 'OAL', 'NOF', 'SFDM', 'SIG'],
+  'tap left hand': ['DC', 'LCF', 'OAL', 'NOF', 'SFDM', 'TP'],
+  'tap right hand': ['DC', 'LCF', 'OAL', 'NOF', 'SFDM', 'TP'],
+}
+
+const validNumber = (value: number | null | undefined): value is number =>
+  value !== null && value !== undefined && Number.isFinite(value) && value > 0
+
+/** Fusion calls holder steps cylinders, written bottom-up. */
 const segmentsOf = (holder: Holder): Array<Segment> => {
   const segments: Array<Segment> = []
   const step = (height: number | null, diameter: number | null) => {
@@ -117,49 +123,145 @@ const segmentsOf = (holder: Holder): Array<Segment> => {
   return segments
 }
 
+const missingGeometry = (tool: CatalogTool): Array<string> => {
+  const codes = required[tool.form]
+  if (codes === undefined) {
+    return [`Fusion does not support the catalog form “${tool.form}”`]
+  }
+  return codes.filter((code) => !validNumber(tool.geometry[code]))
+}
+
+const geometryOf = (line: LibraryLine): Record<string, number | boolean> => {
+  const { tool } = line
+  const setout = line.stickout ?? tool.geometry.LBH
+  const geometry: Record<string, number | boolean> = {
+    CSP: false,
+    HAND: true,
+    DC: tool.geometry.DC!,
+    LCF: tool.geometry.LCF!,
+    OAL: tool.geometry.OAL!,
+    NOF: tool.geometry.NOF!,
+    SFDM: tool.geometry.SFDM!,
+    LB: setout!,
+    'shoulder-length': tool.geometry['shoulder-length'] ?? tool.geometry.LCF!,
+    'shoulder-diameter': tool.geometry['shoulder-diameter'] ?? tool.geometry.SFDM!,
+    assemblyGaugeLength: setout! + (line.holder?.gaugeLength ?? 0),
+  }
+  for (const code of ['RE', 'SIG', 'TA', 'TP', 'TPX', 'TPN', 'NT', 'tip-diameter'] as const) {
+    const value = tool.geometry[code]
+    if (value !== undefined) {
+      geometry[code] = value
+    }
+  }
+  if (tool.form === 'face mill') {
+    geometry['upper-radius'] = 0
+  }
+  return geometry
+}
+
+const holderOf = (holder: Holder, nextGuid: () => string): FusionHolder | null => {
+  const segments = segmentsOf(holder)
+  if (segments.length === 0 || !validNumber(holder.gaugeLength)) {
+    return null
+  }
+  return {
+    guid: nextGuid(),
+    type: 'holder',
+    unit: 'millimeters',
+    description: `${holder.brand} ${holder.catalogNumber}`,
+    vendor: holder.brand,
+    'product-id': holder.catalogNumber,
+    gaugeLength: holder.gaugeLength,
+    segments,
+  }
+}
+
 /**
- * @returns the library, and how many lines Fusion could not have taken
+ * Creates a schema-ready Fusion v33 document and tells its caller exactly why
+ * an ordered stack could not land in it. It never makes up missing vendor
+ * geometry: defaults are limited to Fusion's structural fields.
  */
 export const fusionLibrary = (
   lines: ReadonlyArray<LibraryLine>,
-): { readonly library: FusionLibrary; readonly skipped: number } => {
-  const named = lines.filter((line) => line.tool.form !== 'other')
-  return {
-    library: {
-      version: 4,
-      data: named.map((line, at) => {
-        const { tool, holder } = line
-        const segments = holder === undefined ? [] : segmentsOf(holder)
-        return {
-          guid: tool.guid,
-          type: tool.form,
-          unit: 'millimeters',
-          vendor: tool.brand,
-          'product-id': tool.catalogNumber,
-          ...(tool.productLink === null ? {} : { 'product-link': tool.productLink }),
-          description: `${tool.brand} ${tool.catalogNumber}`,
-          geometry: geometryOf(tool),
-          ...(holder === undefined || segments.length === 0
-            ? {}
-            : {
-                holder: {
-                  description: holder.catalogNumber,
-                  vendor: holder.brand,
-                  'product-id': holder.catalogNumber,
-                  segments,
-                },
-              }),
-          'post-process': {
-            number: at + 1,
-            'diameter-offset': at + 1,
-            'length-offset': at + 1,
-            live: true,
-            turret: 0,
-          },
-          'start-values': { presets: [] },
-        } satisfies FusionTool
-      }),
-    },
-    skipped: lines.length - named.length,
+  settings: FusionExportSettings,
+  { nextGuid = () => globalThis.crypto.randomUUID() }: FusionLibraryOptions = {},
+): FusionExport => {
+  const skipped: Array<FusionExportDiagnostic> = []
+  const holderWarnings: Array<FusionExportDiagnostic> = []
+  const data: Array<FusionTool> = []
+  if (!Number.isFinite(settings.maxRpm) || settings.maxRpm <= 0) {
+    return {
+      library: { version: 33, data },
+      skipped: lines.map((line) => ({
+        catalogNumber: line.tool.catalogNumber,
+        reason: 'maximum spindle RPM must be greater than zero',
+      })),
+      holderWarnings,
+    }
   }
+  for (const line of lines) {
+    const missing = missingGeometry(line.tool)
+    const stickout = line.stickout ?? line.tool.geometry.LBH
+    if (!validNumber(stickout)) {
+      missing.push('LBH (selected stickout)')
+    }
+    if (missing.length > 0) {
+      skipped.push({
+        catalogNumber: line.tool.catalogNumber,
+        reason: missing[0]!.startsWith('Fusion') ? missing[0]! : `missing ${missing.join(', ')}`,
+      })
+      continue
+    }
+    const holder = line.holder === undefined ? null : holderOf(line.holder, nextGuid)
+    if (line.holder !== undefined && holder === null) {
+      holderWarnings.push({
+        catalogNumber: line.tool.catalogNumber,
+        reason: `holder ${line.holder.catalogNumber} has no complete published Fusion shape`,
+      })
+    }
+    const presets = pretoolPresets(
+      {
+        form: line.tool.form,
+        diameter: line.tool.geometry.DC!,
+        fluteLength: line.tool.geometry.LCF!,
+        flutes: line.tool.geometry.NOF!,
+        cornerRadius: line.tool.geometry.RE ?? 0,
+        unit: 'millimeters',
+      },
+      settings.material,
+      settings.maxRpm,
+      nextGuid,
+    )
+    if (presets.length === 0) {
+      skipped.push({
+        catalogNumber: line.tool.catalogNumber,
+        reason: `PreTool has no preset generator for ${line.tool.form}`,
+      })
+      continue
+    }
+    const at = data.length + 1
+    data.push({
+      BMC: 'unspecified',
+      guid: nextGuid(),
+      type: line.tool.form,
+      unit: 'millimeters',
+      vendor: line.tool.brand,
+      'product-id': line.tool.catalogNumber,
+      ...(line.tool.productLink === null ? {} : { 'product-link': line.tool.productLink }),
+      description: `${line.tool.brand} ${line.tool.catalogNumber}`,
+      geometry: geometryOf(line),
+      ...(holder === null ? {} : { holder }),
+      'post-process': {
+        number: at,
+        'diameter-offset': at,
+        'length-offset': at,
+        live: true,
+        turret: 0,
+        'break-control': false,
+        'manual-tool-change': false,
+      },
+      'start-values': { presets },
+    })
+  }
+  return { library: { version: 33, data }, skipped, holderWarnings }
 }
