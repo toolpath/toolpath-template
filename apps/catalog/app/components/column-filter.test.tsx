@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { useRef, useState } from 'react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { UnitSystem } from '@toolpath/tool-support'
 import {
   ColumnPicker,
+  FilterMenu,
   OverrideNotice,
   RangeFilter,
   TermFilter,
@@ -506,5 +507,123 @@ describe('changing a number the geometry set', () => {
     render(<OverrideNotice label="Diameter" bound={{ max: 20 }} override={offer()} />)
 
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * **A funnel missing for one frame is not a column that has gone**
+ * (Paul, 2026-09-09: "it is taking me out of the filter once I've entered a
+ * certain number of characters").
+ *
+ * The menu measures itself against the funnel that opened it, from a listener
+ * that catches every scroll on the page and from a layout effect that re-runs
+ * on every render of the list under it. That list throws its header away and
+ * builds it again — `FilterMenu` says why — so one lookup landing on the wrong
+ * side of a rebuild used to close the menu with nothing pressed. The column
+ * picker taking a column off is the case the close is *for*, and that column is
+ * still gone a frame later.
+ */
+describe('a filter menu standing over its funnel', () => {
+  const Standing = ({ onClose }: { readonly onClose: () => void }) => {
+    const anchors = useRef<HTMLDivElement>(null)
+    return (
+      <div ref={anchors}>
+        <span data-column-funnel="DC" />
+        <FilterMenu label="Diameter" code="DC" anchors={anchors} align="left" onClose={onClose}>
+          <p>the filter</p>
+        </FilterMenu>
+      </div>
+    )
+  }
+
+  /** One turn of the animation frame the second look is scheduled on. */
+  const frame = async () => {
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+    })
+  }
+
+  /**
+   * Standing, with its first look already taken.
+   *
+   * The menu is drawn *inside* the element it measures against — the list owns
+   * both — so React has not attached that ref yet when the menu's own layout
+   * effect runs. The first look therefore always misses and the second one
+   * finds it, which is the behaviour under test working on the very first
+   * frame; every test below starts after it.
+   */
+  const standing = async (onClose: () => void) => {
+    const drawn = render(<Standing onClose={onClose} />)
+    await frame()
+    expect(onClose).not.toHaveBeenCalled()
+    return drawn
+  }
+
+  /**
+   * The header thrown away, without a re-render to announce it: this is what
+   * the list does under the menu, and the menu has to survive reading the DOM
+   * on the wrong side of it.
+   */
+  const funnel = () => document.querySelector('[data-column-funnel="DC"]')
+  const dropFunnel = () => {
+    const found = funnel()
+    found?.remove()
+    return found
+  }
+
+  it('stays where the funnel is there', async () => {
+    const onClose = vi.fn()
+    await standing(onClose)
+
+    fireEvent.scroll(window)
+    await frame()
+
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('stays through a header that is rebuilt under it', async () => {
+    const onClose = vi.fn()
+    const { container } = await standing(onClose)
+    const anchors = container.firstElementChild
+
+    // Gone when the scroll is answered, back before the second look is.
+    const taken = dropFunnel()
+    fireEvent.scroll(window)
+    anchors?.prepend(taken as Element)
+    await frame()
+
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('closes over a column that is really gone', async () => {
+    const onClose = vi.fn()
+    await standing(onClose)
+
+    dropFunnel()
+    fireEvent.scroll(window)
+    await frame()
+
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  /**
+   * A narrow box scrolls itself as soon as what is typed outgrows it, which is
+   * the whole of "a certain number of characters". The menu has no business
+   * measuring the header again because somebody typed — and measuring it is
+   * what closed the menu.
+   */
+  it('ignores a scroll inside itself', async () => {
+    const onClose = vi.fn()
+    await standing(onClose)
+
+    dropFunnel()
+    fireEvent.scroll(screen.getByText('the filter'))
+    await frame()
+    expect(onClose).not.toHaveBeenCalled()
+
+    // The same missing funnel, answered from a scroll that is not this menu's.
+    fireEvent.scroll(window)
+    await frame()
+    expect(onClose).toHaveBeenCalled()
   })
 })

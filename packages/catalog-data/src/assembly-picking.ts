@@ -175,6 +175,58 @@ export const holderCanTake = (
     : holderTakesTool(holder, null, tool)
 
 /**
+ * Whether this chuck could take this tool **if the right collet existed** —
+ * the shank against the size its series is named for.
+ *
+ * **A capacity question, not a stocking one.** {@link holderCanTake} answers
+ * whether the crib can grip the tool today, and must stay strict. This answers
+ * the question a rack has to ask before it hides a holder: an ER32 chuck is a
+ * real answer for a 12 mm shank whether or not anybody has bought the ER32-12
+ * yet, and an ER11 is not an answer for a 25 mm shank however the crib is
+ * stocked.
+ *
+ * The series' nominal size is a loose bound on purpose — an ER16 closes on 10,
+ * not 16 — because the real capacity table is the vendor's and inventing one
+ * here would be a clamping claim made up on the spot. Its whole job is to keep
+ * the absurd rows out, since offering them reads as a claim that they fit.
+ *
+ * A tool that states no shank could go in nothing: `holderTakesTool` refuses
+ * one for the same reason, and the unchecked case is a cutter on the floor.
+ */
+export const seriesCouldTake = (holder: Holder, tool: CatalogTool): boolean => {
+  const shank = tool.geometry.SFDM
+  if (shank === undefined) {
+    return false
+  }
+  const bound = seriesSize(holder.colletSeries)
+  return bound === null || shank <= bound
+}
+
+/**
+ * Whether this holder is worth *offering* for this tool — what
+ * {@link holderCanTake} asks, widened by {@link seriesCouldTake} for a chuck
+ * the crib has no collet for.
+ *
+ * **A rack is not a stock list** (Paul, 2026-09-09: "we should show any holder,
+ * even if there is not a collet in the library that works"). A shop that owns
+ * four chucks and buys collets to suit them was being shown a list narrowed to
+ * the collets somebody had already scraped — and a chuck missing for want of a
+ * collet is indistinguishable on screen from a chuck that cannot hold the tool.
+ *
+ * Nothing here weakens what {@link holderCanTake} claims, and a caller that
+ * shows a stack must still say which of the two answered — `colletGap` in the
+ * catalog application is that sentence.
+ */
+export const holderMayTake = (
+  tool: CatalogTool,
+  holder: Holder,
+  collets: ReadonlyArray<Collet>,
+): boolean =>
+  holderNeedsCollet(holder)
+    ? seriesCouldTake(holder, tool) || holderCanTake(tool, holder, collets)
+    : holderTakesTool(holder, null, tool)
+
+/**
  * Whether this holder takes a collet series the crib stocks none of.
  *
  * **A fact about the crib, never a fit claim.** `holderCanTake` answers whether

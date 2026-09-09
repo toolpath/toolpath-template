@@ -1,5 +1,13 @@
 import { Button, Checkbox, Combobox, IconButton, Input, cn } from '@toolpath/ui'
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 import { createPortal } from 'react-dom'
 import {
   CheckIcon,
@@ -446,16 +454,44 @@ export const FilterMenu = ({
   const [at, setAt] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
 
   useLayoutEffect(() => {
-    const place = () => {
-      // Found rather than held: the funnel is inside a header the table rebuilds
-      // under this menu, so the element measured a moment ago is not the one on
-      // screen now.
+    // Found rather than held: the funnel is inside a header the table rebuilds
+    // under this menu, so the element measured a moment ago is not the one on
+    // screen now.
+    const funnel = () => {
       const anchor = anchors.current?.querySelector<HTMLElement>(`[data-column-funnel="${code}"]`)
       if (anchor === undefined || anchor === null || anchor.checkVisibility?.() === false) {
-        // The column is not on screen any more — taken off by the column
-        // picker, or behind whichever list the table switched to. A menu
-        // standing over nothing is one nothing can be read back off.
-        onClose()
+        return null
+      }
+      return anchor
+    }
+
+    let looking = 0
+    const place = () => {
+      const anchor = funnel()
+      if (anchor === null) {
+        /*
+          **A funnel that is missing this instant is not a column that has
+          gone** (Paul, 2026-09-09: "it is taking me out of the filter once I've
+          entered a certain number of characters"). This runs on every scroll
+          anywhere on the page — a narrow box scrolls itself as soon as the text
+          outgrows it — and on every render of the list, which is a list that
+          throws its header away and builds it again. One lookup landing between
+          the two closed the menu mid-word, and nothing about that is the column
+          being taken off the table.
+
+          So a miss is looked at twice. What the second look is for is a funnel
+          that is *really* gone — hidden by the column picker, or behind
+          whichever list the table switched to — which is still gone a frame
+          later, where a rebuild is not.
+        */
+        cancelAnimationFrame(looking)
+        looking = requestAnimationFrame(() => {
+          if (funnel() === null) {
+            onClose()
+            return
+          }
+          place()
+        })
         return
       }
       const button = anchor.getBoundingClientRect()
@@ -466,14 +502,32 @@ export const FilterMenu = ({
         left: Math.max(8, Math.min(wanted, window.innerWidth - width - 8)),
       })
     }
+
+    /**
+     * A scroll inside this menu is the menu's own business.
+     *
+     * The listener below captures every scroll on the page, and an `<input>`
+     * scrolls itself the moment what is typed outgrows the box — four or five
+     * characters in one of the number boxes. Measuring the header again because
+     * somebody typed is work for nothing, and it put the whole of the placing
+     * above on the end of a keystroke.
+     */
+    const onScroll = (event: Event) => {
+      if (event.target instanceof Node && box.current?.contains(event.target) === true) {
+        return
+      }
+      place()
+    }
+
     place()
     window.addEventListener('resize', place)
     // Capturing, so the table scrolling under an open menu moves it with the
     // header it belongs to rather than leaving it behind over the rows.
-    window.addEventListener('scroll', place, true)
+    window.addEventListener('scroll', onScroll, true)
     return () => {
+      cancelAnimationFrame(looking)
       window.removeEventListener('resize', place)
-      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('scroll', onScroll, true)
     }
   }, [anchors, code, align, onClose])
 
@@ -497,6 +551,8 @@ export const FilterMenu = ({
       if (target.closest('[data-base-ui-portal]') !== null) {
         return
       }
+      // TEMPORARY diagnostic, 2026-09-09 — see the note in `place` above.
+      console.warn('[filter-close] pointerdown outside', target.tagName, target.className)
       onClose()
     }
     document.addEventListener('pointerdown', onDown)
@@ -504,7 +560,33 @@ export const FilterMenu = ({
   }, [onClose])
 
   // Escape puts it away as well, without going back to find the header.
-  useEscape(true, onClose)
+  useEscape(true, () => {
+    // TEMPORARY diagnostic, 2026-09-09 — see the note in `place` above.
+    console.warn('[filter-close] escape')
+    onClose()
+  })
+
+  /**
+   * Enter is the tick (Paul, 2026-09-09: "hitting enter with a filter dialog
+   * shown should confirm it just like the check mark does").
+   *
+   * A filter commits as it is typed, so this closes rather than saves — and
+   * where the tick is confirming something, it confirms the same thing. A press
+   * on a control inside is that control's own: Enter on the × clears and leaves
+   * the menu open, Enter on the operator opens its list, and the kit's own
+   * popover marks the press handled before it reaches here.
+   */
+  const onEnter = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Enter' || event.defaultPrevented) {
+      return
+    }
+    if (event.target instanceof Element && event.target.closest('button') !== null) {
+      return
+    }
+    event.preventDefault()
+    confirm?.onConfirm()
+    onClose()
+  }
 
   return createPortal(
     <div
@@ -512,6 +594,7 @@ export const FilterMenu = ({
       role="group"
       aria-label={label}
       data-column-filter-menu
+      onKeyDown={onEnter}
       style={{ top: at.top, left: at.left }}
       className="fixed z-50 rounded-lg border border-zinc-800 bg-zinc-950 p-2 shadow-xl"
     >

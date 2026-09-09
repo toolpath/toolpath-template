@@ -87,6 +87,15 @@ const Heading = ({
     <th
       scope="col"
       /*
+        **The header is named for its column, not for its button.** A `th` takes
+        its accessible name from its contents, and the contents here are a
+        button that has to say what pressing it does — so without this the
+        column came out called "Sort by vendor", and every cell under it was
+        announced as belonging to that. The column is Vendor; the button sorts
+        by it.
+      */
+      aria-label={column.label}
+      /*
         `aria-sort` on the header rather than a glyph alone: the caret says
         which way to somebody looking at it and this says it to somebody who
         is not.

@@ -248,3 +248,109 @@ describe('confirming an override', () => {
     expect(onOverride).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * **Enter is the tick** (Paul, 2026-09-09: "hitting enter with a filter dialog
+ * shown should confirm it just like the check mark does"). Every filter here
+ * commits as it is typed, so the press has nothing to save — what it does is
+ * say *done* without reaching for the mouse, and where the tick is confirming
+ * an override it confirms the same one.
+ */
+describe('Enter, from inside a filter menu', () => {
+  it('closes a term column from its search box', () => {
+    const onClose = vi.fn()
+    render(
+      <Menu
+        code="type"
+        label="Type"
+        ask={{ shape: 'terms', axis: 'type' }}
+        options={OPTIONS}
+        chosen={['Flat end mill']}
+        onChosen={() => {}}
+        onClose={onClose}
+      />,
+    )
+
+    const before = onClose.mock.calls.length
+    fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Search type values' }), {
+      key: 'Enter',
+    })
+
+    expect(onClose.mock.calls.length).toBe(before + 1)
+  })
+
+  it('closes a typed word from its own box', () => {
+    const onClose = vi.fn()
+    render(
+      <Menu
+        code="name"
+        label="Name"
+        ask={{ shape: 'text' }}
+        text="harvi"
+        onText={() => {}}
+        onClose={onClose}
+      />,
+    )
+
+    const before = onClose.mock.calls.length
+    fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Search by name' }), { key: 'Enter' })
+
+    expect(onClose.mock.calls.length).toBe(before + 1)
+  })
+
+  it('overrules the rules where the tick would have, from the number box', () => {
+    const onOverride = vi.fn()
+    const onClose = vi.fn()
+    render(
+      <Menu
+        code="DC"
+        label="Diameter"
+        ask={{ shape: 'range', kind: 'length' }}
+        unit="millimeters"
+        bound={{ max: 20 }}
+        onBound={() => {}}
+        override={{
+          suggested: { max: 5 },
+          available: 948,
+          on: false,
+          onOverride,
+          say: (bound) => `at most ${String(bound.max)} mm`,
+        }}
+        onClose={onClose}
+      />,
+    )
+
+    const before = onClose.mock.calls.length
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Diameter — value' }), { key: 'Enter' })
+
+    expect(onOverride).toHaveBeenCalled()
+    expect(onClose.mock.calls.length).toBe(before + 1)
+  })
+
+  /**
+   * A press on a control inside the menu is that control's own: Enter on the ×
+   * clears and leaves the menu standing, which is the whole point of having an
+   * × rather than only a tick.
+   */
+  it('leaves the × to the ×', () => {
+    const onClose = vi.fn()
+    render(
+      <Menu
+        code="type"
+        label="Type"
+        ask={{ shape: 'terms', axis: 'type' }}
+        options={OPTIONS}
+        chosen={['Flat end mill']}
+        onChosen={() => {}}
+        onClose={onClose}
+      />,
+    )
+
+    const before = onClose.mock.calls.length
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Clear the Type filter' }), {
+      key: 'Enter',
+    })
+
+    expect(onClose.mock.calls.length).toBe(before)
+  })
+})

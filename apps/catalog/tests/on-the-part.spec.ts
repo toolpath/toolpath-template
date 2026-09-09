@@ -154,6 +154,43 @@ const ready = async (page: Page) => {
   }).toPass({ timeout: 20_000 })
 }
 
+/**
+ * The press under the stack: what every pick below is aiming at.
+ */
+const orderPress = (page: Page) =>
+  page.locator('[data-assembly-tree]').getByRole('button', { name: 'Add to order list' })
+
+/**
+ * A tool out of the list, and not finished until the stack is holding it.
+ *
+ * The row is clicked through the DOM rather than with the mouse because the
+ * table is virtualized and a row can be scrolled out from under a real cursor.
+ *
+ * **Retried until the tree says it took.** The list is answered by the matcher
+ * worker, so it is replaced asynchronously — and a row that was there when the
+ * click was scheduled can be gone by the time it lands, which drops the pick
+ * silently. Nothing failed at that point: the TOOL slot stayed empty, so
+ * `Add to order list` stayed greyed, and the test failed thirty seconds later
+ * against the press with `element is not enabled` — pointing at the button
+ * rather than at the pick that never happened. Four tests did this by hand and
+ * two of them were flaky on 2026-09-09.
+ *
+ * Waiting on the press being enabled is waiting for the one thing the pick was
+ * for, and it is the shape {@link ready} already uses: retry the action until
+ * the application answers, rather than guess at how long it needs.
+ */
+const pickTool = async (page: Page) => {
+  const press = orderPress(page)
+  await expect(async () => {
+    await page
+      .getByRole('grid')
+      .getByRole('row')
+      .nth(1)
+      .evaluate((element) => element.click())
+    await expect(press).toBeEnabled({ timeout: 2_000 })
+  }).toPass({ timeout: 20_000 })
+}
+
 test.beforeEach(async ({ page }) => {
   await openCube(page)
   await expect(page.locator('canvas')).toBeVisible()
@@ -265,8 +302,6 @@ test('a click on nothing answers the open question, then puts the reading down',
  * still running.
  */
 test('the filter toolbar exposes the catalog filter controls', async ({ page }) => {
-  await openCube(page)
-
   await expect(page.getByRole('button', { name: 'Filters' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Part material' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Filter by Type', exact: true })).toBeVisible()
@@ -575,8 +610,6 @@ test('filters open inline from the tool table, below the viewer', async ({ page 
  * where it does not.
  */
 test('the family is a column, and the column is the filter', async ({ page }) => {
-  await openCube(page)
-
   await expect(page.getByRole('columnheader', { name: /Family/ })).toBeVisible()
   await expect(page.getByRole('gridcell', { name: 'Sample HP Series' }).first()).toBeVisible()
 
@@ -916,25 +949,17 @@ test('opens a group from a caret the width of the gutter', async ({ page }) => {
     not a row: the feature goes with the tool that answers it, in the one press
     under the stack (Paul, 2026-09-09).
   */
-  const press = page
-    .locator('[data-assembly-tree]')
-    .getByRole('button', { name: 'Add to order list' })
-  const pickTool = async () =>
-    await page
-      .getByRole('grid')
-      .getByRole('row')
-      .nth(1)
-      .evaluate((element) => element.click())
+  const press = orderPress(page)
 
   await ready(page)
   await page.getByRole('button', { name: '+ Feature' }).click()
-  await pickTool()
+  await pickTool(page)
   await press.click()
 
   await ready(page)
   await page.getByRole('button', { name: '+ Group' }).click()
   await inTheGroup(page)
-  await pickTool()
+  await pickTool(page)
   await press.click()
 
   // A feature and a group, on the list together.
@@ -1053,17 +1078,10 @@ test('keeps the list across a reload', async ({ page }) => {
   const named = await inTheGroup(page)
   // One tool for all of them is what every group asks (Paul, 2026-09-08), so
   // the group is finished by picking a tool out of the list below it.
-  await page
-    .getByRole('grid')
-    .getByRole('row')
-    .nth(1)
-    .evaluate((element) => element.click())
+  await pickTool(page)
   // The group reaches the order list with the assembly that answers it, in one
   // press (Paul, 2026-09-09) — there is no confirm on the box any more.
-  await page
-    .locator('[data-assembly-tree]')
-    .getByRole('button', { name: 'Add to order list' })
-    .click()
+  await orderPress(page).click()
 
   const list = page.getByRole('list', { name: 'Features being asked about' })
   await expect(list.getByRole('listitem')).toHaveCount(1)
@@ -1098,12 +1116,7 @@ test('makes the feature with the assembly that answers it', async ({ page }) => 
   // Picking a tool from the list fills the stack; the press writes it and makes
   // the row it is for (Paul, 2026-09-07: a tool reaches the bill through the
   // stack under the reading and nowhere else).
-  await page
-    .getByRole('grid')
-    .getByRole('row')
-    .nth(1)
-    .evaluate((element) => element.click())
-  await expect(press).toBeEnabled()
+  await pickTool(page)
   await press.click()
 
   const list = page.getByRole('list', { name: 'Features being asked about' })
@@ -1262,10 +1275,25 @@ test('reads the order list by component as well as by assembly', async ({ page }
 
   const components = page.getByRole('button', { name: 'Show the order list by components' })
   await components.click()
-  const tally = page.getByRole('list', { name: 'Components to order' })
-  // A stack of a tool in a holder is two things to buy, one of each.
-  await expect(tally.getByRole('listitem')).toHaveCount(2)
+  // A stack of a tool in a holder is two things to buy, one of each — and the
+  // view is a table, because every column of it is a way to read the bill
+  // (Paul, 2026-09-09: "I should be able to sort the columns in component
+  // view in the parts page").
+  const tally = page.getByRole('table', { name: 'Components to order' })
+  await expect(tally.getByRole('row')).toHaveCount(3)
   await expect(tally.getByText('×1').first()).toBeVisible()
+
+  // Read by a column, and turned round by pressing it again.
+  await tally.getByRole('button', { name: 'Sort by vendor' }).click()
+  await expect(tally.getByRole('columnheader', { name: /Vendor/ })).toHaveAttribute(
+    'aria-sort',
+    'ascending',
+  )
+  await tally.getByRole('button', { name: 'Sort by vendor' }).click()
+  await expect(tally.getByRole('columnheader', { name: /Vendor/ })).toHaveAttribute(
+    'aria-sort',
+    'descending',
+  )
 
   await page.getByRole('button', { name: 'Show the order list by assemblies' }).click()
   await expect(page.getByRole('list', { name: 'Features being asked about' })).toBeVisible()
@@ -1355,18 +1383,11 @@ test('presses the tool under a row for everything that fits it', async ({ page }
   await ready(page)
   await page.getByRole('button', { name: '+ Group' }).click()
   const named = await inTheGroup(page)
-  await page
-    .getByRole('grid')
-    .getByRole('row')
-    .nth(1)
-    .evaluate((element) => element.click())
+  await pickTool(page)
   // The row's answer is a stack somebody pressed: picking the tool above put it
   // in the stack, and this one press makes the group and puts the stack on the
   // order list together (Paul, 2026-09-09).
-  await page
-    .locator('[data-assembly-tree]')
-    .getByRole('button', { name: 'Add to order list' })
-    .click()
+  await orderPress(page).click()
 
   // The group it just made is what it is working on, so the list below is
   // already the group's. Putting it down goes back to the catalog, and its own
@@ -2063,6 +2084,69 @@ test.describe('the tool assembly tree', () => {
    * adding a new assembly to the feature"). The sheet keys a line by its tool,
    * so the stack has to remember what it was ordered as.
    */
+  /**
+   * **A chuck the crib has no collet for is still an answer** (Paul,
+   * 2026-09-09: "we should show any holder, even if there is not a collet in
+   * the library that works"). The rack used to be narrowed to what the collet
+   * drawer could close on today, so a holder missing because nobody had bought
+   * an ER20-6 read exactly like a holder that cannot hold the tool.
+   *
+   * The fixture is the claim: five collets, and the ER20 pair start at 9 mm, so
+   * a 6 mm shank goes in the ER16 chuck and nothing the crib owns closes on it
+   * in the ER20. Both are offered; only one of them says why it cannot be built.
+   */
+  test('offers a chuck the crib has no collet for, and marks it', async ({ page }) => {
+    await ready(page)
+    await page.getByRole('button', { name: '+ Tool Assembly' }).click()
+
+    const tree = page.locator('[data-assembly-tree]')
+    await tree.getByRole('button', { name: /^TOOL for / }).click()
+    // A 6 mm shank: the ER16 chuck closes on it, the ER20 chuck could and the
+    // crib holds nothing that does.
+    await page.getByRole('grid').first().getByRole('row').filter({ hasText: 'TDMX0500' }).click()
+
+    await tree.getByRole('button', { name: /^HOLDER for / }).click()
+    const holders = page.locator('[data-component-table="holder"]').getByRole('grid')
+
+    const er20 = holders.getByRole('row').filter({ hasText: 'BT30ER20070M' })
+    await expect(er20).toBeVisible()
+    await expect(er20.getByText('no collet')).toHaveAttribute(
+      'title',
+      /no ER20 collet in the crib closes on this shank/,
+    )
+
+    // And the one that can be built says nothing at all.
+    const er16 = holders.getByRole('row').filter({ hasText: 'BT30ER16060M' })
+    await expect(er16).toBeVisible()
+    await expect(er16.getByText('no collet')).toHaveCount(0)
+  })
+
+  /**
+   * The other half: choosing it leaves an empty collet list, which has to name
+   * what to buy rather than ask somebody to undo the choice they just made.
+   */
+  test('says what to buy when the chuck it offered has no collet', async ({ page }) => {
+    await ready(page)
+    await page.getByRole('button', { name: '+ Tool Assembly' }).click()
+
+    const tree = page.locator('[data-assembly-tree]')
+    await tree.getByRole('button', { name: /^TOOL for / }).click()
+    await page.getByRole('grid').first().getByRole('row').filter({ hasText: 'TDMX0500' }).click()
+
+    await tree.getByRole('button', { name: /^HOLDER for / }).click()
+    await page
+      .locator('[data-component-table="holder"]')
+      .getByRole('grid')
+      .getByRole('row')
+      .filter({ hasText: 'BT30ER20070M' })
+      .click()
+
+    await tree.getByRole('button', { name: /^COLLET for / }).click()
+    await expect(
+      page.getByText(/No collet fits this holder: no ER20 collet in the crib closes on this shank/),
+    ).toBeVisible()
+  })
+
   test('replaces the tool on an assembly already on the order list', async ({ page }) => {
     await ready(page)
     await page.getByRole('button', { name: '+ Feature' }).click()
@@ -2315,5 +2399,87 @@ test.describe('the tool assembly tree', () => {
 
       await upright(page)
     })
+  })
+})
+
+/**
+ * **Typing in a filter is not a reason for the filter to shut** (Paul,
+ * 2026-09-09: "it is taking me out of the filter once I've entered a certain
+ * number of characters … this is happening in ALL filter fields with text
+ * entry", and the next day, "make sure this works the same across the table
+ * with nothing active, +feature, +group, and +tool assembly").
+ *
+ * The menu is a portal placed against the funnel on the header, and it measures
+ * itself again on every scroll anywhere on the page and on every render of the
+ * list under it — a list that throws its header away and builds it again. Two
+ * things made that fragile, and both are fixed in `column-filter.tsx`: an
+ * `<input>` scrolls *itself* the moment what is typed outgrows the box, which
+ * put the whole of the placing on the end of a keystroke; and one lookup
+ * landing while the header was being rebuilt closed the menu outright.
+ *
+ * It is asked in each of the four states because the table reaches the screen
+ * through a different branch in each, and the fix that landed for a feature on
+ * 2026-09-08 covered only that one.
+ */
+test.describe('typing into a column filter', () => {
+  /** The four boxes the table offers to type into, whatever is being asked. */
+  const boxes = ['Filter by Catalog number', 'Filter by Vendor', 'Filter by Type'] as const
+
+  const stillTyping = async (page: Page, funnel: string) => {
+    const opener = page.getByRole('button', { name: funnel, exact: true })
+    await expect(opener).toBeVisible()
+    await opener.click()
+
+    const menu = page.locator('[data-column-filter-menu]')
+    await expect(menu).toBeVisible()
+    const box = menu.locator('input:not([aria-hidden="true"])').first()
+    await box.click()
+
+    // Long enough to outgrow the box, which is what makes the input scroll —
+    // and to empty the list under the menu, which is what rebuilds the header.
+    for (const letter of 'HARVI1234567') {
+      await page.keyboard.type(letter)
+      await expect(menu).toBeVisible()
+      await expect(box).toBeFocused()
+    }
+    await expect(box).toHaveValue('HARVI1234567')
+
+    // Put away the way the menu says to, so the next column starts clean.
+    await menu.getByRole('button', { name: /^Done filtering by / }).click()
+    await expect(menu).toBeHidden()
+  }
+
+  const acrossTheBoxes = async (page: Page) => {
+    for (const funnel of boxes) {
+      await stillTyping(page, funnel)
+    }
+  }
+
+  test('holds with nothing active', async ({ page }) => {
+    await expect(page.getByRole('grid')).toBeVisible()
+
+    await acrossTheBoxes(page)
+  })
+
+  test('holds on a feature', async ({ page }) => {
+    await ready(page)
+    await page.getByRole('button', { name: '+ Feature' }).click()
+
+    await acrossTheBoxes(page)
+  })
+
+  test('holds on a group', async ({ page }) => {
+    await ready(page)
+    await page.getByRole('button', { name: '+ Group' }).click()
+    await inTheGroup(page)
+
+    await acrossTheBoxes(page)
+  })
+
+  test('holds on an assembly that answers no feature', async ({ page }) => {
+    await page.getByRole('button', { name: '+ Tool Assembly' }).click()
+    await expect(page.locator('[data-assembly-tree]')).toBeVisible()
+
+    await acrossTheBoxes(page)
   })
 })

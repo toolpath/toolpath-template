@@ -58,3 +58,52 @@ export const oneEach = (tools: ReadonlyArray<CatalogTool>): Array<CatalogTool> =
     return true
   })
 }
+
+/**
+ * The row cap, applied so that neither kind of row can crowd the other out.
+ *
+ * **A cap over a list two sources fill silently empties the shorter one**
+ * (Paul, 2026-09-09: a ⌀0.125 in pocket widened to ⌀0.5 in "doesn't obey my new
+ * entry and show the tools … sometimes it stays at 0.125"). What a forgiven
+ * column offers goes *under* what the rules kept — `part.tsx` § `listed` says
+ * why — and on the scraped catalog that day the rules kept 2,197 tools against
+ * a cap of 2,000. Every override row was past the end of the slice, so widening
+ * the filter changed nothing on screen at all.
+ *
+ * So the reserved rows get a share of the cap rather than the leftovers: up to
+ * half of it, or all of them where there are fewer than that. Order is
+ * untouched — this only decides which rows the cap drops — and where the whole
+ * list fits, or nothing is reserved, it is the plain slice it always was.
+ *
+ * A share rather than the whole cap because both halves are answers: the tools
+ * that fit are still the ones to reach for first, and a widened bound is meant
+ * to widen the list rather than replace it.
+ */
+export const capRows = (
+  tools: ReadonlyArray<CatalogTool>,
+  reserved: ReadonlySet<string>,
+  cap: number,
+): ReadonlyArray<CatalogTool> => {
+  if (tools.length <= cap || reserved.size === 0) {
+    return tools.slice(0, Math.max(0, cap))
+  }
+  let held = Math.min(
+    tools.filter((each) => reserved.has(each.guid)).length,
+    Math.floor(Math.max(0, cap) / 2),
+  )
+  let room = Math.max(0, cap) - held
+  return tools.filter((each) => {
+    if (reserved.has(each.guid)) {
+      if (held === 0) {
+        return false
+      }
+      held -= 1
+      return true
+    }
+    if (room === 0) {
+      return false
+    }
+    room -= 1
+    return true
+  })
+}

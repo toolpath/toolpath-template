@@ -258,14 +258,34 @@ them.
 
 `app/shared/assembly-narrowing.ts` — pure, and tested there.
 
-| Chosen | Tools narrow to    | Holders narrow to      | Collets narrow to          |
-| ------ | ------------------ | ---------------------- | -------------------------- |
-| tool   | —                  | those that can take it | those closing on its shank |
-| holder | those it can take  | —                      | those of its series        |
-| collet | those it closes on | those of its series    | —                          |
+| Chosen | Tools narrow to     | Holders narrow to        | Collets narrow to          |
+| ------ | ------------------- | ------------------------ | -------------------------- |
+| tool   | —                   | those that could take it | those closing on its shank |
+| holder | those it could take | —                        | those of its series        |
+| collet | those it closes on  | those of its series      | —                          |
 
 Every rule is symmetric, which is the point: **a CAT40 Kennametal chuck picked
 first leaves only the tools it holds and only the collets that fit it.**
+
+**"Could take it" is not "can grip it today"** (Paul, 2026-09-09: "we should
+show any holder, even if there is not a collet in the library that works"). A
+collet chuck is offered when the shank is inside the size its series is named
+for — `holderMayTake` in `@toolpath/catalog-data` — whether or not the crib
+stocks a collet that closes on it. The rack was narrowed to the collet drawer
+before, so a chuck missing for want of an ER20-6 was indistinguishable from a
+chuck that cannot hold the tool at all, and a shop that owns four chucks and
+buys collets to suit them was being shown the wrong list. The series name stays
+as a loose bound — an ER11 is never an answer for a 25 mm shank — because the
+real capacity table is the vendor's and inventing one would be a clamping claim
+made up on the spot.
+
+**Every widened row says why it cannot be built** (`colletGap`), as a `no collet`
+badge on the row carrying the reason, in two kinds: _the crib stocks no ER11
+collet_ is a drawer nobody has bought, and _no ER20 collet in the crib closes on
+this shank_ is one collet to order. `holderCanTake` — the strict claim that a
+stack grips — is untouched, and nothing may present a widened row as though it
+answered it. Choosing such a chuck leaves the collet slot empty, and that slot
+names what to buy rather than asking for the choice to be undone.
 
 **Only the holders that can be drawn are offered** (`holdersToOffer`). A holder
 is drawable when it has a measured profile or a published nose diameter, and
@@ -717,6 +737,8 @@ gets it.
 | the stacks following the thread on the hole read  | `forThread`, same file                           |
 | how the stacks nest, and their drawing order      | `treeRows`, same file                            |
 | what narrows what                                 | `app/shared/assembly-narrowing.ts`               |
+| whether a chuck is worth offering with no collet  | `holderMayTake`, `@toolpath/catalog-data`        |
+| why an offered chuck cannot be built today        | `colletGap`, `app/shared/assembly-narrowing.ts`  |
 | what a stack offers, and its button's words       | `app/shared/assembly-actions.ts`                 |
 | what overruling the rules offers                  | `overridableTools`, `app/shared/tool-fit.ts`     |
 | what an axis has that the list is not showing     | `hiddenOn`, `app/routes/part.tsx`                |

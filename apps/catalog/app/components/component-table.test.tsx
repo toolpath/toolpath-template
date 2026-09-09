@@ -30,7 +30,7 @@ const holder: Holder = {
   provenance: {},
 }
 
-const show = (onQuery = vi.fn()) => {
+const show = (onQuery = vi.fn(), gap?: (guid: string) => string | null) => {
   render(
     <div className="h-96">
       <ComponentTable
@@ -42,6 +42,7 @@ const show = (onQuery = vi.fn()) => {
         columnOrder={HOLDER_COLUMNS.map((column) => column.code)}
         chosen={null}
         onChoose={() => {}}
+        gap={gap}
         virtualized={false}
         filtering={{
           query: NO_QUERY,
@@ -127,5 +128,28 @@ describe('the filters a holder heading asks', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'BT30' }))
 
     expect(onQuery).toHaveBeenCalledWith({ text: '', terms: { type: ['BT30'] }, bounds: {} })
+  })
+})
+
+/**
+ * **The rack is wider than the collet drawer** (Paul, 2026-09-09: "we should
+ * show any holder, even if there is not a collet in the library that works").
+ * A chuck offered on those terms and a chuck the crib closes on are the same
+ * row without this, which is the one thing the widening must not cost.
+ */
+describe('a holder the crib has no collet for', () => {
+  it('says so on the row, with the reason', () => {
+    show(vi.fn(), () => 'the crib stocks no ER11 collet')
+
+    expect(screen.getByText('no collet')).toHaveAttribute(
+      'title',
+      'This holder is offered anyway — the crib stocks no ER11 collet.',
+    )
+  })
+
+  it('says nothing on a row the crib can close on', () => {
+    show(vi.fn(), () => null)
+
+    expect(screen.queryByText('no collet')).toBeNull()
   })
 })

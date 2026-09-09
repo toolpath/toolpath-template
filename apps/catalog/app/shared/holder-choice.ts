@@ -6,7 +6,7 @@ import {
   holderCanTake,
   holdersToShow,
   matchesFilters,
-  seriesSize,
+  seriesCouldTake,
   stickoutLimits,
   type CatalogTool,
   type Collet,
@@ -171,23 +171,6 @@ const optionFor = (
   }
 }
 
-/**
- * Whether an unstocked chuck is worth offering for this tool at all.
- *
- * **The series' nominal size as a loose bound** — an ER16 closes on 10 mm, not
- * 16, and inventing the real capacity table here would be a clamping claim made
- * up on the spot. Its whole job is to keep a 25 mm shank out of an ER11 chuck,
- * where offering it would be absurd enough to read as a claim that it fits.
- */
-const withinSeries = (tool: CatalogTool, holder: Holder): boolean => {
-  const shank = tool.geometry.SFDM
-  if (shank === undefined) {
-    return false
-  }
-  const bound = seriesSize(holder.colletSeries)
-  return bound === null || shank <= bound
-}
-
 export const holderOptions = (
   tool: CatalogTool,
   holders: ReadonlyArray<Holder>,
@@ -214,7 +197,7 @@ export const holderOptions = (
    * that cannot grip today is not competing with one that can.
    */
   const unstocked = shown.unstocked
-    .filter((holder) => withinSeries(tool, holder))
+    .filter((holder) => seriesCouldTake(holder, tool))
     .map((holder) => ({
       ...optionFor(tool, holder, collets, curve, margins, thresholds),
       unstocked: true,

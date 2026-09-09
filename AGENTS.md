@@ -253,43 +253,46 @@ application unless that application says otherwise.
   route, and the pure half is where its rules live. A change to how it behaves is
   almost always a change to one of these rather than to `routes/part.tsx`:
 
-| Question                                        | Module                                               |
-| ----------------------------------------------- | ---------------------------------------------------- |
-| what the list holds, its names, ids, storage    | `app/shared/feature-list.ts`                         |
-| which key a row's lines reach the bill under    | `sheetKeysOf`, same file                             |
-| what is on the order list, for both pages       | `app/shared/order-list.ts`                           |
-| which rows the list draws, and what to buy      | `listedItems` / `componentTotals`, same file         |
-| which of four things the page is being asked    | `asked()`, same file                                 |
-| the three presses over the part that add a row  | `app/components/add-bar.tsx`                         |
-| a row's answer, and what it opens to            | `app/shared/recommendations.ts`                      |
-| what the panel offers for the tool it shows     | `app/shared/tool-actions.ts`                         |
-| what fills the tool table, and the cache        | `app/shared/catalog-matcher.ts`                      |
-| what overruling the rules offers, per column    | `overridableTools`, `app/shared/tool-fit.ts`         |
-| the note and press a changed filter raises      | `OverrideNotice`, `app/components/column-filter.tsx` |
-| whether a value is inside a filter's bound      | `withinRange`, `app/shared/filter.ts`                |
-| the same work, off the UI thread                | `app/client/catalog-matcher.worker.ts`               |
-| what a click on the part means                  | `app/shared/part-interaction.ts`                     |
-| which layer one press of Escape reaches         | `app/shared/use-escape.ts`                           |
-| a feature's assemblies, its slots, its storage  | `app/shared/assembly-tree.ts`                        |
-| what narrows what when any part is chosen first | `app/shared/assembly-narrowing.ts`                   |
-| a group's worst case, and whose it is           | `app/shared/group-geometry.ts`                       |
-| how far below the holder a stack has to stand   | `belowHolder`, `app/shared/drawn-assembly.ts`        |
-| which slots were filled against the rules       | `overrides`, `app/shared/assembly-tree.ts`           |
-| what a stack offers, and its button's words     | `app/shared/assembly-actions.ts`                     |
-| what a shop calls an assembly, and its field    | `renameItem` / `renameAssembly`, `name-field.tsx`    |
-| reading and filtering a holder or a collet      | `app/shared/component-columns.ts`                    |
-| which column header asks which filter           | `app/shared/column-filters.ts`                       |
-| what a tool is, in one phrase with its shank    | `app/shared/tool-type.ts`                            |
-| which ticks a filter the page set puts on Type  | `typesAsking`, `app/shared/tool-type.ts`             |
-| which of its columns a tap list narrows on      | `askOfTapColumn`, `app/shared/column-filters.ts`     |
-| what a tick on the tap list's Type column asks  | `formsAskingTaps`, `app/shared/hole-mode.ts`         |
-| what is narrowing a list, named for its button  | `narrowingNames`, `app/shared/column-filters.ts`     |
-| the numbers a thread and a depth put on a tap   | `tapBounds`, `app/shared/hole-mode.ts`               |
-| the form behind a Type phrase, and what it asks | `app/shared/tool-type.ts`                            |
-| the list, its answers and its right-click       | `app/components/feature-list-panel.tsx`              |
-| building a group                                | `app/components/group-editor.tsx`                    |
-| the reading, its numbers and its thread         | `app/components/selection-panel.tsx`                 |
-| the tool table and its marks                    | `app/components/part-tool-table.tsx`                 |
+| Question                                             | Module                                               |
+| ---------------------------------------------------- | ---------------------------------------------------- |
+| what the list holds, its names, ids, storage         | `app/shared/feature-list.ts`                         |
+| which key a row's lines reach the bill under         | `sheetKeysOf`, same file                             |
+| what is on the order list, for both pages            | `app/shared/order-list.ts`                           |
+| which rows the list draws, and what to buy           | `listedItems` / `componentTotals`, same file         |
+| which of four things the page is being asked         | `asked()`, same file                                 |
+| the three presses over the part that add a row       | `app/components/add-bar.tsx`                         |
+| a row's answer, and what it opens to                 | `app/shared/recommendations.ts`                      |
+| what the panel offers for the tool it shows          | `app/shared/tool-actions.ts`                         |
+| what fills the tool table, and the cache             | `app/shared/catalog-matcher.ts`                      |
+| a stored guid turned back into a record              | `getTool`/`getHolder`/`getCollet`, `catalog.ts`      |
+| what overruling the rules offers, per column         | `overridableTools`, `app/shared/tool-fit.ts`         |
+| the note and press a changed filter raises           | `OverrideNotice`, `app/components/column-filter.tsx` |
+| whether a value is inside a filter's bound           | `withinRange`, `app/shared/filter.ts`                |
+| the same work, off the UI thread                     | `app/client/catalog-matcher.worker.ts`               |
+| what a click on the part means                       | `app/shared/part-interaction.ts`                     |
+| which layer one press of Escape reaches              | `app/shared/use-escape.ts`                           |
+| whether an open filter survives the list under it    | `FilterMenu`, `app/components/column-filter.tsx`     |
+| a feature's assemblies, its slots, its storage       | `app/shared/assembly-tree.ts`                        |
+| what narrows what when any part is chosen first      | `app/shared/assembly-narrowing.ts`                   |
+| why an offered chuck cannot be built out of the crib | `colletGap`, same file                               |
+| a group's worst case, and whose it is                | `app/shared/group-geometry.ts`                       |
+| how far below the holder a stack has to stand        | `belowHolder`, `app/shared/drawn-assembly.ts`        |
+| which slots were filled against the rules            | `overrides`, `app/shared/assembly-tree.ts`           |
+| what a stack offers, and its button's words          | `app/shared/assembly-actions.ts`                     |
+| what a shop calls an assembly, and its field         | `renameItem` / `renameAssembly`, `name-field.tsx`    |
+| reading and filtering a holder or a collet           | `app/shared/component-columns.ts`                    |
+| which column header asks which filter                | `app/shared/column-filters.ts`                       |
+| a tool in one phrase, with its shank or neck         | `app/shared/tool-type.ts`                            |
+| which ticks a filter the page set puts on Type       | `typesAsking`, `app/shared/tool-type.ts`             |
+| which of its columns a tap list narrows on           | `askOfTapColumn`, `app/shared/column-filters.ts`     |
+| what a tick on the tap list's Type column asks       | `formsAskingTaps`, `app/shared/hole-mode.ts`         |
+| what is narrowing a list, named for its button       | `narrowingNames`, `app/shared/column-filters.ts`     |
+| the numbers a thread and a depth put on a tap        | `tapBounds`, `app/shared/hole-mode.ts`               |
+| the form behind a Type phrase, and what it asks      | `app/shared/tool-type.ts`                            |
+| the list, its answers and its right-click            | `app/components/feature-list-panel.tsx`              |
+| building a group                                     | `app/components/group-editor.tsx`                    |
+| the reading, its numbers and its thread              | `app/components/selection-panel.tsx`                 |
+| the tool table and its marks                         | `app/components/part-tool-table.tsx`                 |
 
 - `docs/` holds planning documents that outlive a single change.
   `docs/CATALOG-SPEC.md` is the tool catalog specified end to end — how a shop

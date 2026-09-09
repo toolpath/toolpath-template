@@ -12,8 +12,26 @@ const componentFiles = (dir: string): Array<string> =>
     return path.endsWith('.tsx') && !path.endsWith('.test.tsx') ? [path] : []
   })
 
+/**
+ * The file with its comments taken out.
+ *
+ * A sensor that reads source rather than exercising it counts whatever the
+ * regex sees, and on 2026-09-09 that was five `<button>`s written *in prose* —
+ * `feature-list-panel.tsx` explaining which box a rule is given on, and
+ * `assembly-tree-panel.tsx` explaining `min-width: auto`. The kit was being
+ * used correctly everywhere and the gate was red, which is the one thing a
+ * sensor must never do: a false alarm gets the check disabled, and then the
+ * real rule is a comment again.
+ *
+ * `/* … *\/` covers a JSX comment too, since `{/* … *\/}` is a block comment in
+ * braces. A `//` only counts from the start of a line so that a `https://` in a
+ * string does not swallow the rest of its line along with a tag on it.
+ */
+const withoutComments = (source: string): string =>
+  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
 const countTag = (file: string, tag: string): number =>
-  readFileSync(file, 'utf8').match(new RegExp(`<${tag}[\\s>]`, 'g'))?.length ?? 0
+  withoutComments(readFileSync(file, 'utf8')).match(new RegExp(`<${tag}[\\s>]`, 'g'))?.length ?? 0
 
 describe('catalog uses Toolpath UI controls', () => {
   const files = componentFiles('app')

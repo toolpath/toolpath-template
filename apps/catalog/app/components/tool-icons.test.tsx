@@ -61,14 +61,17 @@ describe('what a tool is called', () => {
     ).toBe('Reduced shank bull nose end mill')
   })
 
-  /** A neck behind a full-width shank is not what the words are about. */
-  it('says nothing about the shank of a necked tool whose shank is full width', () => {
+  /**
+   * A neck behind a full-width shank is a word of its own since 2026-09-09 —
+   * not `Reduced shank`, which is about the shank, and not silence either.
+   */
+  it('says the neck of a tool whose shank is full width', () => {
     expect(
       formLabel({
         form: 'bull nose end mill',
         geometry: { DC: 6, LCF: 12, SFDM: 6, 'shoulder-diameter': 5.4, 'shoulder-length': 40 },
       }),
-    ).toBe('Bull nose end mill')
+    ).toBe('Necked bull nose end mill')
   })
 
   /**
@@ -80,6 +83,20 @@ describe('what a tool is called', () => {
       formLabel({
         form: 'slot mill',
         geometry: { DC: 22.2, LCF: 1.6, SFDM: 12.7 },
+      }),
+    ).toBe('Slot mill')
+    // Nor about the neck (Paul, 2026-09-09: "we just shouldn't touch any of
+    // the slot mills"), which is the same rule read literally.
+    expect(
+      formLabel({
+        form: 'slot mill',
+        geometry: {
+          DC: 22.2,
+          LCF: 1.6,
+          SFDM: 12.7,
+          'shoulder-diameter': 11,
+          'shoulder-length': 30,
+        },
       }),
     ).toBe('Slot mill')
   })

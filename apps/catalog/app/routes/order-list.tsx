@@ -14,7 +14,7 @@ import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import type { CatalogTool, Collet, Holder } from '@toolpath/catalog-data'
 import { AppHeader } from 'components/app-header'
 import { ColletIcon, HolderIcon, ToolTypeIcon, formLabel } from './../components/tool-icons'
-import { allTools, collets as allCollets, holders as allHolders } from 'shared/catalog'
+import { allTools, getCollet, getHolder, getTool } from 'shared/catalog'
 import {
   addChoice,
   quantityOf,
@@ -165,7 +165,7 @@ const colletLine = (collet: Collet, unit: UnitSystem): Line => ({
  * looks for in the list is the cutter.
  */
 const titleOf = (assembly: OrderAssembly): string =>
-  allTools.find((each) => each.guid === assembly.choice.toolGuid)?.catalogNumber ?? 'this tool'
+  getTool(assembly.choice.toolGuid)?.catalogNumber ?? 'this tool'
 
 /**
  * One component on the bill, resolved through the catalog.
@@ -176,15 +176,15 @@ const titleOf = (assembly: OrderAssembly): string =>
  */
 const lineFor = (component: Component, guid: string, unit: UnitSystem): Line | null => {
   if (component === 'tool') {
-    const tool = allTools.find((each) => each.guid === guid)
-    return tool === undefined ? null : toolLine(tool, unit)
+    const tool = getTool(guid)
+    return tool === null ? null : toolLine(tool, unit)
   }
   if (component === 'holder') {
-    const holder = allHolders.find((each) => each.guid === guid)
-    return holder === undefined ? null : holderLine(holder, unit)
+    const holder = getHolder(guid)
+    return holder === null ? null : holderLine(holder, unit)
   }
-  const collet = allCollets.find((each) => each.guid === guid)
-  return collet === undefined ? null : colletLine(collet, unit)
+  const collet = getCollet(guid)
+  return collet === null ? null : colletLine(collet, unit)
 }
 
 /** The columns of the components view, each a way to read the bill. */
@@ -511,14 +511,20 @@ const Bom = () => {
   const downloadFusion = () => {
     const { library } = fusionLibrary(
       assemblies.flatMap(({ choice }) => {
-        const tool = allTools.find((each) => each.guid === choice.toolGuid)
-        return tool === undefined
+        const tool = getTool(choice.toolGuid)
+        return tool === null
           ? []
           : [
               {
                 tool,
-                holder: allHolders.find((each) => each.guid === choice.holderGuid),
-                collet: allCollets.find((each) => each.guid === choice.colletGuid),
+                holder:
+                  choice.holderGuid == null
+                    ? undefined
+                    : (getHolder(choice.holderGuid) ?? undefined),
+                collet:
+                  choice.colletGuid == null
+                    ? undefined
+                    : (getCollet(choice.colletGuid) ?? undefined),
               },
             ]
       }),
@@ -760,9 +766,15 @@ const Bom = () => {
                 <tbody>
                   {assemblies.flatMap(
                     ({ key, choice, rows: machines, keys, featureless, title }) => {
-                      const tool = allTools.find((each) => each.guid === choice.toolGuid)
-                      const holder = allHolders.find((each) => each.guid === choice.holderGuid)
-                      const collet = allCollets.find((each) => each.guid === choice.colletGuid)
+                      const tool = getTool(choice.toolGuid) ?? undefined
+                      const holder =
+                        choice.holderGuid == null
+                          ? undefined
+                          : (getHolder(choice.holderGuid) ?? undefined)
+                      const collet =
+                        choice.colletGuid == null
+                          ? undefined
+                          : (getCollet(choice.colletGuid) ?? undefined)
                       /**
                        * A control on the group writes to every feature it is
                        * kept for: one assembly, one count, however many

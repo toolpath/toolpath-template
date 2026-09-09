@@ -89,12 +89,14 @@ import {
 import { ColumnPicker, sameBound } from 'components/column-filter'
 import { BUTTON_FILTERS, FACET_AXES } from 'components/filter-panel'
 import { orderedCodes } from 'shared/column-order'
-import { firstBy, keptFirst, oneEach } from 'shared/tool-order'
+import { capRows, firstBy, keptFirst, oneEach } from 'shared/tool-order'
 import {
   allTools as catalogTools,
   collets as allCollets,
   facets,
   familyName,
+  getCollet,
+  getHolder,
   getProfile,
   getTool,
   holders as allHolders,
@@ -127,6 +129,7 @@ import {
 import { groupActions, lineOf, nothingToConfirm, savedFor } from 'shared/assembly-actions'
 import {
   byShank,
+  colletGapFor,
   holdersToOffer,
   narrowCollets,
   narrowTools,
@@ -2507,9 +2510,9 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
        * collet is a preference, not a filter — and the ones of its series lead.
        */
       holdersFor: (each) => {
-        const series = allCollets.find(
-          (collet) => collet.guid === picked[each.guid]?.colletGuid,
-        )?.series
+        const chosenCollet = picked[each.guid]?.colletGuid
+        const series =
+          chosenCollet == null ? undefined : (getCollet(chosenCollet)?.series ?? undefined)
         // Only the holders that can be drawn — `hasPicture` above says why, and
         // `undrawable` below reports what that hid.
         const options = optionsFor(each).filter(hasPicture)
@@ -2656,9 +2659,15 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    */
   const tool = useMemo(
     () =>
-      allTools.find((each) => each.guid === chosenTool) ??
+      /*
+        `toolsByGuid`, not `getTool`: this page's tools are the catalog's
+        carried through `withClampingLength`, so the catalog's own copy is the
+        same cutter set up at a different length. Everything below reads a
+        stickout off this.
+      */
+      (chosenTool === null ? undefined : toolsByGuid.get(chosenTool)) ??
       (chosenTool === null ? (held[0]?.tool ?? null) : null),
-    [chosenTool, held, allTools],
+    [chosenTool, held, toolsByGuid],
   )
   /**
    * True while the list is showing the taps rather than the tools.
@@ -2932,9 +2941,13 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               {
                 tool,
                 holder:
-                  allHolders.find((one) => one.guid === line.holderGuid)?.catalogNumber ?? null,
+                  line.holderGuid == null
+                    ? null
+                    : (getHolder(line.holderGuid)?.catalogNumber ?? null),
                 collet:
-                  allCollets.find((one) => one.guid === line.colletGuid)?.catalogNumber ?? null,
+                  line.colletGuid == null
+                    ? null
+                    : (getCollet(line.colletGuid)?.catalogNumber ?? null),
               },
             ]
       })
@@ -3102,8 +3115,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               }
         }
         if (total.component === 'holder') {
-          const holder = allHolders.find((each) => each.guid === total.guid)
-          return holder === undefined
+          const holder = getHolder(total.guid)
+          return holder === null
             ? { ...common, icon: <HolderIcon />, ...gone }
             : {
                 ...common,
@@ -3113,8 +3126,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                 detail: holderTypeLabel(holder),
               }
         }
-        const collet = allCollets.find((each) => each.guid === total.guid)
-        return collet === undefined
+        const collet = getCollet(total.guid)
+        return collet === null
           ? { ...common, icon: <ColletIcon />, ...gone }
           : {
               ...common,
@@ -3892,8 +3905,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     [assemblies, node],
   )
   const treeTool = assembly?.toolGuid == null ? null : getTool(assembly.toolGuid)
-  const treeHolder = allHolders.find((each) => each.guid === assembly?.holderGuid) ?? null
-  const treeCollet = allCollets.find((each) => each.guid === assembly?.colletGuid) ?? null
+  const treeHolder = assembly?.holderGuid == null ? null : getHolder(assembly.holderGuid)
+  const treeCollet = assembly?.colletGuid == null ? null : getCollet(assembly.colletGuid)
 
   /**
    * The length below the holder each row in the tool list would stand at.
@@ -4073,13 +4086,9 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
 
   /** The one row clicked while reading a rack, in each of the two. */
   const lookedUpHolder =
-    looking && componentSlot === 'holder'
-      ? (allHolders.find((each) => each.guid === lookedUp) ?? null)
-      : null
+    looking && componentSlot === 'holder' ? (lookedUp === null ? null : getHolder(lookedUp)) : null
   const lookedUpCollet =
-    looking && componentSlot === 'collet'
-      ? (allCollets.find((each) => each.guid === lookedUp) ?? null)
-      : null
+    looking && componentSlot === 'collet' ? (lookedUp === null ? null : getCollet(lookedUp)) : null
 
   /**
    * Whether the tree is drawn at all.
@@ -4227,7 +4236,18 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * the cap bites while browsing the catalog rather than while answering a
    * question, which is also where sorting a slice matters least.
    */
-  const tableRows = useMemo(() => treeToolRows.slice(0, TABLE_ROW_CAP), [treeToolRows])
+  /**
+   * The rows a forgiven column put on the list, so the cap cannot drop all of
+   * them — `tool-order.ts` § `capRows` is the rule and says what it cost.
+   */
+  const overrideGuids = useMemo(
+    () => new Set(overrideTools.map((each) => each.guid)),
+    [overrideTools],
+  )
+  const tableRows = useMemo(
+    () => capRows(treeToolRows, overrideGuids, TABLE_ROW_CAP),
+    [treeToolRows, overrideGuids],
+  )
   const rowsHidden = treeToolRows.length - tableRows.length
 
   /** The lines this row already has on the bill, which is what Add and Update compare against. */
@@ -4248,8 +4268,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const componentName = useCallback(
     (guid: string): string | null =>
       getTool(guid)?.catalogNumber ??
-      allHolders.find((each) => each.guid === guid)?.catalogNumber ??
-      allCollets.find((each) => each.guid === guid)?.catalogNumber ??
+      getHolder(guid)?.catalogNumber ??
+      getCollet(guid)?.catalogNumber ??
       null,
     [],
   )
@@ -4438,9 +4458,9 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       return each.toolGuid === null ? null : (getTool(each.toolGuid)?.catalogNumber ?? null)
     }
     if (slot === 'holder') {
-      return allHolders.find((holder) => holder.guid === each.holderGuid)?.catalogNumber ?? null
+      return each.holderGuid === null ? null : (getHolder(each.holderGuid)?.catalogNumber ?? null)
     }
-    return allCollets.find((collet) => collet.guid === each.colletGuid)?.catalogNumber ?? null
+    return each.colletGuid === null ? null : (getCollet(each.colletGuid)?.catalogNumber ?? null)
   }, [])
 
   /**
@@ -4589,6 +4609,33 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   )
 
   /**
+   * Which holder rows the crib cannot actually close on, and why.
+   *
+   * **The rack is wider than the collet drawer** (Paul, 2026-09-09: "we should
+   * show any holder, even if there is not a collet in the library that works").
+   * The list offers those chucks, so every one of them has to carry the reason
+   * it cannot be built today — `colletGap` is the rule, the badge on the row and
+   * the empty collet slot below both read it.
+   *
+   * Cached per holder: the answer is a walk of the chosen tool or of the
+   * feature's shanks, and the table asks it once per row on every render.
+   */
+  const holderGap = useMemo(() => {
+    const cache = new Map<string, string | null>()
+    const asked = treeTool !== null ? [treeTool] : asking ? stackShanks : null
+    return (guid: string): string | null => {
+      const had = cache.get(guid)
+      if (had !== undefined) {
+        return had
+      }
+      const holder = getHolder(guid)
+      const gap = holder === null ? null : colletGapFor(holder, asked, allCollets)
+      cache.set(guid, gap)
+      return gap
+    }
+  }, [treeTool, asking, stackShanks])
+
+  /**
    * What the panel beside the table offers for the tool it is showing.
    *
    * The rule is `shared/tool-actions`; this is what each of its answers does.
@@ -4668,9 +4715,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       key: action,
       label: toolActionLabel(action, {
         // Named by the number a shop orders by, not by the guid it is keyed on.
-        dropping: mappedHere.map(
-          (guid) => allTools.find((one) => one.guid === guid)?.catalogNumber ?? guid,
-        ),
+        dropping: mappedHere.map((guid) => toolsByGuid.get(guid)?.catalogNumber ?? guid),
       }),
       onClick: run[action],
       danger: action === 'remove',
@@ -4691,7 +4736,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     activeItem,
     setList,
     selectRow,
-    allTools,
+    toolsByGuid,
   ])
 
   /**
@@ -6219,6 +6264,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           usedIn={heldElsewhere}
                           onFeature={(guid) => guid === savedInSlot}
                           usedOn={usedOn}
+                          gap={componentSlot === 'holder' ? holderGap : undefined}
                           empty={
                             whyEmpty(
                               componentSlot === 'holder' ? holderRows.length : colletRows.length,
@@ -6228,6 +6274,16 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                               // whenever there is a feature, so both can be empty
                               // for that reason rather than for an empty crib.
                               asking,
+                              /*
+                                And a collet list can now be empty for a third
+                                reason: the chuck above it is one the rack offers
+                                without the crib stocking anything that closes on
+                                it. That is the fact worth printing, over the two
+                                general ones.
+                              */
+                              componentSlot === 'collet' && treeHolder !== null
+                                ? holderGap(treeHolder.guid)
+                                : null,
                             ) ?? undefined
                           }
                         />
