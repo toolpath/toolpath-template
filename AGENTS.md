@@ -210,7 +210,15 @@ application unless that application says otherwise.
   press under it puts it on the order list, because an assembly nobody ordered is
   a row about nothing. The three presses that grow
   the list — _+ Feature_, _+ Group_, _+ Tool Assembly_ — live over the top-left
-  of the viewer in `components/add-bar.tsx`, not in the list.
+  of the viewer in `components/add-bar.tsx`, not in the list. **Each opens its
+  box directly beneath itself, and the rows fold away under it** (Paul,
+  2026-09-10) — one column over the part rather than two, with a button under
+  the box that brings the rows back. **The press that orders closes the box, and
+  Enter is that press**: `isOrdering` and `orderingPress` in
+  `shared/assembly-actions.ts` are the rules. **The part is framed beside that
+  column, not behind it** — the canvas still runs the full width, so the part
+  shows through the rows and every overlay layer is unchanged; it is the
+  _camera_ that is told, in `shared/frame-inset.ts`.
   `shared/feature-list.ts` is the model and
   `components/feature-list-panel.tsx` the list on screen;
   `docs/FEATURE-LIST.md` is the spec, including _Where the rules live_ for
@@ -253,41 +261,54 @@ application unless that application says otherwise.
   route, and the pure half is where its rules live. A change to how it behaves is
   almost always a change to one of these rather than to `routes/part.tsx`:
 
-| Question                                        | Module                                               |
-| ----------------------------------------------- | ---------------------------------------------------- |
-| what the list holds, its names, ids, storage    | `app/shared/feature-list.ts`                         |
-| which key a row's lines reach the bill under    | `sheetKeysOf`, same file                             |
-| which of four things the page is being asked    | `asked()`, same file                                 |
-| the three presses over the part that add a row  | `app/components/add-bar.tsx`                         |
-| a row's answer, and what it opens to            | `app/shared/recommendations.ts`                      |
-| what the panel offers for the tool it shows     | `app/shared/tool-actions.ts`                         |
-| what fills the tool table, and the cache        | `app/shared/catalog-matcher.ts`                      |
-| what overruling the rules offers, per column    | `overridableTools`, `app/shared/tool-fit.ts`         |
-| the note and press a changed filter raises      | `OverrideNotice`, `app/components/column-filter.tsx` |
-| whether a value is inside a filter's bound      | `withinRange`, `app/shared/filter.ts`                |
-| the same work, off the UI thread                | `app/client/catalog-matcher.worker.ts`               |
-| what a click on the part means                  | `app/shared/part-interaction.ts`                     |
-| which layer one press of Escape reaches         | `app/shared/use-escape.ts`                           |
-| a feature's assemblies, its slots, its storage  | `app/shared/assembly-tree.ts`                        |
-| what narrows what when any part is chosen first | `app/shared/assembly-narrowing.ts`                   |
-| a group's worst case, and whose it is           | `app/shared/group-geometry.ts`                       |
-| how far below the holder a stack has to stand   | `belowHolder`, `app/shared/drawn-assembly.ts`        |
-| which slots were filled against the rules       | `overrides`, `app/shared/assembly-tree.ts`           |
-| what a stack offers, and its button's words     | `app/shared/assembly-actions.ts`                     |
-| what a shop calls an assembly, and its field    | `renameItem` / `renameAssembly`, `name-field.tsx`    |
-| reading and filtering a holder or a collet      | `app/shared/component-columns.ts`                    |
-| which column header asks which filter           | `app/shared/column-filters.ts`                       |
-| what a tool is, in one phrase with its shank    | `app/shared/tool-type.ts`                            |
-| which ticks a filter the page set puts on Type  | `typesAsking`, `app/shared/tool-type.ts`             |
-| which of its columns a tap list narrows on      | `askOfTapColumn`, `app/shared/column-filters.ts`     |
-| what a tick on the tap list's Type column asks  | `formsAskingTaps`, `app/shared/hole-mode.ts`         |
-| what is narrowing a list, named for its button  | `narrowingNames`, `app/shared/column-filters.ts`     |
-| the numbers a thread and a depth put on a tap   | `tapBounds`, `app/shared/hole-mode.ts`               |
-| the form behind a Type phrase, and what it asks | `app/shared/tool-type.ts`                            |
-| the list, its answers and its right-click       | `app/components/feature-list-panel.tsx`              |
-| building a group                                | `app/components/group-editor.tsx`                    |
-| the reading, its numbers and its thread         | `app/components/selection-panel.tsx`                 |
-| the tool table and its marks                    | `app/components/part-tool-table.tsx`                 |
+| Question                                             | Module                                               |
+| ---------------------------------------------------- | ---------------------------------------------------- |
+| what the list holds, its names, ids, storage         | `app/shared/feature-list.ts`                         |
+| which key a row's lines reach the bill under         | `sheetKeysOf`, same file                             |
+| what is on the order list, for both pages            | `app/shared/order-list.ts`                           |
+| whether a row has anything ordered, and what to buy  | `isIncomplete` / `componentTotals`, same file        |
+| which of four things the page is being asked         | `asked()`, same file                                 |
+| the three presses over the part that add a row       | `app/components/add-bar.tsx`                         |
+| whether the presses and the rows are drawn at all    | `app/shared/part-chrome.ts`                          |
+| where the part is framed, beside the questions       | `app/shared/frame-inset.ts`                          |
+| how tall the tool list opens                         | `TABLE_OPENS_AT`, `components/part-tool-table.tsx`   |
+| the columns a list opens with, and their order       | `TOOL_COLUMNS`, `components/part-tool-table.tsx`     |
+| the two columns the list turns on for itself         | `app/shared/auto-columns.ts`                         |
+| a row's answer, and what it opens to                 | `app/shared/recommendations.ts`                      |
+| what the panel offers for the tool it shows          | `app/shared/tool-actions.ts`                         |
+| what fills the tool table, and the cache             | `app/shared/catalog-matcher.ts`                      |
+| a stored guid turned back into a record              | `getTool`/`getHolder`/`getCollet`, `catalog.ts`      |
+| what overruling the rules offers, per column         | `overridableTools`, `app/shared/tool-fit.ts`         |
+| the note and press a changed filter raises           | `OverrideNotice`, `app/components/column-filter.tsx` |
+| whether a value is inside a filter's bound           | `withinRange`, `app/shared/filter.ts`                |
+| the same work, off the UI thread                     | `app/client/catalog-matcher.worker.ts`               |
+| what a click on the part means                       | `app/shared/part-interaction.ts`                     |
+| which layer one press of Escape or Enter reaches     | `app/shared/use-escape.ts`                           |
+| how tall a menu or the column picker is, which way   | `menuRoom`, `app/components/column-filter.tsx`       |
+| whether an open filter survives the list under it    | `FilterMenu`, `app/components/column-filter.tsx`     |
+| a feature's assemblies, its slots, its storage       | `app/shared/assembly-tree.ts`                        |
+| what narrows what when any part is chosen first      | `app/shared/assembly-narrowing.ts`                   |
+| why an offered chuck cannot be built out of the crib | `colletGap`, same file                               |
+| whether the rack shows them at all, and how many     | `holdersToOffer`, same file                          |
+| the press that shows them, hidden to begin with      | `app/components/no-collet-toggle.tsx`                |
+| a group's worst case, and whose it is                | `app/shared/group-geometry.ts`                       |
+| how far below the holder a stack has to stand        | `belowHolder`, `app/shared/drawn-assembly.ts`        |
+| which slots were filled against the rules            | `overrides`, `app/shared/assembly-tree.ts`           |
+| what a stack offers, and its button's words          | `app/shared/assembly-actions.ts`                     |
+| what a shop calls an assembly, and its field         | `renameItem` / `renameAssembly`, `name-field.tsx`    |
+| reading and filtering a holder or a collet           | `app/shared/component-columns.ts`                    |
+| which column header asks which filter                | `app/shared/column-filters.ts`                       |
+| a tool in one phrase, with its shank or neck         | `app/shared/tool-type.ts`                            |
+| which ticks a filter the page set puts on Type       | `typesAsking`, `app/shared/tool-type.ts`             |
+| which of its columns a tap list narrows on           | `askOfTapColumn`, `app/shared/column-filters.ts`     |
+| what a tick on the tap list's Type column asks       | `formsAskingTaps`, `app/shared/hole-mode.ts`         |
+| what is narrowing a list, named for its button       | `narrowingNames`, `app/shared/column-filters.ts`     |
+| the numbers a thread and a depth put on a tap        | `tapBounds`, `app/shared/hole-mode.ts`               |
+| the form behind a Type phrase, and what it asks      | `app/shared/tool-type.ts`                            |
+| the list, its answers and its right-click            | `app/components/feature-list-panel.tsx`              |
+| building a group                                     | `app/components/group-editor.tsx`                    |
+| the reading, its numbers and its thread              | `app/components/selection-panel.tsx`                 |
+| the tool table and its marks                         | `app/components/part-tool-table.tsx`                 |
 
 - `docs/` holds planning documents that outlive a single change.
   `docs/CATALOG-SPEC.md` is the tool catalog specified end to end — how a shop
@@ -398,6 +419,19 @@ scrape:holding` into `scrape-out/toolholding/`, because a shop re-scrapes
   source for a silhouette is the vendor's own CAD model, which the record points
   at. So the measured profile is load-bearing rather than a nicety; see
   `docs/HOLDER-PROFILES.md`.
+- **A collet's grip is `L9`, and a Kennametal family code is the scraper's.**
+  `@toolpath/tool-scraper` 2.5.0 mints `ColletRecord.clampingLength` (`L9`, the
+  depth of the clamping bore), `squareSize` (what makes a tap collet refuse an
+  end mill) and `FamilyDefinition.familyCode` on toolholding. `clampLength` maps
+  from `L9` rather than `LF` — a different quantity under the same name, which
+  is why catalog version 11 is a re-ingest and not a rebuild — and a collet
+  publishing no `L9` states no grip rather than borrowing one. **The family code
+  is the scraper's, and only the scraper's**: the hand-pinned
+  `KENNAMETAL_HOLDING_CODES` came out of `scrape.ts` on 2026-09-10, because
+  keeping a code ahead of the vendor's own is how one goes stale, and one had.
+  A family the scraper states no code for is one this package cannot reach, and
+  `holdingReachable` says so. See `docs/TOOL-CATALOG-PLAN.md` § _Length below
+  the holder_ and `docs/TOOL-SCRAPER-REFACTOR.md`.
 - **`src/vendors/` is dead and kept on purpose.** Nothing calls it now that the
   seam is taken. It is the only written record of REGO-FIX's DIN 4000 code
   pinning, each mapping citing its evidence, so it stays until either that
@@ -471,6 +505,14 @@ original. For the catalog:
 - **Anything that begins with a click on the part goes in
   `tests/on-the-part.spec.ts`**, against `tests/cube-fixture.ts` — the only
   fixture that mounts geometry. Nothing else can reach that stack.
+- **A threaded hole goes in `tests/threaded-hole.spec.ts`**, against the same
+  fixture's `openCubeWithHole`, which serves the cube with every reading rewritten
+  as a hole. A separate file because the fixture is the difference: the other
+  spec mounts the plain cube in a `beforeEach` and a spec that needs holes cannot
+  inherit it. Before it existed, every rule a _thread_ decides — which taps the
+  list holds, which predrill the drills are judged against, which forms the
+  filter keeps — was verified by somebody looking at the screen, and three
+  defects shipped into that gap on 2026-09-09 alone.
 - **The cube fixture carries nine tools**, so most of its features answer
   "nothing fits". That is the fixture, not a bug: a test that needs a tool to
   fit must pick one the nine can cut, and a near miss is still a row the list

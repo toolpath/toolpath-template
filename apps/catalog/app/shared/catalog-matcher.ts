@@ -5,7 +5,7 @@ import { withClampingLength, type ClampingRule } from './clamping-length'
 import { filterTools, type ToolQuery } from './filter'
 import { holdable, policyOf, type HoldThresholds } from './holder-choice'
 import { holdableTools, splitHolding } from './holding'
-import { closestMisses, type Format, type Reason, type Verdict } from './judge'
+import { closestMisses, closestPerForm, type Format, type Reason, type Verdict } from './judge'
 import { sectionOf } from './section-of'
 import {
   fittingTools,
@@ -517,6 +517,37 @@ const NEAR_MISSES = 50
  */
 const OVERRIDABLE = 2000
 
+/**
+ * The removed tools worth sending: the nearest overall, and the nearest of
+ * each form the filters are asking about.
+ *
+ * **The slice cannot be form-blind while the filters name forms** (Paul,
+ * 2026-09-09: ticking the end mills on a predrill and getting none). The
+ * fifty nearest to a ⌀0.089 in bore are fifty drills, so an end mill's own
+ * nearest miss never crossed the boundary and no amount of asking on the other
+ * side could show one. `closestPerForm` is the rule; this is where the set it
+ * ranks still exists.
+ *
+ * One form, or none, is the whole removed set ranked once, which is what it
+ * always was.
+ */
+const nearestFew = (
+  excluded: ReadonlyArray<Verdict>,
+  forms: ReadonlyArray<string>,
+): Array<Verdict> => {
+  const overall = closestMisses(excluded, NEAR_MISSES)
+  if (forms.length < 2) {
+    return overall
+  }
+  const sent = new Set(overall.map((verdict) => verdict.tool.guid))
+  return [
+    ...overall,
+    ...closestPerForm(excluded, forms, NEAR_MISSES).filter(
+      (verdict) => !sent.has(verdict.tool.guid),
+    ),
+  ]
+}
+
 /** Runs the existing detailed table pipeline with only cloneable request inputs. */
 export const detailedMatch = (
   context: MatchContext,
@@ -528,7 +559,7 @@ export const detailedMatch = (
   return {
     demandKey: demand.demandKey,
     fitting: matched.fitting.map(compact),
-    nearMisses: closestMisses(matched.excluded, NEAR_MISSES).map(compact),
+    nearMisses: nearestFew(matched.excluded, context.query.terms.form ?? []).map(compact),
     overridable: overridableTools(
       matched.excluded,
       prepared.admittedGuids,

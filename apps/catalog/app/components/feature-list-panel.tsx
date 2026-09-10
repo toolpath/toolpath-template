@@ -1,6 +1,12 @@
 import { Button, IconButton, Menu, cn } from '@toolpath/ui'
 import type { ReactNode } from 'react'
-import { CaretDownIcon, CaretRightIcon, FolderIcon, FolderOpenIcon } from '@phosphor-icons/react'
+import {
+  CaretDownIcon,
+  CaretRightIcon,
+  CircleDashedIcon,
+  FolderIcon,
+  FolderOpenIcon,
+} from '@phosphor-icons/react'
 import { formatGeometry } from 'shared/geometry'
 import type { UnitSystem } from '@toolpath/tool-support'
 import { defaultLabelOf, labelOf, type ListItem } from 'shared/feature-list'
@@ -95,6 +101,23 @@ export interface FeatureListPanelProps {
    * this draws it. Null keeps every unnamed line exactly as it was.
    */
   readonly assemblyOf?: (itemId: string, toolGuid: string) => string | null
+  /**
+   * The rows with nothing ordered against them (Paul, 2026-09-10: "the feature
+   * or group should be shown in the order list with an 'incomplete' icon and a
+   * dashed border, indicating that it is a feature or group that I flagged to do
+   * something with but haven't added a tool assembly to yet").
+   *
+   * A row that has been *asked* and a row that has been *answered* used to look
+   * identical, which is why an unanswered one could not be kept at all: the only
+   * way to tell them apart was that one of them had a tool printed under it, and
+   * the rules printed one there whether anybody had chosen it or not. The dashes
+   * are that difference, said by the row itself.
+   *
+   * Ids rather than a predicate: what is ordered is the sheet's to know, and the
+   * route reads it once for the whole list — `isIncomplete` in
+   * `shared/order-list.ts` is the rule.
+   */
+  readonly incompleteIds?: ReadonlyArray<string>
 }
 
 /**
@@ -184,7 +207,7 @@ const Answer = ({
       // The `<button>` itself, rather than the box inside it — see the row's own.
       full
       aria-pressed={here}
-      aria-label={`${assembly === null ? '' : `${assembly}: `}${pick.tool.brand} ${pick.tool.catalogNumber}, ${type}, for ${label}`}
+      aria-label={`${assembly === null ? '' : `${assembly}: `}${pick.tool.brand} ${pick.tool.catalogNumber}, ${type}${(pick.total ?? 1) > 1 ? `, ×${String(pick.total)}` : ''}, for ${label}`}
       title={`${assembly === null ? '' : `${assembly} — `}${pick.tool.brand} ${pick.tool.catalogNumber} - ${type}${holding === '' ? '' : ` in ${holding}`} — every tool that fits ${label}`}
       onClick={onOpen}
       className={cn(
@@ -217,6 +240,21 @@ const Answer = ({
         <span className="shrink-0">{pick.tool.brand}</span>
         <span className="min-w-0 shrink truncate font-mono">{pick.tool.catalogNumber}</span>
         <span className="min-w-0 flex-1 truncate text-zinc-500">- {type}</span>
+        {/*
+          **How many of it, where it is more than one** (Paul, 2026-09-10:
+          "duplicates … should show 2 assemblies and a count of two of each
+          component"). A row holding the same cutter in two stacks holds one
+          line with a two on it, because the sheet keys a line by its tool — so
+          without this the list says one thing to set up where there are two.
+        */}
+        {(pick.total ?? 1) > 1 ? (
+          <span
+            className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 font-semibold text-zinc-300"
+            title={`${String(pick.total)} of this assembly`}
+          >
+            ×{pick.total}
+          </span>
+        ) : null}
         <span className="shrink-0 font-mono text-zinc-500">
           {diameter === undefined ? '' : formatGeometry('DC', diameter, unit)}
         </span>
@@ -261,7 +299,16 @@ const Answers = ({
         </span>
       )
     }
-    return <span className="text-2xs px-1 text-zinc-600">{row.note ?? '—'}</span>
+    /*
+      **Nothing at all where there is nothing to say.** A row with no tools and
+      no note is a row nobody has ordered for, and since 2026-09-10 that is a
+      state it says on itself — dashed, with the mark beside its name. A dash
+      under it as well would be the same fact twice, in the one place a *tool*
+      is supposed to appear.
+    */
+    return row.note === null ? null : (
+      <span className="text-2xs px-1 text-zinc-600">{row.note}</span>
+    )
   }
   return (
     <div className="flex flex-col gap-0.5">
@@ -300,6 +347,7 @@ export const FeatureListPanel = ({
   onRename,
   onRenameCancel,
   assemblyOf,
+  incompleteIds = [],
 }: FeatureListPanelProps) => {
   /** The row a right-click is asking about, and where it was asked. */
   return (
@@ -339,6 +387,9 @@ export const FeatureListPanel = ({
             /* Only an assembly is named: a feature and a group are called what
                the part calls them — `feature-list.ts` `renameItem`. */
             const naming = item.kind === 'assembly' && item.id === renamingId
+            /* Flagged and not yet answered — the prop above says why it is a
+               state of its own rather than a row that is simply missing one. */
+            const incomplete = incompleteIds.includes(item.id)
             return (
               /*
                 **Each row is its own plate.** Standing on the part rather than
@@ -346,7 +397,14 @@ export const FeatureListPanel = ({
                 — so it carries just enough ground of its own to be read, which
                 is a row on the viewer rather than a box around the list.
               */
-              <li key={item.id} className="relative rounded bg-zinc-950/75">
+              <li
+                key={item.id}
+                /* A row is drawn over the part, and how far down the rows reach
+                   is what decides whether the part is framed beside them —
+                   `shared/frame-inset.ts` § `spokenFor`. */
+                data-over-part
+                className="relative rounded bg-zinc-950/75"
+              >
                 <Menu context>
                   {/*
                     **Block, not the kit's `inline-block`.** A shrink-to-fit box
@@ -358,9 +416,19 @@ export const FeatureListPanel = ({
                     <div
                       className={cn(
                         'flex items-center gap-1 rounded border px-1.5 py-1 text-left transition',
+                        /*
+                          **Dashed, and still whatever else it is.** A row can
+                          be incomplete *and* the row being worked on, so the
+                          dashes are a second class rather than a third branch —
+                          the selected row keeps its own colour and says it is
+                          unanswered at the same time.
+                        */
+                        incomplete ? 'border-dashed' : '',
                         here
                           ? 'border-info/60 bg-info/15'
-                          : 'border-transparent hover:border-zinc-800 hover:bg-zinc-900/60',
+                          : incomplete
+                            ? 'border-zinc-700 hover:bg-zinc-900/60'
+                            : 'border-transparent hover:border-zinc-800 hover:bg-zinc-900/60',
                       )}
                     >
                       {/* A group opens; a feature has nothing to open, and keeps
@@ -498,6 +566,23 @@ export const FeatureListPanel = ({
                                 {directionOf?.(item.tags[0] ?? '') ?? ''}
                               </span>
                             )}
+                            {/*
+                              **The mark is on the row, not under it.** What
+                              stands under a row is what it is answered with,
+                              and this row is the one that has no answer — so
+                              the thing that says so has to be beside its name.
+                            */}
+                            {incomplete ? (
+                              <CircleDashedIcon
+                                role="img"
+                                aria-label="No tool assembly yet"
+                                className="size-3 shrink-0 text-zinc-500"
+                              >
+                                <title>
+                                  No tool assembly yet — nothing is on the order list for this row
+                                </title>
+                              </CircleDashedIcon>
+                            ) : null}
                             {item.tags.length > 1 ? (
                               <span
                                 className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 font-semibold text-zinc-300"

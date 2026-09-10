@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   drillFor,
+  matchesThreadSearch,
+  threadsMatching,
   readLabel,
   threadOptions,
   makerOf,
@@ -291,13 +293,77 @@ describe('what each list was swept on', () => {
    * has no drill — and the shop still makes it, by boring with an end mill.
    */
   it('names the number that came up empty, and what stands in', () => {
-    expect(millStandInNote(four40, 'form tap', 'inches')).toBe(
+    expect(millStandInNote(four40, 'form tap', 'inches', true)).toBe(
       'no drill matches the ⌀0.099 in form tap predrill — showing end mills that can bore it, and the closest drills',
+    )
+  })
+
+  /**
+   * **It promises the mills only where the list holds one** (Paul, 2026-09-09:
+   * "I have clicked the check after adding end mills to the filter list. None
+   * are being shown"). A note about end mills over eight drills says the
+   * catalog holds none, which was never the claim it was making.
+   */
+  it('claims no end mills over a list without one', () => {
+    expect(millStandInNote(four40, 'cut tap', 'inches', false)).toBe(
+      'no drill matches the ⌀0.089 in cut tap predrill — showing the closest drills',
     )
   })
 
   /** A hole nobody threaded has no predrill to be swept on. */
   it('says so where there is no predrill at all', () => {
     expect(predrillNote(four40, 'plain', 'inches')).toBe('no predrill: this hole is not threaded')
+  })
+})
+
+/**
+ * **The list can be typed into** (Paul, 2026-09-09: "I need to be able to
+ * either select from the list we have now or enter text to search the list and
+ * select from it"). A shop writes one thread half a dozen ways, and none of
+ * them is the string in the table.
+ */
+describe('searching the thread list', () => {
+  const names = (query: string) => threadsMatching(query).map((each) => each.name)
+
+  it('offers every thread for text nobody has typed yet', () => {
+    expect(threadsMatching('')).toHaveLength(THREADS.length)
+  })
+
+  it('narrows to a size, coarse and fine alike', () => {
+    expect(names('M6')).toEqual(['M6×1', 'M6×0.75'])
+  })
+
+  it('reads a lower-case size, and an x for the multiplication sign', () => {
+    expect(names('m6x1')).toEqual(['M6×1'])
+  })
+
+  /** `M12x1.5` and `M12x1.25` differ by the decimal, so the decimal is kept. */
+  it('keeps a pitch apart from the pitch it is a prefix of', () => {
+    expect(names('m12x1.5')).toEqual(['M12×1.5'])
+  })
+
+  it('finds a unified thread written without its punctuation', () => {
+    expect(names('1420')).toEqual(['1/4-20 UNC'])
+    expect(names('10 32')).toEqual(['#10-32 UNF'])
+  })
+
+  it('narrows on a series rather than a size', () => {
+    expect(names('unf')).toEqual([
+      '#10-32 UNF',
+      '1/4-28 UNF',
+      '5/16-24 UNF',
+      '3/8-24 UNF',
+      '1/2-20 UNF',
+    ])
+  })
+
+  it('answers nothing for a thread this shop does not hold', () => {
+    expect(names('M99')).toEqual([])
+  })
+
+  /** The one option in the list that is not a thread is searchable too. */
+  it('matches text against any label, not only a spec', () => {
+    expect(matchesThreadSearch('plain', 'No thread — a plain hole')).toBe(true)
+    expect(matchesThreadSearch('m6', 'No thread — a plain hole')).toBe(false)
   })
 })

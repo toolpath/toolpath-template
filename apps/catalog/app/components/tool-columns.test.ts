@@ -46,17 +46,55 @@ describe('the columns a list opens with', () => {
     expect(TOOL_COLUMNS.filter((column) => column.default).map((column) => column.code)).toEqual([
       'catalogNumber',
       'brand',
-      'type',
       'family',
+      'type',
+      'NOF',
+      'DC',
+      'LCF',
+      'LBH',
+      'LD',
+      'OAL',
+    ])
+  })
+
+  /**
+   * **The order is the order a shop reads a row in** (Paul, 2026-09-10), and
+   * the column picker lists them the same way top to bottom, because the page
+   * seeds its order from this list.
+   */
+  it('is in the order a row is read, holding last', () => {
+    expect(TOOL_COLUMNS.map((column) => column.code)).toEqual([
+      'catalogNumber',
+      'brand',
+      'family',
+      'type',
+      'NOF',
       'DC',
       'LCF',
       'LBH',
       'LD',
       'OAL',
       'RE',
-      'NOF',
       'SFDM',
+      'SIG',
+      'holder',
+      'collet',
     ])
+  })
+
+  /**
+   * **Neither of the two that follow the list opens with it** (Paul,
+   * 2026-09-10). Corner radius is a dash on a drill and tip angle is a dash on
+   * a mill; `shared/auto-columns.ts` turns each on when its tools arrive.
+   *
+   * **Nor does the shank** (Paul, same day): it is what the holding is chosen
+   * on rather than what the tool is chosen on, and Type already says it where
+   * it differs from the cut.
+   */
+  it('leaves corner radius, tip angle and the shank to be asked for', () => {
+    for (const code of ['RE', 'SIG', 'SFDM']) {
+      expect(TOOL_COLUMNS.find((column) => column.code === code)?.default).toBe(false)
+    }
   })
 
   it('leaves the holder and the collet for somebody to ask for', () => {
@@ -93,8 +131,8 @@ describe('the columns a tap list offers', () => {
     expect(TAP_COLUMNS.filter((column) => column.default).map((column) => column.code)).toEqual([
       'catalogNumber',
       'brand',
-      'type',
       'family',
+      'type',
       'DC',
       'LCF',
       'LBH',
@@ -133,7 +171,7 @@ describe('the columns a tap list offers', () => {
  */
 describe('the axes a column header takes over', () => {
   /** The four every tool row carries, drawn whatever the column picker says. */
-  const FIXED = ['catalogNumber', 'brand', 'type', 'family']
+  const FIXED = ['catalogNumber', 'brand', 'family', 'type']
 
   it('names a column of the tool table', () => {
     const codes = [...FIXED, ...TOOL_COLUMNS.map((column) => column.code)]
@@ -153,7 +191,7 @@ describe('the axes a column header takes over', () => {
  */
 describe('what the column picker can reach', () => {
   it('offers the four that say which tool a row is', () => {
-    for (const code of ['catalogNumber', 'brand', 'type', 'family']) {
+    for (const code of ['catalogNumber', 'brand', 'family', 'type']) {
       expect(TOOL_COLUMNS.map((column) => column.code)).toContain(code)
       expect(TAP_COLUMNS.map((column) => column.code)).toContain(code)
       expect(isIdentity(code)).toBe(true)
@@ -164,8 +202,8 @@ describe('what the column picker can reach', () => {
     expect(TOOL_COLUMNS.slice(0, 4).map((column) => column.code)).toEqual([
       'catalogNumber',
       'brand',
-      'type',
       'family',
+      'type',
     ])
   })
 })

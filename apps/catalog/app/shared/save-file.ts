@@ -24,7 +24,7 @@ export interface SaveTargets {
 
 export const saveFile = (
   name: string,
-  contents: string,
+  contents: BlobPart,
   type: string,
   { document, url, later }: SaveTargets,
 ): void => {
@@ -42,7 +42,7 @@ export const saveFile = (
 }
 
 /** The same, against the real browser. */
-export const saveInBrowser = (name: string, contents: string, type: string): void =>
+export const saveInBrowser = (name: string, contents: BlobPart, type: string): void =>
   saveFile(name, contents, type, {
     document: globalThis.document,
     url: URL,

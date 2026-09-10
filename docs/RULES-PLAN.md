@@ -158,6 +158,17 @@ part at a stickout it allows with at least the least hold — is not shown,
 in the best or in the fill; the header counts them ("N with no holder that
 clears"). `canBeHeld` in `holder-choice.ts`.
 
+Widened 2026-09-09 (Paul, after the holder rack was widened: "widen that rule
+to match"): _grips its shank_ became _could grip its shank_ — a chuck the crib
+stocks no closing collet for now counts, since the shop owning the chuck and
+not the ER20-6 is one collet to order rather than a reason to say the cutter
+does not exist. `holdable` reads `holderMayTake`, and the geometry half is
+untouched: the stack is graded with no collet in it, exactly as a bore holder
+is, so a tool that cannot clear the part or cannot be gripped at the stickout
+it needs is still counted rather than offered. The rack such a tool leads to
+marks every chuck of that kind with why it cannot be built today
+(`colletGap` — `docs/TOOL-ASSEMBLY-TREE.md` § 3).
+
 The drawing (2026-08-30, Paul's reviews): beside the stack, the wall the
 sweep read — the part wall at the cut, the reach curve's staircase, the room
 wanted dashed — and two clearances, each at its own tightest point: **up**,

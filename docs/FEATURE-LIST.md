@@ -293,9 +293,26 @@ box over the canvas carrying `pointer-events: auto` is a curtain, which is what
 - Pressed with **nothing being read**, it asks: _"Click a face on the part, then
   press + Feature."_ It is never disabled — greyed out, it read as broken rather
   than as waiting.
-- Pressed with a face being read, the reading is what gets added.
-- The confirm sits under what it is confirming: **Use this tool** / **Cancel**,
-  below the reading in the feature box.
+- Pressed with a face being read, the reading is what gets added — **and the
+  box closes behind the press** (Paul, 2026-09-10: "when I click a feature first
+  then + Feature, it should automatically add the 'empty' (no tool) feature to
+  the list and close the feature dialog. Right now it removes the button and
+  adds to the list but keeps the dialog open, which is confusing"). A click on
+  the part has already opened the box on that reading, so a press that made the
+  row and left it open changed nothing on screen but its own three buttons
+  disappearing. It is the same press as **Add feature to list** under an empty
+  stack — § 6 `nothingYet` — and it ends the same way: the row is on the list,
+  the reading is put down, and the presses are back. Choosing a tool for that
+  row is a click on it away, and a stack built over the preview still becomes
+  the row in one press of the button under it.
+- **The box has no confirm of its own** (Paul, 2026-09-09: "I no longer need
+  these cancel or create group and add tool buttons — the group is created and
+  added when a tool assembly is created and added to the order list. Same with
+  add this feature"). _Add this feature_ and the **Cancel** beside it were a
+  second press for one decision: the press under the stack — **Add to order
+  list** — already makes the row and writes the assembly in one go. The way out
+  of the box is the **X in its top right**, which is the same press in all
+  three (see _The X in the corner_).
 
 ### + Tool Assembly
 
@@ -305,9 +322,8 @@ whole part would have the page answering a question the stack is not about.
 
 **It is a draft until it is ordered** (Paul, 2026-09-08: "if I don't add anything
 to the order list when creating a tool assembly, the command was cancelled and
-the empty tool assembly row should not show"). A feature is a question worth
-keeping on the list with no tool against it yet; a part-level assembly _is_ its
-order, so an empty one is a row about nothing.
+the empty tool assembly row should not show"). It was a part-level assembly's
+rule alone; since 2026-09-09 it is every row's — see _What the list holds_.
 
 - The press under the stack — **Add to order list**, the `confirm` action
   `assembly-actions` already offers a question that is not a row yet — makes the
@@ -317,12 +333,13 @@ order, so an empty one is a row about nothing.
   assembly answers no feature, so nothing about it could need a second stack:
   another stack the part needs is another _+ Tool Assembly_, a row with a name
   of its own rather than an unnamed `Assembly 2` inside this one.
-- **Cancel**, under the tree, drops the stacks and the draft and leaves nothing
+- **The X in the corner** drops the stacks and the draft and leaves nothing
   behind — and so does **Escape** (Paul, 2026-09-08: "escape key should also get
   me out of tool assembly dialog"). It is the newest thing on the page and it
   answers no feature, so there is nothing underneath for the press to walk out
   to; `escapeRef` in `routes/part.tsx` takes it before the reducer's own
-  outward step.
+  outward step. The **Cancel** that used to sit under the tree came off with the
+  other confirms on 2026-09-09.
 - **Remove from order list** takes the row with it, for the same reason: the
   assembly is the order.
 - **And the row is named as it is made.** The press that makes it opens the name
@@ -363,8 +380,30 @@ Opens the group editor, seeded with whatever is already clicked.
     was folded from, deduplicated, so a group of thirty-nine identical holes
     says its line once — and `featureTag` on the fold's answer still says it for
     anything that wants to.
-- The confirm reads **Create group and add tool** (or _…and add tools_ for
-  `each`), because that is what pressing it does.
+- **There is no confirm on the box** (Paul, 2026-09-09). _Create group and add
+  tool_ and the **Cancel** beside it are gone: the group is created and put on
+  the order list by the press under the stack that answers it, in one press.
+  What is left where they stood is the sentence saying which condition is not
+  met yet — _Pick a tool from the list below, then add the assembly to the order
+  list._
+- **Saving an edit is the exception.** Changing which features a row already on
+  the list holds is not an order, so nothing under the stack commits it; the
+  route draws **Save group** / **Save this feature** under the box while
+  `draft.editing` is set, and nowhere else.
+
+### The X in the corner
+
+**One way out, the same in all three** (Paul, 2026-09-09: "I would like to add an
+'X' in the top right of the dialog to close the dialog as well. This should be
+consistent across +feature, +group, and +tool assembly"). It is drawn by
+`routes/part.tsx` at the top of the box rather than by any of the three panels
+inside it, which is what makes it the same press in each.
+
+- With a draft open it is `cancelDraft`: the draft and its scratch stacks go,
+  and nothing was ever written to undo. **Escape** does the same.
+- With no draft — the box open over a row that already exists — it is
+  `selectRow(null)`: there is nothing to cancel, so closing it is putting that
+  row down.
 
 ### Confirming is what writes the bill
 
@@ -410,6 +449,83 @@ nothing looks exactly like one answering a feature nobody can see any more.
 **The heading over it says _Order list_** (Paul, 2026-09-08). Every row on it is
 a thing being ordered, and nothing reaches the bill except because a row here put
 it there; the page in the header is the same list read the other way round.
+
+### What the list holds
+
+**Every row, answered or not** (Paul, 2026-09-10: "I should be able to create a
+feature or group without adding a tool … shown in the order list with an
+'incomplete' icon and a dashed border, indicating that it is a feature or group
+that I flagged to do something with but haven't added a tool assembly to yet").
+
+This reverses the rule of 2026-09-09 — _only what has been ordered_ — and it
+matters what that rule was actually about. A row with nothing on it was being
+**answered with the rules' own recommendation**, which reads exactly like an
+order and is not one, so the part page showed a tool the order-list page had
+never heard of. Dropping the row made that impossible. So does saying what the
+row is, and that is what happens now:
+
+- The row is drawn with a **dashed border** and a **dashed-circle mark** beside
+  its name — `isIncomplete` in `app/shared/order-list.ts` is the rule, and
+  `incompleteIds` is what the panel is handed.
+- **One face is one row.** _+ Feature_ over a reading that is already on the list
+  goes back to that row rather than making a second — `rowFor` in
+  `app/shared/feature-list.ts`, and the same for a group holding exactly the same
+  features. Two rows for one reading are one line on the sheet seen twice, since
+  the sheet is keyed by feature tag: a tool ordered on one appears under both and
+  comes off both together. It was reachable before and healed itself, because an
+  unordered row was pruned as soon as it stopped being the one in hand.
+- It is **answered with nothing at all**. `recommendationInputs` in
+  `routes/part.tsx` sends the matcher no demand for a row nobody has ordered
+  for, so a recommendation can never stand where an order goes. The one caller
+  that still asks is the group being built for _one tool each_, where the rules'
+  answers are the decisions the mode exists to make rather than a suggestion
+  under a row.
+
+A row goes when somebody takes it off: right-click → _Remove_. Taking the last
+assembly off leaves the row behind, marked — the press is named for the order it
+removes, not for the feature.
+
+A **part-level tool assembly** is the one kind that cannot be empty. It _is_ its
+order, so "Tool assembly 3" with nothing in it is a row about nothing (Paul,
+2026-09-08) — the press under its stack stays greyed until something is in it,
+and no row is made until it is pressed.
+
+### Assemblies, or components
+
+**Two icons beside the heading** (Paul, 2026-09-09). The list is read two ways:
+
+- **Assemblies** — the rows and the stacks under them, which is the list above.
+- **Components** — every tool, holder and collet on the order list once, with
+  how many to buy. One collet in six stacks is one collet to order, and a list
+  that says so six times is a list somebody adds up by hand.
+
+`componentTotals` in `app/shared/order-list.ts` is the rollup and
+`components/component-tally.tsx` draws it. It is read-only here and editable on
+the order-list page (Paul, 2026-09-09), where **the whole order is one number**:
+"we don't need individual quantity edits per assembly … the assemblies are just
+for reference in this view". The sheet keeps a quantity per assembly, so the
+change lands on the first of them and the rest stay as the assembly view left
+them — `setComponentCount`, tested beside the rollup. Every assembly keeps at
+least one, so taking a component in three stacks below three is removing it from
+a stack, which is the assembly view's press and not a number.
+
+### One list, two places
+
+**The parts-page list and the order-list page show the same tools** (Paul,
+2026-09-09: "regardless, they should be linked and show the same information").
+They were two readings of one store and neither read it the way it was written:
+
+- A row's lines are kept under **every** key it stands for — a bolt circle of
+  eight holes is eight keys. The part page read the first key and the bill read
+  them all, so a line that reached only some of them showed on one and not the
+  other.
+- Taking a row off cleared one key per _distinct_ feature, which for a bolt
+  circle is one key out of eight; the bill went on showing the assembly.
+- A key no row stands for was a bill line about nothing.
+
+`app/shared/order-list.ts` is the one reading now. Both pages build their rows
+from `orderAssemblies`, reads union across `sheetKeysOf`, writes fan out over the
+same keys, and `clearKeys` clears all of them.
 
 ### The answers under it
 
@@ -526,16 +642,108 @@ differently:
 - The list **fills the space it has, then scrolls**: `max-h-full` is the top of
   the tool table, because the overlay is floored to the viewer and the viewer
   stops where the table starts.
-- The **editor is a card of its own beside the list**, and decides where it goes
-  by itself: a wrapping column stacks the two while the pair is shorter than the
-  viewer, and moves the editor into a column to the right the moment it is not.
-  No measurement, no threshold.
+- The **editor opens directly under the press that opened it** (Paul,
+  2026-09-10: "the current placement of the feature, group, or tool assembly
+  dialogs block the part on a small screen too often — move all these dialogs to
+  directly below the + Feature, + Group, and + Tool Assembly buttons"). The
+  overlay is **one column**: the three presses, the card, the fold, the rows.
+  It was a row of two — the presses and rows in one column, the card in a second
+  beside it — which is two columns of chrome over a part on any screen a
+  laptop's width or under, and the card is the answer to a press three pixels
+  above it. The column is `w-80`, and `w-[26rem]` while the group editor is
+  open, because the card is what asks for the width now that it is inside it.
+- **An open editor folds the rows away**, and one button under it brings them
+  back (Paul, 2026-09-10: "when a dialog is active, fold up the order list.
+  Provide a button to be able to expand it underneath the open feature, group,
+  or tool assembly dialog if desired"). One column carrying both would otherwise
+  cover the part from the top of the viewer to the bottom. The button says
+  _Order list_ and the count, so a folded list still says how much is on it; it
+  is the only thing that unfolds it, and pressing it again folds it back. The
+  fold **comes back on its own when the card closes**, so the next thing asked
+  starts the way the last one did rather than inheriting a press.
+  `listUnderDialog` in `routes/part.tsx` is the state and `dialogOpen` the
+  condition; with the rows unfolded the card takes what it can and the rows keep
+  a floor of `min-h-28`, because a fold button that opens onto nothing is a lie.
+  `tests/on-the-part.spec.ts` § "draws the tree under the add presses, over the
+  list and above the table" measures the column, and `orderList` in
+  `tests/cube-fixture.ts` is how every other test presses the fold open.
+- **The three presses go with the rows** (Paul, 2026-09-10: "we should hide the
+  - buttons while the dialog is active as well — the dialog is the action, and
+    having the + floating there encourages people to click it"). A box open over
+    the part is one question being answered, and three presses hovering above it
+    are three ways to walk off it by accident. `pressesShown` is the rule, and it
+    keeps them in the one state that looks the same and is not: a **preview**, a
+    face somebody has clicked and not kept, where _+ Feature_ takes the reading
+    and _+ Group_ seeds a group with it — hiding them there would leave a clicked
+    face with no way to become a group at all. They also stay while _+ Feature_ is
+    waiting for a face, since the prompt under them names the button it would be
+    hiding. `tests/on-the-part.spec.ts` § "hides the three presses while something
+    is being built" walks the four states. Two of the three are pressable in
+    every state they are drawn in; _+ Tool Assembly_ is greyed over a preview,
+    which is `assemblyPressEnabled` beside `pressesShown` in the same file.
+- **The press that orders is the way out** (Paul, 2026-09-10), and **Enter is
+  that press**. Both are rules of the stack rather than of the list —
+  `docs/TOOL-ASSEMBLY-TREE.md` § 3 states them, `isOrdering` and `orderingPress`
+  own them — and they are here because they are what closes this box: an order
+  written is a form finished with, and the row on the list is the way back in.
 - While a draft is open the viewer stops clipping its overlay (`overlaySpills`),
   so a form with a confirm button under a growing list can always be finished.
 
 ---
 
 ## 6. The part
+
+**The part is framed beside the questions, not behind them** (Paul, 2026-09-10:
+"the viewer should really be only to the right of the left hand panel — so the
+part centers next to the list rather than behind it on small screens. I would,
+however, still like to be able to see the part behind the list and keep the
+layers that work now").
+
+Both halves of that at once, which is what makes it a camera rule rather than a
+layout one. **The canvas keeps every pixel it has** — it runs the full width of
+the panel, under the column, so the part still shows through the translucent
+rows, the overlay's layers and pointer rules are untouched, and a click on the
+empty space down the column still reaches the part. What changes is the
+**projection**: `shared/frame-inset.ts` turns the width of that column into a
+`three` view offset, so the camera frames into the strip the column leaves.
+
+- It is a projection and not a pan, so it holds under any orbit and any zoom.
+  World-space padding would stop being screen-left the moment the part turned.
+- It costs the part size — the free slot is what it is fitted to — so
+  `MOST_OF_IT` caps how much of the canvas a panel may take before the part
+  stops being the point of the screen.
+- The inset **follows the drawn content, not the column** (Paul, 2026-09-10:
+  "have it follow the drawn content"). The column is a fixed width and the full
+  height of the viewer whatever is in it, so insetting by it pushed the part
+  aside for three buttons in the corner over an empty list. `spokenFor` measures
+  every `data-over-part` box — the presses, the box being filled in, the fold,
+  the rows, the components table — and counts only those reaching the **middle
+  third** of the canvas, which is where a fitted part stands.
+
+  So a short list leaves the part in the middle and sits over the sky above it,
+  and the part moves aside once a box is in front of it. That is a step rather
+  than a slide, and it is the honest one: there is no half-way state where the
+  part is half behind a row. Opening the box on a clicked face moves the part
+  once, which is the same step seen from the other side.
+
+  A box that forgets `data-over-part` simply does not move the part — the safe
+  way for this to be wrong. `Card` does not pass a `data-*` through to the DOM,
+  so the dialog's marker is on the box **inside** it.
+
+- The page says what it measured on `data-part-inset`, which is also what
+  `onThePart` clicks by: one answer, read back, rather than a second derivation
+  of the same geometry in the tests.
+- Picking is unaffected: a raycast unprojects through the same matrix.
+- `tests/on-the-part.spec.ts` § "frames the part beside the boxes drawn over it"
+  walks the three states, and § "at a laptop width" pins the layers — the canvas
+  is what the pointer finds at the part _and_ in the empty space down the
+  column. `onThePart` in `tests/cube-fixture.ts` is why every click in the suite
+  is a fraction of the free slot rather than of the whole canvas.
+- **The first measurement has to come from inside the canvas.** `<FrameInset>`
+  measures on R3F's own size, because measured from outside on mount the answer
+  was taken before the panel group had sized the viewer — a short canvas whose
+  middle the presses crossed, so an empty list shoved the part aside and nothing
+  measured again (2026-09-10).
 
 What the part paints is **everything the question is about** — `asked().tags`,
 not the working set. Selecting a group of thirty-nine holes lights all
@@ -561,6 +769,20 @@ nobody had asked anything about yet.
 | a feature                | Cuts the _pocket_               | what fits it, then near misses |
 | a group, `all`           | Cuts every feature in the group | what fits all of them          |
 | a group or draft, `each` | One tool per feature            | the notice, not a list         |
+
+**It opens eight tools tall** (Paul, 2026-09-10: "the default height of the
+table should be whatever showing 8 tool rows is"). It used to open at 45% of the
+height of the page, which is a different number of tools on every screen —
+seven at 800px, a dozen at 1200 — and a list is read in rows rather than in
+percentages. `TABLE_OPENS_AT` in `components/part-tool-table.tsx` is the height:
+the toolbar, the column headings, the card's own border, and eight rows. The
+part panel above states no size of its own and takes what is left, down to its
+floor of 260px — on a window short enough to hit that floor, the part's minimum
+wins and the list opens on fewer.
+
+The row height is a **copy of a number `@toolpath/ui` does not export**, so
+`tests/on-the-part.spec.ts` § "opens with eight tools on screen" measures the
+room the rows actually have and is what keeps the two in step.
 
 A threaded hole keeps its two tabs — **Taps** and **Drills** — with the taps
 first. The notes beside the heading (what the rules removed, what the filters
@@ -666,36 +888,53 @@ true of the work the worker does:
 
 ## 11. Where the rules live
 
-| Rule                                       | File                                             |
-| ------------------------------------------ | ------------------------------------------------ |
-| what the list holds, names, ids, storage   | `app/shared/feature-list.ts`                     |
-| the name a shop gave an assembly row       | `renameItem` / `defaultLabelOf`, same file       |
-| the field that name is typed in            | `app/components/name-field.tsx`                  |
-| what the bottom of the page is asked       | `asked()`, same file                             |
-| which key a row's lines are kept under     | `sheetKeysOf`, same file                         |
-| the three presses that grow the list       | `app/components/add-bar.tsx`                     |
-| a row's answer, and what opens             | `app/shared/recommendations.ts`                  |
-| what a click means                         | `app/shared/part-interaction.ts`                 |
-| the list on screen                         | `app/components/feature-list-panel.tsx`          |
-| building a group                           | `app/components/group-editor.tsx`                |
-| a group's worst case, and whose it is      | `app/shared/group-geometry.ts`                   |
-| the one bore a group shares                | `sharedHoleDiameter`, same file                  |
-| whether identical holes group              | `Interaction.collecting`, `part-interaction.ts`  |
-| whether the offer to group them is made    | `app/shared/group-offer.ts`                      |
-| the offer on screen, and both answers      | `identical`, `components/selection-panel.tsx`    |
-| a feature row turned into a group          | `changeToGroup`, `app/routes/part.tsx`           |
-| which key a reading's lines are kept under | `choiceKey`, same file                           |
-| which holes a thread choice is written to  | `writeThread` / `holesAt`, `shared/hole-mode.ts` |
-| the reading and its thread                 | `app/components/selection-panel.tsx`             |
-| what a threaded hole is called             | `threadedName`, `app/shared/threads.ts`          |
-| what the panel and the ⓘ dialog call it    | `nameOf`, handed down by `part.tsx`              |
-| the tool table and its marks               | `app/components/part-tool-table.tsx`             |
-| what overruling the rules offers           | `overridableTools`, `shared/tool-fit.ts`         |
-| the warning and its confirm                | `OverrideNotice`, `components/column-filter.tsx` |
-| what a filter is not showing, and the `…`  | `TermFilter`, `components/column-filter.tsx`     |
-| what a tick on Type asks of the forms      | `formsAsking`, `app/shared/tool-type.ts`         |
-| which slots were filled against them       | `overrides`, `shared/assembly-tree.ts`           |
-| everything wired together                  | `app/routes/part.tsx`                            |
+| Rule                                        | File                                                  |
+| ------------------------------------------- | ----------------------------------------------------- |
+| what the list holds, names, ids, storage    | `app/shared/feature-list.ts`                          |
+| the name a shop gave an assembly row        | `renameItem` / `defaultLabelOf`, same file            |
+| the field that name is typed in             | `app/components/name-field.tsx`                       |
+| what the bottom of the page is asked        | `asked()`, same file                                  |
+| which key a row's lines are kept under      | `sheetKeysOf`, same file                              |
+| reading, writing and clearing those keys    | `app/shared/order-list.ts`                            |
+| whether a row has anything ordered for it   | `isIncomplete`, same file                             |
+| the order list both pages show              | `orderAssemblies`, same file                          |
+| what to buy, once each, and how many        | `componentTotals`, same file                          |
+| setting a component's whole order           | `setComponentCount`, same file                        |
+| the components view on the part             | `app/components/component-tally.tsx`                  |
+| the three presses that grow the list        | `app/components/add-bar.tsx`                          |
+| whether the rows are folded under the box   | `rowsShown`, `app/shared/part-chrome.ts`              |
+| whether the three presses are on screen     | `pressesShown`, same file                             |
+| where the part is framed, beside the column | `app/shared/frame-inset.ts`                           |
+| how tall the tool list opens                | `TABLE_OPENS_AT`, `components/part-tool-table.tsx`    |
+| whether _+ Tool Assembly_ can be pressed    | `assemblyPressEnabled`, same file                     |
+| the row a reading already has, if any       | `rowFor`, `app/shared/feature-list.ts`                |
+| what _+ Feature_ does over a reading        | `keepReading`, `app/routes/part.tsx`                  |
+| which press closes the box, and Enter's     | `isOrdering` / `orderingPress`, `assembly-actions.ts` |
+| what Enter presses, over the whole box      | `orderPress` / `applyStacks`, `routes/part.tsx`       |
+| a component standing in two stacks at once  | `sharedWith` / `sharedPhrase`, `assembly-tree.ts`     |
+| how many of one assembly a row ordered      | `Choice.total`, `app/shared/setup-sheet.ts`           |
+| a row's answer, and what opens              | `app/shared/recommendations.ts`                       |
+| what a click means                          | `app/shared/part-interaction.ts`                      |
+| the list on screen                          | `app/components/feature-list-panel.tsx`               |
+| building a group                            | `app/components/group-editor.tsx`                     |
+| a group's worst case, and whose it is       | `app/shared/group-geometry.ts`                        |
+| the one bore a group shares                 | `sharedHoleDiameter`, same file                       |
+| whether identical holes group               | `Interaction.collecting`, `part-interaction.ts`       |
+| whether the offer to group them is made     | `app/shared/group-offer.ts`                           |
+| the offer on screen, and both answers       | `identical`, `components/selection-panel.tsx`         |
+| a feature row turned into a group           | `changeToGroup`, `app/routes/part.tsx`                |
+| which key a reading's lines are kept under  | `choiceKey`, same file                                |
+| which holes a thread choice is written to   | `writeThread` / `holesAt`, `shared/hole-mode.ts`      |
+| the reading and its thread                  | `app/components/selection-panel.tsx`                  |
+| what a threaded hole is called              | `threadedName`, `app/shared/threads.ts`               |
+| what the panel and the ⓘ dialog call it     | `nameOf`, handed down by `part.tsx`                   |
+| the tool table and its marks                | `app/components/part-tool-table.tsx`                  |
+| what overruling the rules offers            | `overridableTools`, `shared/tool-fit.ts`              |
+| the warning and its confirm                 | `OverrideNotice`, `components/column-filter.tsx`      |
+| what a filter is not showing, and the `…`   | `TermFilter`, `components/column-filter.tsx`          |
+| what a tick on Type asks of the forms       | `formsAsking`, `app/shared/tool-type.ts`              |
+| which slots were filled against them        | `overrides`, `shared/assembly-tree.ts`                |
+| everything wired together                   | `app/routes/part.tsx`                                 |
 
 Each pure module owns its tests. `tests/on-the-part.spec.ts` walks the paths that
 begin with a click on the part, against the cube fixture — the only fixture that

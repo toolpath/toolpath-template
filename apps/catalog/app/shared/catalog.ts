@@ -103,12 +103,32 @@ export const getProfile = (guid: string): HolderProfile | null => profileFor(mea
 export const holders: ReadonlyArray<Holder> = (document.holders ?? []).map((holder) =>
   withMeasuredDimensions(holder, profileFor(measured, holder.guid)),
 )
-export const hasToolholding = (): boolean => holders.length > 0
 
 const byGuid = new Map(document.tools.map((tool) => [tool.guid, tool]))
 const familiesById = new Map(document.families.map((family) => [family.id, family]))
+const holdersByGuid = new Map(holders.map((holder) => [holder.guid, holder]))
+const colletsByGuid = new Map(collets.map((collet) => [collet.guid, collet]))
 
+/**
+ * One component, by the guid a sheet keeps it under.
+ *
+ * **A guid is looked up, never scanned for.** These three are the only way to
+ * turn a stored guid back into a record. Until 2026-09-09 most of the
+ * application reached past them for `allTools.find((each) => each.guid === …)`
+ * — a walk of 39,675 tools per lookup, and several of them sat inside a `map`
+ * over the order list's rows in JSX, so a bill of thirty assemblies cost well
+ * over a million string comparisons on **every render of the page**. The maps
+ * were already here for {@link getTool}; almost nothing used it.
+ *
+ * They answer `null` rather than `undefined` because a guid the catalog does
+ * not hold is an ordinary state — a sheet outlives the dataset it was written
+ * against — and `null` is the word the rest of this module uses for it.
+ */
 export const getTool = (guid: string): CatalogTool | null => byGuid.get(guid) ?? null
+
+export const getHolder = (guid: string): Holder | null => holdersByGuid.get(guid) ?? null
+
+export const getCollet = (guid: string): Collet | null => colletsByGuid.get(guid) ?? null
 
 export const getFamily = (id: string): ToolFamily | null => familiesById.get(id) ?? null
 

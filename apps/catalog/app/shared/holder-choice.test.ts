@@ -186,8 +186,13 @@ describe('the holders that work, pulled out to what the feature needs', () => {
       ['er16', true, false],
     ])
     expect(describeGrade(options[1]!)).toBe('the crib stocks no ER16 collet')
-    // It grips nothing as it stands, so it must not make the tool holdable.
-    expect(canBeHeld([options[1]!])).toBe(false)
+    /*
+      **And it makes the tool holdable** (Paul, 2026-09-09, widening the rack
+      and then this to match). It grips nothing as the crib stands, which is one
+      collet to order rather than a reason to tell a shop the cutter does not
+      exist — the row it leads to says so itself.
+    */
+    expect(canBeHeld([options[1]!])).toBe(true)
     expect(canBeHeld(options)).toBe(true)
   })
 
@@ -332,5 +337,47 @@ describe('holdable, asked without building every option', () => {
       )
     }
     expect(holdable(tool, [], [collet], {}, null, room, thresholds)).toBe(false)
+  })
+})
+
+/**
+ * **A tool is not missing because a collet is** (Paul, 2026-09-09: "widen that
+ * rule to match"). The rack was widened to chucks the crib has no collet for,
+ * and this is the rule that decides whether the tool those chucks would hold is
+ * listed at all — Paul's *counted, not offered* rule from 2026-08-29. Left
+ * strict, the two disagreed: the tool never appeared, so its widened rack was
+ * unreachable.
+ */
+describe('a tool held only by a chuck the crib has no collet for', () => {
+  const er16 = holder('er16', 20, { colletSeries: 'ER16', catalogNumber: 'BT30-ER16-60' })
+  const er11 = holder('er11', 20, { colletSeries: 'ER11', catalogNumber: 'BT30-ER11-60' })
+
+  it('is listed, with no collet in the crib that closes on it', () => {
+    expect(holdable(tool, [er16], [], {}, null, room, thresholds)).toBe(true)
+  })
+
+  /** The loose bound still bites: a 20 mm shank is no ER11 chuck's business. */
+  it('is not listed where the series could never take the shank', () => {
+    const wide = { ...tool, geometry: { ...tool.geometry, DC: 20, SFDM: 20 } }
+    expect(holdable(wide, [er11], [], {}, null, room, thresholds)).toBe(false)
+  })
+
+  /**
+   * **The geometry half is untouched.** The stack is graded with no collet in
+   * it, exactly as a bore holder is, so a chuck that cannot clear the part at
+   * the stickout the tool needs still keeps the tool off the list.
+   */
+  it('is not listed where the stack cannot clear the feature', () => {
+    // A 20 mm nose over a 50-deep wall: nothing this tool can stand out to
+    // clears it, which is what grades the only option bad.
+    const deep = { horizontalOffset: [0, 2, 30], verticalOffset: [0, 0, 50] }
+    expect(holdable(tool, [er16], [], {}, deep, room, thresholds)).toBe(false)
+  })
+
+  /** And a holder that is filtered out is still filtered out. */
+  it('respects the crib filters', () => {
+    expect(holdable(tool, [er16], [], { colletSeries: ['PG6'] }, null, room, thresholds)).toBe(
+      false,
+    )
   })
 })

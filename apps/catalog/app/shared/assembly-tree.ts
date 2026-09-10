@@ -624,6 +624,79 @@ export const treeFromLines = (
   }))
 }
 
+/**
+ * The same component standing in more than one stack of this tree, said in one
+ * phrase — or null where it stands in only the one.
+ *
+ * **A shop should see the double-up while it is making it** (Paul, 2026-09-10:
+ * "would it be possible to flag duplicates when they are added, even if an
+ * assembly has not been added to the list yet? Show a (×2, used in Assembly 1)
+ * in the feature dialog"). The table already marks a component another stack is
+ * on — but only for components *ordered* elsewhere, and only in the list you
+ * happen to be looking at. The stack being built is where the decision is, and a
+ * second assembly given the first's collet is either deliberate (two setups,
+ * two collets to buy) or a slip, and neither is visible until the bill is read.
+ *
+ * Counted over the whole tree, so the phrase reads the same on every stack that
+ * shares the component: `×2, used in Assembly 1` on the second, `×2, used in
+ * Assembly 2` on the first. What it names is the *others*, because the stack it
+ * is drawn on is the one the reader is already looking at.
+ *
+ * Empty slots are not duplicates of each other: nothing chosen is not a choice
+ * made twice.
+ */
+export const sharedWith = (
+  assemblies: ReadonlyArray<TreeAssembly>,
+  id: string,
+  slot: Slot,
+): { readonly count: number; readonly others: ReadonlyArray<string> } | null => {
+  const here = assemblies.find((each) => each.id === id)
+  const guid = here === undefined ? null : guidAt(here, slot)
+  if (guid === null) {
+    return null
+  }
+  /*
+    Every slot of every stack, not the same slot: a collet is a collet whichever
+    row it is drawn on, and one bought twice is two collets whether the second
+    went into a holder slot or a collet slot. `guidAt` over `SLOTS` is what makes
+    that true without a rule per slot.
+  */
+  const holders = assemblies.flatMap((each) =>
+    SLOTS.some((at) => guidAt(each, at) === guid) ? [each] : [],
+  )
+  if (holders.length < 2) {
+    return null
+  }
+  return {
+    count: holders.length,
+    others: holders.filter((each) => each.id !== id).map((each) => assemblyName(assemblies, each)),
+  }
+}
+
+/**
+ * {@link sharedWith} in the words the row wears: `×2, used in Assembly 1`.
+ *
+ * The count first, because how many to buy is the fact a shop acts on, and the
+ * stacks after it because *which* is what tells a deliberate second setup from a
+ * slip. Null passes straight through, so a caller can hand this whatever the
+ * rule returned.
+ */
+export const sharedPhrase = (
+  shared: { readonly count: number; readonly others: ReadonlyArray<string> } | null,
+): string | null => {
+  if (shared === null) {
+    return null
+  }
+  const [first, ...rest] = shared.others
+  if (first === undefined) {
+    return `×${String(shared.count)}`
+  }
+  const last = rest.at(-1)
+  const named =
+    last === undefined ? first : `${[first, ...rest.slice(0, -1)].join(', ')} and ${last}`
+  return `×${String(shared.count)}, used in ${named}`
+}
+
 /* --------------------------- kept in the browser -------------------------- */
 
 /** Every list item's tree, for one part. */

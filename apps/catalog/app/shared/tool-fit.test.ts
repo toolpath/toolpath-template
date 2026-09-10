@@ -30,9 +30,14 @@ const bound = (field: string): Rule =>
     note: '',
   }) as unknown as Rule
 
-const removed = (guid: string, fields: ReadonlyArray<string>, miss: number): Verdict =>
+const removed = (
+  guid: string,
+  fields: ReadonlyArray<string>,
+  miss: number,
+  geometry: Readonly<Record<string, number>> = {},
+): Verdict =>
   ({
-    tool: { guid } as CatalogTool,
+    tool: { guid, geometry } as unknown as CatalogTool,
     removed: fields.map((field) => ({
       rule: bound(field),
       text: `${field} over`,
@@ -47,7 +52,7 @@ const removed = (guid: string, fields: ReadonlyArray<string>, miss: number): Ver
 /** Removed for something no column asks: the wrong kind of tool for the feature. */
 const wrongKind = (guid: string): Verdict =>
   ({
-    tool: { guid } as CatalogTool,
+    tool: { guid, geometry: {} } as unknown as CatalogTool,
     removed: [{ rule: null, text: 'the tool types this feature considers' }],
     warned: [],
     demoted: [],
@@ -124,6 +129,44 @@ describe('what a forgiven column puts back', () => {
     expect(overridableTools(excluded, all(...excluded.map((v) => v.tool.guid)), ['DC'], 2)) //
       .toEqual([excluded[1], excluded[2]])
     expect(overridableCount(excluded, all(...excluded.map((v) => v.tool.guid)), ['DC'])).toBe(4)
+  })
+
+  /**
+   * **The cap may not hide the end of the range somebody typed** — the same
+   * defect as the test above, come back the way raising a cap always lets it
+   * (Paul, 2026-09-09: a ⌀0.125 in pocket widened to ⌀0.5 in "shows tools only
+   * up to a random diameter … it should show tools up to 0.5 in"). The cap had
+   * been raised from 200 to 2,000 the day before; on the scraped catalog 5,734
+   * tools were forgiven, and nearest-first spent all 2,000 slots on the sizes
+   * just past the rule and stopped at ⌀0.25 in.
+   *
+   * So this is written against the *shape* of the answer rather than against a
+   * number: whatever the cap is, every value the forgiven column takes is on
+   * the list before any value is listed twice. A cap of four over four sizes is
+   * the whole range or it is the bug — and no future cap can pass this by being
+   * larger.
+   */
+  it('reaches every value the forgiven column takes, whatever the cap', () => {
+    const excluded = [3, 6, 9, 12].flatMap((DC) =>
+      [0, 1, 2, 3, 4].map((each) =>
+        removed(`d${String(DC)}-${String(each)}`, ['diameter'], DC + each / 10, { DC }),
+      ),
+    )
+    const admitted = all(...excluded.map((verdict) => verdict.tool.guid))
+
+    const four = overridableTools(excluded, admitted, ['DC'], 4)
+    expect(four.map((verdict) => verdict.tool.geometry.DC)).toEqual([3, 6, 9, 12])
+    // Nearest first inside each size, so the head of the list is still the
+    // closest tool of every size the filter admits.
+    expect(four.map((verdict) => verdict.tool.guid)).toEqual(['d3-0', 'd6-0', 'd9-0', 'd12-0'])
+
+    const six = overridableTools(excluded, admitted, ['DC'], 6)
+    expect(new Set(six.map((verdict) => verdict.tool.geometry.DC))).toEqual(new Set([3, 6, 9, 12]))
+    expect(six).toHaveLength(6)
+
+    // Uncapped is still every one of them, and the count says so.
+    expect(overridableTools(excluded, admitted, ['DC'], 100)).toHaveLength(20)
+    expect(overridableCount(excluded, admitted, ['DC'])).toBe(20)
   })
 })
 

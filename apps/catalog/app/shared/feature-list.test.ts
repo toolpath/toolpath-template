@@ -13,6 +13,7 @@ import {
   readList,
   removeItem,
   replaceItem,
+  rowFor,
   sheetKeysOf,
   typeButtons,
   writeList,
@@ -342,5 +343,50 @@ describe('a tool assembly with no feature', () => {
     writeList(storage, 'part-a', list)
 
     expect(readList(storage, 'part-a')).toEqual(list)
+  })
+})
+
+/**
+ * **One face is one row** (Paul, 2026-09-10). *+ Feature* over a reading that
+ * is already on the list used to make a second row for it, and the two are one
+ * line on the sheet seen twice — the sheet is keyed by feature tag, so a tool
+ * ordered on one shows under both.
+ *
+ * It healed itself while an unordered row was pruned the moment it stopped
+ * being the one in hand. Rows are kept now, so the duplicate is permanent.
+ */
+describe('the row that already stands for a reading', () => {
+  it('finds the feature row holding exactly these tags', () => {
+    const list = [feature('feature-1', ['hole-1']), feature('feature-2', ['hole-2'])]
+
+    expect(rowFor(list, 'feature', ['hole-1'])?.id).toBe('feature-1')
+  })
+
+  it('finds nothing where no row holds exactly them', () => {
+    expect(rowFor([feature('feature-1', ['hole-1'])], 'feature', ['hole-2'])).toBeNull()
+  })
+
+  /** A group holding the same features picked in another order is that group. */
+  it('does not care what order the features were picked in', () => {
+    const list = [group('group-1', ['hole-2', 'hole-1'])]
+
+    expect(rowFor(list, 'group', ['hole-1', 'hole-2'])?.id).toBe('group-1')
+  })
+
+  /**
+   * A group that merely *contains* the reading is a different question about
+   * it, which is why this is not `activeItem`'s looser search.
+   */
+  it('is not the row that merely contains them', () => {
+    const list = [group('group-1', ['hole-1', 'hole-2'])]
+
+    expect(rowFor(list, 'group', ['hole-1'])).toBeNull()
+  })
+
+  it('keeps a feature and a group of the same features apart', () => {
+    const list = [group('group-1', ['hole-1'])]
+
+    expect(rowFor(list, 'feature', ['hole-1'])).toBeNull()
+    expect(rowFor(list, 'group', ['hole-1'])?.id).toBe('group-1')
   })
 })

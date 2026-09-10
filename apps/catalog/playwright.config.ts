@@ -9,6 +9,16 @@ export default defineConfig({
    */
   forbidOnly: !!process.env.CI,
   /*
+   * **The tests in a file run beside each other, not after each other.**
+   * Without this Playwright parallelises files only, and this suite is one file
+   * of seventy-odd tests and two small ones — so eleven of twelve cores sat
+   * idle while `on-the-part.spec.ts` walked its list. Every test here builds
+   * its own page from `openCube` in a `beforeEach` and Playwright gives each
+   * one its own browser context, so there is no state between them to
+   * serialise for.
+   */
+  fullyParallel: true,
+  /*
    * Retries make a rare flake *visible* rather than hidden: Playwright reports
    * a test that failed and then passed as flaky, which is a different signal
    * from green. None locally, where a flake is worth chasing while it is in

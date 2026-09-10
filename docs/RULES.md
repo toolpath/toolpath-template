@@ -110,7 +110,9 @@ the shank but not under the cut is drawn and swept at its own diameter, a
 shade apart from the shank, but is not called reduced either.)
 The catalog names it ("Reduced shank bull nose end mill") and offers it as a
 filter of its own; the sheet no longer prefers one or the other, by Paul's
-call.
+call. A neck under a full-width shank is a separate phrase since 2026-09-09
+("Necked flat end mill") and a separate reading — `hasNeck`, not this one; see
+`docs/CATALOG-SPEC.md` § What they are.
 
 **A rank** — an order:
 

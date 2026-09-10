@@ -332,6 +332,85 @@ describe('the list of what has been asked about', () => {
     ).not.toBeInTheDocument()
   })
 
+  /**
+   * **A row can be flagged and unanswered** (Paul, 2026-09-10: "the feature or
+   * group should be shown in the order list with an 'incomplete' icon and a
+   * dashed border, indicating that it is a feature or group that I flagged to do
+   * something with but haven't added a tool assembly to yet").
+   */
+  it('marks a row with nothing ordered against it', () => {
+    show({ incompleteIds: ['feature-1'] })
+
+    expect(screen.getByRole('img', { name: 'No tool assembly yet' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Pocket' }).closest('li')?.querySelector('.border-dashed'),
+    ).not.toBeNull()
+  })
+
+  it('leaves an answered row unmarked', () => {
+    show({ incompleteIds: [] })
+
+    expect(screen.queryByRole('img', { name: 'No tool assembly yet' })).not.toBeInTheDocument()
+  })
+
+  /**
+   * **And a marked row is answered with nothing at all.** A dash where a tool
+   * goes is the same fact said twice, in the one place a tool is supposed to
+   * appear — and a recommendation there was the defect the mark replaces.
+   */
+  it('draws no line under a row with no tools and nothing to say', () => {
+    show({
+      items: [LIST[0]!],
+      incompleteIds: ['feature-1'],
+      answers: [
+        {
+          id: 'feature-1',
+          itemId: 'feature-1',
+          tag: null,
+          label: 'Pocket',
+          picks: [],
+          chosen: true,
+          note: null,
+          children: [],
+        },
+      ],
+    })
+
+    expect(screen.queryByText('—')).not.toBeInTheDocument()
+  })
+
+  /**
+   * **Two identical stacks are two things to set up** (Paul, 2026-09-10:
+   * "duplicates … should show 2 assemblies and a count of two of each
+   * component"). The sheet keys a line by its tool, so a row holding one cutter
+   * in two stacks holds one line with a two on it.
+   */
+  it('says how many of an assembly the row ordered, where it is more than one', () => {
+    show({
+      items: [LIST[0]!],
+      answers: [
+        {
+          id: 'feature-1',
+          itemId: 'feature-1',
+          tag: null,
+          label: 'Pocket',
+          picks: [{ tool: tool('5510VXD375', 9.525), holder: null, collet: null, total: 2 }],
+          chosen: true,
+          note: null,
+          children: [],
+        },
+      ],
+    })
+
+    expect(screen.getByText('×2')).toBeInTheDocument()
+  })
+
+  it('says nothing about a count of one', () => {
+    show({ answers: ANSWERS })
+
+    expect(screen.queryByText('×1')).not.toBeInTheDocument()
+  })
+
   /** Identical holes are one decision, so the row says how many it stands for. */
   it('counts the features a row stands for', () => {
     show()

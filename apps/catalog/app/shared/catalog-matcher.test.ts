@@ -379,6 +379,53 @@ describe('catalog matcher protocol', () => {
     )
   })
 
+  /**
+   * **A form the filters name gets its own nearest misses across the boundary**
+   * (Paul, 2026-09-09). Fifty is the whole slice, and one form can fill it: a
+   * predrill's drills miss a small bore by the next size up while the end mills
+   * miss the helix limit by far more, so ticking the end mills on could not put
+   * one on the list — the worker had never sent one.
+   */
+  it('sends the nearest of each form the filters ask about, not the nearest fifty of all of them', () => {
+    const feature = pocket('pocket-1')
+    // Fifty-five mills over the pocket's 8 mm corner, each missing by less than
+    // any of the drills: the fifty nearest are all mills.
+    const mills = Array.from({ length: 55 }, (_, index) =>
+      tool(`MILL-${String(index)}`, 8.1 + index * 0.02),
+    )
+    // Drills the pocket admits by diameter whose flutes are half the depth: a
+    // miss by a number, and a bigger one than any mill's.
+    const drills = [6, 7, 8].map(
+      (DC) =>
+        ({
+          ...tool(`DRILL-${String(DC)}`, DC),
+          form: 'drill',
+          toolType: 'drill',
+          geometry: { DC, SFDM: DC, LCF: 4, OAL: 60, LD: 4, RE: 0, NOF: 2, SIG: 140 },
+        }) as unknown as CatalogTool,
+    )
+    const crib = { tools: [...mills, ...drills], holders: [], collets: [] }
+    const demand = { demandKey: 'one', tags: [feature.featureTag] }
+    const formOf = (guid: string) => (guid.startsWith('DRILL') ? 'drill' : 'flat end mill')
+
+    const blind = detailedMatch(context([feature]), demand, crib)
+    expect(blind.nearMisses).toHaveLength(50)
+    expect(blind.nearMisses.every((each) => formOf(each.toolGuid) === 'flat end mill')).toBe(true)
+
+    const asked = {
+      ...context([feature]),
+      query: { ...EMPTY_QUERY, terms: { form: ['drill', 'flat end mill'] } },
+    }
+    const both = detailedMatch(asked, demand, crib)
+    expect(both.nearMisses.filter((each) => formOf(each.toolGuid) === 'drill')).toHaveLength(3)
+    // The overall fifty are still all there — each form's own slice is capped
+    // by the same number — and the drills are added to them.
+    expect(
+      both.nearMisses.filter((each) => formOf(each.toolGuid) === 'flat end mill'),
+    ).toHaveLength(50)
+    expect(new Set(both.nearMisses.map((each) => each.toolGuid)).size).toBe(both.nearMisses.length)
+  })
+
   it('returns one recommendation result for every demand in a sixteen-feature batch', () => {
     const features = Array.from({ length: 16 }, (_, index) => pocket(`pocket-${String(index)}`))
     const input = context(features)

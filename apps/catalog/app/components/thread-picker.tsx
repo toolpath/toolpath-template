@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import { Combobox } from '@toolpath/ui'
 import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import {
   THREADS,
+  matchesThreadSearch,
   readLabel,
   threadNamed,
   threadOptions,
   threadsFor,
+  threadsMatching,
   type HoleMode,
   type ThreadSpec,
 } from 'shared/threads'
@@ -31,6 +34,13 @@ import { CatalogComboboxButton } from './catalog-combobox-button'
  *
  * The list holds the threads this hole reads as first and every thread after
  * them, for the hole that reads as nothing or reads as the wrong thing.
+ *
+ * **And it can be typed into as well as scrolled** (Paul, 2026-09-09: "I need
+ * to be able to either select from the list we have now or enter text to
+ * search the list and select from it"). Thirty-seven threads is a long scroll
+ * to `3/8-24 UNF` on the hole that reads as nothing; typing narrows both
+ * groups at once, in whichever way the thread is written —
+ * `matchesThreadSearch` in `shared/threads.ts` is the whole of that rule.
  */
 export interface ThreadPickerProps {
   /** The bore the model draws, in millimetres. */
@@ -42,9 +52,17 @@ export interface ThreadPickerProps {
   readonly unit: UnitSystem
 }
 
+/** The way out of a thread, and the one option that is not a thread's name. */
+const PLAIN = 'No thread — a plain hole'
+
 export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: ThreadPickerProps) => {
-  const offered = threadOptions(holeDiameter, 2)
+  const [query, setQuery] = useState('')
+  const offered = threadOptions(holeDiameter, 2).filter((each) =>
+    matchesThreadSearch(query, each.spec.name),
+  )
   const guesses = threadsFor(holeDiameter)
+  const every = threadsMatching(query)
+  const plain = matchesThreadSearch(query, PLAIN)
 
   return (
     <div className="mt-1.5 flex flex-col gap-1 border-t border-zinc-900 pt-1.5">
@@ -87,6 +105,10 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
         <span>Thread:</span>
         <Combobox
           items={['', ...THREADS.map((each) => each.name)]}
+          filteredItems={[...(plain ? [''] : []), ...every.map((each) => each.name)]}
+          inputValue={query}
+          onInputValueChange={setQuery}
+          onOpenChange={() => setQuery('')}
           value={spec !== null && threadNamed(spec.name) ? spec.name : ''}
           onValueChange={(next) => {
             const chosen = typeof next === 'string' ? threadNamed(next) : null
@@ -96,18 +118,31 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
                 : { mode: mode === 'plain' ? 'cut tap' : mode, spec: chosen },
             )
           }}
-          itemToStringLabel={(name) => (name === '' ? 'No thread — a plain hole' : name)}
+          itemToStringLabel={(name) => (name === '' ? PLAIN : name)}
           size="sm"
           variant="ghost"
           aria-label="Thread specification"
         >
-          <CatalogComboboxButton label="Thread" placeholder="No thread — a plain hole" />
+          <CatalogComboboxButton label="Thread" placeholder={PLAIN} />
+          {/*
+            The box the button becomes once the list is open — the kit swaps the
+            two on `data-popup-open`, which is why the input is its sibling here
+            rather than a row inside the popover.
+          */}
+          <Combobox.Input
+            className="h-6"
+            placeholder="Search threads — M6, 1/4-20, UNF…"
+            aria-label="Search threads"
+          />
           <Combobox.Popover>
             <Combobox.List>
-              <Combobox.Item value="">
-                No thread — a plain hole
-                <Combobox.ItemIndicator />
-              </Combobox.Item>
+              <Combobox.Empty>No thread matches “{query}”</Combobox.Empty>
+              {plain ? (
+                <Combobox.Item value="">
+                  {PLAIN}
+                  <Combobox.ItemIndicator />
+                </Combobox.Item>
+              ) : null}
               {offered.length === 0 ? null : (
                 <Combobox.Group>
                   <Combobox.GroupLabel>Closest match to modeled diameter</Combobox.GroupLabel>
@@ -119,19 +154,21 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
                   ))}
                 </Combobox.Group>
               )}
-              <Combobox.Group>
-                <Combobox.GroupLabel>Every thread</Combobox.GroupLabel>
-                {THREADS.map((each) => {
-                  const guess = guesses.find((one) => one.spec.name === each.name)
-                  return (
-                    <Combobox.Item key={`every-${each.name}`} value={each.name}>
-                      {each.name}
-                      {guess ? ` — ${readLabel(guess.read)}` : ''}
-                      <Combobox.ItemIndicator />
-                    </Combobox.Item>
-                  )
-                })}
-              </Combobox.Group>
+              {every.length === 0 ? null : (
+                <Combobox.Group>
+                  <Combobox.GroupLabel>Every thread</Combobox.GroupLabel>
+                  {every.map((each) => {
+                    const guess = guesses.find((one) => one.spec.name === each.name)
+                    return (
+                      <Combobox.Item key={`every-${each.name}`} value={each.name}>
+                        {each.name}
+                        {guess ? ` — ${readLabel(guess.read)}` : ''}
+                        <Combobox.ItemIndicator />
+                      </Combobox.Item>
+                    )
+                  })}
+                </Combobox.Group>
+              )}
             </Combobox.List>
           </Combobox.Popover>
         </Combobox>

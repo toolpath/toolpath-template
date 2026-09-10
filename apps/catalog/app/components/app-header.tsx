@@ -1,9 +1,9 @@
-import { NavLink, useNavigate } from 'react-router'
+import { NavLink, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Badge, IconButton, cn } from '@toolpath/ui'
 import { Chip, ChipGroup } from 'components/chip'
 import { UNIT_ABBREVIATION, UNIT_SYSTEMS, type UnitSystem } from '@toolpath/tool-support'
 import { MoonIcon, SunIcon, UploadSimpleIcon } from '@phosphor-icons/react'
-import { forgetPart, orderListHref, partHref, usePartSession } from 'shared/part-session'
+import { forgetPart, openPart, orderListHref, partHref, usePartSession } from 'shared/part-session'
 import { useTheme } from 'shared/use-theme'
 
 const tabClass = ({ isActive }: { isActive: boolean }) =>
@@ -26,8 +26,12 @@ export const AppHeader = ({ unit, onUnit, toolCount, onUploadPart }: AppHeaderPr
   const [theme, onTheme] = useTheme()
   // A part stays loaded while somebody reads the catalog, so the tab that
   // brought them there takes them back to it rather than to an upload form
-  // they would have to fill in again.
-  const part = usePartSession()
+  // they would have to fill in again. The URL answers ahead of the session,
+  // which is memory-only: `openPart` is the rule, and it is why a reload on the
+  // order list still knows which part the order list is for.
+  const { partId } = useParams()
+  const [search] = useSearchParams()
+  const part = openPart(usePartSession(), partId, search.get('job'))
   const navigate = useNavigate()
 
   return (

@@ -20,11 +20,14 @@ const componentFiles = (dir: string): Array<string> =>
  * `Button` instead — so counting the raw text reports the rule being *kept* as
  * the rule being broken. It did: five mentions across `feature-list-panel.tsx`
  * and `assembly-tree-panel.tsx` failed this check against a budget of zero on
- * 2026-09-10, with no hand-authored button anywhere in either file.
+ * 2026-09-10, with no hand-authored button anywhere in either file. A false
+ * alarm is the one thing a sensor must never raise — it gets the check
+ * disabled, and then the real rule is a comment again.
  *
- * Scanning rather than parsing, which is what the rest of this file does. The
- * `[^:]` is what keeps `https://` from eating the rest of a line, and with it
- * a real control written after a URL.
+ * Scanning rather than parsing, which is what the rest of this file does.
+ * `/* … *\/` covers a JSX comment too, since `{/* … *\/}` is a block comment in
+ * braces. The `[^:]` is what keeps `https://` from eating the rest of a line,
+ * and with it a real control written after a URL.
  */
 const withoutComments = (source: string): string =>
   source.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/(^|[^:])\/\/.*$/gm, '$1')

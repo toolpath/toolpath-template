@@ -65,7 +65,10 @@ quoting._
    than offering it (Paul, 2026-09-08).
 3. The table below is already showing only what cuts _every_ feature in the
    group. If it is empty, no single tool does it.
-4. Press **Create group and add tool**.
+4. Pick the tool from the table, then press **Add to order list** under the
+   stack. That one press makes the group and orders the assembly together
+   (Paul, 2026-09-09) — the box itself has no confirm, and the **X** in its top
+   right is the way out.
 
 ### 4 · Let it choose, for a mixed group
 
@@ -73,7 +76,7 @@ _Six different features, six different answers, one press._
 
 1. **Add group**, pick the features, then choose _The best tool for each_.
 2. The table stops listing tools and says why: the question is one per feature.
-3. Press **Create group and add tools**.
+3. Press **Add to order list** under the stack.
 4. Open the folder in the list. Every feature has its own tool underneath it.
 5. Press any of those tools to see the full offer for that one feature, if you
    want to overrule it.
@@ -110,8 +113,9 @@ _What all of this was for._
 2. Every component is its own row — tool, holder, collet — with its own quantity
    and its own way to the vendor's page.
 3. Type the quantities.
-4. Press **Fusion tool library** to save the whole bill as a file CAM can
-   import.
+4. Press **Export Fusion library**, give the library a name, choose the
+   workpiece material and the machine's maximum RPM, then save the whole bill
+   as a `.json` library Fusion can import.
 
 > **Open question — there is no walkthrough for "I already know the tool".**
 > Every path above starts from the part. A shop that wants to check whether a
@@ -214,12 +218,12 @@ always somebody's preference, and always visible and reversible.
   material, flutes), and continuous _ranges_ in millimetres. It is the only
   thing that decides which tools are on screen.
 - **Two of those terms are phrases this catalog builds**, not facets a vendor
-  publishes (2026-09-08). `type` is the form with the shank in its words —
-  `Reduced shank bull nose end mill` — and `family` is the vendor's product
-  line, or the family under it where the vendor names no line. Each replaced a
-  pair of axes a shop had to answer twice. A holder and a collet have a `type`
-  of the same kind: `BT30 ER11 collet chuck`, the shortcut through taper,
-  clamping and series at once.
+  publishes (2026-09-08). `type` is the form with what is behind the cut in its
+  words — `Reduced shank bull nose end mill`, `Necked flat end mill` — and
+  `family` is the vendor's product line, or the family under it where the vendor
+  names no line. Each replaced a pair of axes a shop had to answer twice. A
+  holder and a collet have a `type` of the same kind: `BT30 ER11 collet chuck`,
+  the shortcut through taper, clamping and series at once.
 - **A reduced shank is `SFDM < DC`** and nothing else (Paul, 2026-09-08) — the
   shank behind the cut is thinner than the cut. It is _not_ `shankOf`, the
   package's reading of a neck standing back from the flutes: over the scrape
@@ -227,7 +231,22 @@ always somebody's preference, and always visible and reversible.
   which one the words are built from is a decision rather than a detail.
   Taps and slot mills are left out of the phrase — a tap's shank is sized to
   the chuck, and a slot mill has no full-shank version to be told apart from —
-  which leaves 126 tools, all of them mills, reading `Reduced shank …`.
+  which leaves 574 tools, all of them mills, reading `Reduced shank …`.
+- **A neck is a second phrase, not the same one** (Paul, 2026-09-09, on a
+  Kennametal `MaxiMet™ … Necked` end mill reading as a plain `Flat end mill`:
+  "shouldn't this tool be showing as a reduced shank flat end mill based on our
+  rules?"). It is not, by the rule above — `SFDM` and `DC` are both ⌀9.525 and
+  what is thin is the 28.575 mm shoulder at ⌀8.920 below a full-width shank.
+  So `hasNeck` gets a word of its own, `Necked flat end mill`, on the 9,919
+  tools in the scrape that have one. The two readings are **disjoint** — 8,079
+  against 9,919, none in both — which is why one word could not carry both:
+  a thin shank is clamped thin, a neck is clamped full and reaches past a wall.
+  Taps and slot mills are left out of this phrase for the same reason they are
+  left out of the other, and for the slot mill more literally: 1,791 of its
+  2,261 state the neck, and the other 470 only because no shoulder was
+  published (Paul, 2026-09-09: "we just shouldn't touch any of the slot
+  mills"). The shank leads where a tool is somehow both; nothing in the scrape
+  is.
 - **What is behind them still runs.** `form`, `shank`, `familyId`,
   `productLine`, `taper` and `colletSeries` are all still matched, still read
   off a URL, and two of them are still written by the app itself — they simply
@@ -469,6 +488,21 @@ the order the rules rank them, with a mark on every number the rules read.
   filter must not also re-sort the column it is standing on.
 - **Columns are yours** — hidden, shown and reordered per list; taps and drills
   keep separate sets.
+- **The list opens in the order a row is read** (Paul, 2026-09-10): catalog
+  number, vendor, family, type, then flutes and diameter, then flute length,
+  length below holder, L/D and overall length. The column picker lists every
+  column in that same order top to bottom, because the page seeds the order
+  from the table's own column list, and the shank, the holder and the collet
+  wait at the end of it to be asked for.
+- **Two columns follow what is on the list.** Corner radius is the number a
+  mill is chosen on and a dash beside a drill; tip angle is the reverse. So a
+  mill on the list brings the radius out, a drill brings the angle, and a list
+  holding both draws both. Toggled by hand either one stays where it was put.
+  `app/shared/auto-columns.ts` is the rule.
+- **The table scrolls sideways** rather than squeezing its columns into the
+  panel. Fitting them was tried on 2026-09-10 and taken straight back out: a
+  dozen columns share a panel with fifty pixels of chrome each, so what fits is
+  headings nobody can read over cells nobody can read.
 
 > **Open questions**
 >
@@ -484,6 +518,7 @@ the order the rules rank them, with a mark on every number the rules read.
 - `app/components/part-tool-table.tsx` — the table, its columns, its header filters
 - `app/shared/tool-marks.ts` — the tick, the `i`, the warning and the red `x`
 - `app/shared/column-order.ts` — which columns are shown, and in what order
+- `app/shared/auto-columns.ts` — the two columns the list turns on for itself
 - `app/shared/tool-order.ts` — kept rows first, then the sheet's order
 - `app/shared/geometry.ts` — how a geometry value is printed
 - `app/shared/catalog-matcher.ts` — the one matching truth: what fills these rows
@@ -557,10 +592,12 @@ every render, so it can never disagree with the catalog about a diameter.
 - **Quantity is typed**, not spun.
 - **A line whose tool has left the catalog shows as gone**, not as a stale
   number.
-- **Fusion tool library** — the whole bill as a `.json` Fusion can import. The
-  form vocabulary and the geometry keys are already Fusion's, so it is a copy
-  rather than a translation. A tool the dataset cannot name is left out, and the
-  count comes back with the file.
+- **Export Fusion library** — the whole bill as a Fusion `.json` library. The
+  export names the file/library, asks for Aluminum, Low Carbon Steel or
+  Stainless Steel and a spindle RPM ceiling, then applies the catalog-local
+  PreTool Excel presets. It exports one record per distinct assembly, carries
+  its selected setout and published holder shape, and names every omitted tool
+  or holder shape rather than inventing vendor geometry.
 
 > **Open questions — this page has had the least attention**
 >
@@ -570,8 +607,9 @@ every render, so it can never disagree with the catalog about a diameter.
 >   end mill" would match how the work was decided.
 > - **Nothing says what a tool is for.** A line does not name the feature it was
 >   chosen for, so the reasoning is lost the moment you leave the part page.
-> - **Fusion export is lowest priority** and unproven against Fusion itself.
->   Treat it as untested until somebody imports one.
+> - **Fusion export uses PreTool's default Excel model.** Its feeds and speeds
+>   are CAM starting values for the selected material and spindle ceiling, not a
+>   substitute for a shop's own verification.
 
 **Where it lives**
 

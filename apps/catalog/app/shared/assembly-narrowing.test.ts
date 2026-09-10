@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { CatalogTool, Collet, Holder } from '@toolpath/catalog-data'
 import {
   NOTHING_CHOSEN,
+  colletGap,
+  colletGapFor,
   holderTakesCollet,
   holdersToOffer,
   narrowCollets,
@@ -77,6 +79,8 @@ const er20 = collet({
 })
 const er16Chuck = holder({})
 const er20Chuck = holder({ guid: 'holder-b', catalogNumber: 'BT30ER20', colletSeries: 'ER20' })
+/** A chuck of a series the crib stocks nothing of at all. */
+const er11Chuck = holder({ guid: 'holder-c', catalogNumber: 'BT30ER11', colletSeries: 'ER11' })
 const collets = [er16, er20]
 
 describe('a holder and a collet going together', () => {
@@ -99,10 +103,34 @@ describe('a holder chosen first', () => {
     expect(narrowCollets(collets, { tool: null, holder: er16Chuck })).toEqual([er16])
   })
 
-  it('leaves only the tools something in its series closes on', () => {
+  /**
+   * **The tools the chuck could take, not the ones the crib can close on
+   * today** — the other half of offering a holder with no collet behind it. A
+   * chuck offered for want of an ER16-10 must offer the 10 mm cutters it would
+   * take once one is bought, or clicking it empties the list under it.
+   */
+  it('leaves the tools its series could take, collet or no collet', () => {
     const shown = narrowTools(
       [tool('small', 6), tool('big', 10)],
       { holder: er16Chuck, collet: null },
+      collets,
+    )
+    expect(shown.map((each) => each.guid)).toEqual(['small', 'big'])
+  })
+
+  it('still refuses a tool the series could never close on', () => {
+    const shown = narrowTools(
+      [tool('small', 6), tool('huge', 16)],
+      { holder: er11Chuck, collet: null },
+      collets,
+    )
+    expect(shown.map((each) => each.guid)).toEqual(['small'])
+  })
+
+  it('is strict again once a collet is chosen', () => {
+    const shown = narrowTools(
+      [tool('small', 6), tool('big', 10)],
+      { holder: er16Chuck, collet: er16 },
       collets,
     )
     expect(shown.map((each) => each.guid)).toEqual(['small'])
@@ -126,10 +154,24 @@ describe('a collet chosen first', () => {
 })
 
 describe('a tool chosen first', () => {
-  it('leaves only the holders that can take it', () => {
+  /**
+   * Paul, 2026-09-09: "we should show any holder, even if there is not a collet
+   * in the library that works". The ER20 chuck holds a 6 mm shank all day with
+   * an ER20-6 in it; the crib not stocking one is a purchase order, not a fit.
+   */
+  it('leaves every holder whose series could take it', () => {
     const shown = narrowHolders(
       [er16Chuck, er20Chuck],
       { tool: tool('small', 6), collet: null },
+      collets,
+    )
+    expect(shown.map((each) => each.guid)).toEqual(['holder-a', 'holder-b'])
+  })
+
+  it('still leaves out a chuck too small for its shank', () => {
+    const shown = narrowHolders(
+      [er16Chuck, er11Chuck],
+      { tool: tool('huge', 16), collet: null },
       collets,
     )
     expect(shown.map((each) => each.guid)).toEqual(['holder-a'])
@@ -166,13 +208,17 @@ describe('the tools a feature admits, with no tool picked yet', () => {
     expect(takesAny(er16Chuck, [small, big], collets)).toBe(true)
   })
 
-  it('refuses a holder that takes none of them', () => {
-    expect(takesAny(er20Chuck, [small], collets)).toBe(false)
+  it('offers a holder no stocked collet closes on, where the series could', () => {
+    expect(takesAny(er20Chuck, [small], collets)).toBe(true)
   })
 
-  it('leaves only the holders that take one of them', () => {
+  it('refuses a holder whose series is too small for any of them', () => {
+    expect(takesAny(er11Chuck, [tool('huge', 16)], collets)).toBe(false)
+  })
+
+  it('leaves the holders that could take one of them', () => {
     const shown = narrowHolders([er16Chuck, er20Chuck], NOTHING_CHOSEN, collets, {}, [small])
-    expect(shown.map((each) => each.guid)).toEqual(['holder-a'])
+    expect(shown.map((each) => each.guid)).toEqual(['holder-a', 'holder-b'])
   })
 
   /**
@@ -180,9 +226,13 @@ describe('the tools a feature admits, with no tool picked yet', () => {
    * chosen for a tool the geometry does not admit is somebody's decision.
    */
   it('lets the chosen tool win over the set', () => {
-    const shown = narrowHolders([er16Chuck, er20Chuck], { tool: big, collet: null }, collets, {}, [
-      small,
-    ])
+    const shown = narrowHolders(
+      [er11Chuck, er20Chuck],
+      { tool: tool('huge', 16), collet: null },
+      collets,
+      {},
+      [small],
+    )
     expect(shown.map((each) => each.guid)).toEqual(['holder-b'])
   })
 
@@ -258,12 +308,12 @@ describe('which holders are offered', () => {
     expect(holdersToOffer([er16Chuck, er20Chuck], nothing, collets, {}, () => true).hidden).toBe(0)
   })
 
-  it("offers only the holders that take one of the feature's tools", () => {
-    const offered = holdersToOffer([er16Chuck, er20Chuck], nothing, collets, {}, () => true, [
-      tool('small', 6),
+  it("offers only the holders that could take one of the feature's tools", () => {
+    const offered = holdersToOffer([er16Chuck, er11Chuck], nothing, collets, {}, () => true, [
+      tool('huge', 16),
     ])
     expect(offered.shown.map((each) => each.guid)).toEqual(['holder-a'])
-    // The ER20 chuck fits nothing here, so its shape never came into it.
+    // The ER11 chuck fits nothing here, so its shape never came into it.
     expect(offered.hidden).toBe(0)
   })
 
@@ -273,14 +323,148 @@ describe('which holders are offered', () => {
    */
   it('does not count a holder that did not fit in the first place', () => {
     const offered = holdersToOffer(
-      [er16Chuck, er20Chuck],
-      { tool: tool('small', 6), collet: null },
+      [er16Chuck, er11Chuck],
+      { tool: tool('huge', 16), collet: null },
       collets,
       {},
       () => true,
     )
     expect(offered.shown.map((each) => each.guid)).toEqual(['holder-a'])
     expect(offered.hidden).toBe(0)
+  })
+})
+
+describe('why an offered holder cannot be built out of the crib', () => {
+  const small = tool('small', 6)
+
+  it('says nothing about a chuck the crib closes on', () => {
+    expect(colletGap(small, er16Chuck, collets)).toBeNull()
+  })
+
+  it('says nothing about a holder that grips the shank itself', () => {
+    const shrink = holder({ clamping: 'shrink', colletSeries: null, boreDiameter: 6 })
+    expect(colletGap(small, shrink, collets)).toBeNull()
+  })
+
+  it('names a series the crib stocks none of', () => {
+    expect(colletGap(small, er11Chuck, collets)).toBe('the crib stocks no ER11 collet')
+  })
+
+  /** Two gaps, two things to do about it: buy the drawer, or buy one collet. */
+  it('separates a stocked series with no size that closes', () => {
+    expect(colletGap(small, er20Chuck, collets)).toBe(
+      'no ER20 collet in the crib closes on this shank',
+    )
+  })
+
+  it('is silent over a set where any one of them is gripped', () => {
+    expect(colletGapFor(er20Chuck, [small, tool('big', 10)], collets)).toBeNull()
+  })
+
+  it('speaks of the shanks rather than the shank over a set', () => {
+    expect(colletGapFor(er20Chuck, [small, tool('other', 7)], collets)).toBe(
+      'no ER20 collet in the crib closes on any of these shanks',
+    )
+  })
+
+  /** With no feature there are no shanks, so only the stocking gap is left. */
+  it('reports an unstocked series with no tools to ask about', () => {
+    expect(colletGapFor(er11Chuck, null, collets)).toBe('the crib stocks no ER11 collet')
+    expect(colletGapFor(er20Chuck, null, collets)).toBeNull()
+  })
+
+  it('puts the gap over the choices when a collet list comes back empty', () => {
+    expect(
+      whyEmpty(0, { tool: null, holder: er11Chuck, collet: null }, {}, true, {
+        gap: 'the crib stocks no ER11 collet',
+      }),
+    ).toBe(
+      'No collet fits this holder: the crib stocks no ER11 collet. Order the holder on its own, or choose another.',
+    )
+  })
+
+  /**
+   * **The narrower rack is the one the page opens on** (Paul, 2026-09-10: "by
+   * default, the holders with no collet should be hidden"), which makes its
+   * empty list the case the whole rule exists for: nothing fits and something
+   * was hidden read the same on screen and mean opposite things.
+   */
+  it('says what the press is keeping off an empty rack', () => {
+    expect(whyEmpty(0, NOTHING_CHOSEN, {}, true, { hidden: 4 })).toBe(
+      'Nothing here can be built out of the crib as it stands. 4 holders could take it with a collet you do not stock — the press above shows them.',
+    )
+  })
+
+  it('counts one holder as one', () => {
+    expect(whyEmpty(0, NOTHING_CHOSEN, {}, true, { hidden: 1 })).toContain(
+      '1 holder could take it with a collet you do not stock — the press above shows it.',
+    )
+  })
+
+  /** Nothing hidden is the general answer again, not a sentence about none. */
+  it('falls back to the general answers where the press hid nothing', () => {
+    expect(whyEmpty(0, NOTHING_CHOSEN, {}, true, { hidden: 0 })).toBe(
+      'Nothing here takes any of the tools that fit this feature.',
+    )
+  })
+})
+
+describe('the rack with and without the chucks that have no collet', () => {
+  const nothing = { tool: null, collet: null }
+
+  /**
+   * **Both lists at once** (Paul, 2026-09-10, asking for a press in the
+   * chrome): whichever one the table draws, the press over it counts the other,
+   * and a flag would have made the count a second question.
+   */
+  it('answers the same list twice, one of them without the gapped chucks', () => {
+    const offered = holdersToOffer(
+      [er16Chuck, er20Chuck],
+      nothing,
+      collets,
+      {},
+      () => true,
+      [tool('small', 6)],
+      (holder) => colletGapFor(holder, [tool('small', 6)], collets),
+    )
+    // The ER16 closes on 6 mm; nothing in the crib closes on 6 in an ER20.
+    expect(offered.shown.map((each) => each.guid)).toEqual(['holder-a', 'holder-b'])
+    expect(offered.stocked.map((each) => each.guid)).toEqual(['holder-a'])
+  })
+
+  it('leaves the two lists identical where every chuck can be built', () => {
+    const offered = holdersToOffer(
+      [er16Chuck, er20Chuck],
+      nothing,
+      collets,
+      {},
+      () => true,
+      [tool('small', 6), tool('big', 10)],
+      (holder) => colletGapFor(holder, [tool('small', 6), tool('big', 10)], collets),
+    )
+    expect(offered.stocked).toEqual(offered.shown)
+  })
+
+  /** The shape rule is the other list's, and counts what it hid either way. */
+  it('keeps the undrawable count about the drawing alone', () => {
+    const offered = holdersToOffer(
+      [er16Chuck, er20Chuck],
+      nothing,
+      collets,
+      {},
+      (holder) => holder.guid === 'holder-a',
+      [tool('small', 6)],
+      (holder) => colletGapFor(holder, [tool('small', 6)], collets),
+    )
+    expect(offered.shown.map((each) => each.guid)).toEqual(['holder-a'])
+    expect(offered.stocked.map((each) => each.guid)).toEqual(['holder-a'])
+    expect(offered.hidden).toBe(1)
+  })
+
+  /** Nothing handed in, nothing hidden: the old callers are unchanged. */
+  it('treats every holder as stocked when nobody asks about collets', () => {
+    const offered = holdersToOffer([er16Chuck, er20Chuck], nothing, collets, {}, () => true)
+    expect(offered.stocked).toEqual(offered.shown)
   })
 })
 

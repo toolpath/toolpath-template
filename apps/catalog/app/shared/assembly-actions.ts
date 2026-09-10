@@ -31,8 +31,9 @@ import { ROLE_LABEL, isEmpty, type TreeAssembly } from './assembly-tree'
  *
  * | The stack                                     | Offered                      |
  * | --------------------------------------------- | ---------------------------- |
- * | nothing chosen in it                          | nothing to confirm           |
- * | no tool yet — a holder or collet on its own   | nothing to confirm, and why  |
+ * | nothing in it, and not a row yet              | **Add feature to list**      |
+ * | nothing in it, on the list already            | **Add to order list**, greyed |
+ * | no tool yet — a holder or collet on its own   | the same two                 |
  * | a tool, and not a row on the list yet         | **Add to order list**, and   |
  * |                                               | it makes the row as well     |
  * | a tool, not on the bill for this feature      | **Add to order list**        |
@@ -74,7 +75,23 @@ import { ROLE_LABEL, isEmpty, type TreeAssembly } from './assembly-tree'
  * same question, and it names what it would keep.
  */
 
-export type AssemblyActionKind = 'confirm' | 'add' | 'replace' | 'update' | 'revert' | 'remove'
+export type AssemblyActionKind =
+  | 'confirm'
+  | 'add'
+  | 'replace'
+  | 'update'
+  | 'revert'
+  | 'remove'
+  /**
+   * The row made with nothing in it to order (Paul, 2026-09-10: "I should be
+   * able to create a feature or group without adding a tool").
+   *
+   * The one press here that writes no line at all. It exists because the answer
+   * to "what cuts this" is often *not yet* — a face worth machining is worth
+   * writing down before anybody has decided what to write down against it — and
+   * the only way to keep one used to be picking a tool for it.
+   */
+  | 'list'
 
 /** What one press would put on the list, where it is not on it yet. */
 export type Subject = 'feature' | 'group' | 'assembly'
@@ -95,6 +112,61 @@ export interface AssemblyAction {
   readonly quiet?: boolean
   /** What else changes with it, where pressing the button moves more than one slot. */
   readonly note?: string
+  /**
+   * Offered but not pressable yet, because the stack has nothing to order.
+   *
+   * **The press is on screen from the start** (Paul, 2026-09-09: "Add to order
+   * list should be shown by default but greyed out until a component is
+   * selected. Right now it is hidden by default"). A button that appears the
+   * moment a row is clicked in the table says nothing about what the table is
+   * for; one standing greyed under an empty stack says the stack is what fills
+   * it in.
+   */
+  readonly disabled?: boolean
+}
+
+/**
+ * What an empty stack's press is called, where there is a row to be made.
+ *
+ * A part-level assembly is missing on purpose. It *is* its order — "Tool
+ * assembly 3" with nothing in it is a row about nothing, and Paul took that one
+ * out on 2026-09-08 for exactly that reason — so it keeps the greyed press.
+ */
+const LISTING: Readonly<Record<Subject, string | null>> = {
+  feature: 'Add feature to list',
+  group: 'Add group to list',
+  assembly: null,
+}
+
+/** What a row put on the list with nothing in it is, said before it is made. */
+const INCOMPLETE = 'Nothing is ordered against it yet, so it goes on the list marked incomplete.'
+
+/**
+ * The press under a stack with nothing in it to order.
+ *
+ * **A feature is worth keeping before it is answered** (Paul, 2026-09-10: "I
+ * should be able to create a feature or group without adding a tool … a feature
+ * or group that I flagged to do something with but haven't added a tool assembly
+ * to yet"). It used to be one greyed button in both states, which made *keep
+ * this face* and *order this stack* the same press — so the only way to write a
+ * face down was to decide its tool at the same moment.
+ *
+ * So an empty stack offers what it can actually do:
+ *
+ * - **not a row yet** — make the row, order nothing. Enabled, because that is a
+ *   decision somebody can make with an empty stack.
+ * - **already a row** — nothing left to do until a component is picked, which
+ *   is the greyed *Add to order list* that has stood here since 2026-09-09.
+ *
+ * The ordering press keeps its own words and its own place, so choosing a tool
+ * changes the button rather than moving it. `nothingToConfirm` is what says why
+ * an ordering press cannot be made yet, beside the component being read.
+ */
+const nothingYet = (onList: boolean, subject: Subject): AssemblyAction => {
+  const listing = onList ? null : LISTING[subject]
+  return listing === null
+    ? { kind: onList ? 'add' : 'confirm', label: 'Add to order list', disabled: true }
+    : { kind: 'list', label: listing, note: INCOMPLETE }
 }
 
 /** The line this stack would write, or null while it has no tool to write one for. */
@@ -156,10 +228,10 @@ export const holdingChanges = (had: Choice, wanted: Choice): Array<HoldingChange
 /**
  * The line the bill already holds for this stack, or null where it holds none.
  *
- * **Found by what the stack was ordered as, and only then by what it holds now**
- * (Paul, 2026-09-07: "when editing an already active assembly, a tool not in the
- * order list should say 'replace' in the active assembly. Right now it is adding
- * a new assembly to the feature"). A line is keyed on the sheet by its tool, so
+ * **Found by what the stack was ordered as, and by nothing else** (Paul,
+ * 2026-09-07: "when editing an already active assembly, a tool not in the order
+ * list should say 'replace' in the active assembly. Right now it is adding a new
+ * assembly to the feature"). A line is keyed on the sheet by its tool, so
  * looking one up by the tool standing in the stack found nothing the moment
  * somebody swapped the cutter — and an active assembly with a new tool in it
  * read as a stack nobody had ordered.
@@ -168,9 +240,25 @@ export const holdingChanges = (had: Choice, wanted: Choice): Array<HoldingChange
  * line there. It is also what the table marks a row with — the holder somebody
  * confirmed for this feature has to be visible in the list, or backing out means
  * recognising it by memory.
+ *
+ * **And a stack nobody has ordered adopts nothing** (Paul, 2026-09-10: "when I
+ * select the same tool as a second assembly for a feature, it autofills
+ * everything and does some odd stuff … secondary assemblies added to a feature
+ * or group should be treated as unique, new assemblies"). This used to fall back
+ * to the tool standing in the stack, which meant a *second* assembly given the
+ * same cutter as the first found the first's line and became it: its empty
+ * holder slot drew the other stack's holder struck through to a dash, and the
+ * press under it offered to *Take holder BT30ER16060M off* — an edit of a line
+ * belonging to a stack three rows above.
+ *
+ * The fallback was never needed. Every stack that is genuinely on the bill
+ * carries `orderedTool` — `treeFromLines` reads it off the line, `markOrdered`
+ * writes it when the press lands, `restoreAssembly` puts it back — and the field
+ * already documents its own absence as *not on the order list*, which is what a
+ * new stack is.
  */
 export const savedFor = (assembly: TreeAssembly, onSheet: ReadonlyArray<Choice>): Choice | null => {
-  const wanted = assembly.orderedTool ?? assembly.toolGuid
+  const wanted = assembly.orderedTool ?? null
   return wanted === null ? null : (onSheet.find((each) => each.toolGuid === wanted) ?? null)
 }
 
@@ -296,7 +384,7 @@ export const assemblyActions = (
 ): Array<AssemblyAction> => {
   const line = lineOf(assembly)
   if (line === null) {
-    return []
+    return [nothingYet(onList, subject)]
   }
   /*
     Not a row yet, so there is nothing to add *to*: one press makes the feature
@@ -382,7 +470,7 @@ const groupSaid = (
  *
  * | The group                                    | Offered                     |
  * | -------------------------------------------- | --------------------------- |
- * | no tool anywhere in it                       | nothing to confirm          |
+ * | no tool anywhere in it                       | **Add to order list**, greyed|
  * | not a row on the list yet                    | **Add to order list**       |
  * | no stack of it on the bill                   | **Add to order list**       |
  * | every stack on the bill, unchanged           | **Remove from order list**  |
@@ -413,7 +501,7 @@ export const groupActions = (
     return line === null ? [] : [{ stack, line, had: savedFor(stack, onSheet) }]
   })
   if (parts.length === 0) {
-    return []
+    return [nothingYet(onList, subject)]
   }
   if (!onList) {
     return [
@@ -446,3 +534,43 @@ export const groupActions = (
     { kind: 'revert', quiet: true, label: 'Cancel' },
   ]
 }
+
+/**
+ * The presses that put an assembly on the order list, or change what is on it.
+ *
+ * `remove` and `revert` are the two that take something *off* or put it back,
+ * and the difference matters twice over: the box closes on an order being
+ * placed (Paul, 2026-09-10: "clicking 'Add to Order List' should close the
+ * feature, group, or tool assembly dialog"), and Enter presses one of these and
+ * never one of those — a key that could silently remove an order is a key
+ * nobody can press with confidence.
+ *
+ * `list` is here even though it orders nothing. What the two rules are really
+ * about is *the press that finishes what the box was opened for*: a row flagged
+ * with no tool against it is that box finished, so it closes behind the press
+ * and Enter reaches it, exactly as it does for the stack that was answered.
+ */
+const ORDERING: ReadonlyArray<AssemblyActionKind> = ['confirm', 'add', 'replace', 'update', 'list']
+
+/** Does this press put something on the order list? */
+export const isOrdering = (kind: AssemblyActionKind): boolean => ORDERING.includes(kind)
+
+/**
+ * The one press Enter stands for, out of what a stack offers.
+ *
+ * **Enter is the button under the stack** (Paul, 2026-09-10: "clicking enter
+ * once any components are selected in one of these dialogs should act like I
+ * clicked add to order list — confirm the currently selected tools and close
+ * the dialog"). Picking a tool in the table and then reaching for the mouse
+ * again to press the button three inches away is the same decision twice.
+ *
+ * `null` where there is nothing to order — an empty stack offers the press
+ * greyed, and a key that fires a disabled button is a key that does nothing
+ * visible and looks broken. Generic over the shape so the route can hand it
+ * either the rule's own actions or the ones it has wired up to draw.
+ */
+export const orderingPress = <
+  Action extends { readonly kind: AssemblyActionKind; readonly disabled?: boolean },
+>(
+  actions: ReadonlyArray<Action>,
+): Action | null => actions.find((each) => each.disabled !== true && isOrdering(each.kind)) ?? null

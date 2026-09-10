@@ -11,7 +11,7 @@ export const CatalogComboboxButton = ({
   <Combobox.Trigger
     nativeButton
     aria-label={label}
-    className="group flex h-6 w-full items-center gap-1 rounded text-left text-2xs outline-none focus-visible:ring-2 focus-visible:ring-info/75"
+    className="group flex h-6 w-full items-center gap-1 rounded text-left text-2xs outline-none focus-visible:ring-2 focus-visible:ring-info/75 [&:has(~[data-input])]:data-[popup-open]:hidden"
   >
     <Combobox.Value placeholder={placeholder} className="truncate text-zinc-100" />
     <Combobox.Icon className="ml-auto">

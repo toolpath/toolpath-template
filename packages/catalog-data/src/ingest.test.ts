@@ -286,6 +286,29 @@ describe('ingesting toolholding', () => {
     expect(catalog.collets[0]?.series).toBe('ER16')
   })
 
+  /**
+   * The square is what makes a tap collet a tap collet, and it is the fact
+   * `holderTakesTool` reads to refuse an end mill a square bore would drive
+   * by nothing. It arrives on the record with `@toolpath/tool-scraper` 2.5.0
+   * and has to survive the handoff to be worth having.
+   */
+  it('carries a tap collet’s square drive, converted like any other length', () => {
+    const { catalog } = ingest(
+      scrape({
+        collets: [{ ...collet, unit: 'inches', clampMin: 0.2, clampMax: 0.25, squareSize: 0.194 }],
+      }),
+    )
+
+    expect(catalog.collets[0]?.squareSize).toBeCloseTo(4.9276, 9)
+  })
+
+  /** Every round collet, and every crib assembled before the square existed. */
+  it('leaves the square unstated where the vendor publishes none', () => {
+    const { catalog } = ingest(scrape({ collets: [collet] }))
+
+    expect(catalog.collets[0]?.squareSize).toBeNull()
+  })
+
   it('converts an inch holder’s lengths to millimetres', () => {
     const { catalog } = ingest(
       scrape({

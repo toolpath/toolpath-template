@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { formOfTypeLabel, formsAsking, reducedShank, typeLabel, typesAsking } from './tool-type'
+import {
+  formOfTypeLabel,
+  formsAsking,
+  necked,
+  reducedShank,
+  typeLabel,
+  typesAsking,
+} from './tool-type'
 
 const tool = (geometry: Record<string, number>, form = 'flat end mill') => ({ form, geometry })
 
@@ -21,17 +28,58 @@ describe('what a tool is, in one phrase', () => {
   })
 
   /**
-   * **A neck is not a reduced shank** (Paul, 2026-09-08: "use my reduced shank
-   * rule rather than the old one"). `shankOf` reads a shoulder narrower than
-   * the cut standing back from the flutes — a different population entirely,
-   * 6,378 tools against 7,499 with one tool in both — and it is not the rule
-   * these words are built from. The axis it answers is parked.
+   * **A neck is not a reduced shank, and it is not nothing either** (Paul,
+   * 2026-09-09, on a Kennametal `MaxiMet™ … Necked` end mill: "shouldn't this
+   * tool be showing as a reduced shank flat end mill based on our rules?"). Its
+   * shank is the full ⌀9.525 of the cut, so `reducedShank` is right to say no;
+   * what is thin is the shoulder below it. Two facts, two phrases — over the
+   * whole scrape the readings are disjoint, 8,079 tools against 9,919 with none
+   * in both, so one word would have been the wrong word on 9,919 tools.
    */
-  it('says nothing about the shank of a necked tool whose shank is full width', () => {
+  it('says the neck of a necked tool whose shank is full width', () => {
     expect(
       typeLabel(tool({ DC: 6, SFDM: 6, LCF: 12, 'shoulder-diameter': 5.5, 'shoulder-length': 30 })),
+    ).toBe('Necked flat end mill')
+    expect(reducedShank(tool({ DC: 6, SFDM: 6, LCF: 12, 'shoulder-diameter': 5.5 }))).toBe(false)
+  })
+
+  /** The Kennametal tool that raised it, in its own millimetres. */
+  it('names the tool the rule was written against', () => {
+    expect(
+      typeLabel(
+        tool({
+          DC: 9.525,
+          SFDM: 9.525,
+          LCF: 12.7,
+          'shoulder-diameter': 8.92048,
+          'shoulder-length': 28.575,
+        }),
+      ),
+    ).toBe('Necked flat end mill')
+  })
+
+  /**
+   * A shoulder no narrower than the shank is a relief worth drawing and not a
+   * neck, and a shoulder that stops where the flutes do is no section at all.
+   */
+  it('says nothing where the shoulder is not behind the flutes or not narrower', () => {
+    expect(
+      typeLabel(tool({ DC: 6, SFDM: 6, LCF: 12, 'shoulder-diameter': 6, 'shoulder-length': 30 })),
     ).toBe('Flat end mill')
-    expect(reducedShank(tool({ DC: 6, SFDM: 6, LCF: 12 }))).toBe(false)
+    expect(
+      typeLabel(tool({ DC: 6, SFDM: 6, LCF: 12, 'shoulder-diameter': 5.5, 'shoulder-length': 12 })),
+    ).toBe('Flat end mill')
+  })
+
+  /**
+   * A shank a collet has to close on is the harder constraint, so it leads.
+   * Nothing in the 39,675-tool scrape is both; the rules are independent, so
+   * the order is pinned rather than left to the data.
+   */
+  it('leads with the shank on a tool that is both', () => {
+    expect(
+      typeLabel(tool({ DC: 12, SFDM: 10, LCF: 20, 'shoulder-diameter': 8, 'shoulder-length': 40 })),
+    ).toBe('Reduced shank flat end mill')
   })
 
   /**
@@ -40,6 +88,23 @@ describe('what a tool is, in one phrase', () => {
    */
   it('says nothing about the shank where every tool of that form has one', () => {
     expect(typeLabel(tool({ DC: 12, SFDM: 10, LCF: 2 }, 'slot mill'))).toBe('Slot mill')
+  })
+
+  /**
+   * And the neck is the more literal case of that rule (Paul, 2026-09-09: "we
+   * just shouldn't touch any of the slot mills"): 1,791 of the 2,261 slot mills
+   * in the scrape state the neck outright and the other 470 only fail to
+   * because no shoulder was published.
+   */
+  it('says nothing about the neck of a slot mill either', () => {
+    const cutter = tool(
+      { DC: 22.2, SFDM: 12.7, LCF: 1.6, 'shoulder-diameter': 11, 'shoulder-length': 30 },
+      'slot mill',
+    )
+
+    expect(typeLabel(cutter)).toBe('Slot mill')
+    // The reading itself still answers; what is done with it is the label's.
+    expect(necked(cutter)).toBe(true)
   })
 
   /**
@@ -54,6 +119,14 @@ describe('what a tool is, in one phrase', () => {
     )
     // The reading itself is unchanged; what is done with it is the label's.
     expect(reducedShank(tool({ DC: 9.525, SFDM: 7.938, LCF: 20 }, 'tap right hand'))).toBe(true)
+    expect(
+      typeLabel(
+        tool(
+          { DC: 9.525, SFDM: 9.525, LCF: 20, 'shoulder-diameter': 8, 'shoulder-length': 40 },
+          'tap right hand',
+        ),
+      ),
+    ).toBe('Tap right hand')
   })
 
   it('keeps a name the library does not know', () => {
@@ -72,6 +145,12 @@ describe('the form behind a phrase', () => {
   it('reads back what typeLabel wrote, shank and all', () => {
     expect(formOfTypeLabel('Flat end mill')).toBe('flat end mill')
     expect(formOfTypeLabel('Reduced shank bull nose end mill')).toBe('bull nose end mill')
+    expect(formOfTypeLabel('Necked bull nose end mill')).toBe('bull nose end mill')
+    expect(
+      formOfTypeLabel(
+        typeLabel(tool({ DC: 6, SFDM: 6, LCF: 12, 'shoulder-diameter': 5, 'shoulder-length': 30 })),
+      ),
+    ).toBe('flat end mill')
     expect(formOfTypeLabel('Engrave/chamfer mill')).toBe('chamfer mill')
     expect(formOfTypeLabel(typeLabel(tool({ DC: 12, SFDM: 10 }, 'ball end mill')))).toBe(
       'ball end mill',

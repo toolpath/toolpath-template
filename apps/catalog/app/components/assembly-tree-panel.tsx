@@ -1,4 +1,4 @@
-import { PlusIcon, TrashIcon, WarningIcon, XIcon } from '@phosphor-icons/react'
+import { PlusIcon, TrashIcon, XCircleIcon, XIcon } from '@phosphor-icons/react'
 import { Button, IconButton, cn } from '@toolpath/ui'
 import { useState } from 'react'
 import {
@@ -9,6 +9,8 @@ import {
   isEmpty,
   nextAssemblyId,
   sameNode,
+  sharedPhrase,
+  sharedWith,
   slotLabel,
   stacksOf,
   treeGroups,
@@ -44,6 +46,14 @@ export interface AssemblyRowAction {
   readonly quiet?: boolean
   /** What else the press changes, said under it before it is pressed. */
   readonly note?: string
+  /**
+   * On screen, and not pressable yet.
+   *
+   * **The press is drawn from the start** (Paul, 2026-09-09: "Add to order list
+   * should be shown by default but greyed out until a component is selected").
+   * `shared/assembly-actions` decides it; this draws it.
+   */
+  readonly disabled?: boolean
 }
 
 export interface AssemblyTreePanelProps {
@@ -132,6 +142,7 @@ const SlotRow = ({
   label,
   ordered,
   warning,
+  shared,
   onSelect,
   onClear,
 }: {
@@ -146,6 +157,11 @@ const SlotRow = ({
   ordered: string | null
   /** Why the rules turned this choice down, where somebody made it anyway. */
   warning: string | null
+  /**
+   * That this component stands in another stack of this tree too, and which —
+   * `sharedWith` / `sharedPhrase` in `shared/assembly-tree.ts`.
+   */
+  shared: string | null
   onSelect: () => void
   onClear: () => void
 }) => (
@@ -220,6 +236,11 @@ const SlotRow = ({
         allowed to overrule, so this is a caution rather than a fault: one glyph
         in the colour the page already uses for "allowed, and here is what you
         allowed", with the rule's own sentence behind it on hover.
+
+        The glyph is the table's — the circled X every incompatibility wears
+        since 2026-09-09 — in the caution's amber rather than the refusal's
+        red, so the tree and the column it came from say the same thing the
+        same way (Paul: "the same red X icon … for all incompatibilities").
       */}
       {warning === null ? null : (
         <span
@@ -228,7 +249,27 @@ const SlotRow = ({
           title={warning}
           className="shrink-0 text-amber-400"
         >
-          <WarningIcon aria-hidden="true" className="size-3" weight="fill" />
+          <XCircleIcon aria-hidden="true" className="size-3" />
+        </span>
+      )}
+      {/*
+        **The double-up is said where it is made** (Paul, 2026-09-10: "would it
+        be possible to flag duplicates when they are added, even if an assembly
+        has not been added to the list yet? Show a (×2, used in Assembly 1) in
+        the feature dialog"). The table marks a component another stack is on the
+        *order list* with; this is the same fact about the tree in hand, before
+        anything has been ordered at all.
+
+        A note rather than a caution: two setups sharing a collet is a shop
+        buying two collets, which is a fact to see rather than a thing to fix —
+        so it wears the page's quiet grey and not the override's amber.
+      */}
+      {shared === null ? null : (
+        <span
+          className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-zinc-400"
+          title={`This component stands in more than one assembly here — ${shared}`}
+        >
+          {shared}
         </span>
       )}
     </Button>
@@ -263,6 +304,7 @@ const HOLDING: ReadonlyArray<Slot> = SLOTS.filter((slot) => slot !== 'tool')
  */
 const StackRows = ({
   assembly,
+  assemblies,
   selected,
   labelFor,
   orderedFor,
@@ -271,6 +313,11 @@ const StackRows = ({
   onClear,
 }: {
   assembly: TreeAssembly
+  /**
+   * The whole tree, for the one thing a row cannot read off its own stack:
+   * whether the component in it stands in another stack too.
+   */
+  assemblies: ReadonlyArray<TreeAssembly>
   selected: TreeNode | null
   labelFor: (assembly: TreeAssembly, slot: Slot) => string | null
   orderedFor: (assembly: TreeAssembly, slot: Slot) => string | null
@@ -287,6 +334,9 @@ const StackRows = ({
       label={guidAt(assembly, slot) === null ? null : labelFor(assembly, slot)}
       ordered={orderedFor(assembly, slot)}
       warning={guidAt(assembly, slot) === null ? null : warningFor(assembly, slot)}
+      /* Derived here rather than handed in: it is a fact about the tree this
+         panel is already holding, and `shared/assembly-tree.ts` is the rule. */
+      shared={sharedPhrase(sharedWith(assemblies, assembly.id, slot))}
       onSelect={() => onSelect({ assemblyId: assembly.id, slot })}
       onClear={() => onClear(assembly.id, slot)}
     />
@@ -320,12 +370,19 @@ export const AssemblyTreePanel = ({
   /**
    * The stack being named, where one is.
    *
-   * Held here rather than by the route because both ways into it are presses on
-   * this panel: the tick beside a card's name, and *Add assembly* — **a stack
-   * is named when it is made** (Paul, 2026-09-08), so the press that adds one
-   * opens the field on it rather than leaving somebody to find it afterwards.
-   * An id belonging to a tree that is no longer on screen simply matches
-   * nothing, which is a card drawn with its name.
+   * Held here rather than by the route because the way into it is a press on
+   * this panel: the pencil beside a card's name. An id belonging to a tree that
+   * is no longer on screen simply matches nothing, which is a card drawn with
+   * its name.
+   *
+   * **_Add assembly_ no longer opens it** (Paul, 2026-09-10: "focus shouldn't go
+   * immediately to renaming a tool assembly when a new one is added — it should
+   * start at the default name and focus should go to the tool component
+   * selection for it. We can always rename later"). It did, on the reasoning
+   * that a stack is named when it is made (Paul, 2026-09-08) — but the press is
+   * for *another cutter*, and what it opened was a text field over an empty
+   * stack, so the next thing to do was dismiss it. The default name is a name,
+   * and the pencil is there whenever a better one turns up.
    */
   const [naming, setNaming] = useState<string | null>(null)
 
@@ -429,6 +486,7 @@ export const AssemblyTreePanel = ({
             <div className="flex flex-col gap-1 p-1">
               <StackRows
                 assembly={group.root}
+                assemblies={assemblies}
                 selected={selected}
                 labelFor={labelFor}
                 orderedFor={orderedFor}
@@ -455,6 +513,7 @@ export const AssemblyTreePanel = ({
                 >
                   <StackRows
                     assembly={child}
+                    assemblies={assemblies}
                     selected={selected}
                     labelFor={labelFor}
                     orderedFor={orderedFor}
@@ -483,6 +542,7 @@ export const AssemblyTreePanel = ({
                     variant={
                       action.danger === true || action.quiet === true ? 'secondary' : 'primary'
                     }
+                    disabled={action.disabled === true}
                     onClick={action.onClick}
                     className={cn(
                       'w-full justify-center text-xs',
@@ -519,13 +579,15 @@ export const AssemblyTreePanel = ({
           variant="secondary"
           onClick={() => {
             /*
-              **A stack is named when it is made** (Paul, 2026-09-08). The id is
-              arithmetic off the tree — `nextAssemblyId` is what `addAssembly`
-              mints it with — so the field can be opened on the stack this press
-              is about before the tree carrying it comes back.
+              **The new stack opens on its tool** (Paul, 2026-09-10). The press
+              is for another cutter, so the slot it is about is the one the table
+              under it should be listing — and the id is arithmetic off the tree
+              (`nextAssemblyId` is what `addAssembly` mints it with), so the slot
+              can be opened on the stack this press is about before the tree
+              carrying it comes back.
             */
-            setNaming(nextAssemblyId(assemblies))
             onAdd()
+            onSelect({ assemblyId: nextAssemblyId(assemblies), slot: 'tool' })
           }}
           className="justify-center gap-1 text-xs"
         >

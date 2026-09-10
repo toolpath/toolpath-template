@@ -16,7 +16,7 @@ import {
   decimalsFor,
 } from '@toolpath/tool-support'
 import { movedBy, movedTo } from 'shared/column-order'
-import { useEscape } from 'shared/use-escape'
+import { LAYER_COLUMN_FILTER, useEscape, useKeyLayer } from 'shared/use-escape'
 import { CatalogComboboxButton } from './catalog-combobox-button'
 
 /**
@@ -374,6 +374,51 @@ export const OverrideNotice = ({
   )
 }
 
+/** Room kept between the menu and the edge of the screen. */
+const MENU_EDGE = 12
+
+/**
+ * The least room worth opening downwards into.
+ *
+ * Below this the menu opens upwards instead. It is a floor on the height as
+ * well: a menu squeezed into eighty pixels is one nobody can read, so it takes
+ * this much and overhangs rather than becoming a slot.
+ */
+const MENU_LEAST = 220
+
+/**
+ * How tall a box opened off a button may be, and which way it opens.
+ *
+ * **A menu is as tall as the screen leaves it** (Paul, 2026-09-10, of the Type
+ * filter and then of the column picker: "the edit columns drop down list should
+ * be scrollable if it runs off the screen"). Both boxes are opened from a
+ * header that can sit anywhere down the page, and both were drawn at whatever
+ * height their contents came to, so the rows past the bottom edge were
+ * unreachable — the column picker's last column could not be ticked at all.
+ *
+ * One rule for both: the room under the button is measured, the box takes it
+ * and scrolls inside itself, and where what is left under the button is a strip
+ * it opens upwards into the larger room instead.
+ */
+export const menuRoom = (
+  button: { readonly top: number; readonly bottom: number },
+  viewport: number,
+): { readonly upwards: boolean; readonly height: number } => {
+  const below = viewport - button.bottom - MENU_EDGE
+  const above = button.top - MENU_EDGE
+  const upwards = below < MENU_LEAST && above > below
+  return { upwards, height: Math.max(MENU_LEAST, upwards ? above : below) }
+}
+
+/** Where the menu stands: by its top, or by its bottom where it opened upwards. */
+type Placed = {
+  readonly top: number | null
+  readonly bottom: number | null
+  readonly left: number
+  /** The most it may be, which is the room the screen left it. */
+  readonly height: number
+}
+
 /**
  * The box a column's funnel opens, drawn over the page and away from the table.
  *
@@ -443,37 +488,93 @@ export const FilterMenu = ({
   readonly children: ReactNode
 }) => {
   const box = useRef<HTMLDivElement>(null)
-  const [at, setAt] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const [at, setAt] = useState<Placed>({ top: 0, bottom: null, left: 0, height: MENU_LEAST })
 
   useLayoutEffect(() => {
-    const place = () => {
-      // Found rather than held: the funnel is inside a header the table rebuilds
-      // under this menu, so the element measured a moment ago is not the one on
-      // screen now.
+    // Found rather than held: the funnel is inside a header the table rebuilds
+    // under this menu, so the element measured a moment ago is not the one on
+    // screen now.
+    const funnel = () => {
       const anchor = anchors.current?.querySelector<HTMLElement>(`[data-column-funnel="${code}"]`)
       if (anchor === undefined || anchor === null || anchor.checkVisibility?.() === false) {
-        // The column is not on screen any more — taken off by the column
-        // picker, or behind whichever list the table switched to. A menu
-        // standing over nothing is one nothing can be read back off.
-        onClose()
+        return null
+      }
+      return anchor
+    }
+
+    let looking = 0
+    const place = () => {
+      const anchor = funnel()
+      if (anchor === null) {
+        /*
+          **A funnel that is missing this instant is not a column that has
+          gone** (Paul, 2026-09-09: "it is taking me out of the filter once I've
+          entered a certain number of characters"). This runs on every scroll
+          anywhere on the page — a narrow box scrolls itself as soon as the text
+          outgrows it — and on every render of the list, which is a list that
+          throws its header away and builds it again. One lookup landing between
+          the two closed the menu mid-word, and nothing about that is the column
+          being taken off the table.
+
+          So a miss is looked at twice. What the second look is for is a funnel
+          that is *really* gone — hidden by the column picker, or behind
+          whichever list the table switched to — which is still gone a frame
+          later, where a rebuild is not.
+        */
+        cancelAnimationFrame(looking)
+        looking = requestAnimationFrame(() => {
+          if (funnel() === null) {
+            onClose()
+            return
+          }
+          place()
+        })
         return
       }
       const button = anchor.getBoundingClientRect()
       const width = box.current?.getBoundingClientRect().width ?? 0
       const wanted = align === 'right' ? button.right - width : button.left
+      const left = Math.max(8, Math.min(wanted, window.innerWidth - width - 8))
+      /*
+        `menuRoom` is the rule — and where it says upwards the menu is anchored
+        by its bottom rather than placed by a height it has not been measured at
+        yet, which is the one way to flip a box without a frame of it in the
+        wrong place.
+      */
+      const room = menuRoom(button, window.innerHeight)
       setAt({
-        top: button.bottom + 4,
-        left: Math.max(8, Math.min(wanted, window.innerWidth - width - 8)),
+        top: room.upwards ? null : button.bottom + 4,
+        bottom: room.upwards ? window.innerHeight - button.top + 4 : null,
+        left,
+        height: room.height,
       })
     }
+
+    /**
+     * A scroll inside this menu is the menu's own business.
+     *
+     * The listener below captures every scroll on the page, and an `<input>`
+     * scrolls itself the moment what is typed outgrows the box — four or five
+     * characters in one of the number boxes. Measuring the header again because
+     * somebody typed is work for nothing, and it put the whole of the placing
+     * above on the end of a keystroke.
+     */
+    const onScroll = (event: Event) => {
+      if (event.target instanceof Node && box.current?.contains(event.target) === true) {
+        return
+      }
+      place()
+    }
+
     place()
     window.addEventListener('resize', place)
     // Capturing, so the table scrolling under an open menu moves it with the
     // header it belongs to rather than leaving it behind over the rows.
-    window.addEventListener('scroll', place, true)
+    window.addEventListener('scroll', onScroll, true)
     return () => {
+      cancelAnimationFrame(looking)
       window.removeEventListener('resize', place)
-      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('scroll', onScroll, true)
     }
   }, [anchors, code, align, onClose])
 
@@ -497,14 +598,71 @@ export const FilterMenu = ({
       if (target.closest('[data-base-ui-portal]') !== null) {
         return
       }
+      // TEMPORARY diagnostic, 2026-09-09 — see the note in `place` above.
+      console.warn('[filter-close] pointerdown outside', target.tagName, target.className)
       onClose()
     }
     document.addEventListener('pointerdown', onDown)
     return () => document.removeEventListener('pointerdown', onDown)
   }, [onClose])
 
-  // Escape puts it away as well, without going back to find the header.
-  useEscape(true, onClose)
+  /**
+   * Escape puts it away, and Enter is the tick.
+   *
+   * Enter (Paul, 2026-09-09: "hitting enter with a filter dialog shown should
+   * confirm it just like the check mark does"). A filter commits as it is
+   * typed, so this closes rather than saves — and where the tick is confirming
+   * something, it confirms the same thing.
+   *
+   * **On the document, and named, because the press it is competing with is on
+   * the document** (Paul, 2026-09-10: "when a filter dialog is active
+   * underneath a feature/group/tool assembly, hitting enter should confirm the
+   * filter and close the filter dialog before it closes the feature/group/tool
+   * assembly"). This menu is opened from a column header inside that box, so
+   * the focus is usually still on the funnel or on the press that opened the
+   * box — nowhere this menu can hear a React keydown from. The page's own Enter
+   * ordered the whole assembly and took the filter down with it, unread.
+   * `LAYER_COLUMN_FILTER` is how the page knows to stand down: this is the
+   * newest thing on the screen and the press is its.
+   *
+   * **Enter is the dialog's, never a control's** (Paul, 2026-09-10: "the
+   * keyboard focus is staying on the checkbox I used most recently in the drop
+   * down filters — enter should never check or uncheck, it only works at the
+   * dialog level"). A tick in this menu is the kit's `Checkbox`, which is a
+   * `<button role="checkbox">`: the focus stays on the last one clicked, and
+   * Enter fired that button's own default action instead of finishing the
+   * filter. Exempting a focused control was tried on the way here and this is
+   * what it cost. `preventDefault` is what holds the activation back — the
+   * default runs after the press has finished propagating, so a listener on the
+   * document is still in time to cancel it.
+   *
+   * The one press left alone is one inside a popover the kit drew: choosing
+   * "≥ at least" from the operator list is that list's Enter, and the popover
+   * is a portal of its own rather than anything inside this box — the same
+   * escape hatch the press-outside rule above needs, for the same reason.
+   */
+  useKeyLayer(true, {
+    name: LAYER_COLUMN_FILTER,
+    onEscape: () => {
+      // TEMPORARY diagnostic, 2026-09-09 — see the note in `place` above.
+      console.warn('[filter-close] escape')
+      onClose()
+    },
+    onEnter: (event) => {
+      const target = event.target instanceof Element ? event.target : null
+      if (target !== null && target.closest('[data-base-ui-portal]') !== null) {
+        return
+      }
+      /*
+        Both, and on the way down: the press is this dialog's, so the control
+        the focus happens to be on never sees it and never acts on it.
+      */
+      event.preventDefault()
+      event.stopPropagation()
+      confirm?.onConfirm()
+      onClose()
+    },
+  })
 
   return createPortal(
     <div
@@ -512,8 +670,12 @@ export const FilterMenu = ({
       role="group"
       aria-label={label}
       data-column-filter-menu
-      style={{ top: at.top, left: at.left }}
-      className="fixed z-50 rounded-lg border border-zinc-800 bg-zinc-950 p-2 shadow-xl"
+      style={{
+        ...(at.top === null ? { bottom: at.bottom ?? 0 } : { top: at.top }),
+        left: at.left,
+        maxHeight: at.height,
+      }}
+      className="fixed z-50 flex flex-col rounded-lg border border-zinc-800 bg-zinc-950 p-2 shadow-xl"
     >
       {/*
         **Every filter has a way out that is not a guess** (Paul, 2026-09-08: "I
@@ -523,7 +685,7 @@ export const FilterMenu = ({
         to say *done* other than a click on the page, which is the one gesture
         that is indistinguishable from a misclick.
       */}
-      <div className="mb-1.5 flex items-center gap-2">
+      <div className="mb-1.5 flex shrink-0 items-center gap-2">
         <p className="text-2xs flex-1 tracking-wide text-zinc-500 uppercase">{label}</p>
         {/*
           **And a way back out that is not a guess either** (Paul, 2026-09-09:
@@ -559,7 +721,13 @@ export const FilterMenu = ({
           <CheckIcon aria-hidden="true" weight="bold" />
         </IconButton>
       </div>
-      {children}
+      {/*
+        The tick and the \u00d7 are what somebody reaches for once the list is long
+        enough to scroll, so the header is held out of the scrolling half.
+      */}
+      <div data-column-filter-body className="min-h-0 overflow-y-auto">
+        {children}
+      </div>
     </div>,
     document.body,
   )
@@ -903,6 +1071,8 @@ export const ColumnPicker = ({
   const [open, setOpen] = useState(false)
   const [held, setHeld] = useState<string | null>(null)
   const box = useRef<HTMLDivElement>(null)
+  const pencil = useRef<HTMLButtonElement>(null)
+  const [room, setRoom] = useState({ upwards: false, height: MENU_LEAST })
   const order = columns.map((column) => column.code)
 
   const move = (code: string, index: number) => {
@@ -925,12 +1095,48 @@ export const ColumnPicker = ({
     return () => document.removeEventListener('pointerdown', onDown)
   }, [open])
 
+  /*
+    The list is as long as the table has columns — twenty on the tool list — and
+    the pencil is at the top of a table that can sit anywhere down the page, so
+    the bottom of the list ran off the screen and the columns there could not be
+    ticked. `menuRoom` is the same rule the filter menus follow: take the room
+    the screen leaves and scroll inside it, or open upwards where what is under
+    the pencil is a strip.
+  */
+  useLayoutEffect(() => {
+    if (!open) {
+      return
+    }
+    const measure = () => {
+      const button = pencil.current?.getBoundingClientRect()
+      if (button !== undefined) {
+        setRoom(menuRoom(button, window.innerHeight))
+      }
+    }
+    // A scroll inside the list is the list's own business, exactly as it is
+    // inside a filter menu.
+    const onScroll = (event: Event) => {
+      if (event.target instanceof Node && box.current?.contains(event.target) === true) {
+        return
+      }
+      measure()
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    window.addEventListener('scroll', onScroll, true)
+    return () => {
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('scroll', onScroll, true)
+    }
+  }, [open])
+
   // Escape puts it away as well, without going back to find the header.
   useEscape(open, () => setOpen(false))
 
   return (
     <div ref={box} className="relative">
       <IconButton
+        ref={pencil}
         size="lg"
         variant="muted"
         aria-label="Which columns to show"
@@ -945,7 +1151,11 @@ export const ColumnPicker = ({
         <div
           role="group"
           aria-label="Columns"
-          className="absolute top-full right-0 z-30 mt-1 rounded-lg border border-zinc-800 bg-zinc-950 py-1 shadow-xl"
+          style={{ maxHeight: room.height }}
+          className={cn(
+            'absolute right-0 z-30 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950 py-1 shadow-xl',
+            room.upwards ? 'bottom-full mb-1' : 'top-full mt-1',
+          )}
         >
           {columns.map((column, at) => (
             <div

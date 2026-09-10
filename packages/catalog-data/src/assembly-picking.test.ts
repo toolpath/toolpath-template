@@ -5,10 +5,12 @@ import {
   compareHolders,
   holderFacet,
   holderCanTake,
+  holderMayTake,
   holdersFor,
   holdersToShow,
   isOnSize,
   matchesFilters,
+  seriesCouldTake,
   seriesSize,
   seriesUnstocked,
 } from './assembly-picking.js'
@@ -331,6 +333,61 @@ describe('a selection and its URL', () => {
     expect(
       selectHolder({ ...emptyBuildSelection(), collet: 'c-pg6-6' }, 'h-pg10').collet,
     ).toBeNull()
+  })
+})
+
+describe('the holders worth offering, collet or no collet', () => {
+  const er32 = holder({
+    guid: 'h-er32',
+    catalogNumber: 'CAT40-ER32-3.0',
+    clamping: 'collet',
+    colletSeries: 'ER32',
+    boreDiameter: null,
+  })
+  const er11 = holder({
+    guid: 'h-er11',
+    catalogNumber: 'CAT40-ER11-3.0',
+    clamping: 'collet',
+    colletSeries: 'ER11',
+    boreDiameter: null,
+  })
+  const bore = holder({
+    guid: 'h-bore',
+    catalogNumber: 'CAT40-SF.250',
+    clamping: 'shrink',
+    colletSeries: null,
+    boreDiameter: 6,
+  })
+
+  it('takes the series name as a loose bound on the shank', () => {
+    expect(seriesCouldTake(er32, tool(12))).toBe(true)
+    expect(seriesCouldTake(er11, tool(12))).toBe(false)
+    // No series to bound it by: a bore chuck answers elsewhere.
+    expect(seriesCouldTake(bore, tool(12))).toBe(true)
+  })
+
+  it('refuses a tool whose shank the vendor never stated', () => {
+    const bare = { ...tool(6), geometry: { DC: 6, LCF: 13, OAL: 57 } }
+    expect(seriesCouldTake(er32, bare)).toBe(false)
+  })
+
+  /**
+   * Paul, 2026-09-09: "we should show any holder, even if there is not a collet
+   * in the library that works". The crib holding no ER32 collet is a purchase
+   * order rather than a fact about the chuck.
+   */
+  it('offers a chuck the crib stocks no collet for', () => {
+    expect(holderCanTake(tool(12), er32, [])).toBe(false)
+    expect(holderMayTake(tool(12), er32, [])).toBe(true)
+  })
+
+  it('keeps out the chuck the shank could never go in', () => {
+    expect(holderMayTake(tool(12), er11, [])).toBe(false)
+  })
+
+  it('leaves a holder gripping the shank itself exactly as strict', () => {
+    expect(holderMayTake(tool(6), bore, [])).toBe(holderCanTake(tool(6), bore, []))
+    expect(holderMayTake(tool(20), bore, [])).toBe(false)
   })
 })
 

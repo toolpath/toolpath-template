@@ -1,14 +1,24 @@
-import { TOOL_FORMS } from '@toolpath/catalog-data'
+import { TOOL_FORMS, hasNeck } from '@toolpath/catalog-data'
 
 /**
- * What a tool *is*, in one phrase, with the shank in the name where it is
- * narrower than the cut: `Reduced shank bull nose end mill`.
+ * What a tool *is*, in one phrase, with what is behind the cut in the name
+ * where it is narrower than the cut: `Reduced shank bull nose end mill`,
+ * `Necked flat end mill`.
  *
  * **The shank is not a question of its own any more** (Paul, 2026-09-08: "for
  * Shank, we should roll those into tool type"). It was a filter beside the
  * type — Full or Reduced — which meant picking a bull nose end mill with a
  * neck took two controls and reading one took two columns. It is one axis now:
  * the words the Type column shows are the values the Type filter offers.
+ *
+ * **There are two things to say and they are not the same thing** (2026-09-09).
+ * A thin shank and a neck are different facts about how a tool reaches, and
+ * over the 39,675-tool scrape the two readings are *disjoint* — 8,079 tools
+ * against 9,919, with none in both, because a necked tool keeps a full-width
+ * shank behind the neck. Folding them into one word would put a keyseat cutter
+ * and a long-reach end mill under the same phrase; saying only the first left
+ * 9,919 necked tools saying nothing at all, and Kennametal's own
+ * `MaxiMet™ … Necked` reading as a plain `Flat end mill`.
  *
  * This is the one place the phrase is built, because it is both what a cell
  * says and what a filter matches on; two functions would drift and a row would
@@ -24,11 +34,16 @@ export const normalise = (toolType: string): string =>
     .trim()
 
 /**
- * The forms the shank says nothing about, so the phrase is left off them.
+ * The forms neither phrase says anything about, so both are left off them.
  *
  * A slot mill — a keyseat or woodruff cutter — is a disc of teeth on a neck;
  * there is no full-shank one to tell it apart from, and "Reduced shank slot
- * mill" is two words of noise on every one of them (Paul, 2026-09-01).
+ * mill" is two words of noise on every one of them (Paul, 2026-09-01). The
+ * neck is the more literal case of the same rule and gets the same answer
+ * (Paul, 2026-09-09: "we just shouldn't touch any of the slot mills") — every
+ * one of them is necked by construction — 1,791 of the 2,261 in the scrape say
+ * so outright and the other 470 only because no shoulder was stated — so
+ * `Necked slot mill` would be a word on the whole list telling one from none.
  *
  * **A tap is the same** (Paul, 2026-09-08: "taps should not show reduced
  * shank"). Its shank is sized to the tapping chuck rather than to the thread
@@ -88,8 +103,9 @@ export const toolTypeLabel = (toolType: string): string => wordsFor(toolType).la
  * "Reduced shank", and of the tools that now do, all but 574 are taps — which
  * {@link SHANK_IS_THE_TYPE} then leaves alone.
  *
- * `shankOf` is untouched and still answers the `shank` axis, which is parked;
- * this is the reading the words on screen are built from.
+ * `shankOf` is untouched and still answers the `shank` axis, which is parked.
+ * What the neck it used to read says now is {@link necked}, in a word of its
+ * own rather than folded back into this one.
  */
 export const reducedShank = (tool: {
   readonly form: string
@@ -100,19 +116,55 @@ export const reducedShank = (tool: {
 }
 
 /**
- * The phrase: the form in the library's words, led by the shank where it is
- * narrower than the cut.
+ * Whether there is a neck: a shoulder standing back past the flutes, narrower
+ * than the shank above it.
+ *
+ * **A second word, not a widening of the first** (Paul, 2026-09-09, on a
+ * Kennametal `MaxiMet™ … Necked` end mill reading as a plain `Flat end mill`:
+ * "shouldn't this tool be showing as a reduced shank flat end mill based on our
+ * rules?"). It is not one, by {@link reducedShank}: `SFDM` and `DC` are both
+ * ⌀9.525, and what is thin is the 28.575 mm shoulder at ⌀8.920 *below* a
+ * full-width shank. Two different facts about how a tool reaches a floor —
+ * a thin shank is clamped thin, a neck is clamped full and reaches past a wall
+ * — so they get two phrases and the Type filter can ask for either.
+ *
+ * `hasNeck` is `@toolpath/tool-support`'s, the same rule the drawing and the
+ * clearance check read, so the words on the row cannot disagree with the
+ * picture beside them. Not `shankOf`, whose question is this one's answered
+ * against the *cut* rather than against the shank, and which is the reading
+ * Paul replaced on 2026-09-08.
+ */
+export const necked = (tool: {
+  readonly form: string
+  readonly geometry: Readonly<Record<string, number>>
+}): boolean => hasNeck(tool)
+
+/**
+ * The phrase: the form in the library's words, led by what is behind the cut
+ * where that is narrower than the cut.
  *
  * Paul's call (2026-08-30) — a neck is not a kind of tool, but it is the first
  * thing a shop wants to know about one, so it leads. Except where every tool of
  * that form has one; see {@link SHANK_IS_THE_TYPE}.
+ *
+ * **The shank leads the neck** where a tool somehow has both. Nothing in the
+ * scrape does — the two populations are disjoint over all 39,675 tools — but
+ * the rules are independent and one phrase is the whole point of this module,
+ * so the order is stated rather than left to whichever test runs first. A shank
+ * a collet closes on is the harder constraint of the two.
  */
 export const typeLabel = (tool: {
   readonly form: string
   readonly geometry: Readonly<Record<string, number>>
 }): string => {
   const { label, shankIsType } = wordsFor(tool.form)
-  return reducedShank(tool) && !shankIsType ? `Reduced shank ${label.toLowerCase()}` : label
+  if (shankIsType) {
+    return label
+  }
+  if (reducedShank(tool)) {
+    return `Reduced shank ${label.toLowerCase()}`
+  }
+  return necked(tool) ? `Necked ${label.toLowerCase()}` : label
 }
 
 /**
@@ -133,7 +185,10 @@ export const typeLabel = (tool: {
  * put in the vocabulary is how a filter asks for something that does not exist.
  */
 export const formOfTypeLabel = (label: string): string | null => {
-  const plain = normalise(label.replace(/^Reduced shank /i, ''))
+  // Both leading words, because both are `typeLabel`'s: a `Necked flat end
+  // mill` ticked in the Type column has to ask the `form` filter for end mills
+  // exactly as its reduced-shank twin does.
+  const plain = normalise(label.replace(/^(?:Reduced shank|Necked) /i, ''))
   const found = TOOL_FORMS.find((form) => normalise(form.label) === plain || form.value === plain)
   return found?.value ?? null
 }
@@ -170,8 +225,9 @@ export const formsAsking = (
     formsOf(before).filter((form) => !never.has(form) && !asked.includes(form)),
   )
   const kept = forms.filter((form) => !dropped.has(form))
-  // Two phrases of one form — `Flat end mill` and its reduced-shank twin — are
-  // one thing to ask for, so the filter says it once.
+  // Three phrases of one form — `Flat end mill`, `Reduced shank flat end mill`
+  // and `Necked flat end mill` — are one thing to ask for, so the filter says
+  // it once.
   return [...new Set([...kept, ...asked])]
 }
 

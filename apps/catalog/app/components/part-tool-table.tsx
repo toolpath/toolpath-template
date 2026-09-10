@@ -7,13 +7,7 @@ import {
   type SetStateAction,
   type ReactNode,
 } from 'react'
-import {
-  ArrowSquareOutIcon,
-  CheckIcon,
-  InfoIcon,
-  WarningIcon,
-  XCircleIcon,
-} from '@phosphor-icons/react'
+import { ArrowSquareOutIcon, CheckIcon, InfoIcon, XCircleIcon } from '@phosphor-icons/react'
 import { Button, Combobox, Table, cn } from '@toolpath/ui'
 import type { CatalogTool, Holder } from '@toolpath/catalog-data'
 import type { UnitSystem } from '@toolpath/tool-support'
@@ -22,7 +16,7 @@ import { askOfToolColumn, type ColumnAsk } from 'shared/column-filters'
 import { familyName } from 'shared/catalog'
 import { typeLabel } from 'shared/tool-type'
 import type { ToolQuery } from 'shared/filter'
-import type { Mark } from 'shared/tool-marks'
+import { markWords, type Mark } from 'shared/tool-marks'
 import type { BelowHolder } from 'shared/drawn-assembly'
 import { orderedCodes } from 'shared/column-order'
 import { ToolTypeIcon } from './tool-icons'
@@ -53,23 +47,44 @@ export interface PartToolColumn {
 const IDENTITY: ReadonlyArray<PartToolColumn> = [
   { code: 'catalogNumber', label: 'Catalog number', default: true },
   { code: 'brand', label: 'Vendor', default: true },
-  { code: 'type', label: 'Type', default: true },
   { code: 'family', label: 'Family', default: true },
+  { code: 'type', label: 'Type', default: true },
 ]
 
+/**
+ * The tool list's columns, in the order a shop reads a row (Paul, 2026-09-10).
+ *
+ * Which tool it is, then how many teeth and how wide, then the four lengths,
+ * then the shape at either end of it and the shank.
+ *
+ * **The shank is not one of them** (Paul, 2026-09-10). It is what the holding
+ * is chosen on rather than what the tool is chosen on, and the phrase in Type
+ * already says it where it differs from the cut — a *reduced shank* end mill
+ * says so in its name.
+ *
+ * **Corner radius and tip angle follow the list rather than opening with it**
+ * (Paul, 2026-09-10). Each is the number one kind of tool is chosen on and a
+ * dash beside the other, so a mill on the list brings the radius and a drill
+ * brings the angle — `shared/auto-columns.ts` is the rule. They are `false`
+ * here because that is what a fresh list, holding neither, shows.
+ *
+ * The holder and the collet stay off until somebody asks for them, and sit at
+ * the end so that turning one on adds a column rather than moving every other
+ * one along.
+ */
 export const TOOL_COLUMNS: ReadonlyArray<PartToolColumn> = [
   ...IDENTITY,
+  { code: 'NOF', label: 'Flutes', default: true },
   { code: 'DC', label: 'Diameter', default: true },
-  { code: 'holder', label: 'Holder', default: false },
-  { code: 'collet', label: 'Collet', default: false },
   { code: 'LCF', label: 'Flute length', default: true },
   { code: 'LBH', label: 'Length below holder', default: true },
   { code: 'LD', label: 'L/D', default: true },
   { code: 'OAL', label: 'Overall length', default: true },
-  { code: 'RE', label: 'Corner radius', default: true },
-  { code: 'NOF', label: 'Flutes', default: true },
-  { code: 'SFDM', label: 'Shank', default: true },
+  { code: 'RE', label: 'Corner radius', default: false },
+  { code: 'SFDM', label: 'Shank', default: false },
   { code: 'SIG', label: 'Tip angle', default: false },
+  { code: 'holder', label: 'Holder', default: false },
+  { code: 'collet', label: 'Collet', default: false },
 ]
 
 export const TAP_COLUMNS: ReadonlyArray<PartToolColumn> = [
@@ -89,6 +104,42 @@ export const hiddenByDefault = (columns: ReadonlyArray<PartToolColumn>): Array<s
   columns.filter((column) => !column.default).map((column) => column.code)
 
 export const flexibleColumnWidth = (width: string): string => `minmax(${width}, 1fr)`
+
+/**
+ * A row of the list, in pixels — `@toolpath/ui`'s compact `Table`.
+ *
+ * The kit does not export it, so this is a copy of a number that lives
+ * somewhere else, and `tests/on-the-part.spec.ts` § "opens with eight tools on
+ * screen" is what keeps the two honest: if the kit changes its row height, that
+ * test fails and says so, rather than the page quietly opening on seven.
+ */
+const ROW = 33
+
+/**
+ * Everything the rows share the panel with: the toolbar carrying the three list
+ * buttons and the filters, the column headings under it, and the hairline
+ * border of the card around the lot.
+ *
+ * The border is two pixels and it is the difference between eight rows and
+ * seven-and-a-bit — the panel's size is its outer box, and the rows get what is
+ * inside it.
+ */
+const OVER_THE_ROWS = 49 + ROW + 2
+
+/** How many tools the list opens showing (Paul, 2026-09-10). */
+export const TOOLS_ON_OPENING = 8
+
+/**
+ * What the list panel opens at.
+ *
+ * **Eight tools** (Paul, 2026-09-10: "with these updates, the default height of
+ * the table should be whatever showing 8 tool rows is"). It was 45% of the
+ * height of the page, which is a different number of tools on every screen —
+ * seven at 800px, a dozen at 1200 — and the list is read in rows rather than in
+ * percentages. The part gets whatever is left, which is the half of the screen
+ * that wants the room.
+ */
+export const TABLE_OPENS_AT = OVER_THE_ROWS + TOOLS_ON_OPENING * ROW
 
 export interface Holding {
   readonly holdersFor: (tool: CatalogTool) => ReadonlyArray<{
@@ -281,24 +332,30 @@ const HoldingCell = ({
   )
 }
 
+/**
+ * **One glyph for anything the rules have something against** (Paul,
+ * 2026-09-09: "can we use the same red X icon instead of the warning triangle
+ * in tip angle, and for all incompatibilities?"). A refusal wore the circled
+ * X and everything short of one wore a filled triangle, so a column read as
+ * two different kinds of thing depending on which rule spoke.
+ *
+ * The colour still carries which: red is a refusal, amber is a caution the
+ * tool survives — the same colour the number itself is painted in.
+ */
 const MarkIcon = ({ mark }: { mark: Mark | undefined }) => {
   if (mark === undefined) {
     return null
   }
   if (!mark.ok) {
-    const Icon = mark.level === 'must' ? XCircleIcon : WarningIcon
     return (
-      <Icon
-        weight={mark.level === 'must' ? undefined : 'fill'}
-        aria-label={`${mark.why} — ${mark.detail}`}
+      <XCircleIcon
+        aria-label={markWords(mark)}
         className={mark.level === 'must' ? 'size-3.5 text-danger' : 'size-3.5 text-amber-300'}
       />
     )
   }
   if (mark.caution !== undefined) {
-    return (
-      <WarningIcon weight="fill" aria-label={mark.caution} className="size-3.5 text-amber-300" />
-    )
+    return <XCircleIcon aria-label={mark.caution} className="size-3.5 text-amber-300" />
   }
   if (mark.note !== undefined) {
     return <InfoIcon aria-label={mark.note} className="size-3.5 text-zinc-400" />
@@ -375,15 +432,7 @@ const GeometryCell = ({
       )}
     >
       <span>{value === undefined ? '—' : formatGeometry(code, value, unit)}</span>
-      <span
-        title={
-          mark === undefined
-            ? undefined
-            : !mark.ok
-              ? `${mark.why} — ${mark.detail}`
-              : (mark.caution ?? mark.note)
-        }
-      >
+      <span title={mark === undefined ? undefined : markWords(mark)}>
         <MarkIcon mark={mark} />
       </span>
     </span>
@@ -831,11 +880,23 @@ export const PartToolTable = ({
  * with no visible reason for it.
  */
 export const ToolTableToolbar = ({
+  before,
   filters,
   actions,
   onClear,
   set,
 }: {
+  /**
+   * A press about the rows themselves, ahead of everything else in the chrome.
+   *
+   * **Left of the clear press, or left of the pencil when there is nothing to
+   * clear** (Paul, 2026-09-10). It is not a filter: what it does is put rows on
+   * the table rather than take them off, so counting it in `Clear n filters`
+   * would name a filter nobody set — and it stays on screen when the clear
+   * press is not there, which is why it is a slot of its own rather than part
+   * of `filters`.
+   */
+  before?: ReactNode
   /** The questions no column asks. Absent for a list whose columns ask them all. */
   filters?: ReactNode
   actions?: ReactNode
@@ -853,6 +914,7 @@ export const ToolTableToolbar = ({
 }) => (
   <>
     <div data-part-tool-table-toolbar className="flex flex-wrap items-center justify-end gap-1">
+      {before}
       {set.length === 0 ? null : (
         <Button
           type="button"

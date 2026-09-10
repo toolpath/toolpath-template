@@ -3,10 +3,10 @@ import {
   clearance,
   colletsFor,
   holdBand,
-  holderCanTake,
+  holderMayTake,
   holdersToShow,
   matchesFilters,
-  seriesSize,
+  seriesCouldTake,
   stickoutLimits,
   type CatalogTool,
   type Collet,
@@ -171,23 +171,6 @@ const optionFor = (
   }
 }
 
-/**
- * Whether an unstocked chuck is worth offering for this tool at all.
- *
- * **The series' nominal size as a loose bound** — an ER16 closes on 10 mm, not
- * 16, and inventing the real capacity table here would be a clamping claim made
- * up on the spot. Its whole job is to keep a 25 mm shank out of an ER11 chuck,
- * where offering it would be absurd enough to read as a claim that it fits.
- */
-const withinSeries = (tool: CatalogTool, holder: Holder): boolean => {
-  const shank = tool.geometry.SFDM
-  if (shank === undefined) {
-    return false
-  }
-  const bound = seriesSize(holder.colletSeries)
-  return bound === null || shank <= bound
-}
-
 export const holderOptions = (
   tool: CatalogTool,
   holders: ReadonlyArray<Holder>,
@@ -214,7 +197,7 @@ export const holderOptions = (
    * that cannot grip today is not competing with one that can.
    */
   const unstocked = shown.unstocked
-    .filter((holder) => withinSeries(tool, holder))
+    .filter((holder) => seriesCouldTake(holder, tool))
     .map((holder) => ({
       ...optionFor(tool, holder, collets, curve, margins, thresholds),
       unstocked: true,
@@ -232,6 +215,19 @@ export const holderOptions = (
  * `canBeHeld` answers, asked without building every option: it stops at the
  * first holder that works. Asked of every tool that fits, on every change of
  * the clearances, so the short-circuit is what keeps the page quick.
+ *
+ * **The rack's rule, not the collet drawer's** (Paul, 2026-09-09, widening the
+ * holder list and then this to match). `holderMayTake` rather than
+ * `holderCanTake`: a shop that owns an ER20 chuck and no ER20-6 was being told
+ * the cutter does not exist, when what it does not have is one collet. The
+ * geometry half is untouched and does all the work it did — the stack is graded
+ * with no collet in it, exactly as a bore holder is, so a tool that cannot
+ * clear the part or cannot be gripped at the stickout it needs is still counted
+ * rather than offered.
+ *
+ * A tool listed on those terms leads to a rack where every such chuck says why
+ * it cannot be built today (`colletGap`), which is what keeps the widening from
+ * becoming a claim nobody can check.
  */
 export const holdable = (
   tool: CatalogTool,
@@ -245,19 +241,27 @@ export const holdable = (
   holders.some(
     (holder) =>
       matchesFilters(holder, filters) &&
-      holderCanTake(tool, holder, collets) &&
+      holderMayTake(tool, holder, collets) &&
       optionFor(tool, holder, collets, curve, margins, thresholds).grade !== 'bad',
   )
 
 /**
  * Whether the crib can put this tool to the feature at all: at least one
- * holder that grips its shank, clears the part at a stickout the tool
+ * holder that could take its shank, clears the part at a stickout the tool
  * allows, and keeps at least the least hold. Paul's rule (2026-08-29, again
  * 2026-08-30): a tool with no such holder is not shown in the list — it is
  * counted, not offered.
+ *
+ * **A chuck the crib has no collet for is one of them** (Paul, 2026-09-09),
+ * which is what {@link holdable} decides on the live page. The two agree over
+ * everything this one is handed; what it is handed is narrower, because
+ * `holderOptions` still splits out only the *series* the crib stocks nothing of
+ * and not a stocked series with no size that closes. That seam is the tool
+ * panel's dropdown, which is on its way out — the tree's rack is where a holder
+ * is chosen now, and `colletGap` is the rule there.
  */
 export const canBeHeld = (options: ReadonlyArray<HolderOption>): boolean =>
-  options.some((option) => !option.unstocked && option.grade !== 'bad')
+  options.some((option) => option.grade !== 'bad')
 
 /** Why a stack is graded as it is, in a few words for the list — and nothing when it is fine. */
 export const describeGrade = (option: HolderOption): string => {

@@ -1,9 +1,11 @@
 import {
   gripsShank,
   holderCanTake,
+  holderMayTake,
   holderNeedsCollet,
   holderTakesTool,
   matchesFilters,
+  seriesUnstocked,
   type CatalogTool,
   type Collet,
   type Holder,
@@ -97,7 +99,10 @@ export const narrowTools = (
       }
       const takes =
         collet === null
-          ? holderCanTake(tool, holder, collets)
+          ? // The rack's own rule, both ways round: a chuck offered for want of
+            // a collet has to offer the tools it would take once one is bought,
+            // or picking it empties the list under it.
+            holderMayTake(tool, holder, collets)
           : holderTakesCollet(holder, collet) && holderTakesTool(holder, collet, tool)
       answers.set(shank, takes)
       return takes
@@ -160,7 +165,15 @@ export const takesAny = (
   collet: Collet | null = null,
 ): boolean =>
   tools.some((tool) =>
-    collet === null ? holderCanTake(tool, holder, collets) : holderTakesTool(holder, collet, tool),
+    collet === null
+      ? // `holderMayTake`, not `holderCanTake`: a chuck the crib has no collet
+        // for is still an answer to "what would hold this", and hiding it says
+        // the holder is wrong for the tool when the collet drawer is what is
+        // empty. {@link colletGap} is what keeps that honest on screen.
+        holderMayTake(tool, holder, collets)
+      : // With a collet chosen the claim is strict again: that collet grips, or
+        // the stack somebody is building does not.
+        holderTakesTool(holder, collet, tool),
   )
 
 /**
@@ -222,6 +235,70 @@ export const narrowCollets = (
     .filter((collet) => wanted === null || gripsAny(collet, wanted))
 }
 
+/** The words for a chuck the crib cannot close on, by which of the two gaps it is. */
+const gapWords = (holder: Holder, collets: ReadonlyArray<Collet>, many: boolean): string => {
+  const series = holder.colletSeries
+  if (series === null) {
+    return 'the crib stocks no collet for it'
+  }
+  if (seriesUnstocked(holder, collets)) {
+    return `the crib stocks no ${series} collet`
+  }
+  return `no ${series} collet in the crib closes on ${many ? 'any of these shanks' : 'this shank'}`
+}
+
+/**
+ * Why the crib cannot grip this tool in this chuck **today**, in a few words,
+ * or null where it can.
+ *
+ * **The other half of showing a holder anyway.** {@link takesAny} widened the
+ * rack to chucks no stocked collet closes on (Paul, 2026-09-09), and a row that
+ * cannot be assembled out of what the shop owns, drawn identically to one that
+ * can, is a worse answer than the missing row it replaced. The rule the order
+ * dialog already followed — offer it, sort it last, and never present it as
+ * something that holds the tool — is this sentence.
+ *
+ * Two gaps, said apart, because they are two different things to do about it:
+ * a series the crib stocks none of is a drawer nobody has scraped or bought,
+ * and a series it stocks but in no size that closes is one collet to order.
+ */
+export const colletGap = (
+  tool: CatalogTool,
+  holder: Holder,
+  collets: ReadonlyArray<Collet>,
+): string | null =>
+  !holderNeedsCollet(holder) || holderCanTake(tool, holder, collets)
+    ? null
+    : gapWords(holder, collets, false)
+
+/**
+ * The same question asked of the shanks a slot with no tool chosen is standing
+ * in for.
+ *
+ * One gap or none: a chuck that grips any one of those tools is not gapped at
+ * all, and where it grips none of them they all fail for the same reason, since
+ * the reason is a property of the chuck's series rather than of any one tool.
+ *
+ * With no feature to ask about there are no shanks either, and the only gap
+ * left to report is the one that is true of the chuck on its own — a series the
+ * crib stocks nothing of.
+ */
+export const colletGapFor = (
+  holder: Holder,
+  tools: ReadonlyArray<CatalogTool> | null,
+  collets: ReadonlyArray<Collet>,
+): string | null => {
+  if (!holderNeedsCollet(holder)) {
+    return null
+  }
+  if (tools === null || tools.length === 0) {
+    return seriesUnstocked(holder, collets) ? gapWords(holder, collets, false) : null
+  }
+  return tools.some((tool) => holderCanTake(tool, holder, collets))
+    ? null
+    : gapWords(holder, collets, tools.length > 1)
+}
+
 /**
  * The holders to offer, and how many were kept back for having no shape.
  *
@@ -250,10 +327,33 @@ export const holdersToOffer = (
   canDraw: (holder: Holder) => boolean,
   /** The tools the feature's geometry admits — {@link narrowHolders} says what for. */
   tools: ReadonlyArray<CatalogTool> | null = null,
-): { readonly shown: ReadonlyArray<Holder>; readonly hidden: number } => {
+  /**
+   * Why a holder cannot be built out of the crib today — {@link colletGapFor},
+   * passed in for the same reason `canDraw` is: the answer needs the tools this
+   * slot is standing on, and the caller already has them memoised per row.
+   */
+  gapOf: (holder: Holder) => string | null = () => null,
+): {
+  readonly shown: ReadonlyArray<Holder>
+  /**
+   * The same list without the chucks the crib has no collet for.
+   *
+   * **Two lists rather than a flag** (Paul, 2026-09-10, asking for a press in
+   * the table's chrome). Both are wanted at once: whichever the table draws,
+   * the press over it has to count the other, and a boolean parameter would
+   * have made the count a second question with a second chance to disagree
+   * with the rows.
+   */
+  readonly stocked: ReadonlyArray<Holder>
+  readonly hidden: number
+} => {
   const fits = narrowHolders(holders, chosen, collets, filters, tools)
   const shown = fits.filter(canDraw)
-  return { shown, hidden: fits.length - shown.length }
+  return {
+    shown,
+    stocked: shown.filter((holder) => gapOf(holder) === null),
+    hidden: fits.length - shown.length,
+  }
 }
 
 /**
@@ -277,9 +377,38 @@ export const whyEmpty = (
    * is full and none of it takes the tools this feature admits.
    */
   byFit = false,
+  /**
+   * The two emptinesses the collet drawer causes, which answer before the
+   * choices do because each is the more specific fact about the same empty
+   * list — and each names something to do that clearing a choice would not.
+   */
+  because: {
+    /**
+     * Why the crib grips nothing in the chuck already chosen —
+     * {@link colletGap}. A collet list emptied by an ER16 chuck the crib stocks
+     * no ER16 collet for is not asking anybody to undo a choice, it is naming
+     * what to buy.
+     */
+    readonly gap?: string | null
+    /**
+     * How many holders the press in the chrome is keeping off this rack.
+     *
+     * **The narrower rack is the one the page opens on** (Paul, 2026-09-10),
+     * so its empty list is the case the old rule warned about: nothing fits and
+     * something was hidden read the same on screen and mean opposite things.
+     */
+    readonly hidden?: number
+  } = {},
 ): string | null => {
   if (shown > 0) {
     return null
+  }
+  const { gap = null, hidden = 0 } = because
+  if (gap !== null) {
+    return `No collet fits this holder: ${gap}. Order the holder on its own, or choose another.`
+  }
+  if (hidden > 0) {
+    return `Nothing here can be built out of the crib as it stands. ${hidden} holder${hidden === 1 ? '' : 's'} could take it with a collet you do not stock — the press above shows ${hidden === 1 ? 'it' : 'them'}.`
   }
   const by: Array<string> = []
   if (holder !== null) {

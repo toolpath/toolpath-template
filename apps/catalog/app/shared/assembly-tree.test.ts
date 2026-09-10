@@ -23,6 +23,8 @@ import {
   restoreAssembly,
   sameNode,
   setSlot,
+  sharedPhrase,
+  sharedWith,
   slotLabel,
   stacksOf,
   treeFromLines,
@@ -527,5 +529,84 @@ describe('what a stack is called, and where a component stands', () => {
     writeTrees(storage, 'part-a', { 'feature-1': filled })
 
     expect(readTrees(storage, 'part-a')['feature-1']).toEqual(filled)
+  })
+})
+
+/**
+ * **A shop should see the double-up while it is making it** (Paul, 2026-09-10:
+ * "would it be possible to flag duplicates when they are added, even if an
+ * assembly has not been added to the list yet? Show a (×2, used in Assembly 1)
+ * in the feature dialog"). The table marks a component another stack is *on the
+ * order list* with; the stack being built is where the decision is being made.
+ */
+describe('a component standing in more than one stack', () => {
+  const stack = (id: string, over: Partial<TreeAssembly> = {}): TreeAssembly => ({
+    ...emptyAssembly(id, 'cut'),
+    ...over,
+  })
+
+  it('says nothing where a component stands in one stack only', () => {
+    const tree = [stack('assembly-1', { toolGuid: 'tool-a' }), stack('assembly-2')]
+
+    expect(sharedWith(tree, 'assembly-1', 'tool')).toBeNull()
+  })
+
+  it('says nothing about an empty slot: nothing chosen is not chosen twice', () => {
+    const tree = [stack('assembly-1'), stack('assembly-2')]
+
+    expect(sharedWith(tree, 'assembly-1', 'collet')).toBeNull()
+  })
+
+  it('counts the stacks and names the others', () => {
+    const tree = [
+      stack('assembly-1', { toolGuid: 'tool-a' }),
+      stack('assembly-2', { toolGuid: 'tool-a' }),
+    ]
+
+    expect(sharedWith(tree, 'assembly-2', 'tool')).toEqual({
+      count: 2,
+      others: ['Assembly 1'],
+    })
+    // And the same phrase from the other side, naming the other one.
+    expect(sharedWith(tree, 'assembly-1', 'tool')).toEqual({
+      count: 2,
+      others: ['Assembly 2'],
+    })
+  })
+
+  /**
+   * A collet is a collet whichever row it is drawn on: one bought twice is two
+   * collets whether the second went into a holder slot or a collet slot.
+   */
+  it('reads a component across every slot, not the same slot', () => {
+    const tree = [
+      stack('assembly-1', { colletGuid: 'part-a' }),
+      stack('assembly-2', { holderGuid: 'part-a' }),
+    ]
+
+    expect(sharedWith(tree, 'assembly-1', 'collet')?.count).toBe(2)
+  })
+
+  it('wears the name a shop gave the stack it names', () => {
+    const tree = [
+      stack('assembly-1', { toolGuid: 'tool-a', name: 'Rougher' }),
+      stack('assembly-2', { toolGuid: 'tool-a' }),
+    ]
+
+    expect(sharedWith(tree, 'assembly-2', 'tool')?.others).toEqual(['Rougher'])
+  })
+
+  describe('said in the words the row wears', () => {
+    it('passes nothing through as nothing', () => {
+      expect(sharedPhrase(null)).toBeNull()
+    })
+
+    it('is the count first, then which stacks', () => {
+      expect(sharedPhrase({ count: 2, others: ['Assembly 1'] })).toBe('×2, used in Assembly 1')
+      expect(sharedPhrase({ count: 3, others: ['Assembly 1', 'Assembly 3'] })).toBe(
+        '×3, used in Assembly 1 and Assembly 3',
+      )
+      expect(sharedPhrase({ count: 4, others: ['A', 'B', 'C'] })).toBe('×4, used in A, B and C')
+    })
   })
 })

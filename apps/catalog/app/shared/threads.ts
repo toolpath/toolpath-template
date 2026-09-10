@@ -468,13 +468,29 @@ export const threadNote = (spec: ThreadSpec, unit: UnitSystem): string =>
  * So the sentence names the number that came up empty and says what is standing
  * in, and `routes/part.tsx` turns those mills on in the Type filter where they
  * can be seen and turned off again.
+ *
+ * **It says the mills only where there are mills** (Paul, 2026-09-09: "I have
+ * clicked the check after adding end mills to the filter list. None are being
+ * shown"). The sentence claimed them whatever the list held, and a shop reading
+ * a table of eight drills under a note about end mills is being told the
+ * catalog holds none — which was never what happened.
+ *
+ * @param mills whether an end mill is on the list this sentence sits over
  */
-export const millStandInNote = (spec: ThreadSpec, mode: HoleMode, unit: UnitSystem): string => {
+export const millStandInNote = (
+  spec: ThreadSpec,
+  mode: HoleMode,
+  unit: UnitSystem,
+  mills: boolean,
+): string => {
   const drill = drillFor(spec, mode)
+  const standing = mills
+    ? 'showing end mills that can bore it, and the closest drills'
+    : 'showing the closest drills'
   const tap = mode === 'form tap' ? 'form tap' : 'cut tap'
   return drill === null
-    ? 'no drill matches this hole — showing end mills that can bore it, and the closest drills'
-    : `no drill matches the ⌀${formatLength(drill, unit)} ${tap} predrill — showing end mills that can bore it, and the closest drills`
+    ? `no drill matches this hole — ${standing}`
+    : `no drill matches the ⌀${formatLength(drill, unit)} ${tap} predrill — ${standing}`
 }
 
 export const predrillNote = (spec: ThreadSpec, mode: HoleMode, unit: UnitSystem): string => {
@@ -485,3 +501,39 @@ export const predrillNote = (spec: ThreadSpec, mode: HoleMode, unit: UnitSystem)
   const tap = mode === 'form tap' ? 'form tap' : 'cut tap'
   return `matched on ⌀${formatLength(drill, unit)} — the ${tap}'s predrill for ${spec.name}`
 }
+
+/**
+ * A thread name reduced to what somebody typing it means.
+ *
+ * A shop writes one thread half a dozen ways — `M6x1`, `M6 × 1`, `#10-32`,
+ * `10 32`, `1/4-20`, `1/420` — and none of them is the string in the table. So
+ * both sides lose their case, their multiplication sign and every separator,
+ * and what is left is compared. `.` survives because it is the difference
+ * between `M12×1.25` and `M12×1.5`, not punctuation between two numbers.
+ */
+const searchKey = (text: string): string =>
+  text
+    .toLowerCase()
+    .replace(/[×✕✖x]/g, 'x')
+    .replace(/[^a-z0-9.]/g, '')
+
+/**
+ * Whether typed text asks for this thread, or for anything else in the list.
+ *
+ * **The list is longer than a shop scrolls** (Paul, 2026-09-09: "I need to be
+ * able to either select from the list we have now or enter text to search the
+ * list and select from it"). Thirty-seven threads is a scroll past the ones a
+ * hole reads as, so the box takes text as well — and typing `1/4` finds
+ * `1/4-20 UNC` where typing it into a list of names would not.
+ *
+ * Substring rather than prefix, because `unc` and `32` are both ways somebody
+ * narrows this list, and neither starts a name.
+ */
+export const matchesThreadSearch = (query: string, text: string): boolean =>
+  searchKey(text).includes(searchKey(query))
+
+/** The threads that text asks for, in the table's own order. Empty text asks for all. */
+export const threadsMatching = (
+  query: string,
+  specs: ReadonlyArray<ThreadSpec> = THREADS,
+): Array<ThreadSpec> => specs.filter((each) => matchesThreadSearch(query, each.name))

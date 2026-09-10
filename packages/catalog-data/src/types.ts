@@ -371,6 +371,14 @@ export interface Catalog {
 /**
  * Bumped when the catalog document changes shape in a way a reader must handle.
  *
+ * 11 — a collet states how deep its bore actually clamps, and whether that
+ * bore is square. `clampLength` was mapped from `LF` and is now `L9`
+ * (`@toolpath/tool-scraper` 2.5.0), which is a different quantity under the
+ * same name: a version-10 collet's `clampLength` is not comparable to a
+ * version-11 one's, and `maxStickout` reads it. `squareSize` is new, and the
+ * sixteen Kennametal ER collet families it distinguishes were not in a
+ * version-10 store at all — `scrape.ts` could not reach them.
+ *
  * 10 — every tap states whether it cuts its thread or forms it, and there are
  * forming taps to state it about. `threadMethod` entered the shape at 9 with
  * nothing to fill it: the label arrives on a record with
@@ -390,4 +398,4 @@ export interface Catalog {
  * Re-ingest the store rather than rebuild: `rebuild.mjs` works forwards from a
  * built dataset and would only write `null` again.
  */
-export const CATALOG_VERSION = 10
+export const CATALOG_VERSION = 11

@@ -299,16 +299,28 @@ describe('naming a stack', () => {
     expect(screen.getByRole('button', { name: 'Add assembly' })).toBeInTheDocument()
   })
 
-  /** A stack is named when it is made, rather than found and named later. */
-  it('opens the field on the stack the add press makes', () => {
-    const over = { onRename: () => undefined }
+  /**
+   * **The new stack opens on its tool, not on a name field** (Paul, 2026-09-10:
+   * "focus shouldn't go immediately to renaming a tool assembly when a new one
+   * is added — it should start at the default name and focus should go to the
+   * tool component selection for it").
+   *
+   * It opened the field on the stack it made, on the reasoning that a stack is
+   * named when it is made (Paul, 2026-09-08). The press is for *another cutter*
+   * though, so what it put on screen was a text box over an empty stack and the
+   * next thing to do was dismiss it. The default name is a name.
+   */
+  it('opens the new stack on its tool slot, and names nothing', () => {
+    const onSelect = vi.fn()
+    const over = { onRename: () => undefined, onSelect }
     const { rerender } = draw(defaultAssemblies(false), over)
 
     fireEvent.click(screen.getByRole('button', { name: 'Add assembly' }))
     // The route writes the stack and hands the tree back with it in.
     rerender(panel(addAssembly(defaultAssemblies(false)), over))
 
-    expect(screen.getByRole('textbox', { name: 'Name for Assembly 2' })).toBeInTheDocument()
+    expect(onSelect).toHaveBeenCalledWith({ assemblyId: 'assembly-2', slot: 'tool' })
+    expect(screen.queryByRole('textbox', { name: 'Name for Assembly 2' })).not.toBeInTheDocument()
   })
 
   it('draws the name it was given, and offers it back for editing', () => {
@@ -320,5 +332,37 @@ describe('naming a stack', () => {
 
     // Named for what it is called now, so the field says which stack it is on.
     expect(screen.getByRole('textbox', { name: 'Name for Rougher' })).toHaveValue('Rougher')
+  })
+})
+
+/**
+ * **The double-up is said where it is made** (Paul, 2026-09-10: "would it be
+ * possible to flag duplicates when they are added, even if an assembly has not
+ * been added to the list yet? Show a (×2, used in Assembly 1) in the feature
+ * dialog"). The table marks a component another stack is on the *order list*
+ * with; this is the same fact about the tree in hand, before anything has been
+ * ordered at all.
+ */
+describe('a component standing in two stacks of one tree', () => {
+  it('says so on both rows, naming the other stack', () => {
+    const [first] = defaultAssemblies(false)
+    const tree: Array<TreeAssembly> = [
+      { ...(first as TreeAssembly), toolGuid: 'tool-a' },
+      { ...(first as TreeAssembly), id: 'assembly-2', toolGuid: 'tool-a' },
+    ]
+    draw(tree)
+
+    expect(screen.getByText('×2, used in Assembly 2')).toBeInTheDocument()
+    expect(screen.getByText('×2, used in Assembly 1')).toBeInTheDocument()
+  })
+
+  it('says nothing where the two stacks hold different components', () => {
+    const [first] = defaultAssemblies(false)
+    draw([
+      { ...(first as TreeAssembly), toolGuid: 'tool-a' },
+      { ...(first as TreeAssembly), id: 'assembly-2', toolGuid: 'tool-b' },
+    ])
+
+    expect(screen.queryByText(/used in Assembly/)).not.toBeInTheDocument()
   })
 })

@@ -294,6 +294,74 @@ const forgivenBy = (
   }
 }
 
+/**
+ * What the forgiven columns read on a tool, as one key.
+ *
+ * The codes are the geometry's own field names — `tool-marks.ts` § `CODES`
+ * writes them — so a column is its number on a tool without a second table
+ * between the two.
+ */
+const valueOf = (verdict: Verdict, overrides: ReadonlyArray<string>): string =>
+  overrides.map((code) => String(verdict.tool.geometry[code] ?? 'none')).join('|')
+
+/**
+ * The cap, spread over every value the forgiven columns take — **never over
+ * the nearest end of the range alone**.
+ *
+ * **A slice ranked purely by miss cannot reach the bound somebody typed**
+ * (Paul, 2026-09-09: a ⌀0.125 in pocket widened to ⌀0.5 in "shows tools only up
+ * to a random diameter … it should show tools up to 0.5 in"). Measured on the
+ * scraped catalog that day: 5,734 tools were forgiven and the 2,000 sent
+ * stopped at ⌀0.25 in, because nearest-first fills every slot with the sizes
+ * just past the rule before it ever reaches the sizes the filter was widened
+ * *to*. Raising the cap only moves where it bites — it was raised from 200 to
+ * 2,000 for this same complaint the day before — so the cap is not the thing
+ * to change.
+ *
+ * So the lanes are the distinct values themselves, nearest lane first and
+ * nearest tool first inside each, taken a round at a time. The head of the list
+ * is still the nearest of every size, and the far end of the range is in the
+ * first round rather than past the cap. It is the same rule `nearestFew`
+ * (`catalog-matcher.ts`) already applies to forms, for the same reason: a slice
+ * blind to the axis somebody is asking along hides a whole end of it.
+ */
+const spreadOver = (
+  forgiven: ReadonlyArray<Verdict>,
+  overrides: ReadonlyArray<string>,
+  cap: number,
+): Array<Verdict> => {
+  const lanes = new Map<string, Array<Verdict>>()
+  for (const verdict of forgiven) {
+    const key = valueOf(verdict, overrides)
+    const lane = lanes.get(key)
+    if (lane === undefined) {
+      lanes.set(key, [verdict])
+    } else {
+      lane.push(verdict)
+    }
+  }
+  const ordered = [...lanes.values()]
+    .map((lane) => {
+      const sorted = [...lane].sort((a, b) => missBy(a) - missBy(b))
+      return { lead: Math.min(...sorted.map(missBy)), lane: sorted }
+    })
+    .sort((a, b) => a.lead - b.lead)
+  const taken: Array<Verdict> = []
+  const deepest = Math.max(0, ...ordered.map((each) => each.lane.length))
+  for (let round = 0; round < deepest && taken.length < cap; round += 1) {
+    for (const { lane } of ordered) {
+      const verdict = lane[round]
+      if (verdict !== undefined) {
+        taken.push(verdict)
+      }
+      if (taken.length >= cap) {
+        break
+      }
+    }
+  }
+  return taken
+}
+
 export const overridableTools = (
   excluded: ReadonlyArray<Verdict>,
   admitted: ReadonlySet<string>,
@@ -303,12 +371,7 @@ export const overridableTools = (
   if (overrides.length === 0) {
     return []
   }
-  return excluded
-    .filter(forgivenBy(admitted, overrides))
-    .map((verdict) => ({ verdict, miss: missBy(verdict) }))
-    .sort((a, b) => a.miss - b.miss)
-    .slice(0, Math.max(0, cap))
-    .map((each) => each.verdict)
+  return spreadOver(excluded.filter(forgivenBy(admitted, overrides)), overrides, Math.max(0, cap))
 }
 
 /**

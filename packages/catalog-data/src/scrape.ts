@@ -638,6 +638,24 @@ const holderHandoff = (record: HolderRecord, familyId: string): ScrapedHolder =>
   },
 })
 
+/**
+ * A collet record, mapped onto the handoff.
+ *
+ * **`clampLength` is `L9` and not `LF`.** `@toolpath/tool-scraper` 2.5.0 minted
+ * `clampingLength` — how deep the clamping bore is, which is how much shank the
+ * collet actually holds — and that is what `@toolpath/tool-support` documents
+ * `Collet.clampLength` to be and what `maxStickout` reads. Until then the only
+ * length on the record was `functionalLength` (`LF`), which is not the same
+ * quantity and is constant where the bore depth is not: Kennametal's ER40
+ * coolant-through family states `L` 46 mm down all nineteen rows while `L9`
+ * runs 22 / 28 / 46 by size. Mapping `LF` here therefore told `maxStickout`
+ * that a 3 mm collet grips as deeply as a 26 mm one.
+ *
+ * There is no fallback to `LF` for a collet that publishes no `L9`. A wrong
+ * grip depth is worse than none: `null` is "nobody has said" and `maxStickout`
+ * answers `null` in turn, where a plausible wrong number is a stickout ceiling
+ * a shop would set a tool to.
+ */
 const colletHandoff = (record: ColletRecord, familyId: string): ScrapedCollet => ({
   guid: record.guid,
   catalogNumber: record.catalogNumber,
@@ -649,12 +667,14 @@ const colletHandoff = (record: ColletRecord, familyId: string): ScrapedCollet =>
   series: record.series,
   clampMin: record.clampMin,
   clampMax: record.clampMax,
-  clampLength: record.functionalLength,
+  clampLength: record.clampingLength,
+  squareSize: record.squareSize,
   productLink: record.productLink,
   provenance: {
     clampMin: 'vendor-stated',
     clampMax: 'vendor-stated',
-    ...(record.functionalLength === null ? {} : { clampLength: 'vendor-stated' as const }),
+    ...(record.clampingLength === null ? {} : { clampLength: 'vendor-stated' as const }),
+    ...(record.squareSize === null ? {} : { squareSize: 'vendor-stated' as const }),
   },
 })
 

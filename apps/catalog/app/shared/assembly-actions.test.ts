@@ -5,17 +5,28 @@ import {
   holdingChanges,
   lineOf,
   nothingToConfirm,
+  orderingPress,
   savedFor,
 } from './assembly-actions'
 import { emptyAssembly, type TreeAssembly } from './assembly-tree'
 import type { Choice } from './setup-sheet'
 
+/**
+ * A stack that has been ordered as `tool-a`, which is what links it to a line.
+ *
+ * `orderedTool` is the whole of that link — a stack nobody has ordered adopts no
+ * line, however familiar the cutter in it (Paul, 2026-09-10) — so a fixture that
+ * left it out was a fixture asking about a stack that is not on the bill, and
+ * the tests below are about ones that are. Swapping the *tool* over it is how a
+ * replacement is written: the stack keeps what it was ordered as.
+ */
 const stack = (over: Partial<TreeAssembly> = {}): TreeAssembly => ({
   id: 'assembly-1',
   role: 'cut',
   toolGuid: 'tool-a',
   holderGuid: 'holder-a',
   colletGuid: null,
+  orderedTool: 'tool-a',
   ...over,
 })
 
@@ -30,8 +41,17 @@ describe('the line a stack would write', () => {
 })
 
 describe('what is offered', () => {
-  it('offers nothing for a stack with no tool', () => {
-    expect(assemblyActions(stack({ toolGuid: null }), [])).toEqual([])
+  /**
+   * **The press is on screen from the start, greyed** (Paul, 2026-09-09: "Add
+   * to order list should be shown by default but greyed out until a component
+   * is selected. Right now it is hidden by default"). Same words and same
+   * place as the press it becomes, so picking a tool changes whether it can be
+   * pressed and nothing else about it.
+   */
+  it('offers the press greyed out for a stack with no tool', () => {
+    expect(assemblyActions(stack({ toolGuid: null }), [])).toEqual([
+      { kind: 'add', label: 'Add to order list', disabled: true },
+    ])
   })
 
   it('offers Add to order list where the tool is not on the bill for this feature', () => {
@@ -92,9 +112,35 @@ describe('what is offered', () => {
     })
 
     it('finds no line for a stack that was never ordered', () => {
-      expect(assemblyActions(stack({ toolGuid: 'tool-b' }), on).map((each) => each.kind)).toEqual([
-        'add',
-      ])
+      expect(
+        assemblyActions(stack({ toolGuid: 'tool-b', orderedTool: null }), on).map(
+          (each) => each.kind,
+        ),
+      ).toEqual(['add'])
+    })
+
+    /**
+     * **A second stack given the first's cutter is still a new stack** (Paul,
+     * 2026-09-10: "when I select the same tool as a second assembly for a
+     * feature, it autofills everything and does some odd stuff … secondary
+     * assemblies added to a feature or group should be treated as unique, new
+     * assemblies").
+     *
+     * `savedFor` fell back to the tool standing in the stack, so the new one
+     * found the line the *other* stack had ordered and became it: its empty
+     * holder slot drew that stack's holder struck through to a dash, and the
+     * press under it offered to take that holder off.
+     */
+    it('adopts no line for a new stack holding a cutter another one ordered', () => {
+      const fresh = stack({
+        id: 'assembly-2',
+        toolGuid: 'tool-a',
+        holderGuid: null,
+        orderedTool: null,
+      })
+
+      expect(savedFor(fresh, on)).toBeNull()
+      expect(assemblyActions(fresh, on).map((each) => each.kind)).toEqual(['add'])
     })
   })
 
@@ -135,8 +181,36 @@ describe('a feature that is not a row yet', () => {
     expect(assemblyActions(stack(), on, false).map((each) => each.kind)).toEqual(['confirm'])
   })
 
-  it('offers nothing while the stack has no tool, row or not', () => {
-    expect(assemblyActions(stack({ toolGuid: null }), [], false)).toEqual([])
+  /**
+   * **A feature can be kept before it is answered** (Paul, 2026-09-10: "I should
+   * be able to create a feature or group without adding a tool"). The greyed
+   * press stays where there is nothing left to do — the row exists already — and
+   * where there is no row yet it becomes the one thing an empty stack *can* do.
+   */
+  it('offers the row itself where there is no row yet and no tool', () => {
+    expect(assemblyActions(stack({ toolGuid: null }), [], false)).toEqual([
+      {
+        kind: 'list',
+        label: 'Add feature to list',
+        note: 'Nothing is ordered against it yet, so it goes on the list marked incomplete.',
+      },
+    ])
+  })
+
+  it('names the group where a group is what would be made', () => {
+    expect(assemblyActions(stack({ toolGuid: null }), [], false, 'group')[0]?.label).toBe(
+      'Add group to list',
+    )
+  })
+
+  /**
+   * A part-level assembly *is* its order — "Tool assembly 3" with nothing in it
+   * is a row about nothing — so it keeps the greyed press (Paul, 2026-09-08).
+   */
+  it('keeps the greyed press for a tool assembly with nothing in it', () => {
+    expect(assemblyActions(stack({ toolGuid: null }), [], false, 'assembly')).toEqual([
+      { kind: 'confirm', label: 'Add to order list', disabled: true },
+    ])
   })
 
   it('treats a row as a row by default, so existing callers are unchanged', () => {
@@ -300,8 +374,23 @@ describe('the line the bill holds for a stack', () => {
     expect(savedFor(stack(), on)).toEqual({ toolGuid: 'tool-a', holderGuid: 'holder-a' })
   })
 
-  it('holds none for a stack with no tool', () => {
-    expect(savedFor(stack({ toolGuid: null }), [{ toolGuid: 'tool-a' }])).toBeNull()
+  it('holds none for a stack nobody has ordered, whatever is standing in it', () => {
+    expect(savedFor(stack({ toolGuid: null, orderedTool: null }), [{ toolGuid: 'tool-a' }])).toBe(
+      null,
+    )
+    // Including one holding the very tool the line is for: the link is the
+    // ordering, not the cutter.
+    expect(savedFor(stack({ orderedTool: null }), [{ toolGuid: 'tool-a' }])).toBeNull()
+  })
+
+  /**
+   * A stack that *was* ordered still holds its line once the tool is cleared out
+   * of it — that is what the way back off the change is drawn from.
+   */
+  it('still holds the line of an ordered stack somebody has emptied', () => {
+    expect(savedFor(stack({ toolGuid: null }), [{ toolGuid: 'tool-a' }])).toEqual({
+      toolGuid: 'tool-a',
+    })
   })
 })
 
@@ -313,13 +402,20 @@ describe('the line the bill holds for a stack', () => {
  * no hole under it to cut the thread in.
  */
 describe('what a whole assembly offers', () => {
-  const tap = stack({ id: 'assembly-1', role: 'tap', toolGuid: 'tap-a', colletGuid: 'collet-a' })
+  const tap = stack({
+    id: 'assembly-1',
+    role: 'tap',
+    toolGuid: 'tap-a',
+    colletGuid: 'collet-a',
+    orderedTool: 'tap-a',
+  })
   const drill = stack({
     id: 'assembly-2',
     role: 'drill',
     toolGuid: 'drill-a',
     holderGuid: 'holder-b',
     colletGuid: 'collet-b',
+    orderedTool: 'drill-a',
   })
   const named: Record<string, string> = {
     'tap-a': 'A0101001.5037',
@@ -345,10 +441,21 @@ describe('what a whole assembly offers', () => {
     expect(offered([tap, drill], []).map((each) => each.kind)).toEqual(['add'])
   })
 
-  it('offers nothing where no stack of it has a tool', () => {
+  it('greys the one press where no stack of it has a tool', () => {
     expect(
       offered([emptyAssembly('assembly-1', 'tap'), emptyAssembly('assembly-2', 'drill')], []),
-    ).toEqual([])
+    ).toEqual([{ kind: 'add', label: 'Add to order list', disabled: true }])
+  })
+
+  /** The same reversal, over a group of stacks: an empty tree can still be kept. */
+  it('offers the row itself where a tap and a drill are both empty and new', () => {
+    const [first] = offered(
+      [emptyAssembly('assembly-1', 'tap'), emptyAssembly('assembly-2', 'drill')],
+      [],
+      false,
+    )
+    expect(first?.kind).toBe('list')
+    expect(first?.label).toBe('Add feature to list')
   })
 
   it('makes the feature and writes the assembly in one press', () => {
@@ -405,5 +512,33 @@ describe('what a whole assembly offers', () => {
     const [first] = offered(swapped, on)
     expect(first?.kind).toBe('replace')
     expect(first?.label).toBe('Replace A0101001.5037 with A0101001.6000')
+  })
+})
+
+describe('orderingPress', () => {
+  it('is the press that puts the stack on the order list', () => {
+    expect(orderingPress([{ kind: 'confirm' }, { kind: 'revert' }])).toEqual({ kind: 'confirm' })
+    expect(orderingPress([{ kind: 'replace' }, { kind: 'revert' }])).toEqual({ kind: 'replace' })
+    expect(orderingPress([{ kind: 'update' }, { kind: 'revert' }])).toEqual({ kind: 'update' })
+  })
+
+  it('is nothing where the stack has nothing to order', () => {
+    // The greyed press an empty stack offers: Enter must not fire it.
+    expect(orderingPress([{ kind: 'confirm', disabled: true }])).toBeNull()
+    expect(orderingPress([])).toBeNull()
+  })
+
+  /*
+    The press that keeps an unanswered feature orders nothing, and Enter still
+    reaches it: what both rules are about is the press that finishes the box.
+  */
+  it('is the press that keeps the feature where that is all there is', () => {
+    expect(orderingPress([{ kind: 'list' }])).toEqual({ kind: 'list' })
+  })
+
+  it('never takes something off the list', () => {
+    // Enter is the way *on*. Remove and Cancel are presses somebody makes.
+    expect(orderingPress([{ kind: 'remove' }])).toBeNull()
+    expect(orderingPress([{ kind: 'revert' }])).toBeNull()
   })
 })

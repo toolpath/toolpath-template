@@ -104,6 +104,16 @@ export interface ComponentTableProps {
    * the words are `shared/component-usage.ts`; this draws what comes back.
    */
   readonly usedOn?: (guid: string) => { readonly label: string; readonly title: string } | null
+  /**
+   * Why a row cannot be assembled out of the crib as it stands, in a few words.
+   *
+   * **A widened rack has to say what it widened** (Paul, 2026-09-09: "we should
+   * show any holder, even if there is not a collet in the library that works").
+   * The holder list offers chucks no stocked collet closes on, and without this
+   * they are the same row as a chuck that grips — `colletGap` in
+   * `shared/assembly-narrowing.ts` is the sentence, and this draws it.
+   */
+  readonly gap?: (guid: string) => string | null
   readonly empty?: ReactNode
   readonly filtering?: ComponentColumnFiltering
   /** Test-only escape hatch for jsdom, where virtual rows cannot measure themselves. */
@@ -199,6 +209,7 @@ export const ComponentTable = ({
   usedIn,
   onFeature,
   usedOn,
+  gap,
   empty,
   filtering,
   virtualized = true,
@@ -363,6 +374,7 @@ export const ComponentTable = ({
             const elsewhere = usedIn?.(record.guid) ?? []
             const saved = onFeature?.(record.guid) ?? false
             const used = usedOn?.(record.guid) ?? null
+            const missing = gap?.(record.guid) ?? null
             return (
               <Table.Row>
                 {shown.map((column) => (
@@ -403,6 +415,19 @@ export const ComponentTable = ({
                             title={used.title}
                           >
                             {used.label}
+                          </span>
+                        )}
+                        {/*
+                          Said on the row rather than only in the panel: the
+                          list is where a holder is chosen, and a chuck with no
+                          collet behind it is a decision to make knowingly.
+                        */}
+                        {missing === null ? null : (
+                          <span
+                            className="text-2xs ml-2 rounded border border-amber-500/40 px-1 text-amber-300"
+                            title={`This holder is offered anyway — ${missing}.`}
+                          >
+                            no collet
                           </span>
                         )}
                       </>
