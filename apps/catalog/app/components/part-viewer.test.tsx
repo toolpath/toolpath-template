@@ -34,6 +34,25 @@ vi.mock('@toolpath/viewer', () => ({
   sectionFromPick: (plane: unknown) => plane,
 }))
 
+/**
+ * The camera lives inside the R3F canvas, and this test does not mount one.
+ *
+ * `<FrameInset>` is a child of the mocked `<Viewer>` above, so it renders here
+ * with no store behind it — and an R3F hook outside a canvas throws. A canvas
+ * of zero size is exactly what `frameInset` answers `null` to, so under this
+ * mock the component does what it does before the first layout: clears the
+ * offset and asks for a frame.
+ */
+vi.mock('@react-three/fiber', () => ({
+  useThree: (select: (state: unknown) => unknown) =>
+    select({
+      camera: { setViewOffset: () => {}, clearViewOffset: () => {} },
+      size: { width: 0, height: 0 },
+      gl: { domElement: { getBoundingClientRect: () => ({ left: 0, top: 0, height: 0 }) } },
+      invalidate: () => {},
+    }),
+}))
+
 vi.mock('@toolpath/viewer/engine', () => ({
   EnginePart: (props: { onPick: (pick: unknown) => void }) => {
     seen.part(props)

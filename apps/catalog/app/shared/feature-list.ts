@@ -135,6 +135,43 @@ export const nextId = (list: ReadonlyArray<ListItem>, kind: ListItem['kind']): s
 export const itemNamed = (list: ReadonlyArray<ListItem>, id: string | null): ListItem | null =>
   id === null ? null : (list.find((item) => item.id === id) ?? null)
 
+/**
+ * The row that already stands for exactly these features, or null where none
+ * does.
+ *
+ * **One face is one row** (Paul, 2026-09-10). *+ Feature* made a row every time
+ * it was pressed, so pressing it twice over the same reading put two rows on the
+ * list for one hole — and because the sheet is keyed by feature tag, they are
+ * the *same* line seen twice: a tool ordered on one appears under both, and
+ * taking it off one takes it off both. There is no state a shop could get out
+ * of, because nothing on either row says the other is it.
+ *
+ * It was reachable before and healed itself: a row nobody had ordered against
+ * was pruned as soon as it stopped being the one in hand. Rows are kept now
+ * (see `order-list.ts` `isIncomplete`), so the duplicate is permanent and the
+ * press has to not make one.
+ *
+ * Exactly, and order-insensitively: a group holding the same features picked in
+ * another order is the same group, and a group that merely *contains* this
+ * reading is a different question about it — which is why this is not
+ * `activeItem`'s looser search.
+ */
+export const rowFor = (
+  list: ReadonlyArray<ListItem>,
+  kind: 'feature' | 'group',
+  tags: ReadonlyArray<string>,
+): ListItem | null => {
+  const wanted = [...tags].sort()
+  return (
+    list.find(
+      (item) =>
+        item.kind === kind &&
+        item.tags.length === wanted.length &&
+        [...item.tags].sort().every((tag, at) => tag === wanted[at]),
+    ) ?? null
+  )
+}
+
 /** Added at the end: a list that reorders itself is one nobody can keep their place in. */
 export const addItem = (list: ReadonlyArray<ListItem>, item: ListItem): Array<ListItem> => [
   ...list,

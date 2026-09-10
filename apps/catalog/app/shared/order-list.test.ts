@@ -7,7 +7,7 @@ import {
   isOrdered,
   linesFor,
   linesOf,
-  listedItems,
+  isIncomplete,
   opensDescending,
   orderAssemblies,
   setComponentCount,
@@ -58,15 +58,31 @@ describe('reading the order list', () => {
   })
 })
 
-describe('which rows the list draws', () => {
-  it('drops a row with nothing ordered against it', () => {
+describe('which rows are incomplete', () => {
+  /**
+   * The reversal of 2026-09-10: a row with nothing ordered against it used to
+   * be dropped from the list, and is now kept and marked — a feature somebody
+   * flagged and has not answered yet.
+   */
+  it('marks a row with nothing ordered against it', () => {
     const sheet = order(emptySheet('part-1'), circle, { toolGuid: 'drill' })
 
-    expect(listedItems([circle, pocket], sheet, [null])).toEqual([circle])
+    expect(isIncomplete(sheet, circle)).toBe(false)
+    expect(isIncomplete(sheet, pocket)).toBe(true)
   })
 
-  it('keeps the row being worked on, so a new feature can be tooled at all', () => {
-    expect(listedItems([circle, pocket], emptySheet('part-1'), ['feature-2'])).toEqual([pocket])
+  it('marks a row again once its last line comes off', () => {
+    const sheet = order(emptySheet('part-1'), circle, { toolGuid: 'drill' })
+
+    expect(isIncomplete(clearKeys(sheet, circle.tags), circle)).toBe(true)
+  })
+
+  /** Keyed by its own id, so an unfilled part-level stack reads as incomplete. */
+  it('reads a part-level assembly under its own key', () => {
+    const sheet = order(emptySheet('part-1'), facing, { toolGuid: 'shell' })
+
+    expect(isIncomplete(sheet, facing)).toBe(false)
+    expect(isIncomplete(emptySheet('part-1'), facing)).toBe(true)
   })
 })
 

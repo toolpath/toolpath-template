@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openCubeWithHole } from './cube-fixture'
+import { onThePart, openCubeWithHole } from './cube-fixture'
 
 /**
  * A threaded hole, from the click on the part to the two lists it opens.
@@ -41,7 +41,9 @@ const at = async (page: Page, spot: { x: number; y: number }): Promise<void> => 
   if (box === null) {
     throw new Error('the viewer never drew a canvas')
   }
-  await page.mouse.click(box.x + box.width * spot.x, box.y + box.height * spot.y)
+  // A fraction of the space the questions leave — `onThePart` says why.
+  const { x, y } = await onThePart(page, box, spot)
+  await page.mouse.click(x, y)
 }
 
 const field = (page: Page) => page.getByRole('status', { name: 'Selected feature' })

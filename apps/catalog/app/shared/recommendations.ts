@@ -31,6 +31,18 @@ export interface Pick {
   /** The holder it is held in, by catalog number, where one has been chosen. */
   readonly holder: string | null
   readonly collet: string | null
+  /**
+   * How many of this assembly the row ordered — absent, or one, on all but a
+   * few.
+   *
+   * **Two identical stacks are two things to set up** (Paul, 2026-09-10:
+   * "duplicates … should show 2 assemblies and a count of two of each
+   * component"). The sheet keys a line by its tool, so a row holding the same
+   * cutter twice holds one line with `total: 2` on it — and a line drawn
+   * without that number says one where a shop has to buy two. Absent on a
+   * recommendation, which is a suggestion rather than an order.
+   */
+  readonly total?: number
 }
 
 export interface Answer {

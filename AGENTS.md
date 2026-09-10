@@ -215,7 +215,10 @@ application unless that application says otherwise.
   2026-09-10) — one column over the part rather than two, with a button under
   the box that brings the rows back. **The press that orders closes the box, and
   Enter is that press**: `isOrdering` and `orderingPress` in
-  `shared/assembly-actions.ts` are the rules.
+  `shared/assembly-actions.ts` are the rules. **The part is framed beside that
+  column, not behind it** — the canvas still runs the full width, so the part
+  shows through the rows and every overlay layer is unchanged; it is the
+  _camera_ that is told, in `shared/frame-inset.ts`.
   `shared/feature-list.ts` is the model and
   `components/feature-list-panel.tsx` the list on screen;
   `docs/FEATURE-LIST.md` is the spec, including _Where the rules live_ for
@@ -263,9 +266,12 @@ application unless that application says otherwise.
 | what the list holds, its names, ids, storage         | `app/shared/feature-list.ts`                         |
 | which key a row's lines reach the bill under         | `sheetKeysOf`, same file                             |
 | what is on the order list, for both pages            | `app/shared/order-list.ts`                           |
-| which rows the list draws, and what to buy           | `listedItems` / `componentTotals`, same file         |
+| whether a row has anything ordered, and what to buy  | `isIncomplete` / `componentTotals`, same file        |
 | which of four things the page is being asked         | `asked()`, same file                                 |
 | the three presses over the part that add a row       | `app/components/add-bar.tsx`                         |
+| whether the presses and the rows are drawn at all    | `app/shared/part-chrome.ts`                          |
+| where the part is framed, beside the questions       | `app/shared/frame-inset.ts`                          |
+| how tall the tool list opens                         | `TABLE_OPENS_AT`, `components/part-tool-table.tsx`   |
 | a row's answer, and what it opens to                 | `app/shared/recommendations.ts`                      |
 | what the panel offers for the tool it shows          | `app/shared/tool-actions.ts`                         |
 | what fills the tool table, and the cache             | `app/shared/catalog-matcher.ts`                      |

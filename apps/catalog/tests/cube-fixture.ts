@@ -179,3 +179,38 @@ export const orderList = async (page: Page) => {
   }
   return page.getByRole('list', { name: 'Features being asked about' })
 }
+
+/**
+ * Where to click for a point on the part, as a fraction of the space it has.
+ *
+ * **The part is framed beside the boxes drawn over it** (Paul, 2026-09-10) —
+ * `app/shared/frame-inset.ts` is the rule. So the middle of the part is not the
+ * middle of the canvas whenever something is drawn in front of it, and how much
+ * is a question about what is on screen rather than about the layout: an empty
+ * list leaves the part in the middle, a box open over it pushes it across.
+ *
+ * Read off `data-part-inset`, which is the page's own answer, rather than
+ * derived here from the column — a second derivation of the same number is a
+ * second chance to disagree with what is on screen.
+ *
+ * Taking the canvas box as an argument rather than measuring it again, because
+ * both callers have already waited for it to have one: a canvas that has
+ * mounted but not been laid out is visible and has no box.
+ */
+export const onThePart = async (
+  page: Page,
+  canvas: {
+    readonly x: number
+    readonly y: number
+    readonly width: number
+    readonly height: number
+  },
+  spot: { readonly x: number; readonly y: number },
+) => {
+  const said = await page.locator('[data-part-inset]').getAttribute('data-part-inset')
+  const from = canvas.x + (Number(said) || 0)
+  return {
+    x: from + (canvas.x + canvas.width - from) * spot.x,
+    y: canvas.y + canvas.height * spot.y,
+  }
+}

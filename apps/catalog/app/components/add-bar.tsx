@@ -37,6 +37,16 @@ export interface AddBarProps {
    * state pressing it puts the page in.
    */
   readonly addingFeature: boolean
+  /**
+   * Whether _+ Tool Assembly_ can be pressed at all.
+   *
+   * **Greyed over a reading** (Paul, 2026-09-10: "+ tool assembly should be
+   * greyed out when I click on a feature"). The other two presses are what a
+   * clicked face is for; this one answers no feature, so pressing it there drops
+   * the click without a word. `assemblyPressEnabled` in `shared/part-chrome.ts`
+   * is the rule and says why it reads the box rather than the reading.
+   */
+  readonly canAddAssembly?: boolean
 }
 
 const CHIP =
@@ -47,14 +57,25 @@ const QUIET = 'border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zi
 /** Solid ground: a control over the 3D viewer that lets the part through is unreadable. */
 const GROUND = 'filter-off'
 
-export const AddBar = ({ onAddFeature, onAddGroup, onAddAssembly, addingFeature }: AddBarProps) => (
+export const AddBar = ({
+  onAddFeature,
+  onAddGroup,
+  onAddAssembly,
+  addingFeature,
+  canAddAssembly = true,
+}: AddBarProps) => (
   /*
     **Only the buttons take the pointer.** A transparent box over the canvas
     carrying `pointer-events: auto` is a curtain: on 2026-09-02 one of them
     stopped click-drag-rotate on the whole part, and `tests/on-the-part.spec.ts`
     § "at a laptop width" is what pins it. This row is as wide as its buttons.
   */
-  <div className="pointer-events-auto flex w-fit items-start gap-1">
+  <div
+    /* One of the boxes the part is framed beside — `shared/frame-inset.ts`
+       § `spokenFor` measures whatever carries this. */
+    data-over-part
+    className="pointer-events-auto flex w-fit items-start gap-1"
+  >
     <Button
       type="button"
       variant="muted"
@@ -83,9 +104,16 @@ export const AddBar = ({ onAddFeature, onAddGroup, onAddAssembly, addingFeature 
       type="button"
       variant="muted"
       size="sm"
-      title="A tool assembly for the part, tied to no feature"
+      disabled={!canAddAssembly}
+      /* The greyed one says why it is greyed: a button that cannot be pressed
+         and does not say what would make it pressable reads as broken. */
+      title={
+        canAddAssembly
+          ? 'A tool assembly for the part, tied to no feature'
+          : 'Put the reading down first — a tool assembly answers no feature'
+      }
       onClick={onAddAssembly}
-      className={cn(CHIP, QUIET, GROUND)}
+      className={cn(CHIP, QUIET, GROUND, canAddAssembly ? '' : 'opacity-50')}
     >
       + Tool Assembly
     </Button>

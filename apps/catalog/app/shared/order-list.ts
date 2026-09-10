@@ -74,24 +74,24 @@ export const clearKeys = (sheet: SetupSheet, keys: ReadonlyArray<string>): Setup
   keys.reduce((current, key) => clearChoice(current, key), sheet)
 
 /**
- * The rows the parts-page list draws.
+ * Whether a row is on the list with nothing ordered against it.
  *
- * **A row nobody ordered anything against is not a row** (Paul, 2026-09-09:
- * "when I remove ALL tool assemblies from a feature or group, the feature or
- * group is kept in the parts page order list. It should not be — the list is
- * only showing confirmed tool assemblies that we have added to the order list
- * explicitly, not inferred assemblies"). It is the rule a part-level assembly
- * has followed since 2026-09-08, now the rule for all three kinds.
+ * **A feature can be flagged before it is answered** (Paul, 2026-09-10: "I
+ * should be able to create a feature or group without adding a tool … a feature
+ * or group that I flagged to do something with but haven't added a tool assembly
+ * to yet"), which reverses the rule of 2026-09-09 that a row with no lines was
+ * not a row at all.
  *
- * The row being worked on is the exception, and has to be: `+ Feature` makes a
- * row with nothing ordered against it, and a row that vanished before a tool
- * could be picked for it would leave no way to order anything at all.
+ * That rule was right about the thing underneath it and wrong about the cure: a
+ * row with no lines was being *answered with the rules' own recommendation*,
+ * which reads exactly like an order and is not one, so the page showed a tool
+ * the order-list page had never heard of. Dropping the row made that impossible;
+ * so does saying what the row is. It is marked incomplete, drawn dashed, and
+ * answered with nothing at all — `routes/part.tsx` asks the matcher no question
+ * about a row nobody has ordered for, which is what keeps a recommendation from
+ * ever standing where an order goes.
  */
-export const listedItems = (
-  list: ReadonlyArray<ListItem>,
-  sheet: SetupSheet,
-  workingIds: ReadonlyArray<string | null>,
-): Array<ListItem> => list.filter((item) => workingIds.includes(item.id) || isOrdered(sheet, item))
+export const isIncomplete = (sheet: SetupSheet, item: ListItem): boolean => !isOrdered(sheet, item)
 
 /**
  * One stack on the order list: a tool with its holding, and the rows that

@@ -84,6 +84,42 @@ export const hiddenByDefault = (columns: ReadonlyArray<PartToolColumn>): Array<s
 
 export const flexibleColumnWidth = (width: string): string => `minmax(${width}, 1fr)`
 
+/**
+ * A row of the list, in pixels — `@toolpath/ui`'s compact `Table`.
+ *
+ * The kit does not export it, so this is a copy of a number that lives
+ * somewhere else, and `tests/on-the-part.spec.ts` § "opens with eight tools on
+ * screen" is what keeps the two honest: if the kit changes its row height, that
+ * test fails and says so, rather than the page quietly opening on seven.
+ */
+const ROW = 33
+
+/**
+ * Everything the rows share the panel with: the toolbar carrying the three list
+ * buttons and the filters, the column headings under it, and the hairline
+ * border of the card around the lot.
+ *
+ * The border is two pixels and it is the difference between eight rows and
+ * seven-and-a-bit — the panel's size is its outer box, and the rows get what is
+ * inside it.
+ */
+const OVER_THE_ROWS = 49 + ROW + 2
+
+/** How many tools the list opens showing (Paul, 2026-09-10). */
+export const TOOLS_ON_OPENING = 8
+
+/**
+ * What the list panel opens at.
+ *
+ * **Eight tools** (Paul, 2026-09-10: "with these updates, the default height of
+ * the table should be whatever showing 8 tool rows is"). It was 45% of the
+ * height of the page, which is a different number of tools on every screen —
+ * seven at 800px, a dozen at 1200 — and the list is read in rows rather than in
+ * percentages. The part gets whatever is left, which is the half of the screen
+ * that wants the room.
+ */
+export const TABLE_OPENS_AT = OVER_THE_ROWS + TOOLS_ON_OPENING * ROW
+
 export interface Holding {
   readonly holdersFor: (tool: CatalogTool) => ReadonlyArray<{
     readonly guid: string

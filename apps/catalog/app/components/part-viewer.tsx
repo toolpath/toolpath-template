@@ -14,6 +14,7 @@ import { EnginePart } from '@toolpath/viewer/engine'
 import { GridFourIcon, MagnifyingGlassPlusIcon, SquareHalfIcon, XIcon } from '@phosphor-icons/react'
 import type { PartReport, PublicInspectionReport } from '@toolpath/part-contracts'
 import { readingTheme } from 'shared/reading-colors'
+import { FrameInset } from 'components/frame-inset'
 
 /**
  * The part, and the directions it can be cut from.
@@ -185,6 +186,19 @@ export const PartViewer = ({
    */
   const questions = useRef<HTMLDivElement>(null)
   const [questionsWidth, setQuestionsWidth] = useState<number | null>(null)
+  /**
+   * How far in the boxes over the part reach — what the camera was told.
+   *
+   * **The drawn boxes, not the column** (Paul, 2026-09-10: "have it follow the
+   * drawn content"). The column is a fixed width and the full height of the
+   * viewer whatever is in it, so insetting by *it* pushed the part aside for
+   * three buttons in the corner over an empty list. `spokenFor` is the rule and
+   * `<FrameInset>` does the measuring — the canvas's own size is only reliable
+   * from inside it — and this is where the answer is kept so the page can say
+   * what it decided.
+   */
+  const [inset, setInset] = useState(0)
+
   useEffect(() => {
     const box = questions.current
     if (box === null || typeof ResizeObserver === 'undefined') {
@@ -256,7 +270,11 @@ export const PartViewer = ({
   }
 
   return (
-    <section // No minimum height: the panel decides how tall this is, and a floor under
+    <section
+      /* How far the boxes over the part reach, rounded — what the camera was
+         framed beside, and the seam a test reads that back through. */
+      data-part-inset={Math.round(inset)}
+      // No minimum height: the panel decides how tall this is, and a floor under
       // it made the canvas 77px taller than its panel at 720px, so the bottom of
       // the part was drawn under the tool list — and clicks there went to the
       // list, not the part. `tests/on-the-part.spec.ts` found it.
@@ -268,6 +286,9 @@ export const PartViewer = ({
       {overlay ? (
         <div
           ref={questions}
+          /* Named so a test can measure what the part is framed beside —
+             `shared/frame-inset.ts` is what does the framing. */
+          data-questions
           /*
            * Two columns, and they stay where they are: the questions, then
            * what is being read. It wrapped by height for a while and the
@@ -394,6 +415,24 @@ export const PartViewer = ({
               size measure the same size wherever they sit on the model.
             */}
             <Viewer projection="orthographic" zoomTo={zoomTo} onPointerMissed={onClear}>
+              {/*
+                **The part centres beside the questions, not behind them**
+                (Paul, 2026-09-10: "the viewer should really be only to the
+                right of the left hand panel — so the part centers next to the
+                list rather than behind it on small screens. I would, however,
+                still like to be able to see the part behind the list and keep
+                the layers that work now").
+
+                Both halves of that at once, which is why it is the camera that
+                is told and not the layout: the canvas keeps every pixel it has,
+                so the part still draws behind the translucent rows and every
+                overlay layer is untouched, and the *projection* frames into
+                what the column leaves. `shared/frame-inset.ts` is the rule.
+
+                The same measurement the feature record is placed by, and the
+                same 20px: this column's own left margin and the gap after it.
+              */}
+              <FrameInset boxes={questions} watch={overlay} onInset={setInset} />
               <EnginePart
                 report={viewerReport}
                 selection={[...selected]}

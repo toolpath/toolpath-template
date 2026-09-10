@@ -144,7 +144,7 @@ export const ComponentTally = ({ rows, empty, sort, descending, onSort }: Compon
       `tests/on-the-part.spec.ts` § "at a laptop width" exists for.
     */
     <div className="pointer-events-auto min-h-0 flex-1 overflow-y-auto rounded bg-zinc-950/75">
-      <table className="w-full border-collapse text-left">
+      <table data-over-part className="w-full border-collapse text-left">
         <caption className="sr-only">Components to order</caption>
         <thead className="sticky top-0 bg-zinc-950/95">
           <tr className="border-b border-zinc-800">

@@ -29,7 +29,7 @@ assembly, not a tool.**
 ## 1. The shape
 
 ```
-+ Feature  + Group  + Tool Assembly │      (the part)       │  ASSEMBLY
+(the three presses were here)       │      (the part)       │  ASSEMBLY
 ────────────────────────────────────┼───────────────────────┼───────────
  ⌀8 Through Hole                    │                       │  TOOL   …
  8.00 mm · 25.4 deep                │                       │  HOLDER …
@@ -50,8 +50,13 @@ Catalog no │ Vendor │ Type │ …                              │
 [ the rows for the open slot ]                              │
 ```
 
-With nothing being asked, the same column is the three presses and the order
-list under them — `docs/FEATURE-LIST.md` is the spec for the rows.
+The three presses — _+ Feature_, _+ Group_, _+ Tool Assembly_ — are not drawn
+while a stack is being built: the box has their place at the top of the viewer
+(Paul, 2026-09-10). With nothing being asked, the same column is the presses and
+the order list under them, and a face merely **previewed** keeps both, because
+the presses are what turns a preview into a row. `pressesShown` in
+`app/shared/part-chrome.ts` is the rule; `docs/FEATURE-LIST.md` § 5 is the spec
+for the column.
 
 - **The feature list is unchanged.** It still shows a row per thing asked about
   and each row's answers beneath it — `docs/FEATURE-LIST.md` is still the spec
@@ -260,6 +265,16 @@ the list as well. There is no order in which you confirm the feature and then
 confirm its tools: they are one decision, and splitting them left a built stack
 with no button to press at all. `carryDraftTree` moves the stacks onto the id the
 row is given.
+
+**And where the stack is empty, that press keeps the feature on its own** (Paul,
+2026-09-10: "I should be able to create a feature or group without adding a
+tool"). It reads **Add feature to list** — **Add group to list** for a group —
+and it orders nothing: the row goes onto the list marked incomplete, dashed, with
+whatever is standing in the stack carried onto it. The moment a component is
+picked it becomes **Add to order list** again, in the same place, so choosing a
+tool changes what the button will do rather than where it is. A **part-level tool
+assembly** is the one subject with no such press: it _is_ its order, so an empty
+one is a row about nothing (Paul, 2026-09-08), and its button stays greyed.
 
 **Making the row writes no lines of its own.** `billFor` returns without writing
 a line, so what reaches the order list is the assembly whose button was
@@ -472,15 +487,73 @@ What changed is where a line comes from:
 - **The stack's own button is where it is confirmed, and it is on screen from
   the start.** `assemblyActions` decides which of **Add to order list** (row or
   no row), **Replace A with B**, the update and **Remove from order list**
-  apply. A stack with nothing in it to order gets the same **Add to order list**
-  in the same place, **greyed** (Paul, 2026-09-09: "Add to order list should be
-  shown by default but greyed out until a component is selected. Right now it is
-  hidden by default") — `nothingYet` in `assembly-actions.ts`; a button that
+  apply. A stack with nothing in it to order and a row already on the list gets
+  the same **Add to order list** in the same place, **greyed** (Paul,
+  2026-09-09: "Add to order list should be shown by default but greyed out until
+  a component is selected. Right now it is hidden by default") — a button that
   appears the moment a table row is clicked says nothing about what the table is
-  for — the same states `tool-actions` distinguishes for one tool,
+  for. An empty stack with **no row yet** gets **Add feature to list** instead,
+  enabled, because that is the one thing an empty stack can do (Paul,
+  2026-09-10). Both are `nothingYet` in `assembly-actions.ts` — the same states
+  `tool-actions` distinguishes for one tool,
   asked of a stack. The update appears only when the holding differs from what is
   saved. Named for the page the press is _for_: "Add to feature" named the row it
   wrote against, and the order list is what a shop reads.
+- **A stack nobody has ordered adopts no line** (Paul, 2026-09-10: "when I
+  select the same tool as a second assembly for a feature, it autofills
+  everything and does some odd stuff — secondary assemblies added to a feature or
+  group should be treated as unique, new assemblies"). `savedFor` fell back to
+  the tool standing in the stack, so a second assembly given the first's cutter
+  found the first's line and _became_ it: its empty holder slot drew the other
+  stack's holder struck through to a dash, and the press under it offered to take
+  that holder off. `orderedTool` is now the whole of the link — every stack
+  genuinely on the bill carries it, and the field already documented its own
+  absence as _not on the order list_.
+
+  **The double-up is said where it is made**, too (Paul, 2026-09-10: "would it be
+  possible to flag duplicates when they are added, even if an assembly has not
+  been added to the list yet? Show a (×2, used in Assembly 1) in the feature
+  dialog"). Every slot holding a component another stack of the tree holds wears
+  `×2, used in Assembly 1` — `sharedWith` / `sharedPhrase` in
+  `app/shared/assembly-tree.ts`, read across _every_ slot rather than the same
+  one, because a collet bought twice is two collets whichever row it sits on. The
+  table's own mark is about the order list; this is about the tree in hand.
+
+  **And two of one assembly are counted rather than collapsed** (Paul,
+  2026-09-10: "duplicates are now showing up as separate line items — in either
+  order list view … that should show 2 assemblies and a count of two of each
+  component"). The sheet keys a line by its tool, so a row cannot hold the same
+  cutter on two lines — what it holds is `Choice.total`, how many of that
+  assembly, which `componentTotals` has always multiplied every component by.
+  Nothing was writing it: `applyStacks` in `routes/part.tsx` now counts the
+  stacks of the row standing as that cutter and writes it, the part page's line
+  wears the `×2`, and taking one of two off leaves the line with a one on it
+  rather than removing it.
+
+  **What is still keyed by the tool is the line itself.** A row holding one
+  cutter in two stacks _with different holding_ — the same end mill at two
+  stickouts — cannot keep both: the second overwrites the first. Counting fixes
+  the identical case, which is the one a shop hits; the general case needs a line
+  keyed by the stack that ordered it rather than by the tool in it.
+
+- **Enter is about the box; the button is about the assembly** (Paul,
+  2026-09-10: "when I create two tool assemblies on a group and click enter, it
+  only adds the first to the list. It should add everything that is currently in
+  the dialog"). A pocket's rougher and its finisher each carry a press, because
+  each is a thing a shop orders on its own — but the key that stands for
+  _finishing the box_ means all of them. `orderPress` in `routes/part.tsx`
+  folds every group with an ordering press to make; the write itself is
+  `applyStacks`, one function for the button and the key, because a loop over
+  the buttons would have each of them computing from the state before the last:
+  the second line would undo the first, and the row would be made twice.
+- **_Add assembly_ opens the new stack on its tool** (Paul, 2026-09-10: "focus
+  shouldn't go immediately to renaming a tool assembly when a new one is added —
+  it should start at the default name and focus should go to the tool component
+  selection for it. We can always rename later"). It used to open the name field
+  on the stack it made, on the 2026-09-08 rule that a stack is named when it is
+  made; the press is for _another cutter_, so what it put on screen was a text
+  box over an empty stack and the next thing to do was dismiss it. The pencil
+  beside the card is still there whenever a better name turns up.
 - **The update button says what pressing it changes**, naming both components:
   _Change holder from BT30-ER16-100DT to BT30-ER11-60_ (Paul, 2026-09-07). With
   the stack drawn once and the button under it, the one sentence left to say is
