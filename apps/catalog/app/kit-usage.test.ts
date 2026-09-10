@@ -12,8 +12,25 @@ const componentFiles = (dir: string): Array<string> =>
     return path.endsWith('.tsx') && !path.endsWith('.test.tsx') ? [path] : []
   })
 
+/**
+ * The file with its comments taken out.
+ *
+ * `<button>` appears in this application's prose about as often as in its
+ * markup, and every mention is a component explaining why it reached for a kit
+ * `Button` instead — so counting the raw text reports the rule being *kept* as
+ * the rule being broken. It did: five mentions across `feature-list-panel.tsx`
+ * and `assembly-tree-panel.tsx` failed this check against a budget of zero on
+ * 2026-09-10, with no hand-authored button anywhere in either file.
+ *
+ * Scanning rather than parsing, which is what the rest of this file does. The
+ * `[^:]` is what keeps `https://` from eating the rest of a line, and with it
+ * a real control written after a URL.
+ */
+const withoutComments = (source: string): string =>
+  source.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/(^|[^:])\/\/.*$/gm, '$1')
+
 const countTag = (file: string, tag: string): number =>
-  readFileSync(file, 'utf8').match(new RegExp(`<${tag}[\\s>]`, 'g'))?.length ?? 0
+  withoutComments(readFileSync(file, 'utf8')).match(new RegExp(`<${tag}[\\s>]`, 'g'))?.length ?? 0
 
 describe('catalog uses Toolpath UI controls', () => {
   const files = componentFiles('app')

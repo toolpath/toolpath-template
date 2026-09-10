@@ -39,7 +39,11 @@ import {
 import { scrapeEndMills } from '@toolpath/tool-scraper/vendors/destinytool'
 import { scrapeCategory, type EmugeTarget } from '@toolpath/tool-scraper/vendors/emuge'
 import { scrapeProduct } from '@toolpath/tool-scraper/vendors/harvey'
-import { addThreadPitch, scrapeFamily } from '@toolpath/tool-scraper/vendors/kennametal'
+import {
+  addThreadPitch,
+  annotateCadUrls,
+  scrapeFamily,
+} from '@toolpath/tool-scraper/vendors/kennametal'
 import { scrapeHolders as scrapeMaritoolHolders } from '@toolpath/tool-scraper/vendors/maritool'
 import {
   scrapeCollets as scrapeRegofixCollets,
@@ -473,7 +477,7 @@ type HoldingRun = (fetcher: Fetcher, warn?: Warn) => Promise<ScrapeResult>
  * Kennametal holder families reported `FAILED` against a gate that had just
  * called them reachable (2026-09-08).
  */
-type HoldingScraper = (csvName: string) => HoldingRun | null
+type HoldingScraper = (csvName: string, family: BoundToolholding) => HoldingRun | null
 
 /**
  * The vendors whose toolholding this package can reach, and how.
@@ -488,44 +492,29 @@ type HoldingScraper = (csvName: string) => HoldingRun | null
  * rather than being typed here, except the group name, which is the one string
  * the family config does not carry.
  */
-/**
- * The Kennametal family code behind each toolholding family, by CSV name.
- *
- * **Declared here because nothing declares it.** A cutting-tool family carries
- * its own `familyCode`; a toolholding family carries none, and the scraper's
- * own `families/kennametal.ts` says why — the codes "were scraped by hand from
- * a code read off the page at the time". Kennametal's category pages build
- * their family lists in the browser, so there is nothing to read them off
- * without one.
- *
- * Read from the vendor's own family-page URLs (Paul, 2026-09-07), which are
- * `fam.<slug>.<code>.html`. The slug does not matter — AEM resolves the page
- * off the numeric code alone — so the slug is kept here only as the evidence
- * of which page the code came from.
- *
- * This is the same stopgap `REGOFIX_COLLET_GROUPS` below is: a table the
- * scraper should own, kept here until toolholding has a record seam.
- */
-const KENNAMETAL_HOLDING_CODES: Readonly<Record<string, string>> = {
-  // fam.er-standard-collets-metric.100000478.html
-  'er_standard_collets_metric.csv': '100000478',
-  // fam.er-standard-collets-inch.100000479.html — the inch listing of the same
-  // ER standard collet, which is what the vendor publishes under that name.
-  'er16_collets_coolant_through_inch.csv': '100000479',
-  // fam.er-collet-adapter-bt30.100149552.html
-  'bt30_er_collet_adapters_metric.csv': '100149552',
-}
-
 const HOLDING_SCRAPERS: Readonly<Record<string, HoldingScraper>> = {
   /**
    * The AEM variant table, the same endpoint the cutting tools come from.
    *
-   * A family this table has no code for answers `null`, which `holdingReachable`
-   * reports as the family not being one this brand knows — the honest answer,
-   * and the one that keeps a missing code from reading as a broken scrape.
+   * **The family states its own code.** A hand-typed
+   * `KENNAMETAL_HOLDING_CODES` lived here from 2026-09-07 because a toolholding
+   * family carried none and Kennametal's category pages build their family
+   * lists in the browser, so there was nothing to read one off without one.
+   * `@toolpath/tool-scraper` records `familyCode` on a toolholding family as of
+   * 2026-09-08 — the fact that makes a re-scrape re-runnable — so the table
+   * came out on 2026-09-10 rather than being carried beside 174 codes it would
+   * have had to restate. It was already wrong once: it pointed
+   * `er16_collets_coolant_through_inch.csv` at `100000479`, which is the ER
+   * *standard* inch listing, so that family would have been filled with another
+   * family's rows.
+   *
+   * A family the scraper states no code for answers `null`, which
+   * `holdingReachable` reports as the family not being one this brand knows —
+   * the honest answer, and the one that keeps a missing code from reading as a
+   * broken scrape.
    */
-  kennametal: (csvName) => {
-    const code = KENNAMETAL_HOLDING_CODES[csvName]
+  kennametal: (_csvName, family) => {
+    const code = family.familyCode
     return code === undefined
       ? null
       : (fetcher) => scrapeFamily(fetcher, code, 'kennametal', [], AEM_TITLE)
@@ -613,7 +602,7 @@ export const holdingReachable = (csvName: string, family: BoundToolholding): str
   if (family.records === undefined) {
     return `${brand} has no ${family.kind} record mapper`
   }
-  if (scraper(csvName) === null) {
+  if (scraper(csvName, family) === null) {
     return `${brand} declares no scrape target for ${csvName}`
   }
   return null
@@ -688,6 +677,67 @@ export interface ScrapedToolholding {
   readonly unmapped: number
 }
 
+/**
+ * The brands whose toolholding rows need a second pass to carry a CAD model.
+ *
+ * MariTool and REGO-FIX publish a model link on the page a holder is scraped
+ * from, so those records arrive with `cadModelUrl` already set. Kennametal
+ * publishes none on a family page: the model is one request per part against
+ * product-config.net, which is what `toolpath-scrape cad` does at the CSV seam
+ * and what `annotateCadUrls` does here at the record one. `cadModelSource` is
+ * what tells the two silences apart — `unspecified` means nobody looked,
+ * `vendor-stated` with a null URL means the lookup ran and this part has no
+ * model.
+ *
+ * **Without the pass the whole Kennametal rack is invisible.** A holder is
+ * offered in the catalog only if it can be drawn, and a record-seam holder is
+ * drawable only once its own model has been measured — so the 1,192 Kennametal
+ * holders scraped on 2026-09-10 reached the application and not one of them
+ * appeared in a holder slot.
+ *
+ * The same two brands the scraper's own CLI annotates, and for its reason: one
+ * AEM platform, one CAD service.
+ */
+const CAD_ANNOTATORS: Partial<Record<BrandName, typeof annotateCadUrls>> = {
+  kennametal: annotateCadUrls,
+  widia: annotateCadUrls,
+}
+
+/**
+ * Whether this family's rows need the CAD pass.
+ *
+ * **Holders only, deliberately.** The pass is one paced request per row, so it
+ * roughly doubles a Kennametal run — and a collet is held rather than drawn:
+ * nothing measures one, and `drawable` never asks it for a silhouette. Adding
+ * 443 requests for a column no reader has would be paying the whole cost for
+ * none of the benefit.
+ */
+export const needsCadPass = (family: BoundToolholding): boolean =>
+  family.kind === 'holder' && CAD_ANNOTATORS[familyBrand(family)] !== undefined
+
+/** One family's rows, carrying the CAD column its vendor needs a second pass for. */
+const withCadModels = async (
+  fetcher: Fetcher,
+  csvName: string,
+  family: BoundToolholding,
+  scrape: ScrapeResult,
+  warn?: Warn,
+): Promise<ScrapeResult> => {
+  const annotate = CAD_ANNOTATORS[familyBrand(family)]
+  if (annotate === undefined || !needsCadPass(family)) {
+    return scrape
+  }
+
+  const annotated = await annotate(fetcher, scrape)
+  // Said out loud rather than left to the holder count: a family whose lookups
+  // all miss scrapes and ingests exactly like one whose lookups all hit, and
+  // is invisible in the application either way.
+  if (annotated.found === 0 && scrape.rows.length > 0) {
+    warn?.(`${csvName}: no CAD model for any of ${String(scrape.rows.length)} rows`)
+  }
+  return annotated.scrape
+}
+
 /** One toolholding family, scraped and mapped onto the handoff. */
 export const scrapeHoldingOne = async (
   fetcher: Fetcher,
@@ -701,12 +751,13 @@ export const scrapeHoldingOne = async (
     throw new ScrapeError(`no toolholding scraper reachable from this package drives ${brand}`)
   }
 
-  const run = scraper(csvName)
+  const run = scraper(csvName, family)
   if (run === null) {
     throw new ScrapeError(`${brand} declares no scrape target for ${csvName}`)
   }
 
-  const scrape = await run(fetcher, warn)
+  const scraped = await run(fetcher, warn)
+  const scrape = await withCadModels(fetcher, csvName, family, scraped, warn)
 
   const records = toHolding(csvName, scrape, warn === undefined ? {} : { warn })
   const familyId = csvName.replace(/\.csv$/, '')

@@ -211,6 +211,31 @@ commits this work needs are on `ui-packages` `main` and in no release:
 (`ToolRecord.productLine` on every record, and the Kennametal family page),
 `9dbe657` (an incomplete part is skipped rather than failing its family).
 
+**2026-09-10: (b) again, on request.** The manifest declares `2.4.0` and the
+root `pnpm.overrides` points that name back at
+`link:../toolpath-ui-packages/packages/tool-scraper`, so the scrape runs
+against the working copy of the scraper rather than the registry.
+
+It surfaced something the moment it was linked. That checkout declares 192
+toolholding families where the registry's 2.4.0 declares 28 — 158 Kennametal
+holder families and sixteen Kennametal collet families, each carrying its own
+`familyCode` — and `scrape.test.ts` failed with 171 families refused against
+the seven `KENNAMETAL_HOLDING_CODES` knew, which is the sensor doing exactly
+what its comment says it is for.
+
+**So `KENNAMETAL_HOLDING_CODES` came out.** It existed because a toolholding
+family carried no code and Kennametal's category pages build their family lists
+in the browser; the scraper records `familyCode` on a toolholding family as of
+2026-09-08, so the hand-typed table was a copy of a fact that now has an owner.
+`HoldingScraper` takes the family as well as the CSV name, and the Kennametal
+entry reads `family.familyCode`. Two of the three codes it held matched
+upstream exactly; the third did not, and was a live fault —
+`er16_collets_coolant_through_inch.csv` was pointed at `100000479`, the ER
+_standard_ inch listing, so that family would have been scraped full of another
+family's rows. The check that used to list seven exceptions now demands none,
+and a second case proves a refusal is still reachable by stripping the code off
+a real family.
+
 **That line breaks a clone.** `link:` resolves against the root, so anyone
 without a `toolpath-ui-packages` checkout beside this one fails at
 `pnpm install` — the exact failure § Phase 2 of the catalog plan describes.
