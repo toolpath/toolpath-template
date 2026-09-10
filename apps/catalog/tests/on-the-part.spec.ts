@@ -175,7 +175,14 @@ const orderPress = (page: Page) =>
  */
 const openRow = async (page: Page, index = 0) => {
   const list = await orderList(page)
-  await list.locator('li button[aria-pressed]').nth(index).click()
+  /*
+   * The answer under a row is a button too. Selecting from every button in the
+   * list made row 2 mean the first row's ordered tool once it had an answer,
+   * which reopened that row instead of the second feature. The list's direct
+   * children are its rows; within one, the first pressed-state button is its
+   * row control rather than an answer nested below it.
+   */
+  await list.locator(':scope > li').nth(index).locator('button[aria-pressed]').first().click()
   const tree = page.locator('[data-assembly-tree]')
   await expect(tree).toBeVisible()
   return tree
