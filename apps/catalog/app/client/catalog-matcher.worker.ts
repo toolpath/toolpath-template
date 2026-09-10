@@ -77,7 +77,15 @@ const poolFor = (
   demand: MatchRequest['demands'][number],
 ): ReadonlyArray<CatalogTool> => {
   const widened = { ...context, query: withoutFacets(context.query) }
-  const key = matchKey('table', widened, [demand])
+  /*
+    **The stack is left out of the key, deliberately.** What it narrows is the
+    counts taken *over* this pool, never the pool itself — `detailedMatch`
+    § `counted` is where it is applied — so a holder or a collet picked in the
+    tree must not evict a judging pass that would come back identical.
+    `stable` drops an undefined value, so this is the key a demand with no
+    stack writes.
+  */
+  const key = matchKey('table', widened, [{ ...demand, stack: undefined }])
   const cached = pools.get(key)
   if (cached !== undefined) {
     return cached

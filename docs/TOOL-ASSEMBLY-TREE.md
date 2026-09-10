@@ -889,55 +889,56 @@ gets it.
 
 ## 7. Where the rules live
 
-| Rule                                              | File                                             |
-| ------------------------------------------------- | ------------------------------------------------ |
-| what a tree holds, its slots, its storage         | `app/shared/assembly-tree.ts`                    |
-| what a threaded hole starts with                  | `defaultAssemblies`, same file                   |
-| the stacks following the thread on the hole read  | `forThread`, same file                           |
-| how the stacks nest, and their drawing order      | `treeRows`, same file                            |
-| what narrows what                                 | `app/shared/assembly-narrowing.ts`               |
-| whether a chuck is worth offering with no collet  | `holderMayTake`, `@toolpath/catalog-data`        |
-| why an offered chuck cannot be built today        | `colletGap`, `app/shared/assembly-narrowing.ts`  |
-| whether the rack shows them, and how many         | `holdersToOffer` `shown` / `stocked`, same file  |
-| the press that decides, and its words             | `app/components/no-collet-toggle.tsx`            |
-| what a stack offers, and its button's words       | `app/shared/assembly-actions.ts`                 |
-| which press orders, and which Enter stands for    | `isOrdering` / `orderingPress`, same file        |
-| which layer one press of Enter or Escape reaches  | `useKeyLayer`, `app/shared/use-escape.ts`        |
-| whether the page stands down for an open filter   | `columnFilterOpen`, same file                    |
-| how tall a filter menu is, and which way it opens | `place`, `components/column-filter.tsx`          |
-| what overruling the rules offers                  | `overridableTools`, `app/shared/tool-fit.ts`     |
-| what an axis has that the list is not showing     | `hiddenOn`, `app/routes/part.tsx`                |
-| the `…` row that offers it                        | `TermFilter`, `components/column-filter.tsx`     |
-| the form behind a Type phrase                     | `formOfTypeLabel`, `app/shared/tool-type.ts`     |
-| what a tick on Type asks the form filter          | `formsAsking`, same file                         |
-| the forms the type table stands down for          | `asked`, `app/shared/judge.ts`                   |
-| how many questions a group actually asks          | `distinctQuestions`, `app/shared/tool-fit.ts`    |
-| folding one tool's verdicts as they are judged    | `foldOnto`, `app/shared/judge.ts`                |
-| what a threaded hole's drill list may show        | `predrillFormsOf`, `app/shared/hole-mode.ts`     |
-| how many each column alone holds back             | `overridableTally`, same file                    |
-| which column a rule is about                      | `columnOfRule`, `app/shared/tool-marks.ts`       |
-| the note a changed filter raises                  | `OverrideNotice`, `components/column-filter.tsx` |
-| the press that confirms it                        | `OverrideToggle`, same file                      |
-| `at most` meaning at most across a unit change    | `BOUND_SLACK`, `app/shared/filter.ts`            |
-| which slots were filled against the rules         | `overrides`, `assembly-tree.ts`                  |
-| the words a warning says                          | `overrideNote`, `app/shared/tool-marks.ts`       |
-| what a whole assembly offers, over all its stacks | `groupActions`, same file                        |
-| which stacks make up one assembly                 | `treeGroups` / `stacksOf`, `assembly-tree.ts`    |
-| what the bill already holds for a stack           | `savedFor`, same file                            |
-| putting a stack back to the bill's line           | `restoreAssembly`, `assembly-tree.ts`            |
-| what a stack is called, and where a part stands   | `assemblyName` / `heldIn`, same file             |
-| the name somebody gave a stack, and clearing it   | `renameAssembly`, same file                      |
-| the field a name is typed in, in both places      | `app/components/name-field.tsx`                  |
-| the length below the holder a stack needs         | `belowHolder`, `app/shared/drawn-assembly.ts`    |
-| the words the clearance verdict is said in        | `verdictNote`, `components/catalog-drawing.tsx`  |
-| the columns a holder and a collet are read on     | `app/shared/component-columns.ts`                |
-| narrowing a rack by brand, type, family, a number | `app/shared/component-query.ts`                  |
-| which of the three lists the table is             | `listKind` / `chooseList`, `routes/part.tsx`     |
-| the tree on screen                                | `app/components/assembly-tree-panel.tsx`         |
-| the holder and collet tables                      | `app/components/component-table.tsx`             |
-| their filters                                     | `app/components/component-filters.tsx`           |
-| the component being read                          | `app/components/assembly-panel.tsx`              |
-| everything wired together                         | `app/routes/part.tsx`                            |
+| Rule                                              | File                                                 |
+| ------------------------------------------------- | ---------------------------------------------------- |
+| what a tree holds, its slots, its storage         | `app/shared/assembly-tree.ts`                        |
+| what a threaded hole starts with                  | `defaultAssemblies`, same file                       |
+| the stacks following the thread on the hole read  | `forThread`, same file                               |
+| how the stacks nest, and their drawing order      | `treeRows`, same file                                |
+| what narrows what                                 | `app/shared/assembly-narrowing.ts`                   |
+| the same narrowing under a filter's own counts    | `MatchDemand.stack`, `app/shared/catalog-matcher.ts` |
+| whether a chuck is worth offering with no collet  | `holderMayTake`, `@toolpath/catalog-data`            |
+| why an offered chuck cannot be built today        | `colletGap`, `app/shared/assembly-narrowing.ts`      |
+| whether the rack shows them, and how many         | `holdersToOffer` `shown` / `stocked`, same file      |
+| the press that decides, and its words             | `app/components/no-collet-toggle.tsx`                |
+| what a stack offers, and its button's words       | `app/shared/assembly-actions.ts`                     |
+| which press orders, and which Enter stands for    | `isOrdering` / `orderingPress`, same file            |
+| which layer one press of Enter or Escape reaches  | `useKeyLayer`, `app/shared/use-escape.ts`            |
+| whether the page stands down for an open filter   | `columnFilterOpen`, same file                        |
+| how tall a filter menu is, and which way it opens | `place`, `components/column-filter.tsx`              |
+| what overruling the rules offers                  | `overridableTools`, `app/shared/tool-fit.ts`         |
+| what an axis has that the list is not showing     | `hiddenOn`, `app/routes/part.tsx`                    |
+| the `…` row that offers it                        | `TermFilter`, `components/column-filter.tsx`         |
+| the form behind a Type phrase                     | `formOfTypeLabel`, `app/shared/tool-type.ts`         |
+| what a tick on Type asks the form filter          | `formsAsking`, same file                             |
+| the forms the type table stands down for          | `asked`, `app/shared/judge.ts`                       |
+| how many questions a group actually asks          | `distinctQuestions`, `app/shared/tool-fit.ts`        |
+| folding one tool's verdicts as they are judged    | `foldOnto`, `app/shared/judge.ts`                    |
+| what a threaded hole's drill list may show        | `predrillFormsOf`, `app/shared/hole-mode.ts`         |
+| how many each column alone holds back             | `overridableTally`, same file                        |
+| which column a rule is about                      | `columnOfRule`, `app/shared/tool-marks.ts`           |
+| the note a changed filter raises                  | `OverrideNotice`, `components/column-filter.tsx`     |
+| the press that confirms it                        | `OverrideToggle`, same file                          |
+| `at most` meaning at most across a unit change    | `BOUND_SLACK`, `app/shared/filter.ts`                |
+| which slots were filled against the rules         | `overrides`, `assembly-tree.ts`                      |
+| the words a warning says                          | `overrideNote`, `app/shared/tool-marks.ts`           |
+| what a whole assembly offers, over all its stacks | `groupActions`, same file                            |
+| which stacks make up one assembly                 | `treeGroups` / `stacksOf`, `assembly-tree.ts`        |
+| what the bill already holds for a stack           | `savedFor`, same file                                |
+| putting a stack back to the bill's line           | `restoreAssembly`, `assembly-tree.ts`                |
+| what a stack is called, and where a part stands   | `assemblyName` / `heldIn`, same file                 |
+| the name somebody gave a stack, and clearing it   | `renameAssembly`, same file                          |
+| the field a name is typed in, in both places      | `app/components/name-field.tsx`                      |
+| the length below the holder a stack needs         | `belowHolder`, `app/shared/drawn-assembly.ts`        |
+| the words the clearance verdict is said in        | `verdictNote`, `components/catalog-drawing.tsx`      |
+| the columns a holder and a collet are read on     | `app/shared/component-columns.ts`                    |
+| narrowing a rack by brand, type, family, a number | `app/shared/component-query.ts`                      |
+| which of the three lists the table is             | `listKind` / `chooseList`, `routes/part.tsx`         |
+| the tree on screen                                | `app/components/assembly-tree-panel.tsx`             |
+| the holder and collet tables                      | `app/components/component-table.tsx`                 |
+| their filters                                     | `app/components/component-filters.tsx`               |
+| the component being read                          | `app/components/assembly-panel.tsx`                  |
+| everything wired together                         | `app/routes/part.tsx`                                |
 
 Each pure module owns its tests. The tree's own end-to-end coverage is the
 `the tool assembly tree` block in `tests/on-the-part.spec.ts`, against the cube

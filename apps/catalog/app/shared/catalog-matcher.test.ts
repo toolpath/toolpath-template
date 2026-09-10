@@ -502,6 +502,48 @@ describe('the counts an axis offers while it is narrowing', () => {
     expect(result.facetCounts?.type).toEqual({ 'Flat end mill': 1 })
   })
 
+  /**
+   * **A count is measured over the rows it stands beside** (Paul, 2026-09-10: a
+   * pocket offering six necked bull nose end mills over a table holding none).
+   * The tool table under an assembly is `narrowTools` applied to this answer,
+   * so a collet in the stack takes every shank it cannot close on off the
+   * screen — and the counts knew nothing about it.
+   */
+  it('counts only what the collet in the stack can hold', () => {
+    const wider: Collet = {
+      ...collet,
+      guid: 'collet-2',
+      catalogNumber: 'PG6-7',
+      clampMin: 7,
+      clampMax: 7,
+    }
+    const stocked = { tools: crib.tools, holders: [holder], collets: [collet, wider] }
+    const query = asked({ brand: ['Kennametal'] })
+
+    // The crib holds both shanks, so all three tools are on the widened pool.
+    expect(detailedMatch(query, demand, stocked).facetCounts?.brand).toEqual({
+      Kennametal: 1,
+      WIDIA: 2,
+    })
+
+    const inStack = { ...demand, stack: { holderGuid: holder.guid, colletGuid: collet.guid } }
+
+    // `collet-1` closes on ⌀6 alone, which is the ⌀7 WIDIA tool off the table.
+    expect(detailedMatch(query, inStack, stocked).facetCounts?.brand).toEqual({
+      Kennametal: 1,
+      WIDIA: 1,
+    })
+  })
+
+  it('leaves a stack whose guids name nothing in this crib alone', () => {
+    const stocked = { tools: crib.tools, holders: [holder], collets: [collet] }
+    const gone = { ...demand, stack: { holderGuid: 'holder-gone', colletGuid: 'collet-gone' } }
+
+    expect(
+      detailedMatch(asked({ brand: ['Kennametal'] }), gone, stocked).facetCounts?.brand,
+    ).toEqual({ Kennametal: 1, WIDIA: 1 })
+  })
+
   it("leaves a caller's widened pool alone rather than judging a second time", () => {
     const pool = facetPool(asked({ brand: ['Kennametal'] }), demand, crib)
 

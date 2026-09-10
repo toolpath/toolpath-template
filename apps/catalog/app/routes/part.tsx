@@ -1531,6 +1531,270 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     () => ownBounds(query.ranges, suggestions.ranges),
     [query.ranges, suggestions],
   )
+  /*
+    The tree, the row it belongs to and the key it is stored under stand ahead
+    of the matcher because the matcher is told about them (2026-09-10): the
+    counts a filter offers are measured over the pool the tool table draws, and
+    the table under a stack is that pool with `narrowTools` on it. See
+    `MatchDemand.stack` in `shared/catalog-matcher.ts`.
+  */
+  /** Which feature the choice is for: the one being read, or the part as a whole. */
+  /**
+   * Which feature the choice is for: the one being read, or the part as a whole.
+   *
+   * **The group's own tag, not the sibling that happened to be clicked** (Paul,
+   * 2026-09-02: "if a tool is on the list and a holder is added to it, it
+   * should update the existing tool on the BOM rather than create a new one").
+   * Eight identical holes are one decision everywhere else on this page; keyed
+   * by whichever of them was under the mouse, the panel wrote a second line
+   * beside the one the feature list had already put there.
+   */
+  const choiceKey = useMemo(() => {
+    if (focused === null) {
+      return '*'
+    }
+    /*
+      **The row's key, where a row holds this reading** (Paul, 2026-09-09).
+      It used to be the *hole group's* first tag, which was the same thing while
+      every row held whole hole groups — a hole cannot be asked about alone any
+      more than a bolt circle could. It is not the same thing now: a feature
+      made from the second hole of a group is keyed by that hole, and a panel
+      still keying by the first wrote its lines where nothing read them.
+
+      Reading the list is also the honest way to state the 2026-09-02 rule: a
+      sibling clicked on a group already on the list updates that group's line
+      rather than opening a second one beside it, whatever grouping is doing.
+    */
+    const holder = list.find((item) => item.tags.includes(focused))
+    return holder ? (sheetKeysOf(holder)[0] ?? focused) : focused
+  }, [focused, list])
+
+  /**
+   * The row on the list the panel's buttons act on, where there is one.
+   *
+   * A previewed feature can already be on the list — clicking it on the part is
+   * how somebody goes back to it — so this is not simply the selected row.
+   */
+  const activeItem = useMemo(
+    () =>
+      /*
+        **An assembly being built is not a row, and is not any other row
+        either** (Paul, 2026-09-08). It asks about no features, so the search
+        below would hand back whichever row happened to match nothing — and the
+        press under the stack would write that row's lines instead of making
+        its own.
+      */
+      (draft?.kind === 'assembly' ? null : selectedItem) ??
+      /*
+        **A question about nothing matches no row** (Paul, 2026-09-07: "when no
+        feature is selected, the tool table should not show any assemblies").
+        `[].every(...)` is true of every item, so with nothing being asked this
+        matched whichever row happened to be first and handed it out as the row
+        in play. `toolActions` never noticed — it is gated on `active` — but the
+        assembly tree took the row at its word and drew that feature's stacks
+        under a table showing the whole catalog.
+      */
+      (askedNow.tags.length === 0
+        ? null
+        : draft?.kind === 'assembly'
+          ? null
+          : /*
+              **A group being built is not the feature it holds** (Paul,
+              2026-09-09, with the group editor's own confirm gone). A group of
+              one hole that is already a row matches that row here, so the press
+              under the stack read as *add a tool to that feature* and the group
+              was never made — the confirm button used to make it, and there is
+              no confirm button any more. A group being *edited* is the row it
+              is editing, which the search below still finds.
+            */
+            draft?.kind === 'group' && draft.editing === null
+            ? null
+            : list.find((item) => askedNow.tags.every((tag) => item.tags.includes(tag)))) ??
+      null,
+    [selectedItem, list, askedNow.tags, draft?.kind, draft?.editing],
+  )
+
+  /* ----------------------- the tool assembly tree ------------------------- */
+
+  /**
+   * The shape being tried out, and the way back off it.
+   *
+   * **A feature is answered with assemblies, not tools** (Paul, 2026-09-07). A
+   * cutter is chosen with a holder and a collet; a threaded hole needs two
+   * stacks before it is a hole at all. The page asked for a tool and hung the
+   * other two off it as dropdowns, which made a holder a footnote on a tool and
+   * made the second stack for a feature unreachable.
+   *
+   * Behind a flag, switched in the header, because it replaces enough of this
+   * page at once that going back has to be a press rather than a revert.
+   */
+  /** Which slot of which stack is open, and the row it belongs to. */
+  const [nodeHeld, setNodeHeld] = useState<{ itemId: string; node: TreeNode } | null>(null)
+  const [holderQuery, setHolderQuery] = useState<ComponentQuery>(NO_QUERY)
+  const [colletQuery, setColletQuery] = useState<ComponentQuery>(NO_QUERY)
+  /**
+   * Whether the rack shows the chucks the crib has no collet for.
+   *
+   * **Off to begin with** (Paul, 2026-09-10: "by default, the holders with no
+   * collet should be hidden"). The rack opens on what the shop can actually
+   * build this afternoon, and the press asks the wider question — what could
+   * hold this, if a collet were ordered. The rule they are hidden *by* is the
+   * same one either way, and the count on the press is what stops the narrower
+   * rack reading as an empty crib.
+   *
+   * `components/no-collet-toggle.tsx` is the press and says why it exists. Not
+   * a filter: it is counted and cleared nowhere near `Clear n filters`, because
+   * it puts rows on the list rather than taking them off, and a shop that
+   * pressed it does not want it undone by clearing a taper.
+   */
+  const [noCollet, setNoCollet] = useState(false)
+  const [hiddenHolderColumns, setHiddenHolderColumns] = useState<ReadonlyArray<string>>(() =>
+    hiddenComponentColumns(HOLDER_COLUMNS),
+  )
+  const [holderColumnOrder, setHolderColumnOrder] = useState<ReadonlyArray<string>>(() =>
+    HOLDER_COLUMNS.map((column) => column.code),
+  )
+  const [hiddenColletColumns, setHiddenColletColumns] = useState<ReadonlyArray<string>>(() =>
+    hiddenComponentColumns(COLLET_COLUMNS),
+  )
+  const [colletColumnOrder, setColletColumnOrder] = useState<ReadonlyArray<string>>(() =>
+    COLLET_COLUMNS.map((column) => column.code),
+  )
+
+  /**
+   * Whose tree is on screen.
+   *
+   * **A draft has one before it is a row** (Paul, 2026-09-07: "when a new
+   * feature or group is selected (being created), the tree should already be
+   * shown"). Waiting for the row meant the bottom of the page had nothing in it
+   * during the one moment somebody is actually deciding — and the tools for the
+   * draft were already listed under it, which made the empty column beside them
+   * read as broken rather than as not-yet.
+   *
+   * The draft's stacks are kept under {@link DRAFT_TREE} and carried onto the
+   * row's own id when it is confirmed, so nothing built before the press is
+   * lost by making it.
+   *
+   * **Being created is wider than `draft`.** A plain click on a face previews a
+   * reading and offers the two ways in without opening a draft at all — that is
+   * `asked()`'s third row — and it is the commonest way a feature gets made. So
+   * anything being *asked* with no row of its own gets the draft's tree, which
+   * covers the preview and the group editor alike.
+   */
+  const treeKey =
+    /*
+      **Only the group editor takes the plain key** (Paul, 2026-09-07: "new hole
+      selections should be treated as new"). Its tags change under the mouse as
+      faces are toggled, so a key that moved with them would reset the tree
+      mid-build. A *feature* draft has settled tags and was taking that key as
+      well — and the key is kept in the browser, so the tap and drill stacks
+      built for one hole were still standing the next time anybody pressed
+      *Add feature*, on a hole nobody had called threaded.
+    */
+    draft?.kind === 'group'
+      ? DRAFT_TREE
+      : /*
+          **An assembly being built keeps its stacks under a key of its own.**
+          It has no tags, so `draftKeyFor([])` is that key — and `carryDraftTree`
+          reads the same one when the press makes the row, so nothing built
+          before the press is lost by making it.
+        */
+        draft?.kind === 'assembly'
+        ? draftKeyFor([])
+        : /*
+          **A part-level assembly is a tree with no question above it** (Paul,
+          2026-09-08). It asks about no feature, so `asking` is false for it —
+          and the row is still the thing being built, keyed by its own id like
+          every other row's tree.
+        */
+          selectedItem?.kind === 'assembly'
+          ? selectedItem.id
+          : // Nothing asked is nothing to assemble: the table is the whole catalog
+            // then, and a tree beside it would be answering for a feature nobody
+            // has selected.
+            !asking
+            ? null
+            : draft !== null
+              ? draftKeyFor(askedNow.tags)
+              : (activeItem?.id ?? draftKeyFor(askedNow.tags))
+  /**
+   * The stacks for that row — what was built, or what the bill already holds.
+   *
+   * A part answered before this shape existed, or with the flag off, has lines
+   * on the sheet and no tree; `treeFromLines` opens on those rather than on an
+   * empty stack, so switching the flag on does not read as work lost.
+   *
+   * **And whatever it opens on, the roles follow the thread.** A tree is kept
+   * in the browser and the thread a hole is read for is not, so a tap stack
+   * outlived the reading that asked for it — `forThread` is that rule, and it
+   * leaves any stack somebody has put a component in exactly as it stands.
+   */
+  const assemblies = useMemo<ReadonlyArray<TreeAssembly>>(() => {
+    if (treeKey === null) {
+      return []
+    }
+    const threaded = threadSpec !== null
+    const kept = trees[treeKey]
+    if (kept !== undefined) {
+      return forThread(kept, threaded)
+    }
+    /*
+      A draft opens on empty stacks rather than on the bill: it has no lines
+      yet, and reading the focused feature's would show another row's answers
+      under a feature being created.
+    */
+    return draft !== null || treeKey === DRAFT_TREE
+      ? defaultAssemblies(threaded)
+      : treeFromLines(
+          /*
+            A part-level assembly's lines are kept under its own id — it has no
+            feature to be keyed by — so reading `choiceKey` here would open it
+            on whatever face was last clicked. Every key of the row it is,
+            because that is where the lines were written (`shared/order-list`).
+          */
+          linesOf(sheet, selectedItem === null ? [choiceKey] : sheetKeysOf(selectedItem)),
+          threaded,
+          // Which line is the tap is a fact about the tool, and the catalog is
+          // the route's to read.
+          (toolGuid) => getTool(toolGuid)?.form.startsWith('tap ') ?? false,
+        )
+  }, [trees, treeKey, sheet, choiceKey, threadSpec, draft, selectedItem])
+
+  /**
+   * The slot open now: what was clicked while it still exists, else the first
+   * question the tree has not been answered.
+   *
+   * Derived rather than kept in an effect, and stamped with the row it was
+   * clicked on — every tree starts at `assembly-1`, so a node held across a
+   * change of row would land on a different feature's stack of the same name.
+   */
+  const node = useMemo<TreeNode | null>(() => {
+    const held =
+      nodeHeld !== null &&
+      nodeHeld.itemId === treeKey &&
+      assemblies.some((each) => each.id === nodeHeld.node.assemblyId)
+        ? nodeHeld.node
+        : null
+    return held ?? firstNode(assemblies)
+  }, [nodeHeld, treeKey, assemblies])
+
+  const selectNode = useCallback(
+    (next: TreeNode) => {
+      if (treeKey !== null) {
+        setNodeHeld({ itemId: treeKey, node: next })
+      }
+    },
+    [treeKey],
+  )
+
+  const assembly = useMemo(
+    () => assemblyNamed(assemblies, node?.assemblyId ?? null),
+    [assemblies, node],
+  )
+  const treeTool = assembly?.toolGuid == null ? null : getTool(assembly.toolGuid)
+  const treeHolder = assembly?.holderGuid == null ? null : getHolder(assembly.holderGuid)
+  const treeCollet = assembly?.colletGuid == null ? null : getCollet(assembly.colletGuid)
+
   const tableContext = useMemo<MatchContext>(
     () => ({
       features: report.features,
@@ -1576,8 +1840,26 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       tags: askedNow.tags,
       ...(Object.keys(bores).length === 0 ? {} : { bores }),
       reachTag: focused,
+      /*
+        **What the open stack holds, so a count is measured over the rows it
+        stands beside** (Paul, 2026-09-10). `treeToolRows` narrows this answer
+        by the holder and the collet already chosen; without them the worker
+        counted what the *crib* could hold and offered six tools over a table
+        showing none. `MatchDemand.stack` is the rule.
+      */
+      stack: { holderGuid: assembly?.holderGuid ?? null, colletGuid: assembly?.colletGuid ?? null },
     }
-  }, [asking, perFeature, threadSpec, holeChoice.mode, focused, report.features, askedNow.tags])
+  }, [
+    asking,
+    perFeature,
+    threadSpec,
+    holeChoice.mode,
+    focused,
+    report.features,
+    askedNow.tags,
+    assembly?.holderGuid,
+    assembly?.colletGuid,
+  ])
   const tableKey = useMemo(
     () => (tableDemand === null ? null : matchKey('table', tableContext, [tableDemand])),
     [tableContext, tableDemand],
@@ -1884,6 +2166,20 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     return drillsFirst(shownTools.filter((each) => predrillForms.includes(each.form)))
   }, [asking, catalogList, tools, closest, overrideTools, drillsOnly, predrillForms])
   /**
+   * The same rows with the open stack's own narrowing on them.
+   *
+   * **A count is measured over the list it stands beside** (Paul, 2026-09-10).
+   * The tool table under an assembly is {@link treeToolRows}, which is this
+   * list narrowed by the holder and the collet already chosen — so a count
+   * taken off `listed` offers tools the table has no intention of drawing. The
+   * matcher's own counts obey the same rule through `MatchDemand.stack`; this
+   * is the half that answers while the worker has nothing to say.
+   */
+  const listedInStack = useMemo(
+    () => narrowTools(listed, { holder: treeHolder, collet: treeCollet }, allCollets),
+    [listed, treeHolder, treeCollet, allCollets],
+  )
+  /**
    * The counts the **matcher** measured, where a facet is narrowing the list.
    *
    * `shared/catalog-matcher.ts` § `facetCounts` is the whole of it: while a
@@ -1925,9 +2221,9 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const axisCounts = useMemo(
     () =>
       asking
-        ? (judgedFacets ?? countsByAxis(listed, EMPTY_QUERY, FACET_AXES))
+        ? (judgedFacets ?? countsByAxis(listedInStack, EMPTY_QUERY, FACET_AXES))
         : countsByAxis(allTools, effectiveQuery, FACET_AXES),
-    [asking, allTools, listed, effectiveQuery, judgedFacets],
+    [asking, allTools, listedInStack, effectiveQuery, judgedFacets],
   )
   /**
    * What each axis is offering, which is not always what it can still count.
@@ -1964,8 +2260,9 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
 
   /** One axis's values as the pickers read them, however they were arrived at. */
   const countsOn = useCallback(
-    (axis: string): ReadonlyMap<string, number> => axisOptions.get(axis) ?? countBy(listed, axis),
-    [axisOptions, listed],
+    (axis: string): ReadonlyMap<string, number> =>
+      axisOptions.get(axis) ?? countBy(listedInStack, axis),
+    [axisOptions, listedInStack],
   )
 
   /**
@@ -2450,37 +2747,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       ),
     [sheet, allTools],
   )
-
-  /** Which feature the choice is for: the one being read, or the part as a whole. */
-  /**
-   * Which feature the choice is for: the one being read, or the part as a whole.
-   *
-   * **The group's own tag, not the sibling that happened to be clicked** (Paul,
-   * 2026-09-02: "if a tool is on the list and a holder is added to it, it
-   * should update the existing tool on the BOM rather than create a new one").
-   * Eight identical holes are one decision everywhere else on this page; keyed
-   * by whichever of them was under the mouse, the panel wrote a second line
-   * beside the one the feature list had already put there.
-   */
-  const choiceKey = useMemo(() => {
-    if (focused === null) {
-      return '*'
-    }
-    /*
-      **The row's key, where a row holds this reading** (Paul, 2026-09-09).
-      It used to be the *hole group's* first tag, which was the same thing while
-      every row held whole hole groups — a hole cannot be asked about alone any
-      more than a bolt circle could. It is not the same thing now: a feature
-      made from the second hole of a group is keyed by that hole, and a panel
-      still keying by the first wrote its lines where nothing read them.
-
-      Reading the list is also the honest way to state the 2026-09-02 rule: a
-      sibling clicked on a group already on the list updates that group's line
-      rather than opening a second one beside it, whatever grouping is doing.
-    */
-    const holder = list.find((item) => item.tags.includes(focused))
-    return holder ? (sheetKeysOf(holder)[0] ?? focused) : focused
-  }, [focused, list])
 
   /**
    * What is already kept for the feature being read.
@@ -3670,231 +3936,14 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     selectRow(null)
   }, [draft, cancelDraft, selectRow])
 
-  /**
-   * The row on the list the panel's buttons act on, where there is one.
-   *
-   * A previewed feature can already be on the list — clicking it on the part is
-   * how somebody goes back to it — so this is not simply the selected row.
-   */
-  const activeItem = useMemo(
-    () =>
-      /*
-        **An assembly being built is not a row, and is not any other row
-        either** (Paul, 2026-09-08). It asks about no features, so the search
-        below would hand back whichever row happened to match nothing — and the
-        press under the stack would write that row's lines instead of making
-        its own.
-      */
-      (draft?.kind === 'assembly' ? null : selectedItem) ??
-      /*
-        **A question about nothing matches no row** (Paul, 2026-09-07: "when no
-        feature is selected, the tool table should not show any assemblies").
-        `[].every(...)` is true of every item, so with nothing being asked this
-        matched whichever row happened to be first and handed it out as the row
-        in play. `toolActions` never noticed — it is gated on `active` — but the
-        assembly tree took the row at its word and drew that feature's stacks
-        under a table showing the whole catalog.
-      */
-      (askedNow.tags.length === 0
-        ? null
-        : draft?.kind === 'assembly'
-          ? null
-          : /*
-              **A group being built is not the feature it holds** (Paul,
-              2026-09-09, with the group editor's own confirm gone). A group of
-              one hole that is already a row matches that row here, so the press
-              under the stack read as *add a tool to that feature* and the group
-              was never made — the confirm button used to make it, and there is
-              no confirm button any more. A group being *edited* is the row it
-              is editing, which the search below still finds.
-            */
-            draft?.kind === 'group' && draft.editing === null
-            ? null
-            : list.find((item) => askedNow.tags.every((tag) => item.tags.includes(tag)))) ??
-      null,
-    [selectedItem, list, askedNow.tags, draft?.kind, draft?.editing],
-  )
-
-  /* ----------------------- the tool assembly tree ------------------------- */
-
-  /**
-   * The shape being tried out, and the way back off it.
-   *
-   * **A feature is answered with assemblies, not tools** (Paul, 2026-09-07). A
-   * cutter is chosen with a holder and a collet; a threaded hole needs two
-   * stacks before it is a hole at all. The page asked for a tool and hung the
-   * other two off it as dropdowns, which made a holder a footnote on a tool and
-   * made the second stack for a feature unreachable.
-   *
-   * Behind a flag, switched in the header, because it replaces enough of this
-   * page at once that going back has to be a press rather than a revert.
-   */
-  /** Which slot of which stack is open, and the row it belongs to. */
-  const [nodeHeld, setNodeHeld] = useState<{ itemId: string; node: TreeNode } | null>(null)
-  const [holderQuery, setHolderQuery] = useState<ComponentQuery>(NO_QUERY)
-  const [colletQuery, setColletQuery] = useState<ComponentQuery>(NO_QUERY)
-  /**
-   * Whether the rack shows the chucks the crib has no collet for.
-   *
-   * **Off to begin with** (Paul, 2026-09-10: "by default, the holders with no
-   * collet should be hidden"). The rack opens on what the shop can actually
-   * build this afternoon, and the press asks the wider question — what could
-   * hold this, if a collet were ordered. The rule they are hidden *by* is the
-   * same one either way, and the count on the press is what stops the narrower
-   * rack reading as an empty crib.
-   *
-   * `components/no-collet-toggle.tsx` is the press and says why it exists. Not
-   * a filter: it is counted and cleared nowhere near `Clear n filters`, because
-   * it puts rows on the list rather than taking them off, and a shop that
-   * pressed it does not want it undone by clearing a taper.
-   */
-  const [noCollet, setNoCollet] = useState(false)
-  const [hiddenHolderColumns, setHiddenHolderColumns] = useState<ReadonlyArray<string>>(() =>
-    hiddenComponentColumns(HOLDER_COLUMNS),
-  )
-  const [holderColumnOrder, setHolderColumnOrder] = useState<ReadonlyArray<string>>(() =>
-    HOLDER_COLUMNS.map((column) => column.code),
-  )
-  const [hiddenColletColumns, setHiddenColletColumns] = useState<ReadonlyArray<string>>(() =>
-    hiddenComponentColumns(COLLET_COLUMNS),
-  )
-  const [colletColumnOrder, setColletColumnOrder] = useState<ReadonlyArray<string>>(() =>
-    COLLET_COLUMNS.map((column) => column.code),
-  )
-
-  /**
-   * Whose tree is on screen.
-   *
-   * **A draft has one before it is a row** (Paul, 2026-09-07: "when a new
-   * feature or group is selected (being created), the tree should already be
-   * shown"). Waiting for the row meant the bottom of the page had nothing in it
-   * during the one moment somebody is actually deciding — and the tools for the
-   * draft were already listed under it, which made the empty column beside them
-   * read as broken rather than as not-yet.
-   *
-   * The draft's stacks are kept under {@link DRAFT_TREE} and carried onto the
-   * row's own id when it is confirmed, so nothing built before the press is
-   * lost by making it.
-   *
-   * **Being created is wider than `draft`.** A plain click on a face previews a
-   * reading and offers the two ways in without opening a draft at all — that is
-   * `asked()`'s third row — and it is the commonest way a feature gets made. So
-   * anything being *asked* with no row of its own gets the draft's tree, which
-   * covers the preview and the group editor alike.
-   */
-  const treeKey =
-    /*
-      **Only the group editor takes the plain key** (Paul, 2026-09-07: "new hole
-      selections should be treated as new"). Its tags change under the mouse as
-      faces are toggled, so a key that moved with them would reset the tree
-      mid-build. A *feature* draft has settled tags and was taking that key as
-      well — and the key is kept in the browser, so the tap and drill stacks
-      built for one hole were still standing the next time anybody pressed
-      *Add feature*, on a hole nobody had called threaded.
-    */
-    draft?.kind === 'group'
-      ? DRAFT_TREE
-      : /*
-          **An assembly being built keeps its stacks under a key of its own.**
-          It has no tags, so `draftKeyFor([])` is that key — and `carryDraftTree`
-          reads the same one when the press makes the row, so nothing built
-          before the press is lost by making it.
-        */
-        draft?.kind === 'assembly'
-        ? draftKeyFor([])
-        : /*
-          **A part-level assembly is a tree with no question above it** (Paul,
-          2026-09-08). It asks about no feature, so `asking` is false for it —
-          and the row is still the thing being built, keyed by its own id like
-          every other row's tree.
-        */
-          selectedItem?.kind === 'assembly'
-          ? selectedItem.id
-          : // Nothing asked is nothing to assemble: the table is the whole catalog
-            // then, and a tree beside it would be answering for a feature nobody
-            // has selected.
-            !asking
-            ? null
-            : draft !== null
-              ? draftKeyFor(askedNow.tags)
-              : (activeItem?.id ?? draftKeyFor(askedNow.tags))
-  /**
-   * The stacks for that row — what was built, or what the bill already holds.
-   *
-   * A part answered before this shape existed, or with the flag off, has lines
-   * on the sheet and no tree; `treeFromLines` opens on those rather than on an
-   * empty stack, so switching the flag on does not read as work lost.
-   *
-   * **And whatever it opens on, the roles follow the thread.** A tree is kept
-   * in the browser and the thread a hole is read for is not, so a tap stack
-   * outlived the reading that asked for it — `forThread` is that rule, and it
-   * leaves any stack somebody has put a component in exactly as it stands.
-   */
-  const assemblies = useMemo<ReadonlyArray<TreeAssembly>>(() => {
-    if (treeKey === null) {
-      return []
-    }
-    const threaded = threadSpec !== null
-    const kept = trees[treeKey]
-    if (kept !== undefined) {
-      return forThread(kept, threaded)
-    }
-    /*
-      A draft opens on empty stacks rather than on the bill: it has no lines
-      yet, and reading the focused feature's would show another row's answers
-      under a feature being created.
-    */
-    return draft !== null || treeKey === DRAFT_TREE
-      ? defaultAssemblies(threaded)
-      : treeFromLines(
-          /*
-            A part-level assembly's lines are kept under its own id — it has no
-            feature to be keyed by — so reading `choiceKey` here would open it
-            on whatever face was last clicked. Every key of the row it is,
-            because that is where the lines were written (`shared/order-list`).
-          */
-          linesOf(sheet, selectedItem === null ? [choiceKey] : sheetKeysOf(selectedItem)),
-          threaded,
-          // Which line is the tap is a fact about the tool, and the catalog is
-          // the route's to read.
-          (toolGuid) => getTool(toolGuid)?.form.startsWith('tap ') ?? false,
-        )
-  }, [trees, treeKey, sheet, choiceKey, threadSpec, draft, selectedItem])
-
-  /**
-   * The slot open now: what was clicked while it still exists, else the first
-   * question the tree has not been answered.
-   *
-   * Derived rather than kept in an effect, and stamped with the row it was
-   * clicked on — every tree starts at `assembly-1`, so a node held across a
-   * change of row would land on a different feature's stack of the same name.
-   */
-  const node = useMemo<TreeNode | null>(() => {
-    const held =
-      nodeHeld !== null &&
-      nodeHeld.itemId === treeKey &&
-      assemblies.some((each) => each.id === nodeHeld.node.assemblyId)
-        ? nodeHeld.node
-        : null
-    return held ?? firstNode(assemblies)
-  }, [nodeHeld, treeKey, assemblies])
-
-  const selectNode = useCallback(
-    (next: TreeNode) => {
-      if (treeKey !== null) {
-        setNodeHeld({ itemId: treeKey, node: next })
-      }
-    },
-    [treeKey],
-  )
-
-  const assembly = useMemo(
-    () => assemblyNamed(assemblies, node?.assemblyId ?? null),
-    [assemblies, node],
-  )
-  const treeTool = assembly?.toolGuid == null ? null : getTool(assembly.toolGuid)
-  const treeHolder = assembly?.holderGuid == null ? null : getHolder(assembly.holderGuid)
-  const treeCollet = assembly?.colletGuid == null ? null : getCollet(assembly.colletGuid)
+  /*
+    **The tool assembly tree is declared above the matcher**, not here
+    (2026-09-10). The counts beside a filter are measured over the pool the
+    table draws, and the table under a stack is `narrowTools` applied to that
+    pool — so the worker has to be told what the open slot already holds, and
+    `tableDemand` is built long before this point. `MatchDemand.stack` in
+    `shared/catalog-matcher.ts` states the rule the move is for.
+  */
 
   /**
    * The length below the holder each row in the tool list would stand at.

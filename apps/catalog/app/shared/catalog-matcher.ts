@@ -12,6 +12,7 @@ import {
   withoutTerm,
   type ToolQuery,
 } from './filter'
+import { narrowTools } from './assembly-narrowing'
 import { holdable, policyOf, type HoldThresholds } from './holder-choice'
 import { holdableTools, splitHolding } from './holding'
 import { closestMisses, closestPerForm, type Format, type Reason, type Verdict } from './judge'
@@ -75,6 +76,29 @@ export interface MatchDemand {
   readonly bores?: Readonly<Record<string, number>>
   /** The feature whose reach curve decides whether an assembly is usable. */
   readonly reachTag?: string | null
+  /**
+   * What the open stack already holds, by guid — the narrowing the table puts
+   * on its own rows after this answer lands.
+   *
+   * **A count has to be measured over the list it is beside** (Paul,
+   * 2026-09-10: a pocket offering six necked bull nose end mills over a table
+   * holding none). The tool table under an assembly is `narrowTools`
+   * (`shared/assembly-narrowing.ts`) applied to this answer's rows, so a collet
+   * in the stack takes every shank it cannot close on off the screen — and
+   * `facetCounts` knew nothing about it, counting the tools the *crib* could
+   * hold rather than the ones this stack can. An ER32 collet bored for ⌀0.375
+   * grips eleven of the catalog's 2,638 necked bull nose end mills, which is
+   * the whole of the gap between the number and the rows.
+   *
+   * Only the counts read it: the rows themselves are narrowed on the page,
+   * where the holder and the collet are chosen. It is on the demand rather than
+   * the context because it is one stack's answer, and the worker's pool cache
+   * deliberately leaves it out of its key — `poolFor` says why.
+   */
+  readonly stack?: {
+    readonly holderGuid?: string | null
+    readonly colletGuid?: string | null
+  }
 }
 
 export type MatchKind = 'table' | 'recommendations'
@@ -633,6 +657,34 @@ export const facetPool = (
   )
 }
 
+/**
+ * The pool as the table would actually draw it: narrowed by the open stack.
+ *
+ * `MatchDemand.stack` is the reason and states what it cost. The guids are
+ * resolved here rather than sent as records because the worker holds the crib
+ * already, and a holder is ~40 fields nobody needs a second copy of.
+ */
+const forStack = (
+  pool: ReadonlyArray<CatalogTool>,
+  demand: MatchDemand,
+  catalog: MatcherCatalog,
+): ReadonlyArray<CatalogTool> => {
+  const holderGuid = demand.stack?.holderGuid ?? null
+  const colletGuid = demand.stack?.colletGuid ?? null
+  if (holderGuid === null && colletGuid === null) {
+    return pool
+  }
+  const holder = catalog.holders.find((each) => each.guid === holderGuid) ?? null
+  const collet = catalog.collets.find((each) => each.guid === colletGuid) ?? null
+  // A guid naming nothing in this crib narrows nothing: the stack is stored on
+  // the sheet and the catalog under it can be rebuilt, and a count measured as
+  // though the slot were empty is the same answer the table's own narrowing
+  // gives for the same missing record.
+  return holder === null && collet === null
+    ? pool
+    : narrowTools(pool, { holder, collet }, catalog.collets)
+}
+
 /** One pool read per axis, each against every filter but that axis's own. */
 const countsOverPool = (
   pool: ReadonlyArray<CatalogTool>,
@@ -665,6 +717,15 @@ export const detailedMatch = (
   const widened = !facetsNarrowing(context.query)
     ? null
     : (pool ?? facetPool(context, demand, catalog))
+  /**
+   * The pool the counts are taken over, which is the pool the table draws.
+   *
+   * Narrowed here rather than in {@link facetPool} so the pool itself stays the
+   * facet-free question and the worker can keep one across every holder and
+   * collet tried in the stack — the judging pass is what that cache exists to
+   * save, and the stack does not change it.
+   */
+  const counted = widened === null ? null : forStack(widened, demand, catalog)
   return {
     demandKey: demand.demandKey,
     fitting: matched.fitting.map(compact),
@@ -694,7 +755,7 @@ export const detailedMatch = (
      * against a list that is itself a stand-in would read as an answer.
      */
     facetCounts:
-      widened === null || widened.length === 0 ? null : countsOverPool(widened, context.query),
+      counted === null || counted.length === 0 ? null : countsOverPool(counted, context.query),
   }
 }
 
