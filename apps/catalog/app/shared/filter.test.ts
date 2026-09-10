@@ -6,6 +6,7 @@ import {
   countsByAxis,
   cycleTerm,
   filterTools,
+  ownBounds,
   prioritise,
   queryFromSearch,
   searchFromQuery,
@@ -616,5 +617,39 @@ describe('the type and the family, as one axis each', () => {
         ['Reduced shank bull nose end mill', 1],
       ]),
     )
+  })
+})
+
+/**
+ * **A filter is somebody's answer the moment it is not the geometry's.** The
+ * near-miss stand-in forgives the bounds the feature wrote — they are the rules
+ * it is measuring "close" against — and obeys every other one (Paul,
+ * 2026-09-10: at most three flutes, and four-flute tools on the list).
+ */
+describe('the bounds somebody set themselves', () => {
+  it('leaves out a bound still reading what the feature suggested', () => {
+    expect(ownBounds({ DC: { max: 8 } }, { DC: { max: 8 } })).toEqual({})
+  })
+
+  it('keeps a bound on a column the feature said nothing about', () => {
+    expect(ownBounds({ NOF: { max: 3 } }, { DC: { max: 8 } })).toEqual({ NOF: { max: 3 } })
+  })
+
+  it('keeps a suggested bound that has been changed', () => {
+    expect(ownBounds({ DC: { max: 12 } }, { DC: { max: 8 } })).toEqual({ DC: { max: 12 } })
+  })
+
+  /**
+   * The same float story `BOUND_SLACK` exists for: `0.75 × 25.4` is
+   * `19.049999999999997`, and a suggestion written in millimetres and read back
+   * through the URL must not come back as somebody's own answer.
+   */
+  it('reads a bound a float rounded as the same bound', () => {
+    expect(ownBounds({ DC: { max: 0.75 * 25.4 } }, { DC: { max: 19.05 } })).toEqual({})
+  })
+
+  /** A bound holding neither end narrows nothing, so it is nobody's answer. */
+  it('leaves out a bound with no ends', () => {
+    expect(ownBounds({ DC: {} }, {})).toEqual({})
   })
 })

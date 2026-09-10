@@ -119,22 +119,19 @@ describe('PartToolTable', () => {
     expect(choices).toHaveBeenCalledTimes(1)
   })
 
-  it('does not select a row while changing its holder', async () => {
-    const onChoose = show({
-      holding: {
-        holdersFor: () => [{ guid: 'holder', label: 'BT30', trouble: null, holder: {} as never }],
-        colletsFor: () => [],
-        chosen: () => ({ holderGuid: null, colletGuid: null }),
-        requiredStickout: () => null,
-        stickoutFor: () => null,
-        onChoose: vi.fn(),
-      },
-    })
+  /**
+   * **A row holds no holder** (Paul, 2026-09-10). The list used to draw a
+   * holder and a collet dropdown per row; the assembly tree took that decision
+   * off the row, the page stopped handing the list any holding, and the two
+   * columns became dashes over a choice made elsewhere. They are gone, and a
+   * stored column order naming them cannot bring them back.
+   */
+  it('draws no holder or collet column, whatever the order says', () => {
+    show({ hiddenColumns: [], columnOrder: ['DC', 'holder', 'collet'], columns: TOOL_COLUMNS })
 
-    fireEvent.click(screen.getAllByRole('combobox', { name: 'Holder for T-20' })[0]!)
-    fireEvent.click(screen.getByRole('option', { name: 'BT30' }))
-
-    expect(onChoose).not.toHaveBeenCalled()
+    expect(screen.queryByRole('columnheader', { name: /Holder/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /Collet/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /Holder for/ })).not.toBeInTheDocument()
   })
 
   /**
@@ -318,19 +315,6 @@ describe('the filters a heading asks', () => {
     fireEvent.click(within(type).getByRole('button', { name: '… 1 more' }))
 
     expect(within(type).getByRole('checkbox', { name: /Flat end mill/ })).toBeInTheDocument()
-  })
-
-  /** The two cells that set a choice rather than hold a value ask nothing. */
-  it('leaves the holder and collet cells alone', () => {
-    show({
-      filtering: filtering(),
-      hiddenColumns: [],
-      columnOrder: ['DC', 'holder', 'collet'],
-      columns: TOOL_COLUMNS,
-    })
-
-    expect(screen.queryByRole('button', { name: 'Filter by Holder' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Filter by Collet' })).not.toBeInTheDocument()
   })
 
   /**

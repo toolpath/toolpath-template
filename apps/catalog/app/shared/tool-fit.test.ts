@@ -4,6 +4,7 @@ import type { Verdict } from './judge'
 import type { Rule } from './rules'
 import type { PartFeature } from '@toolpath/part-contracts'
 import {
+  closeCandidates,
   distinctQuestions,
   fittingTools,
   overridableCount,
@@ -253,5 +254,60 @@ describe('how many questions a group actually asks', () => {
     expect(standingOf(answer.excluded[0]!)).toBe('removed')
     expect(answer.excluded[0]?.tool.guid).toBe('SHALLOW')
     expect(answer.excluded[0]?.removed[0]?.text).toContain('flute length')
+  })
+})
+
+/**
+ * **A filter is obeyed by the list that stands in for one** (Paul, 2026-09-10:
+ * at most three flutes, then Kennametal, and four-flute tools on the list —
+ * "they should not be … we should see 'no tools meet these filters'"). Nothing
+ * fits, so the closest misses stand in, and they were drawn without the ranges
+ * at all: a bound somebody typed was a bound the fill ignored.
+ *
+ * The bounds the geometry wrote are still forgiven, and have to be — they are
+ * the same `must` rows that removed these tools, so obeying them would leave
+ * the fill empty in exactly the case it exists for. `ownBounds` in
+ * `shared/filter.ts` is what tells the two apart.
+ */
+describe('the misses that may stand in when nothing fits', () => {
+  const miss = (guid: string, brand: string, geometry: Readonly<Record<string, number>>): Verdict =>
+    ({
+      tool: { guid, brand, geometry } as unknown as CatalogTool,
+      removed: [{ rule: bound('flute length'), text: 'flute length over', shortfall: 1 }],
+      warned: [],
+      demoted: [],
+      key: [],
+      readings: [],
+    }) as unknown as Verdict
+
+  const excluded = [
+    miss('THREE', 'Kennametal', { NOF: 3, LCF: 10 }),
+    miss('FOUR', 'Kennametal', { NOF: 4, LCF: 10 }),
+    miss('OTHER', 'WIDIA', { NOF: 3, LCF: 10 }),
+  ]
+
+  const asking = (ranges: Record<string, { min?: number; max?: number }>) => ({
+    text: '',
+    terms: { brand: ['Kennametal'] },
+    ranges,
+  })
+
+  it('obeys a bound somebody set themselves', () => {
+    const kept = closeCandidates(excluded, asking({ NOF: { max: 3 } }), { NOF: { max: 3 } })
+
+    expect(kept.map((each) => each.tool.guid)).toEqual(['THREE'])
+  })
+
+  /** The bound the rules wrote is what "close" is measured against, not a filter. */
+  it('forgives the bound the geometry asked for', () => {
+    const kept = closeCandidates(excluded, asking({ LCF: { min: 50 } }), {})
+
+    expect(kept.map((each) => each.tool.guid)).toEqual(['THREE', 'FOUR'])
+  })
+
+  it('still leaves out what the discrete filters do not admit', () => {
+    const kept = closeCandidates(excluded, asking({}), {})
+
+    expect(kept.map((each) => each.tool.guid)).not.toContain('OTHER')
   })
 })

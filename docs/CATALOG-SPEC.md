@@ -458,7 +458,13 @@ the order the rules rank them, with a mark on every number the rules read.
 | A threaded hole    | Taps · Drills                   | two tabs, taps first  |
 
 - **Nothing fits is never an empty table.** The closest misses are shown
-  instead, each with the number that stopped it painted red.
+  instead, each with the number that stopped it painted red — and never a tool
+  a filter turned down. What "close" is measured against is the bound the
+  _geometry_ wrote into a column; a bound somebody typed themselves is the
+  question rather than a tolerance on it, so at most three flutes is at most
+  three flutes and the table says so when nothing answers it (Paul,
+  2026-09-10). `ownBounds` in `app/shared/filter.ts` is the rule that tells the
+  two apart.
 - **The first row is always highlighted** and the panel is already assembling
   that tool, so confirming takes it without a second click.
 - **Notes beside the heading** say what the rules removed, what the filters hid,

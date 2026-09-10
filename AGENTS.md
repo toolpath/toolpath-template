@@ -281,6 +281,7 @@ application unless that application says otherwise.
 | what overruling the rules offers, per column         | `overridableTools`, `app/shared/tool-fit.ts`         |
 | the note and press a changed filter raises           | `OverrideNotice`, `app/components/column-filter.tsx` |
 | whether a value is inside a filter's bound           | `withinRange`, `app/shared/filter.ts`                |
+| which bounds are somebody's own, not the geometry's  | `ownBounds`, `app/shared/filter.ts`                  |
 | what a narrowed axis says an unticked value brings   | `facetCounts`, `app/shared/catalog-matcher.ts`       |
 | the same work, off the UI thread                     | `app/client/catalog-matcher.worker.ts`               |
 | what a click on the part means                       | `app/shared/part-interaction.ts`                     |

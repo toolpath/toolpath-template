@@ -185,102 +185,6 @@ describe('pointing at a number', () => {
   })
 })
 
-describe('choosing a holder and a collet', () => {
-  const holding = (over: Partial<Parameters<typeof ToolDetails>[0]['holding'] & object> = {}) => {
-    const onChoose = vi.fn()
-    return {
-      onChoose,
-      holding: {
-        /*
-          The holder carries its own guid, the way the page's own `holdersFor`
-          mints it (`routes/part.tsx`: `guid: option.holder.guid`). The panel
-          hands the chosen holder to `shared/drawn-assembly`, which finds it by
-          that guid — a wrapper guid over a holder with none is a stack that
-          never assembles.
-        */
-        holdersFor: () => [
-          {
-            guid: 'h-er16',
-            label: 'ER16 chuck · takes this collet',
-            trouble: null,
-            holder: { guid: 'h-er16' },
-          },
-          { guid: 'h-pg6', label: 'PG6 chuck', trouble: null, holder: { guid: 'h-pg6' } },
-        ],
-        colletsFor: (_tool: unknown, holderGuid: string | null) =>
-          holderGuid === null
-            ? [{ guid: 'c-er16', label: 'ER16-4 · ER16' }]
-            : holderGuid === 'h-er16'
-              ? [{ guid: 'c-er16', label: 'ER16-4' }]
-              : [],
-        chosen: () => ({ holderGuid: null, colletGuid: null }),
-        requiredStickout: () => null,
-        stickoutFor: () => null,
-        reachNote: () => null,
-        onChoose,
-        ...over,
-      } as unknown as Parameters<typeof ToolDetails>[0]['holding'],
-    }
-  }
-
-  it('offers the collets that grip the shank with no holder chosen', () => {
-    render(<ToolDetails tool={tool} unit="millimeters" holding={holding().holding} />)
-
-    const collet = screen.getByRole('combobox', { name: 'Collet' })
-    expect(collet).toBeEnabled()
-    fireEvent.click(collet)
-    expect(screen.getByRole('option', { name: 'ER16-4 · ER16' })).toBeInTheDocument()
-  })
-
-  /**
-   * **The number in the table is the number on the sheet** (2026-09-03).
-   *
-   * The panel printed the tool's own `LBH` beside a drawing of the stack, and
-   * the two were different quantities: `LBH` was the most the tool could stand
-   * out and the drawing was drawn at the setup, so the sheet dimensioned a
-   * length the table beside it contradicted — the report's symptom, a
-   * dimension line running up into the holder body. They are one number now,
-   * and this is the lockstep that keeps them one. AGENTS.md § Testing: a
-   * duplicate across a boundary gets a test, not a comment.
-   */
-  it('prints the stickout the stack is drawn at, not the tool’s own', () => {
-    const { holding: held } = holding({
-      chosen: () => ({ holderGuid: 'h-er16', colletGuid: null }),
-      stickoutFor: () => 19,
-    })
-    render(<ToolDetails tool={tool} unit="millimeters" holding={held} />)
-
-    // Not the 46 mm the tool carries on its own.
-    expect(screen.getByText('Below holder').closest('div')?.textContent).toBe(
-      'Below holderLBH19.00 mm*',
-    )
-
-    // And with the sheet switched back to the bare tool, its own figure again.
-    fireEvent.click(screen.getByRole('button', { name: 'Tool' }))
-    expect(screen.getByText('Below holder').closest('div')?.textContent).toBe(
-      'Below holderLBH46.00 mm*',
-    )
-  })
-
-  it('keeps a collet the new holder can take, and drops one it cannot', () => {
-    const { onChoose, holding: takes } = holding({
-      chosen: () => ({ holderGuid: null, colletGuid: 'c-er16' }),
-    })
-    render(<ToolDetails tool={tool} unit="millimeters" holding={takes} />)
-
-    fireEvent.click(screen.getByRole('combobox', { name: 'Holder' }))
-    fireEvent.click(screen.getByRole('option', { name: /ER16 chuck/ }))
-    expect(onChoose).toHaveBeenLastCalledWith(tool, {
-      holderGuid: 'h-er16',
-      colletGuid: 'c-er16',
-    })
-
-    fireEvent.click(screen.getByRole('combobox', { name: 'Holder' }))
-    fireEvent.click(screen.getByRole('option', { name: /PG6 chuck/ }))
-    expect(onChoose).toHaveBeenLastCalledWith(tool, { holderGuid: 'h-pg6', colletGuid: null })
-  })
-})
-
 /**
  * **The part is drawn beside the tool** (2026-09-03).
  *
@@ -321,19 +225,49 @@ describe('the material around the feature', () => {
     provenance: {},
   }
 
-  const held = {
-    holdersFor: () => [{ guid: 'h-er16', label: 'ER16 chuck', trouble: null, holder }],
-    colletsFor: () => [],
-    chosen: () => ({ holderGuid: 'h-er16', colletGuid: null }),
-    requiredStickout: () => null,
-    stickoutFor: () => 19,
-    reachNote: () => null,
-    onChoose: vi.fn(),
-  } as unknown as Parameters<typeof ToolDetails>[0]['holding']
+  /**
+   * The stack the tree hands in. **The only way a holder reaches this panel**
+   * (Paul, 2026-09-10): the two dropdowns that used to offer one of its own
+   * came off, so a stack on this sheet is a stack somebody assembled in the
+   * tree.
+   */
+  const held = { holder, collet: null }
+
+  /**
+   * **The number in the table is the number on the sheet** (2026-09-03).
+   *
+   * The panel printed the tool's own `LBH` beside a drawing of the stack, and
+   * the two were different quantities: `LBH` is the most the tool could stand
+   * out and the drawing is drawn at the setup, so the sheet dimensioned a
+   * length the table beside it contradicted — the report's symptom, a
+   * dimension line running up into the holder body. They are one number now,
+   * and this is the lockstep that keeps them one. AGENTS.md § Testing: a
+   * duplicate across a boundary gets a test, not a comment.
+   *
+   * The figure is `shared/drawn-assembly`'s, worked out from this holder and
+   * this tool. It used to be whatever the panel's own `stickoutFor` said,
+   * which was a dropdown's answer; with the dropdowns gone the stack is the
+   * only thing that can answer it.
+   */
+  it('prints the stickout the stack is drawn at, not the tool\u2019s own', () => {
+    measured(<ToolDetails tool={tool} unit="millimeters" stack={held} />)
+
+    // `drawnAssembly`'s figure for this tool in this chuck, not the 46 mm the
+    // tool carries on its own.
+    expect(screen.getByText('Below holder').closest('div')?.textContent).toBe(
+      'Below holderLBH12.70 mm*',
+    )
+
+    // And with the sheet switched back to the bare tool, its own figure again.
+    fireEvent.click(screen.getByRole('button', { name: 'Tool' }))
+    expect(screen.getByText('Below holder').closest('div')?.textContent).toBe(
+      'Below holderLBH46.00 mm*',
+    )
+  })
 
   it('draws the part wall and the gaps beside the stack when there is a feature', () => {
     const { container } = measured(
-      <ToolDetails tool={tool} unit="millimeters" holding={held} curve={curve} />,
+      <ToolDetails tool={tool} unit="millimeters" stack={held} curve={curve} />,
     )
 
     expect(container.querySelector('[data-part="material"]')).not.toBeNull()
@@ -342,7 +276,7 @@ describe('the material around the feature', () => {
 
   /** No feature to clear is the tool on its own, with no clearance claimed. */
   it('draws the tool alone when the panel is given no feature', () => {
-    const { container } = measured(<ToolDetails tool={tool} unit="millimeters" holding={held} />)
+    const { container } = measured(<ToolDetails tool={tool} unit="millimeters" stack={held} />)
 
     expect(container.querySelector('svg')).not.toBeNull()
     expect(container.querySelector('[data-part="material"]')).toBeNull()
@@ -356,7 +290,7 @@ describe('the material around the feature', () => {
    */
   it('keeps the material on the sheet with the drawing switched back to the tool', () => {
     const { container } = measured(
-      <ToolDetails tool={tool} unit="millimeters" holding={held} curve={curve} />,
+      <ToolDetails tool={tool} unit="millimeters" stack={held} curve={curve} />,
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Tool' }))

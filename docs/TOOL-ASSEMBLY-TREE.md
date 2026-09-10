@@ -470,9 +470,10 @@ reach the bottom of a 2.066 in pocket. Two numbers for one length, on one
 screen.
 
 Nothing was wrong with the machinery; the tree walked away from it. The column
-asked `Holding.requiredStickout`, which reads a holder picked **in a dropdown on
+asked `Holding.requiredStickout`, which read a holder picked **in a dropdown on
 the row** — and those dropdowns came out with the flag on 2026-09-08, so nothing
-has set that holder since and every row fell back to the tool's own figure.
+had set that holder since and every row fell back to the tool's own figure.
+`Holding` itself is gone as of 2026-09-10; see § 8.
 
 A holder is the assembly's now, so the question is asked of the assembly once
 per row: the least the stack has to stand out to clear the part by the shop's
@@ -956,12 +957,23 @@ crib, which is the claim.
   a bill, where `treeFromLines` puts the tap first however the lines are ordered,
   because a drill labelled `TAP` opens the tap list on a drill.
 - **`ComponentTable` is a sibling of `PartToolTable`, not a generalisation.**
-  That table carries the rules' marks, the holding comboboxes and the bill's
-  badge, all of which are about a _tool_; threading a row type through them would
-  have put every one behind a conditional to gain a shared shell. If a third
-  kind of component ever wants a table, extract then.
-- **The tool table is handed no `holding`**, deliberately: the holder is a slot
-  of the stack with a table of its own, and a second way to set it from a
-  dropdown on the tool row is the defect the tree exists to remove. The prop is
-  still on `PartToolTable` — the component's own tests cover it — and the part
-  page passes it from nowhere.
+  That table carries the rules' marks and the bill's badge, both of which are
+  about a _tool_; threading a row type through them would have put every one
+  behind a conditional to gain a shared shell. If a third kind of component ever
+  wants a table, extract then.
+- **The tool table has no holder and no collet at all.** The holder is a slot of
+  the stack with a table of its own, and a second way to set it from a dropdown
+  on the tool row is the defect the tree exists to remove. The page had already
+  stopped handing the list any `holding`, which left the two columns ticked in
+  the column picker to draw dashes — so on 2026-09-10 the columns, the
+  `HoldingCell` behind them and the `holding` prop came off `PartToolTable`
+  together. `components/tool-columns.test.ts` § _offers neither a holder nor a
+  collet_ is the sensor.
+- **Neither does the tool panel.** `ToolDetails` kept a _No holder_ / _No
+  collet_ pair of its own, drawn on the panel with no feature open — the last of
+  the pre-tree dropdowns, and a second place a stack could be assembled. They
+  came off the same day, and with them the `Holding` contract, the `holding`
+  memo in `routes/part.tsx` and the per-tool `holderOptions` cache that fed it.
+  The panel draws whatever `stack` the tree hands it and nothing else, so a
+  holder reaches the sheet one way. `components/tool-details.test.tsx` §
+  _the material around the feature_ is that seam, drawn from `stack` alone.

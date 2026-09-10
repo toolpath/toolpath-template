@@ -10,14 +10,7 @@ import {
 } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Badge, Button, Card, IconButton, cn, Panels } from '@toolpath/ui'
-import {
-  colletsFor,
-  colletsForShank,
-  toolCollisions,
-  type CatalogTool,
-  type Holder,
-  type Margins,
-} from '@toolpath/catalog-data'
+import { toolCollisions, type CatalogTool, type Holder, type Margins } from '@toolpath/catalog-data'
 import { useAnalysisEvents } from '@toolpath/part-client'
 import type { PartFeature, PublicInspectionReport } from '@toolpath/part-contracts'
 import { heldRegions } from '@toolpath/part-contracts/selection'
@@ -97,9 +90,8 @@ import {
   TABLE_OPENS_AT,
   ToolTableToolbar,
   hiddenByDefault,
-  type Holding,
 } from 'components/part-tool-table'
-import { ColumnPicker, sameBound } from 'components/column-filter'
+import { ColumnPicker } from 'components/column-filter'
 import { BUTTON_FILTERS } from 'components/filter-panel'
 import { orderedCodes } from 'shared/column-order'
 import { hiddenAfterAuto } from 'shared/auto-columns'
@@ -180,6 +172,7 @@ import {
   FACET_AXES,
   countBy,
   countsByAxis,
+  ownBounds,
   stillOffered,
   filterTools,
   queryFromSearch,
@@ -203,14 +196,7 @@ import {
 } from 'shared/holding'
 import { sectionOf } from 'shared/section-of'
 import { belowHolder, type BelowHolder } from 'shared/drawn-assembly'
-import {
-  drawable,
-  holdable,
-  holderOptions,
-  policyOf,
-  thresholdsFrom,
-  type HolderOption,
-} from 'shared/holder-choice'
+import { drawable, holdable, holderOptions, policyOf, thresholdsFrom } from 'shared/holder-choice'
 import { closestMisses, closestPerForm, type Format } from 'shared/judge'
 import {
   cautionedTypes,
@@ -423,22 +409,6 @@ const typingInto = (event: KeyboardEvent): boolean => {
 const busyTyping = (event: KeyboardEvent): boolean =>
   typingInto(event) ||
   (event.target as HTMLElement | null)?.closest('[data-part-tool-table]') != null
-
-/**
- * Whether a holder option has a silhouette to draw.
- *
- * **Only the holders that can be drawn are offered** (Paul, 2026-09-07:
- * "exclude any holders without models"). A record with no measured profile and
- * no published nose has no shape at all, so picking it draws a blank panel.
- * `drawable` is the rule and `holder-choice.ts` documents it; this is the one
- * place the catalog's own profile document is what answers it.
- *
- * The dropdown only. Whether a tool can be *held* is a different question from
- * whether its holder has a picture, and narrowing the tool list by this would
- * take tools off a shop's list because a vendor publishes no CAD.
- */
-const hasPicture = (option: HolderOption): boolean =>
-  drawable(option.holder, (guid: string) => getProfile(guid) !== null)
 
 const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: string }) => {
   const [unit, setUnit] = useUnit()
@@ -1549,6 +1519,18 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       ),
     [],
   )
+  /**
+   * The bounds somebody set themselves, as against the ones this feature asked
+   * for — `ownBounds` in `shared/filter.ts` is the rule.
+   *
+   * Two things read it, and both are about a filter being the last word rather
+   * than a tolerance: which of the removed tools may stand in when nothing
+   * fits, and which columns still have an override to keep.
+   */
+  const own = useMemo(
+    () => ownBounds(query.ranges, suggestions.ranges),
+    [query.ranges, suggestions],
+  )
   const tableContext = useMemo<MatchContext>(
     () => ({
       features: report.features,
@@ -1560,6 +1542,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       margins,
       thresholds,
       overrides: overriding,
+      ownRanges: own,
     }),
     [
       report.features,
@@ -1571,6 +1554,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       margins,
       thresholds,
       overriding,
+      own,
     ],
   )
   const tableDemand = useMemo<MatchDemand | null>(() => {
@@ -1792,7 +1776,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     if (!asking || (tools.length > 0 && !shortOfDrills)) {
       return []
     }
-    const admitted = closeCandidates(nearMisses, query)
+    const admitted = closeCandidates(nearMisses, query, own)
     /**
      * **A tapped hole is drilled.** The nearest misses are drawn from what the
      * rules removed, and a mill that could interpolate the bore is a near miss
@@ -1836,6 +1820,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     shortOfDrills,
     nearMisses,
     query,
+    own,
     holeChoice.mode,
     outOfReach,
     predrillForms,
@@ -2081,17 +2066,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    */
   useEffect(() => {
     setOverriding((current) => {
-      const kept = current.filter((code) => {
-        const bound = query.ranges[code]
-        if (bound === undefined || (bound.min === undefined && bound.max === undefined)) {
-          return false
-        }
-        const suggested = suggestions.ranges[code]
-        return suggested === undefined || !sameBound(bound, suggested)
-      })
+      const kept = current.filter((code) => own[code] !== undefined)
       return kept.length === current.length ? current : kept
     })
-  }, [query.ranges, suggestions])
+  }, [own])
 
   /**
    * Every value each axis has, so a contextual list can say what it is not
@@ -2558,174 +2536,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     setChosenTool(wantedTool.current)
     wantedTool.current = null
   }, [focused])
-
-  /**
-   * The holder and collet for a tool: the columns, the stickout column, and
-   * the panel beside the part all ask the same question.
-   *
-   * Grading every holder in the crib against a tool is real work, so it is
-   * done **per tool that asks**, cached for as long as the crib and the
-   * clearances hold still. Nothing is graded until something calls for it, so
-   * the panel's one tool costs one tool, and a list of two hundred pays only
-   * for the columns that are actually ticked.
-   */
-  const optionsFor = useMemo(() => {
-    const cache = new Map<string, Array<HolderOption>>()
-    return (each: CatalogTool): Array<HolderOption> => {
-      const had = cache.get(each.guid)
-      if (had) {
-        return had
-      }
-      const made = holderOptions(
-        each,
-        allHolders,
-        allCollets,
-        holderFilters,
-        curve,
-        margins,
-        thresholds,
-      )
-      cache.set(each.guid, made)
-      return made
-    }
-  }, [holderFilters, curve, margins, thresholds])
-  const holding = useMemo<Holding>(() => {
-    return {
-      /**
-       * **A collet chosen first puts its own chucks at the top** (Paul,
-       * 2026-09-01: "then all holders are shown but we show the ones that work
-       * with that collet at the top"). Every holder is still offered — the
-       * collet is a preference, not a filter — and the ones of its series lead.
-       */
-      holdersFor: (each) => {
-        const chosenCollet = picked[each.guid]?.colletGuid
-        const series =
-          chosenCollet == null ? undefined : (getCollet(chosenCollet)?.series ?? undefined)
-        // Only the holders that can be drawn — `hasPicture` above says why, and
-        // `undrawable` below reports what that hid.
-        const options = optionsFor(each).filter(hasPicture)
-        const ordered =
-          series === undefined
-            ? options
-            : [
-                ...options.filter((option) => option.holder.colletSeries === series),
-                ...options.filter((option) => option.holder.colletSeries !== series),
-              ]
-        return ordered.map((option) => ({
-          guid: option.holder.guid,
-          label:
-            option.holder.colletSeries === series
-              ? `${option.holder.catalogNumber} · takes this collet`
-              : option.holder.catalogNumber,
-          holder: option.holder,
-          trouble: option.unstocked
-            ? `no ${option.holder.colletSeries ?? 'matching'} collet stocked`
-            : option.clears === false
-              ? 'collision with geometry'
-              : option.band === 'bad'
-                ? 'too little grip'
-                : null,
-        }))
-      },
-      /**
-       * How many holders were left off for having no picture, so the panel can
-       * say so rather than showing an empty dropdown (Paul, 2026-09-07).
-       */
-      undrawable: (each) => optionsFor(each).filter((option) => !hasPicture(option)).length,
-      /**
-       * With a holder: the collets of its series that close on the shank.
-       * **Without one: every collet that closes on the shank**, whatever series
-       * it belongs to, each saying which series that is — the dropdown used to
-       * be empty until a holder was picked, which read as broken (Paul,
-       * 2026-09-01).
-       */
-      colletsFor: (each, holderGuid) => {
-        const holder = optionsFor(each).find((option) => option.holder.guid === holderGuid)?.holder
-        if (holder === undefined) {
-          return colletsForShank(each, allCollets).map((collet) => ({
-            guid: collet.guid,
-            label: `${collet.catalogNumber} · ${collet.series}`,
-          }))
-        }
-        return colletsFor(each, holder, allCollets).map((collet) => ({
-          guid: collet.guid,
-          label: collet.catalogNumber,
-        }))
-      },
-      chosen: (each) => ({
-        holderGuid: picked[each.guid]?.holderGuid ?? null,
-        colletGuid: picked[each.guid]?.colletGuid ?? null,
-      }),
-      /** What the chosen stack stands out at: the person's, or the option's own. */
-      stickoutFor: (each) => {
-        const holderGuid = picked[each.guid]?.holderGuid ?? null
-        return (
-          picked[each.guid]?.stickout ??
-          optionsFor(each).find((option) => option.holder.guid === holderGuid)?.stickout ??
-          null
-        )
-      },
-      requiredStickout: (each) => {
-        const holderGuid = picked[each.guid]?.holderGuid ?? null
-        if (holderGuid === null) {
-          return null
-        }
-        return (
-          optionsFor(each).find((option) => option.holder.guid === holderGuid)?.required ?? null
-        )
-      },
-      /**
-       * Why nothing in the crib can hold it, in one line.
-       *
-       * The holder stage drops a tool for one of two reasons and said neither:
-       * every stack fouls the part at the stickout this feature needs, or the
-       * tool is too short to stand out that far and keep hold. Both are about
-       * a length, and a length is what somebody can go and change.
-       */
-      reachNote: (each) => {
-        const options = optionsFor(each)
-        /**
-         * **Never "no holder grips this shank"** (Paul, 2026-09-01: "means
-         * nothing, never show it"). It said the crib holds nothing that takes
-         * this shank, which is a fact about the crib rather than about the
-         * length the cell is for — and it stood in that cell against every
-         * tool of a size nobody has a collet for, which is most of a
-         * seventeen-thousand-tool catalog.
-         */
-        if (options.length === 0) {
-          return null
-        }
-        if (options.some((option) => option.grade !== 'bad')) {
-          return null
-        }
-        /**
-         * **One stack's story, not two halves of two.**
-         *
-         * Taking the least required stickout from one holder and the longest
-         * grip from another read as "needs 53 mm out; holds at 55" — which
-         * says it fits (Paul, 2026-08-31). The stack that comes closest is the
-         * one worth quoting, and closest means the smallest gap between what
-         * it needs and what it can hold.
-         */
-        const gaps = options.flatMap((option) => {
-          const needs = option.required
-          const most = option.range?.max ?? null
-          return needs === null || most === null || needs <= most
-            ? []
-            : [{ needs, most, by: needs - most }]
-        })
-        const closestStack = gaps.sort((a, b) => a.by - b.by)[0]
-        return closestStack === undefined
-          ? 'no holder clears the part here'
-          : `needs ${format(closestStack.needs, 'mm')} out, holds ${format(closestStack.most, 'mm')}`
-      },
-      onChoose: (each, choice) =>
-        setPicked((current) => ({
-          ...current,
-          [each.guid]: { ...current[each.guid], ...choice },
-        })),
-    }
-  }, [optionsFor, picked])
 
   /**
    * The list: the ten best, each as the assembly the rules recommend — and,
@@ -5035,7 +4845,14 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     if (panelTool === null) {
       return []
     }
-    const held = holding.chosen(panelTool)
+    /**
+     * Whatever this tool is standing in, which is the tree's doing: the panel
+     * has offered no holding of its own since 2026-09-10.
+     */
+    const held = {
+      holderGuid: picked[panelTool.guid]?.holderGuid ?? null,
+      colletGuid: picked[panelTool.guid]?.colletGuid ?? null,
+    }
     const first = distinctIn(askedNow.tags)[0]?.[0]
     const line = first === undefined ? null : chosenFor(sheet, first, panelTool.guid)
     const wanted = toolActions({
@@ -5109,7 +4926,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     }))
   }, [
     panelTool,
-    holding,
+    picked,
     distinctIn,
     askedNow,
     asking,
@@ -6981,7 +6798,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               <ToolDetails
                 tool={panelTool}
                 unit={unit}
-                holding={holding}
                 /*
                   **Nothing is added from here any more** (Paul, 2026-09-02:
                   "Add to list button can go away — we are now adding tools to

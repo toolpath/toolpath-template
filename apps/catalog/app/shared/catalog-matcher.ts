@@ -7,6 +7,7 @@ import {
   facetsNarrowing,
   filterTools,
   FACET_AXES,
+  withinRanges,
   withoutFacets,
   withoutTerm,
   type ToolQuery,
@@ -51,6 +52,19 @@ export interface MatchContext {
    * move it and must not evict its cache entry.
    */
   readonly overrides: ReadonlyArray<string>
+  /**
+   * The range bounds somebody set themselves, as against the ones this feature
+   * asked for — `ownBounds` in `shared/filter.ts`, computed where the
+   * suggestions are.
+   *
+   * It narrows one thing: which of the removed tools may stand in when nothing
+   * fits. A near miss is a tool a little outside the *geometry's* bounds, and
+   * never one outside a bound somebody typed (Paul, 2026-09-10). It is in the
+   * context rather than derived from `query` because only the page knows what
+   * the feature suggested, and it has to be in the key that owns the answer for
+   * the same reason `overrides` is.
+   */
+  readonly ownRanges: ToolQuery['ranges']
 }
 
 /** One question in a table request or a recommendation batch. */
@@ -131,10 +145,11 @@ export interface DetailedResult {
    * offers, nearest first.
    *
    * Distinct from {@link nearMisses} in both directions. Those are the closest
-   * misses to the *rules*, drawn without the ranges so that a tool a little
-   * outside one can be offered when nothing fits; these are what the person's
-   * own ranges ask for, however far outside a rule they land. `tool-fit.ts`
-   * `overridableTools` is the rule and says why the two cannot be one list.
+   * misses to the *rules*, drawn without the geometry's own bounds so that a
+   * tool a little outside one can be offered when nothing fits; these are what
+   * the person's own ranges ask for, however far outside a rule they land.
+   * `tool-fit.ts` `overridableTools` is the rule and says why the two cannot be
+   * one list.
    *
    * Empty until {@link MatchContext.overrides} names a column: nothing is
    * forgiven that nobody asked to have forgiven.
@@ -299,10 +314,11 @@ export const matchKey = (
   stable({
     kind,
     // Recommendation verdicts contain only a GUID, so display units cannot affect
-    // either the answer or its cache entry.
+    // either the answer or its cache entry. Nor can the two things that only
+    // move the removed set: a one-each pick is never drawn from it.
     context: {
       ...(kind === 'recommendations'
-        ? { ...context, unit: 'millimeters', overrides: [] }
+        ? { ...context, unit: 'millimeters', overrides: [], ownRanges: {} }
         : { ...context, overrides: [...context.overrides].sort() }),
       features: featuresKey(context.features),
     },
@@ -423,9 +439,10 @@ export interface PreparedMatch {
    * before a single drill reached the table. Judging this set instead is 65 ms.
    *
    * The ranges are deliberately left out rather than folded in with the rest:
-   * `closeCandidates` drops them too, because "close" is exactly a tool a
-   * little outside a range, and a near miss judged away here could not be
-   * offered as one later.
+   * `closeCandidates` drops the geometry's own too, because "close" is exactly
+   * a tool a little outside one, and a near miss judged away here could not be
+   * offered as one later. A bound somebody typed is obeyed instead, where the
+   * misses are ranked — {@link nearestFew}.
    */
   readonly considered: ReadonlyArray<CatalogTool>
   /** Those of them the filters actually admit — what a row may show. */
@@ -562,21 +579,31 @@ const OVERRIDABLE = 2000
  *
  * One form, or none, is the whole removed set ranked once, which is what it
  * always was.
+ *
+ * **The bounds somebody typed narrow the set before it is ranked, not after**
+ * (Paul, 2026-09-10). Fifty nearest misses to a rule are fifty tools chosen
+ * without ever asking the flute count, so narrowing them on the far side of
+ * the boundary can only empty the list: the one three-flute tool that misses
+ * by a little was never among the fifty. The whole removed set is here, which
+ * is the only place the question can be asked without a cap over the answer.
  */
 const nearestFew = (
   excluded: ReadonlyArray<Verdict>,
   forms: ReadonlyArray<string>,
+  own: ToolQuery['ranges'],
 ): Array<Verdict> => {
-  const overall = closestMisses(excluded, NEAR_MISSES)
+  const asked =
+    Object.keys(own).length === 0
+      ? excluded
+      : excluded.filter((verdict) => withinRanges(verdict.tool, own))
+  const overall = closestMisses(asked, NEAR_MISSES)
   if (forms.length < 2) {
     return overall
   }
   const sent = new Set(overall.map((verdict) => verdict.tool.guid))
   return [
     ...overall,
-    ...closestPerForm(excluded, forms, NEAR_MISSES).filter(
-      (verdict) => !sent.has(verdict.tool.guid),
-    ),
+    ...closestPerForm(asked, forms, NEAR_MISSES).filter((verdict) => !sent.has(verdict.tool.guid)),
   ]
 }
 
@@ -641,7 +668,9 @@ export const detailedMatch = (
   return {
     demandKey: demand.demandKey,
     fitting: matched.fitting.map(compact),
-    nearMisses: nearestFew(matched.excluded, context.query.terms.form ?? []).map(compact),
+    nearMisses: nearestFew(matched.excluded, context.query.terms.form ?? [], context.ownRanges).map(
+      compact,
+    ),
     overridable: overridableTools(
       matched.excluded,
       prepared.admittedGuids,

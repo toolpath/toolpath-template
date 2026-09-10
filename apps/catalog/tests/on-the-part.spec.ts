@@ -3600,3 +3600,49 @@ test.describe('Enter with a column filter open', () => {
     await filterKeepsThePress(page)
   })
 })
+
+/**
+ * **A filter is obeyed by the list that stands in when nothing fits** (Paul,
+ * 2026-09-10: at most three flutes, then Kennametal, and four-flute tools on
+ * the list — "they should not be … we should see 'no tools meet these
+ * filters'").
+ *
+ * The vendor was not the cause and could not have been: narrowing to it simply
+ * emptied a list that had been answering, and an empty list is filled with the
+ * closest misses to the rules — which were drawn without the ranges at all, so
+ * a bound somebody typed was a bound the fill ignored. `ownBounds` in
+ * `shared/filter.ts` is the rule that tells that bound from the one the
+ * geometry wrote, and this is the only place both halves can be seen at once:
+ * the fill still stands in, and it stands in with tools the filter admits.
+ *
+ * The cube's nine tools are what make the second half sharp. Its end mills have
+ * four and five flutes and its drills state none, so at most three admits
+ * nothing at all — the answer Paul asked to see.
+ */
+test('the flute filter binds the list that stands in when nothing fits', async ({ page }) => {
+  await ready(page)
+  await keepFeature(page)
+  await page
+    .locator('[data-assembly-tree]')
+    .getByRole('button', { name: /^TOOL for / })
+    .click()
+
+  await page.getByRole('button', { name: 'Filter by Flutes', exact: true }).click()
+  await page.getByRole('combobox', { name: 'How to compare Flutes' }).click()
+  await page.getByRole('option', { name: '≤ at most' }).click()
+  const box = page.getByRole('textbox', { name: 'Flutes — value' })
+  await box.fill('5')
+
+  // Nothing fits this face, so the list is the closest misses standing in —
+  // and at most five admits them, which is the half that must survive.
+  await expect(page).toHaveURL(/max\.NOF=5/)
+  await expect(page.getByRole('grid').first().getByRole('row').first()).toBeVisible()
+
+  await box.fill('3')
+
+  await expect(page).toHaveURL(/max\.NOF=3/)
+  await expect(page.getByRole('grid').first().getByRole('row')).toHaveCount(0)
+  await expect(
+    page.getByText('No tool in the catalog matches every part of this selection.'),
+  ).toBeVisible()
+})

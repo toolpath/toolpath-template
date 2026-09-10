@@ -55,6 +55,7 @@ const context = (features: ReadonlyArray<PartFeature>): MatchContext => ({
   margins: { radial: 0, axial: 0 },
   thresholds: thresholdsFrom(),
   overrides: [],
+  ownRanges: {},
 })
 
 const catalog = { tools: [tool('SMALL', 6), tool('LARGE', 10)], holders: [], collets: [] }
@@ -543,5 +544,55 @@ describe('the features key', () => {
     const key = matchKey('table', context(features), [{ demandKey: 'one', tags: ['a'] }])
     expect(key).toContain(featuresKey(features))
     expect(key).not.toContain('featureType')
+  })
+})
+
+/**
+ * **A bound somebody typed is obeyed by the list that stands in when nothing
+ * fits** (Paul, 2026-09-10: at most three flutes, then Kennametal, and
+ * four-flute tools on the list — "they should not be … we should see 'no tools
+ * meet these filters'").
+ *
+ * And obeyed **here**, before the fifty nearest are taken. The cap ranks on how
+ * far a tool is outside the *rules*, which never asks the flute count — so the
+ * one three-flute tool that could stand in is exactly the one a cap taken first
+ * would drop, and no amount of narrowing on the far side of the worker boundary
+ * could put it back.
+ */
+describe('the misses a typed bound leaves standing', () => {
+  const flutes = (guid: string, DC: number, NOF: number): CatalogTool => {
+    const each = tool(guid, DC)
+    return { ...each, geometry: { ...each.geometry, NOF } } as CatalogTool
+  }
+
+  const feature = pocket('pocket-1')
+  const demand = { demandKey: 'one', tags: [feature.featureTag] }
+  // Sixty four-flute cutters that miss the pocket by a hair, and one
+  // three-flute that misses it by a mile.
+  const crib = {
+    tools: [
+      ...Array.from({ length: 60 }, (each, at) => flutes(`four-${String(at)}`, 11, 4)),
+      flutes('three', 30, 3),
+    ],
+    holders: [],
+    collets: [],
+  }
+
+  it('ranks on the rules alone while only the geometry is bounding the list', () => {
+    const result = detailedMatch(context([feature]), demand, crib)
+
+    expect(result.excludedCount).toBe(61)
+    expect(result.nearMisses).toHaveLength(50)
+    expect(result.nearMisses.map((each) => each.toolGuid)).not.toContain('three')
+  })
+
+  it('narrows to the bound before the nearest are taken', () => {
+    const result = detailedMatch(
+      { ...context([feature]), ownRanges: { NOF: { max: 3 } } },
+      demand,
+      crib,
+    )
+
+    expect(result.nearMisses.map((each) => each.toolGuid)).toEqual(['three'])
   })
 })

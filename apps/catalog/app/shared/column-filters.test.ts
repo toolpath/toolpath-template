@@ -38,12 +38,6 @@ describe('what a tool column asks', () => {
     expect(askOfToolColumn('LD')).toEqual({ shape: 'range', kind: 'ratio' })
   })
 
-  /** They set the holding on that row; there is no value in them to narrow on. */
-  it('asks nothing of the holder and collet cells', () => {
-    expect(askOfToolColumn('holder')).toBeNull()
-    expect(askOfToolColumn('collet')).toBeNull()
-  })
-
   it('names every axis a header takes over from the button row', () => {
     for (const axis of AXES_IN_TOOL_COLUMNS) {
       expect(askOfToolColumn(axis)).not.toBeNull()

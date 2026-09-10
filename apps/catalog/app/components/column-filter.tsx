@@ -16,6 +16,7 @@ import {
   decimalsFor,
 } from '@toolpath/tool-support'
 import { movedBy, movedTo } from 'shared/column-order'
+import { sameBound } from 'shared/filter'
 import { LAYER_COLUMN_FILTER, useEscape, useKeyLayer } from 'shared/use-escape'
 import { CatalogComboboxButton } from './catalog-combobox-button'
 
@@ -94,17 +95,6 @@ const says = (draft: string, value: number | undefined, unit: UnitSystem, kind: 
     return meant === value
   }
   return Math.abs(meant - value) < 1e-9
-}
-
-const sameEnd = (a: number | undefined, b: number | undefined): boolean =>
-  a === undefined || b === undefined ? a === b : Math.abs(a - b) < 1e-9
-
-/** Whether two bounds ask the same thing, allowing for a float's last digit. */
-export const sameBound = (a: Bound | undefined, b: Bound | undefined): boolean => {
-  if (a === undefined || b === undefined) {
-    return a === b
-  }
-  return sameEnd(a.min, b.min) && sameEnd(a.max, b.max)
 }
 
 /** The bound an operator and one or two numbers add up to. */

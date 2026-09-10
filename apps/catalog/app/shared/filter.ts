@@ -144,7 +144,8 @@ export const withinRange = (
   !(bound.min !== undefined && value < bound.min - BOUND_SLACK) &&
   !(bound.max !== undefined && value > bound.max + BOUND_SLACK)
 
-const matchesRanges = (tool: CatalogTool, ranges: ToolQuery['ranges']): boolean =>
+/** Whether a tool is inside every one of a set of bounds, missing values out. */
+export const withinRanges = (tool: CatalogTool, ranges: ToolQuery['ranges']): boolean =>
   Object.entries(ranges).every(([key, bound]) => {
     if (bound.min === undefined && bound.max === undefined) {
       return true
@@ -152,6 +153,63 @@ const matchesRanges = (tool: CatalogTool, ranges: ToolQuery['ranges']): boolean 
     const value = tool.geometry[key]
     return value === undefined ? false : withinRange(value, bound)
   })
+
+const sameEnd = (a: number | undefined, b: number | undefined): boolean =>
+  a === undefined || b === undefined ? a === b : Math.abs(a - b) < BOUND_SLACK
+
+/**
+ * Whether two bounds ask the same thing, allowing for a float's last digit.
+ *
+ * Here rather than beside the control that draws one because `ownBounds` below
+ * is the same question asked of the matcher, and `shared/` may not import
+ * `components/`.
+ */
+export const sameBound = (
+  a: { readonly min?: number; readonly max?: number } | undefined,
+  b: { readonly min?: number; readonly max?: number } | undefined,
+): boolean => {
+  if (a === undefined || b === undefined) {
+    return a === b
+  }
+  return sameEnd(a.min, b.min) && sameEnd(a.max, b.max)
+}
+
+/**
+ * The bounds somebody set themselves, as against the ones the feature asked for.
+ *
+ * **A filter is somebody's answer the moment it is not the geometry's** — the
+ * rule `overrideOffered` states in `components/column-filter.tsx`, and the one
+ * `applySuggestions` tells a stale suggestion from an answer by. A bound still
+ * reading exactly what this feature suggested is the rules speaking through a
+ * control; anything else is a shop's own word about what it wants to see.
+ *
+ * **What reads it is the near-miss stand-in** (Paul, 2026-09-10: at most three
+ * flutes, then Kennametal, and four-flute tools on the list — "they should not
+ * be … we should see 'no tools meet these filters'"). Nothing fits, so the
+ * closest misses stand in, and they are drawn without the ranges because a tool
+ * a little outside one is exactly what *closest* means. That is right for the
+ * bound the geometry wrote and wrong for the bound somebody typed: the second
+ * is the question, not the tolerance on it. `closeCandidates` and
+ * `nearestFew` both narrow by this, so a filter is obeyed on the list and in
+ * the worker that ranks what reaches it.
+ *
+ * A bound holding neither end narrows nothing and is nobody's answer.
+ */
+export const ownBounds = (
+  ranges: ToolQuery['ranges'],
+  suggested: ToolQuery['ranges'],
+): ToolQuery['ranges'] => {
+  const own: Record<string, { min?: number; max?: number }> = {}
+  for (const [key, bound] of Object.entries(ranges)) {
+    if (bound.min === undefined && bound.max === undefined) {
+      continue
+    }
+    if (!sameBound(bound, suggested[key])) {
+      own[key] = bound
+    }
+  }
+  return own
+}
 
 /** Pure, and the whole of the search: the same function the tests run on literals. */
 export const filterTools = (
@@ -163,7 +221,7 @@ export const filterTools = (
     (tool) =>
       (text === '' || haystack(tool).includes(text)) &&
       matchesTerms(tool, query.terms) &&
-      matchesRanges(tool, query.ranges),
+      withinRanges(tool, query.ranges),
   )
 }
 

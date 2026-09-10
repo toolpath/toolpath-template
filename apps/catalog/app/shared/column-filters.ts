@@ -59,14 +59,13 @@ const TOOL_RANGE_KINDS: Readonly<Record<string, RangeKind>> = {
 }
 
 /**
- * The two tool columns that are a control rather than a value.
+ * What the header over a tool column asks.
  *
- * A holder cell is a dropdown that *sets* the holding on that row, so a funnel
- * beside it would read as narrowing by a choice the row does not have yet.
+ * Every tool column is a value now, so every heading asks something: the two
+ * that were a control rather than a value — the holder and the collet
+ * dropdowns — came off the list on 2026-09-10. The `null` stays in the type
+ * because `askOfTapColumn` shares it and a tap column can still ask nothing.
  */
-const NOT_ASKED = ['holder', 'collet']
-
-/** What the header over a tool column asks, or nothing where it asks nothing. */
 export const askOfToolColumn = (code: string): ColumnAsk | null => {
   if (code === 'catalogNumber') {
     return { shape: 'text' }
@@ -74,9 +73,6 @@ export const askOfToolColumn = (code: string): ColumnAsk | null => {
   const axis = TOOL_TERM_COLUMNS[code]
   if (axis !== undefined) {
     return { shape: 'terms', axis }
-  }
-  if (NOT_ASKED.includes(code)) {
-    return null
   }
   return { shape: 'range', kind: TOOL_RANGE_KINDS[code] ?? 'length' }
 }
