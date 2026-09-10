@@ -470,3 +470,38 @@ export const groupActions = (
     { kind: 'revert', quiet: true, label: 'Cancel' },
   ]
 }
+
+/**
+ * The presses that put an assembly on the order list, or change what is on it.
+ *
+ * `remove` and `revert` are the two that take something *off* or put it back,
+ * and the difference matters twice over: the box closes on an order being
+ * placed (Paul, 2026-09-10: "clicking 'Add to Order List' should close the
+ * feature, group, or tool assembly dialog"), and Enter presses one of these and
+ * never one of those — a key that could silently remove an order is a key
+ * nobody can press with confidence.
+ */
+const ORDERING: ReadonlyArray<AssemblyActionKind> = ['confirm', 'add', 'replace', 'update']
+
+/** Does this press put something on the order list? */
+export const isOrdering = (kind: AssemblyActionKind): boolean => ORDERING.includes(kind)
+
+/**
+ * The one press Enter stands for, out of what a stack offers.
+ *
+ * **Enter is the button under the stack** (Paul, 2026-09-10: "clicking enter
+ * once any components are selected in one of these dialogs should act like I
+ * clicked add to order list — confirm the currently selected tools and close
+ * the dialog"). Picking a tool in the table and then reaching for the mouse
+ * again to press the button three inches away is the same decision twice.
+ *
+ * `null` where there is nothing to order — an empty stack offers the press
+ * greyed, and a key that fires a disabled button is a key that does nothing
+ * visible and looks broken. Generic over the shape so the route can hand it
+ * either the rule's own actions or the ones it has wired up to draw.
+ */
+export const orderingPress = <
+  Action extends { readonly kind: AssemblyActionKind; readonly disabled?: boolean },
+>(
+  actions: ReadonlyArray<Action>,
+): Action | null => actions.find((each) => each.disabled !== true && isOrdering(each.kind)) ?? null

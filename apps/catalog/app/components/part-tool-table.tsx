@@ -823,11 +823,23 @@ export const PartToolTable = ({
  * with no visible reason for it.
  */
 export const ToolTableToolbar = ({
+  before,
   filters,
   actions,
   onClear,
   set,
 }: {
+  /**
+   * A press about the rows themselves, ahead of everything else in the chrome.
+   *
+   * **Left of the clear press, or left of the pencil when there is nothing to
+   * clear** (Paul, 2026-09-10). It is not a filter: what it does is put rows on
+   * the table rather than take them off, so counting it in `Clear n filters`
+   * would name a filter nobody set — and it stays on screen when the clear
+   * press is not there, which is why it is a slot of its own rather than part
+   * of `filters`.
+   */
+  before?: ReactNode
   /** The questions no column asks. Absent for a list whose columns ask them all. */
   filters?: ReactNode
   actions?: ReactNode
@@ -845,6 +857,7 @@ export const ToolTableToolbar = ({
 }) => (
   <>
     <div data-part-tool-table-toolbar className="flex flex-wrap items-center justify-end gap-1">
+      {before}
       {set.length === 0 ? null : (
         <Button
           type="button"

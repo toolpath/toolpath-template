@@ -610,14 +610,36 @@ differently:
 - The list **fills the space it has, then scrolls**: `max-h-full` is the top of
   the tool table, because the overlay is floored to the viewer and the viewer
   stops where the table starts.
-- The **editor is a card of its own beside the list**, never beneath it, and it
-  **starts at the top of the viewer** (Paul, 2026-09-09: "creating a feature,
-  group, or tool assembly should open the dialog at the top of the part viewer,
-  not in line with the order list row"). The overlay is a row of two: a column
-  holding the three presses and the rows, and the card. The card used to be
-  the list's own sibling inside that column, which opened every form a press's
-  height down the part; as the row's second child, `self-start` is the top of
-  the viewer rather than the top of the rows.
+- The **editor opens directly under the press that opened it** (Paul,
+  2026-09-10: "the current placement of the feature, group, or tool assembly
+  dialogs block the part on a small screen too often — move all these dialogs to
+  directly below the + Feature, + Group, and + Tool Assembly buttons"). The
+  overlay is **one column**: the three presses, the card, the fold, the rows.
+  It was a row of two — the presses and rows in one column, the card in a second
+  beside it — which is two columns of chrome over a part on any screen a
+  laptop's width or under, and the card is the answer to a press three pixels
+  above it. The column is `w-80`, and `w-[26rem]` while the group editor is
+  open, because the card is what asks for the width now that it is inside it.
+- **An open editor folds the rows away**, and one button under it brings them
+  back (Paul, 2026-09-10: "when a dialog is active, fold up the order list.
+  Provide a button to be able to expand it underneath the open feature, group,
+  or tool assembly dialog if desired"). One column carrying both would otherwise
+  cover the part from the top of the viewer to the bottom. The button says
+  _Order list_ and the count, so a folded list still says how much is on it; it
+  is the only thing that unfolds it, and pressing it again folds it back. The
+  fold **comes back on its own when the card closes**, so the next thing asked
+  starts the way the last one did rather than inheriting a press.
+  `listUnderDialog` in `routes/part.tsx` is the state and `dialogOpen` the
+  condition; with the rows unfolded the card takes what it can and the rows keep
+  a floor of `min-h-28`, because a fold button that opens onto nothing is a lie.
+  `tests/on-the-part.spec.ts` § "draws the tree under the add presses, over the
+  list and above the table" measures the column, and `orderList` in
+  `tests/cube-fixture.ts` is how every other test presses the fold open.
+- **The press that orders is the way out** (Paul, 2026-09-10), and **Enter is
+  that press**. Both are rules of the stack rather than of the list —
+  `docs/TOOL-ASSEMBLY-TREE.md` § 3 states them, `isOrdering` and `orderingPress`
+  own them — and they are here because they are what closes this box: an order
+  written is a form finished with, and the row on the list is the way back in.
 - While a draft is open the viewer stops clipping its overlay (`overlaySpills`),
   so a form with a confirm button under a growing list can always be finished.
 
@@ -754,42 +776,44 @@ true of the work the worker does:
 
 ## 11. Where the rules live
 
-| Rule                                       | File                                             |
-| ------------------------------------------ | ------------------------------------------------ |
-| what the list holds, names, ids, storage   | `app/shared/feature-list.ts`                     |
-| the name a shop gave an assembly row       | `renameItem` / `defaultLabelOf`, same file       |
-| the field that name is typed in            | `app/components/name-field.tsx`                  |
-| what the bottom of the page is asked       | `asked()`, same file                             |
-| which key a row's lines are kept under     | `sheetKeysOf`, same file                         |
-| reading, writing and clearing those keys   | `app/shared/order-list.ts`                       |
-| which rows the list draws                  | `listedItems`, same file                         |
-| the order list both pages show             | `orderAssemblies`, same file                     |
-| what to buy, once each, and how many       | `componentTotals`, same file                     |
-| setting a component's whole order          | `setComponentCount`, same file                   |
-| the components view on the part            | `app/components/component-tally.tsx`             |
-| the three presses that grow the list       | `app/components/add-bar.tsx`                     |
-| a row's answer, and what opens             | `app/shared/recommendations.ts`                  |
-| what a click means                         | `app/shared/part-interaction.ts`                 |
-| the list on screen                         | `app/components/feature-list-panel.tsx`          |
-| building a group                           | `app/components/group-editor.tsx`                |
-| a group's worst case, and whose it is      | `app/shared/group-geometry.ts`                   |
-| the one bore a group shares                | `sharedHoleDiameter`, same file                  |
-| whether identical holes group              | `Interaction.collecting`, `part-interaction.ts`  |
-| whether the offer to group them is made    | `app/shared/group-offer.ts`                      |
-| the offer on screen, and both answers      | `identical`, `components/selection-panel.tsx`    |
-| a feature row turned into a group          | `changeToGroup`, `app/routes/part.tsx`           |
-| which key a reading's lines are kept under | `choiceKey`, same file                           |
-| which holes a thread choice is written to  | `writeThread` / `holesAt`, `shared/hole-mode.ts` |
-| the reading and its thread                 | `app/components/selection-panel.tsx`             |
-| what a threaded hole is called             | `threadedName`, `app/shared/threads.ts`          |
-| what the panel and the ⓘ dialog call it    | `nameOf`, handed down by `part.tsx`              |
-| the tool table and its marks               | `app/components/part-tool-table.tsx`             |
-| what overruling the rules offers           | `overridableTools`, `shared/tool-fit.ts`         |
-| the warning and its confirm                | `OverrideNotice`, `components/column-filter.tsx` |
-| what a filter is not showing, and the `…`  | `TermFilter`, `components/column-filter.tsx`     |
-| what a tick on Type asks of the forms      | `formsAsking`, `app/shared/tool-type.ts`         |
-| which slots were filled against them       | `overrides`, `shared/assembly-tree.ts`           |
-| everything wired together                  | `app/routes/part.tsx`                            |
+| Rule                                       | File                                                  |
+| ------------------------------------------ | ----------------------------------------------------- |
+| what the list holds, names, ids, storage   | `app/shared/feature-list.ts`                          |
+| the name a shop gave an assembly row       | `renameItem` / `defaultLabelOf`, same file            |
+| the field that name is typed in            | `app/components/name-field.tsx`                       |
+| what the bottom of the page is asked       | `asked()`, same file                                  |
+| which key a row's lines are kept under     | `sheetKeysOf`, same file                              |
+| reading, writing and clearing those keys   | `app/shared/order-list.ts`                            |
+| which rows the list draws                  | `listedItems`, same file                              |
+| the order list both pages show             | `orderAssemblies`, same file                          |
+| what to buy, once each, and how many       | `componentTotals`, same file                          |
+| setting a component's whole order          | `setComponentCount`, same file                        |
+| the components view on the part            | `app/components/component-tally.tsx`                  |
+| the three presses that grow the list       | `app/components/add-bar.tsx`                          |
+| whether the rows are folded under the box  | `listUnderDialog` / `dialogOpen`, `part.tsx`          |
+| which press closes the box, and Enter's    | `isOrdering` / `orderingPress`, `assembly-actions.ts` |
+| a row's answer, and what opens             | `app/shared/recommendations.ts`                       |
+| what a click means                         | `app/shared/part-interaction.ts`                      |
+| the list on screen                         | `app/components/feature-list-panel.tsx`               |
+| building a group                           | `app/components/group-editor.tsx`                     |
+| a group's worst case, and whose it is      | `app/shared/group-geometry.ts`                        |
+| the one bore a group shares                | `sharedHoleDiameter`, same file                       |
+| whether identical holes group              | `Interaction.collecting`, `part-interaction.ts`       |
+| whether the offer to group them is made    | `app/shared/group-offer.ts`                           |
+| the offer on screen, and both answers      | `identical`, `components/selection-panel.tsx`         |
+| a feature row turned into a group          | `changeToGroup`, `app/routes/part.tsx`                |
+| which key a reading's lines are kept under | `choiceKey`, same file                                |
+| which holes a thread choice is written to  | `writeThread` / `holesAt`, `shared/hole-mode.ts`      |
+| the reading and its thread                 | `app/components/selection-panel.tsx`                  |
+| what a threaded hole is called             | `threadedName`, `app/shared/threads.ts`               |
+| what the panel and the ⓘ dialog call it    | `nameOf`, handed down by `part.tsx`                   |
+| the tool table and its marks               | `app/components/part-tool-table.tsx`                  |
+| what overruling the rules offers           | `overridableTools`, `shared/tool-fit.ts`              |
+| the warning and its confirm                | `OverrideNotice`, `components/column-filter.tsx`      |
+| what a filter is not showing, and the `…`  | `TermFilter`, `components/column-filter.tsx`          |
+| what a tick on Type asks of the forms      | `formsAsking`, `app/shared/tool-type.ts`              |
+| which slots were filled against them       | `overrides`, `shared/assembly-tree.ts`                |
+| everything wired together                  | `app/routes/part.tsx`                                 |
 
 Each pure module owns its tests. `tests/on-the-part.spec.ts` walks the paths that
 begin with a click on the part, against the cube fixture — the only fixture that

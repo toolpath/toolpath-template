@@ -29,40 +29,47 @@ assembly, not a tool.**
 ## 1. The shape
 
 ```
-FEATURE LIST         │ FEATURE PANEL        │  (the part)   │  ASSEMBLY
-─────────────────────┼──────────────────────┼───────────────┼───────────
-▾ ⌀8 Through Hole    │ ⌀8 Through Hole      │               │  TOOL   …
-    B976Z0250 · ER16 │ 8.00 mm · 25.4 deep  │               │  HOLDER …
-  Pocket             │ ─── TOOL ASSEMBLIES ─│               │  COLLET …
-  + Add feature      │ ▾ TAP                │               │
-                     │   ● TAP    M8×1.25   │               │  [drawing]
-                     │   ○ HOLDER   —       │               │
-                     │   ○ COLLET   —       │               │  [the
-                     │   ○ DRILL    —       │               │   vendor's
-                     │     ○ HOLDER   —     │               │   fields]
-                     │     ○ COLLET   —     │               │
-                     │  [Add to order list] │               │
-                     │ + Add assembly       │               │
-─────────────────────┴──────────────────────┴───────────────┤
++ Feature  + Group  + Tool Assembly │      (the part)       │  ASSEMBLY
+────────────────────────────────────┼───────────────────────┼───────────
+ ⌀8 Through Hole                    │                       │  TOOL   …
+ 8.00 mm · 25.4 deep                │                       │  HOLDER …
+ ─── TOOL ASSEMBLIES ───────────    │                       │  COLLET …
+ ▾ TAP                              │                       │
+   ● TAP    M8×1.25                 │                       │  [drawing]
+   ○ HOLDER   —                     │                       │
+   ○ COLLET   —                     │                       │  [the
+   ○ DRILL    —                     │                       │   vendor's
+     ○ HOLDER   —                   │                       │   fields]
+     ○ COLLET   —                   │                       │
+  [Add to order list]               │                       │
+ + Add assembly                     │                       │
+ › Order list  2   ← folded while the panel is open         │
+────────────────────────────────────┴───────────────────────┤
 TOOL / HOLDER / COLLET TABLE                                │
 Catalog no │ Vendor │ Type │ …                              │
 [ the rows for the open slot ]                              │
 ```
 
+With nothing being asked, the same column is the three presses and the order
+list under them — `docs/FEATURE-LIST.md` is the spec for the rows.
+
 - **The feature list is unchanged.** It still shows a row per thing asked about
   and each row's answers beneath it — `docs/FEATURE-LIST.md` is still the spec
   for it. What a row's answers _are_ has not changed either: they are lines on
   the setup sheet.
-- **One editable tree**, in the feature panel beside the list, for whichever row
-  is selected (Paul, 2026-09-07: "moving the tool tree to the feature panel").
-  It stood in the table's own scroll area, which put the stack being built at
-  the bottom of the page and the feature it answers at the top; it now sits
-  under the reading that asked for it, above the table it drives. There is
-  deliberately no second copy inside the feature list: two trees kept in step is
-  a divergence with a delay on it.
-- **The feature panel is always beside the list**, never beneath it. It used to
-  wrap under a short list, which was right while it was a short reading and
-  wrong the moment it carried a tree that grows as stacks are added.
+- **One editable tree**, in the feature panel, for whichever row is selected
+  (Paul, 2026-09-07: "moving the tool tree to the feature panel"). It stood in
+  the table's own scroll area, which put the stack being built at the bottom of
+  the page and the feature it answers at the top; it now sits under the reading
+  that asked for it, above the table it drives. There is deliberately no second
+  copy inside the feature list: two trees kept in step is a divergence with a
+  delay on it.
+- **The feature panel opens under the three presses**, in the same column as the
+  order list, which folds away under it while it is open (Paul, 2026-09-10). It
+  was a second column beside the list — before that it wrapped beneath a short
+  one — and two columns of chrome is the part covered on a laptop. See
+  `docs/FEATURE-LIST.md` § 5 for the fold and the button that brings the rows
+  back.
 - **The table is whichever list the open slot asks for** — tools, holders or
   collets — with the same sorting, the same column picker, the same column
   order and filters asked the same way: on the heading of the column that shows
@@ -121,6 +128,23 @@ this assembly`, because a rack is narrowed to what fits a stack only while
   orderable on its own is a thread with no hole under it to cut. A sentence per
   stack that moved, the first on the button and the rest under it, each naming
   the stack it is about — `TAP: Change holder from A to B`.
+- **The press that orders closes the box** (Paul, 2026-09-10: "clicking 'Add to
+  Order List' should close the feature, group, or tool assembly dialog"). The
+  decision is written the moment it is pressed, and what stood on screen
+  afterwards was a form somebody had finished with, over the part, with the
+  order list folded behind it. The same for _Change holder from A to B_ and the
+  rest of the writing presses — `isOrdering` in `assembly-actions.ts` is the
+  list — and **not** for _Remove from order list_ or _Cancel_: a feature with a
+  second stack in it is still being worked on, and where the row is emptied it
+  is already put down. The way back in is the row on the order list.
+- **Enter is that button**, from wherever the last click left the focus (Paul,
+  2026-09-10: "clicking enter once any components are selected in one of these
+  dialogs should act like I clicked add to order list — confirm the currently
+  selected tools and close the dialog"). A tool is picked _in_ the table, so the
+  table is where the focus is; the key is read ahead of the guard that holds the
+  arrow keys and Space back from it, and a field still owns its own Enter.
+  `orderingPress` is which press it stands for — never _Remove_ and never
+  _Cancel_, and nothing at all while the press is greyed.
 - **The panel on the right is the component being read**, and nothing else. It
   had the buttons, a table away from the stack they described; it does **not**
   list the stack either, because one component list on each side of the table
@@ -292,6 +316,28 @@ this shank_ is one collet to order. `holderCanTake` — the strict claim that a
 stack grips — is untouched, and nothing may present a widened row as though it
 answered it. Choosing such a chuck leaves the collet slot empty, and that slot
 names what to buy rather than asking for the choice to be undone.
+
+**A press in the chrome decides which rack is on screen** (Paul, 2026-09-10:
+"can I actually get a button to 'show holders with no collet' in the holder
+table?", and "by default, the holders with no collet should be hidden"). The
+list opens on what the crib can build this afternoon — every chuck a stocked
+collet closes on — and `Show n with no collet` puts the rest on it, each with
+its badge. `components/no-collet-toggle.tsx` is the press; it stands left of
+`Clear n filters`, or left of the pencil when nothing is set, in
+`ToolTableToolbar`'s `before` slot.
+
+It is **not a filter**: it puts rows on the list rather than taking them off, so
+it is not counted in `Clear n filters` and clearing a taper does not undo it.
+`holdersToOffer` returns both lists — `shown` and `stocked` — rather than taking
+a flag, because whichever one the table draws, the press over it has to count
+the other, and a flag makes that count a second question that can disagree with
+the rows. With the press off, an empty rack says how many holders it is keeping
+back (`whyEmpty`), since the narrower rack is the one the page opens on and
+"nothing fits" and "something is hidden" read the same on screen.
+
+**The tool list is not behind the press.** `holdable` keeps the wide rule, so a
+cutter whose only chucks need a collet nobody has bought is still listed; its
+rack opens narrow, with the press above it counting what it is holding back.
 
 **Only the holders that can be drawn are offered** (`holdersToOffer`). A holder
 is drawable when it has a measured profile or a published nose diameter, and
@@ -745,7 +791,10 @@ gets it.
 | what narrows what                                 | `app/shared/assembly-narrowing.ts`               |
 | whether a chuck is worth offering with no collet  | `holderMayTake`, `@toolpath/catalog-data`        |
 | why an offered chuck cannot be built today        | `colletGap`, `app/shared/assembly-narrowing.ts`  |
+| whether the rack shows them, and how many         | `holdersToOffer` `shown` / `stocked`, same file  |
+| the press that decides, and its words             | `app/components/no-collet-toggle.tsx`            |
 | what a stack offers, and its button's words       | `app/shared/assembly-actions.ts`                 |
+| which press orders, and which Enter stands for    | `isOrdering` / `orderingPress`, same file        |
 | what overruling the rules offers                  | `overridableTools`, `app/shared/tool-fit.ts`     |
 | what an axis has that the list is not showing     | `hiddenOn`, `app/routes/part.tsx`                |
 | the `…` row that offers it                        | `TermFilter`, `components/column-filter.tsx`     |

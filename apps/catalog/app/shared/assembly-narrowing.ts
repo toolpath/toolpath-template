@@ -327,10 +327,33 @@ export const holdersToOffer = (
   canDraw: (holder: Holder) => boolean,
   /** The tools the feature's geometry admits — {@link narrowHolders} says what for. */
   tools: ReadonlyArray<CatalogTool> | null = null,
-): { readonly shown: ReadonlyArray<Holder>; readonly hidden: number } => {
+  /**
+   * Why a holder cannot be built out of the crib today — {@link colletGapFor},
+   * passed in for the same reason `canDraw` is: the answer needs the tools this
+   * slot is standing on, and the caller already has them memoised per row.
+   */
+  gapOf: (holder: Holder) => string | null = () => null,
+): {
+  readonly shown: ReadonlyArray<Holder>
+  /**
+   * The same list without the chucks the crib has no collet for.
+   *
+   * **Two lists rather than a flag** (Paul, 2026-09-10, asking for a press in
+   * the table's chrome). Both are wanted at once: whichever the table draws,
+   * the press over it has to count the other, and a boolean parameter would
+   * have made the count a second question with a second chance to disagree
+   * with the rows.
+   */
+  readonly stocked: ReadonlyArray<Holder>
+  readonly hidden: number
+} => {
   const fits = narrowHolders(holders, chosen, collets, filters, tools)
   const shown = fits.filter(canDraw)
-  return { shown, hidden: fits.length - shown.length }
+  return {
+    shown,
+    stocked: shown.filter((holder) => gapOf(holder) === null),
+    hidden: fits.length - shown.length,
+  }
 }
 
 /**
@@ -355,21 +378,37 @@ export const whyEmpty = (
    */
   byFit = false,
   /**
-   * Why the crib grips nothing in the chuck already chosen — {@link colletGap}.
-   *
-   * It answers before the choices do, because it is the more specific fact
-   * about the same emptiness: a collet list emptied by an ER16 chuck the crib
-   * stocks no ER16 collet for is not asking anybody to clear a choice, it is
-   * naming what to buy. Widening the rack is what put such a chuck on screen,
-   * so this is the first slot it can empty.
+   * The two emptinesses the collet drawer causes, which answer before the
+   * choices do because each is the more specific fact about the same empty
+   * list — and each names something to do that clearing a choice would not.
    */
-  gap: string | null = null,
+  because: {
+    /**
+     * Why the crib grips nothing in the chuck already chosen —
+     * {@link colletGap}. A collet list emptied by an ER16 chuck the crib stocks
+     * no ER16 collet for is not asking anybody to undo a choice, it is naming
+     * what to buy.
+     */
+    readonly gap?: string | null
+    /**
+     * How many holders the press in the chrome is keeping off this rack.
+     *
+     * **The narrower rack is the one the page opens on** (Paul, 2026-09-10),
+     * so its empty list is the case the old rule warned about: nothing fits and
+     * something was hidden read the same on screen and mean opposite things.
+     */
+    readonly hidden?: number
+  } = {},
 ): string | null => {
   if (shown > 0) {
     return null
   }
+  const { gap = null, hidden = 0 } = because
   if (gap !== null) {
     return `No collet fits this holder: ${gap}. Order the holder on its own, or choose another.`
+  }
+  if (hidden > 0) {
+    return `Nothing here can be built out of the crib as it stands. ${hidden} holder${hidden === 1 ? '' : 's'} could take it with a collet you do not stock — the press above shows ${hidden === 1 ? 'it' : 'them'}.`
   }
   const by: Array<string> = []
   if (holder !== null) {

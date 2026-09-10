@@ -146,6 +146,15 @@ export interface ScrapedCollet {
   readonly clampMin: number
   readonly clampMax: number
   readonly clampLength?: number | null
+  /**
+   * The square drive the bore carries, across flats, in the family's own unit.
+   *
+   * What makes a tap collet a tap collet, and the reason `holderTakesTool`
+   * can refuse an end mill of the same diameter a square bore would hold by
+   * nothing. Optional because a crib assembled before `@toolpath/tool-scraper`
+   * 2.5.0 published it says the same thing by saying nothing.
+   */
+  readonly squareSize?: number | null
   readonly productLink?: string | null
   readonly provenance?: Readonly<Record<string, Provenance>>
 }
@@ -404,6 +413,7 @@ const colletFrom = (scraped: ScrapedCollet): Collet => {
     clampMin,
     clampMax,
     clampLength: mm(scraped.clampLength, scraped.unit),
+    squareSize: mm(scraped.squareSize, scraped.unit),
     productLink: scraped.productLink ?? null,
     provenance: scraped.provenance ?? {},
   }

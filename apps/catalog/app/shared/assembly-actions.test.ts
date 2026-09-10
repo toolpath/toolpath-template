@@ -5,6 +5,7 @@ import {
   holdingChanges,
   lineOf,
   nothingToConfirm,
+  orderingPress,
   savedFor,
 } from './assembly-actions'
 import { emptyAssembly, type TreeAssembly } from './assembly-tree'
@@ -416,5 +417,25 @@ describe('what a whole assembly offers', () => {
     const [first] = offered(swapped, on)
     expect(first?.kind).toBe('replace')
     expect(first?.label).toBe('Replace A0101001.5037 with A0101001.6000')
+  })
+})
+
+describe('orderingPress', () => {
+  it('is the press that puts the stack on the order list', () => {
+    expect(orderingPress([{ kind: 'confirm' }, { kind: 'revert' }])).toEqual({ kind: 'confirm' })
+    expect(orderingPress([{ kind: 'replace' }, { kind: 'revert' }])).toEqual({ kind: 'replace' })
+    expect(orderingPress([{ kind: 'update' }, { kind: 'revert' }])).toEqual({ kind: 'update' })
+  })
+
+  it('is nothing where the stack has nothing to order', () => {
+    // The greyed press an empty stack offers: Enter must not fire it.
+    expect(orderingPress([{ kind: 'confirm', disabled: true }])).toBeNull()
+    expect(orderingPress([])).toBeNull()
+  })
+
+  it('never takes something off the list', () => {
+    // Enter is the way *on*. Remove and Cancel are presses somebody makes.
+    expect(orderingPress([{ kind: 'remove' }])).toBeNull()
+    expect(orderingPress([{ kind: 'revert' }])).toBeNull()
   })
 })

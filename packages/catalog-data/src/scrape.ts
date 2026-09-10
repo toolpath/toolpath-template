@@ -473,7 +473,7 @@ type HoldingRun = (fetcher: Fetcher, warn?: Warn) => Promise<ScrapeResult>
  * Kennametal holder families reported `FAILED` against a gate that had just
  * called them reachable (2026-09-08).
  */
-type HoldingScraper = (csvName: string) => HoldingRun | null
+type HoldingScraper = (csvName: string, family: BoundToolholding) => HoldingRun | null
 
 /**
  * The vendors whose toolholding this package can reach, and how.
@@ -489,29 +489,29 @@ type HoldingScraper = (csvName: string) => HoldingRun | null
  * the family config does not carry.
  */
 /**
- * The Kennametal family code behind each toolholding family, by CSV name.
+ * The Kennametal family code behind a toolholding family the scraper declares
+ * none for, by CSV name.
  *
- * **Declared here because nothing declares it.** A cutting-tool family carries
- * its own `familyCode`; a toolholding family carries none, and the scraper's
- * own `families/kennametal.ts` says why — the codes "were scraped by hand from
- * a code read off the page at the time". Kennametal's category pages build
- * their family lists in the browser, so there is nothing to read them off
- * without one.
+ * **A fallback now, not the source.** `@toolpath/tool-scraper` 2.5.0 records
+ * `familyCode` on a toolholding family, and every one of its sixteen Kennametal
+ * collet families carries one — so the codes come off `families/kennametal.ts`
+ * and this table answers only for what upstream leaves silent. Keeping a
+ * hand-pinned code ahead of the vendor's own is how one goes stale unnoticed:
+ * the entry for `er16_collets_coolant_through_inch.csv` held `100000479`, which
+ * upstream now states is `er_standard_collets_inch.csv` — a different family
+ * that did not exist here when the code was read.
  *
- * Read from the vendor's own family-page URLs (Paul, 2026-09-07), which are
- * `fam.<slug>.<code>.html`. The slug does not matter — AEM resolves the page
- * off the numeric code alone — so the slug is kept here only as the evidence
- * of which page the code came from.
+ * What is left is the one BT30 adapter, read from the vendor's own family-page
+ * URL (Paul, 2026-09-07), which is `fam.<slug>.<code>.html`. The slug does not
+ * matter — AEM resolves the page off the numeric code alone — so it is kept
+ * here only as the evidence of which page the code came from. The eight holder
+ * families declare no code either here or upstream, and `holdingReachable`
+ * names them; `scrape.test.ts` pins that list so it can shrink and not grow.
  *
  * This is the same stopgap `REGOFIX_COLLET_GROUPS` below is: a table the
  * scraper should own, kept here until toolholding has a record seam.
  */
 const KENNAMETAL_HOLDING_CODES: Readonly<Record<string, string>> = {
-  // fam.er-standard-collets-metric.100000478.html
-  'er_standard_collets_metric.csv': '100000478',
-  // fam.er-standard-collets-inch.100000479.html — the inch listing of the same
-  // ER standard collet, which is what the vendor publishes under that name.
-  'er16_collets_coolant_through_inch.csv': '100000479',
   // fam.er-collet-adapter-bt30.100149552.html
   'bt30_er_collet_adapters_metric.csv': '100149552',
 }
@@ -524,8 +524,8 @@ const HOLDING_SCRAPERS: Readonly<Record<string, HoldingScraper>> = {
    * reports as the family not being one this brand knows — the honest answer,
    * and the one that keeps a missing code from reading as a broken scrape.
    */
-  kennametal: (csvName) => {
-    const code = KENNAMETAL_HOLDING_CODES[csvName]
+  kennametal: (csvName, family) => {
+    const code = family.familyCode ?? KENNAMETAL_HOLDING_CODES[csvName]
     return code === undefined
       ? null
       : (fetcher) => scrapeFamily(fetcher, code, 'kennametal', [], AEM_TITLE)
@@ -613,7 +613,7 @@ export const holdingReachable = (csvName: string, family: BoundToolholding): str
   if (family.records === undefined) {
     return `${brand} has no ${family.kind} record mapper`
   }
-  if (scraper(csvName) === null) {
+  if (scraper(csvName, family) === null) {
     return `${brand} declares no scrape target for ${csvName}`
   }
   return null
@@ -649,6 +649,24 @@ const holderHandoff = (record: HolderRecord, familyId: string): ScrapedHolder =>
   },
 })
 
+/**
+ * A collet record, mapped onto the handoff.
+ *
+ * **`clampLength` is `L9` and not `LF`.** `@toolpath/tool-scraper` 2.5.0 minted
+ * `clampingLength` — how deep the clamping bore is, which is how much shank the
+ * collet actually holds — and that is what `@toolpath/tool-support` documents
+ * `Collet.clampLength` to be and what `maxStickout` reads. Until then the only
+ * length on the record was `functionalLength` (`LF`), which is not the same
+ * quantity and is constant where the bore depth is not: Kennametal's ER40
+ * coolant-through family states `L` 46 mm down all nineteen rows while `L9`
+ * runs 22 / 28 / 46 by size. Mapping `LF` here therefore told `maxStickout`
+ * that a 3 mm collet grips as deeply as a 26 mm one.
+ *
+ * There is no fallback to `LF` for a collet that publishes no `L9`. A wrong
+ * grip depth is worse than none: `null` is "nobody has said" and `maxStickout`
+ * answers `null` in turn, where a plausible wrong number is a stickout ceiling
+ * a shop would set a tool to.
+ */
 const colletHandoff = (record: ColletRecord, familyId: string): ScrapedCollet => ({
   guid: record.guid,
   catalogNumber: record.catalogNumber,
@@ -660,12 +678,14 @@ const colletHandoff = (record: ColletRecord, familyId: string): ScrapedCollet =>
   series: record.series,
   clampMin: record.clampMin,
   clampMax: record.clampMax,
-  clampLength: record.functionalLength,
+  clampLength: record.clampingLength,
+  squareSize: record.squareSize,
   productLink: record.productLink,
   provenance: {
     clampMin: 'vendor-stated',
     clampMax: 'vendor-stated',
-    ...(record.functionalLength === null ? {} : { clampLength: 'vendor-stated' as const }),
+    ...(record.clampingLength === null ? {} : { clampLength: 'vendor-stated' as const }),
+    ...(record.squareSize === null ? {} : { squareSize: 'vendor-stated' as const }),
   },
 })
 
@@ -701,7 +721,7 @@ export const scrapeHoldingOne = async (
     throw new ScrapeError(`no toolholding scraper reachable from this package drives ${brand}`)
   }
 
-  const run = scraper(csvName)
+  const run = scraper(csvName, family)
   if (run === null) {
     throw new ScrapeError(`${brand} declares no scrape target for ${csvName}`)
   }

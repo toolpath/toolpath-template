@@ -15,6 +15,7 @@ import {
   colletsForShank,
   toolCollisions,
   type CatalogTool,
+  type Holder,
   type Margins,
 } from '@toolpath/catalog-data'
 import { useAnalysisEvents } from '@toolpath/part-client'
@@ -28,7 +29,14 @@ import { AppHeader } from 'components/app-header'
 import { PartUploadOverlay, type ReplacementAnalysis } from 'components/part-upload-overlay'
 import { FeatureDetails } from 'components/feature-details'
 import { KindIcon } from 'components/feature-icons'
-import { CursorClickIcon, ListBulletsIcon, TreeStructureIcon, XIcon } from '@phosphor-icons/react'
+import {
+  CaretDownIcon,
+  CaretRightIcon,
+  CursorClickIcon,
+  ListBulletsIcon,
+  TreeStructureIcon,
+  XIcon,
+} from '@phosphor-icons/react'
 import { FilterPanel } from 'components/filter-panel'
 import { ToolDetails } from 'components/tool-details'
 import {
@@ -45,6 +53,7 @@ import { PredrillChoice } from 'components/predrill-choice'
 import { FeatureListPanel } from 'components/feature-list-panel'
 import { AddBar } from 'components/add-bar'
 import { ComponentTally, KIND_LABEL, type ComponentTallyRow } from 'components/component-tally'
+import { NoColletToggle } from 'components/no-collet-toggle'
 import { ColletIcon, HolderIcon, ToolTypeIcon } from 'components/tool-icons'
 import { GroupEditor } from 'components/group-editor'
 import {
@@ -115,6 +124,10 @@ import {
   setSlot,
   heldIn,
   addAssembly,
+  // `groupOf` here is a stack's group in the tree; the page's own `groupOf` is
+  // a feature's identical siblings, and the two would read alike at the call.
+  groupOf as groupWith,
+  stacksOf,
   markOrdered,
   removeAssembly,
   renameAssembly,
@@ -126,7 +139,14 @@ import {
   type TreeAssembly,
   type TreeNode,
 } from 'shared/assembly-tree'
-import { groupActions, lineOf, nothingToConfirm, savedFor } from 'shared/assembly-actions'
+import {
+  groupActions,
+  isOrdering,
+  lineOf,
+  nothingToConfirm,
+  orderingPress,
+  savedFor,
+} from 'shared/assembly-actions'
 import {
   byShank,
   colletGapFor,
@@ -382,13 +402,18 @@ const ReplacementProgress = ({
  * Anything being typed into keeps its own keys, and so does the tool table:
  * its search box and its column filters answer for themselves.
  */
-const busyTyping = (event: KeyboardEvent): boolean => {
+/** Somebody is typing: every key belongs to the field, not to the page. */
+const typingInto = (event: KeyboardEvent): boolean => {
   const target = event.target as HTMLElement | null
-  const typing =
+  return (
     target?.isContentEditable === true ||
     ['INPUT', 'SELECT', 'TEXTAREA'].includes(target?.tagName ?? '')
-  return typing || target?.closest('[data-part-tool-table]') != null
+  )
 }
+
+const busyTyping = (event: KeyboardEvent): boolean =>
+  typingInto(event) ||
+  (event.target as HTMLElement | null)?.closest('[data-part-tool-table]') != null
 
 /**
  * Whether a holder option has a silhouette to draw.
@@ -581,6 +606,28 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    */
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      /*
+        **Enter is the press under the stack** (Paul, 2026-09-10: "clicking
+        enter once any components are selected in one of these dialogs should
+        act like I clicked add to order list — confirm the currently selected
+        tools and close the dialog"). Ahead of `busyTyping`, which holds the
+        arrow keys and Space back from the tool table on purpose: a tool is
+        picked *in* that table, so the table is exactly where the focus is when
+        somebody reaches for Enter, and the key would only ever have worked
+        before they had chosen anything. A field still owns its own Enter, and
+        the press orders nothing where there is nothing to order.
+
+        **A focused button does not keep its own Enter here**, which is the one
+        thing this costs: the box is a dialog, Enter is its default action, and
+        the press that opened it — _+ Feature_ — is still what holds the focus
+        while somebody picks a tool with the mouse. Exempting focused controls
+        was tried on 2026-09-10 and it broke exactly that flow. The X and the
+        fold are a click away either way, and Escape is still the way out.
+      */
+      if (event.key === 'Enter' && !typingInto(event) && orderRef.current()) {
+        event.preventDefault()
+        return
+      }
       if (busyTyping(event)) {
         return
       }
@@ -3677,6 +3724,21 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   }, [forgetTree])
 
   /**
+   * Everything on screen put down: no draft, no row selected, nothing read.
+   *
+   * What the box closing *is*, for a press that has already written what it
+   * came to write — {@link closePanel} is the same thing for a press that has
+   * not, and it drops the draft's stacks on the way out. Ordering keeps them:
+   * they are the assembly that has just gone onto the list.
+   */
+  const putDown = useCallback(() => {
+    setDraft(null)
+    setSelectedId(null)
+    setSelectedTag(null)
+    dispatch({ type: 'reset' })
+  }, [])
+
+  /**
    * The way out of the box over the part, in its top right corner.
    *
    * **One X, the same in all three** (Paul, 2026-09-09: "I would like to add an
@@ -3761,6 +3823,22 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const [nodeHeld, setNodeHeld] = useState<{ itemId: string; node: TreeNode } | null>(null)
   const [holderQuery, setHolderQuery] = useState<ComponentQuery>(NO_QUERY)
   const [colletQuery, setColletQuery] = useState<ComponentQuery>(NO_QUERY)
+  /**
+   * Whether the rack shows the chucks the crib has no collet for.
+   *
+   * **Off to begin with** (Paul, 2026-09-10: "by default, the holders with no
+   * collet should be hidden"). The rack opens on what the shop can actually
+   * build this afternoon, and the press asks the wider question — what could
+   * hold this, if a collet were ordered. The rule they are hidden *by* is the
+   * same one either way, and the count on the press is what stops the narrower
+   * rack reading as an empty crib.
+   *
+   * `components/no-collet-toggle.tsx` is the press and says why it exists. Not
+   * a filter: it is counted and cleared nowhere near `Clear n filters`, because
+   * it puts rows on the list rather than taking them off, and a shop that
+   * pressed it does not want it undone by clearing a taper.
+   */
+  const [noCollet, setNoCollet] = useState(false)
   const [hiddenHolderColumns, setHiddenHolderColumns] = useState<ReadonlyArray<string>>(() =>
     hiddenComponentColumns(HOLDER_COLUMNS),
   )
@@ -4112,6 +4190,42 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const showReading = reading !== null && draft?.kind !== 'assembly'
 
   /**
+   * Whether the box over the part is open at all — a group being built, a
+   * reading, or a stack.
+   *
+   * One name because all three are the same box, and because two things now
+   * depend on it: where the box is drawn, and whether the order list is folded
+   * under it.
+   */
+  const dialogOpen = draft?.kind === 'group' || showReading || showTree
+
+  /**
+   * Whether the order list is showing while that box is open (Paul, 2026-09-10:
+   * "when a dialog is active, fold up the order list. Provide a button to be
+   * able to expand it underneath the open feature, group, or tool assembly
+   * dialog if desired").
+   *
+   * The box moved out of its own column and under the three presses, so it and
+   * the list now stand in the same column — and on a laptop the two of them
+   * together are the part covered from the top of the viewer to the bottom.
+   * The list folds to one button while something is being asked, because the
+   * question is what somebody is looking at; pressing that button brings the
+   * rows back under it.
+   *
+   * It folds again when the box closes, so the *next* thing asked starts the
+   * way this one did rather than inheriting a press from the last one.
+   */
+  const [listUnderDialog, setListUnderDialog] = useState(false)
+  useEffect(() => {
+    if (!dialogOpen) {
+      setListUnderDialog(false)
+    }
+  }, [dialogOpen])
+
+  /** Whether the rows are drawn: always, unless the box has folded them away. */
+  const listShown = !dialogOpen || listUnderDialog
+
+  /**
    * The holders on show: what can hold what is already in the stack, narrowed
    * by the crib's own filters and then by the table's.
    */
@@ -4157,6 +4271,34 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    */
   const stackShanks = useMemo(() => byShank(stackTools), [stackTools])
 
+  /**
+   * Which holder rows the crib cannot actually close on, and why.
+   *
+   * **The rack is wider than the collet drawer** (Paul, 2026-09-09: "we should
+   * show any holder, even if there is not a collet in the library that works").
+   * The list offers those chucks, so every one of them has to carry the reason
+   * it cannot be built today — `colletGap` is the rule, the badge on the row and
+   * the empty collet slot below both read it.
+   *
+   * Cached per holder: the answer is a walk of the chosen tool or of the
+   * feature's shanks, and it is asked once per row by the table, once per
+   * offered holder by the press that counts them, and once more by the collet
+   * slot underneath.
+   */
+  const holderGap = useMemo(() => {
+    const cache = new Map<string, string | null>()
+    const asked = treeTool !== null ? [treeTool] : asking ? stackShanks : null
+    return (holder: Holder): string | null => {
+      const had = cache.get(holder.guid)
+      if (had !== undefined) {
+        return had
+      }
+      const gap = colletGapFor(holder, asked, allCollets)
+      cache.set(holder.guid, gap)
+      return gap
+    }
+  }, [treeTool, asking, stackShanks])
+
   const offered = useMemo(
     () =>
       holdersToOffer(
@@ -4174,15 +4316,40 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           no set of tools to be compatible with, and the list is a catalog again.
         */
         asking ? stackShanks : null,
+        holderGap,
       ),
-    [treeTool, treeCollet, holderFilters, asking, stackShanks],
+    [treeTool, treeCollet, holderFilters, asking, stackShanks, holderGap],
   )
-  const holderPool = offered.shown
+  /**
+   * The rack, with or without the chucks the crib has no collet for.
+   *
+   * **A press in the chrome decides** (Paul, 2026-09-10). The widened rack
+   * answers "what could hold this" and the narrowed one "what can I build this
+   * afternoon"; both are real questions, and only the second one could be asked
+   * before 2026-09-09. It opens on the narrower of the two and the press asks
+   * the other.
+   */
+  const holderPool = noCollet ? offered.shown : offered.stocked
   const undrawableHolders = offered.hidden
+  /**
+   * Both racks as the table would draw them, and the difference between them.
+   *
+   * **The press counts rows, not the pool.** Its number is what pressing it
+   * puts on or takes off the table, and every other narrowing is already in
+   * that: counting the pool made `Show 4 with no collet` put one row on a rack
+   * somebody had narrowed by taper, and the sentence an empty rack prints reads
+   * the same number.
+   */
   const holderRows = useMemo(
     () => filterComponents('holder', holderPool, holderQuery),
     [holderPool, holderQuery],
   )
+  const gappedHolders = useMemo(() => {
+    if (noCollet) {
+      return holderRows.length - filterComponents('holder', offered.stocked, holderQuery).length
+    }
+    return filterComponents('holder', offered.shown, holderQuery).length - holderRows.length
+  }, [noCollet, holderRows, offered, holderQuery])
 
   const colletPool = useMemo(
     // The same rule the holder slot follows, for the same reason: a collet
@@ -4303,6 +4470,9 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         componentName,
       ).map((action) => ({
         key: `${stacks[0]?.id ?? 'assembly'}-${action.kind}`,
+        /* Carried through so the page can find the one press Enter stands for —
+           `orderingPress` is the rule, and the panel draws the rest. */
+        kind: action.kind,
         label: action.label,
         ...(action.danger === true ? { danger: true } : {}),
         ...(action.quiet === true ? { quiet: true } : {}),
@@ -4430,6 +4600,20 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
             setList((current) => removeItem(current, activeItem.id))
             selectRow(null)
           }
+          /*
+            **The press that orders is the way out of the box** (Paul,
+            2026-09-10: "clicking 'Add to Order List' should close the feature,
+            group, or tool assembly dialog"). The decision is made and written;
+            what was left on screen was a form somebody had finished with,
+            over the part, with the order list folded behind it.
+
+            Not on `remove` — a feature with a second stack in it is still being
+            worked on, and where the row *is* emptied the branch above has
+            already put it down — and not on `revert`, which decides nothing.
+          */
+          if (isOrdering(action.kind)) {
+            putDown()
+          }
         },
       })),
     [
@@ -4449,6 +4633,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       forgetTree,
       setList,
       selectRow,
+      putDown,
     ],
   )
 
@@ -4609,33 +4794,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   )
 
   /**
-   * Which holder rows the crib cannot actually close on, and why.
-   *
-   * **The rack is wider than the collet drawer** (Paul, 2026-09-09: "we should
-   * show any holder, even if there is not a collet in the library that works").
-   * The list offers those chucks, so every one of them has to carry the reason
-   * it cannot be built today — `colletGap` is the rule, the badge on the row and
-   * the empty collet slot below both read it.
-   *
-   * Cached per holder: the answer is a walk of the chosen tool or of the
-   * feature's shanks, and the table asks it once per row on every render.
-   */
-  const holderGap = useMemo(() => {
-    const cache = new Map<string, string | null>()
-    const asked = treeTool !== null ? [treeTool] : asking ? stackShanks : null
-    return (guid: string): string | null => {
-      const had = cache.get(guid)
-      if (had !== undefined) {
-        return had
-      }
-      const holder = getHolder(guid)
-      const gap = holder === null ? null : colletGapFor(holder, asked, allCollets)
-      cache.set(guid, gap)
-      return gap
-    }
-  }, [treeTool, asking, stackShanks])
-
-  /**
    * What the panel beside the table offers for the tool it is showing.
    *
    * The rule is `shared/tool-actions`; this is what each of its answers does.
@@ -4745,9 +4903,34 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * Held in refs because the document listener is registered once: a stale
    * closure would walk yesterday's list.
    */
+  /**
+   * The press under the stack on screen, where there is one to make.
+   *
+   * The same object the button draws, found by `orderingPress`: one press, one
+   * rule, whether it is reached with the mouse or with Enter. `null` while no
+   * stack is open or nothing in it can be ordered, and Enter then means what it
+   * meant before — keeping the reading under the mouse.
+   */
+  const orderPress = useMemo(() => {
+    if (!showTree || node === null) {
+      return null
+    }
+    const group = groupWith(assemblies, node.assemblyId)
+    return group === null ? null : orderingPress(treeActionsFor(stacksOf(group)))
+  }, [showTree, node, assemblies, treeActionsFor])
+
   const escapeRef = useRef(() => {})
   const stepRef = useRef((_step: number) => {})
   const keepRef = useRef(() => {})
+  /** Enter's answer: whether there was a press to make, having made it. */
+  const orderRef = useRef<() => boolean>(() => false)
+  orderRef.current = () => {
+    if (orderPress === null) {
+      return false
+    }
+    orderPress.onClick()
+    return true
+  }
   escapeRef.current = () => {
     /*
       **Escape backs out of a tool assembly being built** (Paul, 2026-09-08:
@@ -5021,18 +5204,30 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                     */}
                     <div className="pointer-events-none flex h-full min-h-0 items-start gap-2">
                       {/*
-                        **The presses and the list are one column, and the box
-                        being filled in is beside it** (Paul, 2026-09-09:
-                        "creating a feature, group, or tool assembly should open
-                        the dialog at the top of the part viewer, not in line
-                        with the order list row"). The box used to be laid out
-                        in the same row as the list, which put its top edge
-                        below the three presses — a form opening a row's height
-                        down the part rather than at the top of it. This column
-                        carries the presses and the rows; the box is the row's
-                        second child, so it starts where the viewer does.
+                        **The presses, the box, and the list are one column**
+                        (Paul, 2026-09-10: "the current placement of the
+                        feature, group, or tool assembly dialogs block the part
+                        on a small screen too often — move all these dialogs to
+                        directly below the + Feature, + Group, and + Tool
+                        Assembly buttons"). The box stood in a column of its own
+                        beside the list, so on a laptop the two columns together
+                        were most of the width of the viewer and the part was
+                        behind them.
+
+                        It opens where the press that opened it is instead, and
+                        the rows fold away under it — {@link listUnderDialog} —
+                        so one column of one width is all that ever covers the
+                        part.
                       */}
-                      <div className="flex h-full min-h-0 w-80 shrink-0 flex-col items-start gap-2">
+                      <div
+                        className={cn(
+                          'flex h-full min-h-0 shrink-0 flex-col items-start gap-2',
+                          /* The group editor asks for more room than a reading does,
+                             and the column is what carries the width now that the box
+                             is inside it. */
+                          draft?.kind === 'group' ? 'w-[26rem]' : 'w-80',
+                        )}
+                      >
                         {/*
                         **The three ways to add sit over the part, above
                         everything else** (Paul, 2026-09-08: "move the add
@@ -5075,6 +5270,300 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           </p>
                         ) : null}
                         {/*
+                          **Under the press that opened it** (Paul, 2026-09-10:
+                          "move all these dialogs to directly below the +
+                          Feature, + Group, and + Tool Assembly buttons"). It
+                          was a column of its own beside the list, which is two
+                          columns of chrome over a part on any screen a laptop's
+                          width or under — and the box is the answer to a press
+                          three pixels above it, so this is where it belongs.
+
+                          The list under it is what gives way: folded to one
+                          button while the box is open, so the box has the whole
+                          height of the viewer, and `max-h-[55%]` while somebody
+                          has unfolded the rows, so neither of the two ends up
+                          with a height nothing can scroll.
+                        */}
+                        {dialogOpen ? (
+                          <Card
+                            className={cn(
+                              'filter-off pointer-events-auto max-h-full w-full min-h-0 shrink overflow-y-auto',
+                            )}
+                          >
+                            {/*
+                              **The way out is the X in the corner** (Paul,
+                              2026-09-09). It is the same press in all three — a
+                              feature, a group, a tool assembly — and it is the
+                              only thing in the box that closes it, now that a
+                              stack reaches the order list through the press under
+                              it and nothing else.
+
+                              **Level with the first row of the box** (Paul,
+                              2026-09-09: "can we get the x in the same row as the
+                              first row of the dialog?"). A row of its own put a
+                              blank band above the reading; the box is the column
+                              beside it instead, so the X sits at the top right of
+                              whatever the box opens with — the reading, the group
+                              heading, or the tree.
+                            */}
+                            <div className="flex items-start gap-1 p-2">
+                              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                                {draft?.kind === 'group' ? (
+                                  <GroupEditor
+                                    tags={kept}
+                                    results={draft.results}
+                                    onDrop={(tag) => dispatch({ type: 'toggle', featureTag: tag })}
+                                    nameOf={nameOf}
+                                    onCancel={cancelDraft}
+                                    /*
+                                **The tool is part of the answer** (Paul,
+                                2026-09-02: "I must select a tool from the list
+                                when creating a feature, and that is what adds it
+                                to the BOM"). The list below is showing what fits
+                                what is being built; picking a row there is what
+                                finishes it.
+                              */
+                                    picked={
+                                      draft.results === 'each'
+                                        ? draftEach.picked
+                                        : panelTool !== null
+                                    }
+                                    matching={draftEach.status}
+                                    editing={draft.editing !== null}
+                                    /*
+                                **What the group measures, at its worst** (Paul,
+                                2026-09-08). The feature box says what one
+                                feature is; a group's is the hardest of its
+                                features', with the feature that set it named.
+                              */
+                                    readings={draftReadings}
+                                    unit={unit}
+                                    mixed={draftMixedBores}
+                                    /*
+                                      **The thread is the whole group's** (Paul,
+                                      2026-09-09). `writeThread` writes it across
+                                      every hole of that bore in the draft, which
+                                      is what the group is.
+                                    */
+                                    {...(draftBore === null
+                                      ? {}
+                                      : {
+                                          thread: {
+                                            holeDiameter: draftBore,
+                                            mode: draftThread.mode,
+                                            spec: draftThread.spec,
+                                            onChange: (choice: HoleChoice) => {
+                                              writeThread(choice, kept, draftBore)
+                                              // A threaded hole is drilled, not
+                                              // milled — the same demand the
+                                              // reading panel's thread writes.
+                                              applyTerm(
+                                                'form',
+                                                choice.mode === 'plain' ? [] : THREADED_FORMS,
+                                              )
+                                            },
+                                          },
+                                        })}
+                                  />
+                                ) : !showReading /*
+                                The box can now be open for the tree alone — a
+                                group's row is answered by stacks and reads no
+                                face — and an empty reading over it says only
+                                that nothing is being read.
+                              */ ? null : (
+                                  <SelectionPanel
+                                    feature={reading}
+                                    nameOf={nameOf}
+                                    features={report.features}
+                                    regions={report.regions}
+                                    unit={unit}
+                                    siblings={focused === null ? 1 : groupOf(focused).length}
+                                    onInfo={() => setInfo(focused)}
+                                    candidates={candidates}
+                                    onRead={(featureTag) => dispatch({ type: 'read', featureTag })}
+                                    directionOf={(feature) => directionOf(feature)}
+                                    colourOf={(feature) => {
+                                      const at = directionOf(feature)
+                                      return at === null || at < 0
+                                        ? null
+                                        : `#${directionColor(at).toString(16).padStart(6, '0')}`
+                                    }}
+                                    chose={interaction.chose}
+                                    /*
+                                      **The grouping is offered, not applied**
+                                      (Paul, 2026-09-09: "In Add Feature, I should
+                                      be able to select a single hole. The Add
+                                      Feature Dialog should warn me there are
+                                      other identical holes and ask if I want to
+                                      add them in a group"). A hole used to be
+                                      kept with its siblings on every path, so one
+                                      could not be asked about; the offer is where
+                                      that rule went, and taking it is what turns
+                                      grouping on.
+                                    */
+                                    {...(offerGroup === null ? {} : { identical: offerGroup })}
+                                    {...(holeDiameter === null
+                                      ? {}
+                                      : {
+                                          thread: {
+                                            holeDiameter,
+                                            mode: holeChoice.mode,
+                                            spec: threadSpec,
+                                            onChange: (choice: HoleChoice) => {
+                                              /*
+                                              **A thread applies to what is
+                                              selected** (Paul, 2026-09-09) — the
+                                              row or the draft where the hole is
+                                              part of one, and the hole alone
+                                              where it is not. It used to be
+                                              written across every identical hole
+                                              on the part, which was the same
+                                              thing while a hole stood for its
+                                              siblings and is a thread on
+                                              thirty-eight holes nobody chose it
+                                              for now that one can be asked about
+                                              on its own.
+                                            */
+                                              writeThread(choice, threadScope, holeDiameter)
+                                              /**
+                                               * A threaded hole is drilled, not milled.
+                                               *
+                                               * Written into the **filters** rather than
+                                               * hidden inside the list, because the
+                                               * filters are the last word and somebody
+                                               * who wants to interpolate one anyway has
+                                               * to be able to see what stopped them and
+                                               * undo it (Paul, 2026-08-31).
+                                               */
+                                              applyTerm(
+                                                'form',
+                                                choice.mode === 'plain' ? [] : THREADED_FORMS,
+                                              )
+                                            },
+                                          },
+                                        })}
+                                  />
+                                )}
+
+                                {/*
+                                **The stacks sit under the reading that asked for
+                                them** (Paul, 2026-09-07: "moving the tool tree to
+                                the feature panel"). It is still the one editable
+                                copy — the feature list shows each row's answers as
+                                a summary, and this is where a stack is put
+                                together — but it now stands beside the feature it
+                                answers rather than at the bottom of the page, and
+                                the table below is the list for whichever slot is
+                                open here.
+                              */}
+                                {showTree && node !== null ? (
+                                  <AssemblyTreePanel
+                                    assemblies={assemblies}
+                                    selected={node}
+                                    onSelect={selectNode}
+                                    labelFor={slotLabelFor}
+                                    orderedFor={orderedLabelFor}
+                                    warningFor={warningFor}
+                                    onClear={clearSlot}
+                                    actionsFor={treeActionsFor}
+                                    /*
+                                      **A part-level assembly is one stack**
+                                      (Paul, 2026-09-08: "we can also remove the
+                                      add assembly button from + Tool Assembly").
+                                      It answers no feature, so a second stack
+                                      under it is a second thing to order with
+                                      nothing to tell it apart — another one is
+                                      another _+ Tool Assembly_, with a row and a
+                                      name of its own.
+                                    */
+                                    {...(assemblyOnly
+                                      ? {}
+                                      : { onAdd: () => writeTree(addAssembly(assemblies)) })}
+                                    onRemove={(id) => writeTree(removeAssembly(assemblies, id))}
+                                    onRename={(id, name) =>
+                                      writeTree(renameAssembly(assemblies, id, name))
+                                    }
+                                    title={listTitle}
+                                    confirmed={activeItem !== null}
+                                  />
+                                ) : null}
+
+                                {/*
+                                **A row reaches the list by being ordered** (Paul,
+                                2026-09-09: "I no longer need these cancel or
+                                create group and add tool buttons — the group is
+                                created and added when a tool assembly is created
+                                and added to the order list. Same with add this
+                                feature").
+
+                                *Add this feature*, *Create group and add tool* and
+                                the Cancel beside each of them were a second way to
+                                do what the press under the stack already does:
+                                `treeActionsFor`'s `confirm` makes the row and
+                                writes the assembly in one press, which is the rule
+                                `docs/FEATURE-LIST.md` states. Two presses for one
+                                decision is the defect that spec exists to prevent,
+                                and the X in the corner is the way out of all three.
+
+                                **What is left is saving an edit.** Changing which
+                                features a row holds is not an order, so nothing
+                                under the stack commits it — the press below is the
+                                only thing that does, and it appears only while a
+                                row that already exists is being changed.
+                              */}
+                                {draft !== null && draft.editing !== null && kept.length > 0 ? (
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <Button size="sm" onClick={confirmDraft}>
+                                      {draft.kind === 'group' ? 'Save group' : 'Save this feature'}
+                                    </Button>
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              <IconButton
+                                variant="muted"
+                                size="sm"
+                                aria-label="Close this dialog"
+                                title="Close"
+                                onClick={closePanel}
+                                className="!size-5 shrink-0 border-0 bg-transparent text-zinc-500 hover:text-zinc-200 [&_svg]:!size-3.5"
+                              >
+                                <XIcon aria-hidden="true" />
+                              </IconButton>
+                            </div>
+                          </Card>
+                        ) : null}
+                        {/*
+                          **The way back to the rows** (Paul, 2026-09-10:
+                          "provide a button to be able to expand it underneath
+                          the open feature, group, or tool assembly dialog if
+                          desired"). It draws the count so a folded list still
+                          says how much is on it, and it is the only thing that
+                          unfolds it — pressing it again folds it back.
+                        */}
+                        {dialogOpen ? (
+                          <Button
+                            type="button"
+                            variant="muted"
+                            size="sm"
+                            aria-expanded={listShown}
+                            aria-controls="order-list"
+                            title={
+                              listShown
+                                ? 'Fold the order list away'
+                                : 'Show the order list under this dialog'
+                            }
+                            onClick={() => setListUnderDialog((open) => !open)}
+                            className="filter-off focus-visible:ring-info/60 pointer-events-auto flex w-full shrink-0 items-center justify-between gap-1 rounded border border-dashed border-zinc-800 px-2 py-1 text-xs whitespace-nowrap text-zinc-500 transition hover:border-zinc-700 hover:text-zinc-200 focus-visible:ring-1 focus-visible:outline-none"
+                          >
+                            <span className="flex items-center gap-1.5">
+                              {listShown ? <CaretDownIcon /> : <CaretRightIcon />}
+                              Order list
+                            </span>
+                            <span className="text-zinc-600">{orderRows.length}</span>
+                          </Button>
+                        ) : null}
+                        {/*
                         **The rows sit on the part, not in a box** (Paul,
                         2026-09-08: "I'd also love to make the list rows sit on
                         top of the 3d viewer rather than in the box"). The card
@@ -5094,437 +5583,189 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         the top of the table: the overlay is floored to the
                         viewer, and the viewer stops where the table starts.
                       */}
-                        <div className="pointer-events-none flex max-h-full min-h-0 w-full flex-1 flex-col">
-                          <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-                            {/*
-                            **Named for what it is for** (Paul, 2026-09-08:
-                            "instead of features, the list should be renamed
-                            'order list'"). Every row on it is a thing being
-                            ordered — a feature, a group, or an assembly the
-                            part needs — and nothing reaches the bill except
-                            because a row here put it there. The page in the
-                            header is the same list read the other way round.
-                          */}
-                            <h4 className="text-2xs flex shrink-0 items-center gap-1.5 font-semibold tracking-wide text-zinc-500 uppercase [text-shadow:0_1px_2px_var(--color-zinc-950)]">
-                              <span className="text-zinc-600">
-                                <CursorClickIcon />
-                              </span>
-                              Order list
-                              {/*
-                                **Two icons beside the heading** (Paul,
-                                2026-09-09). The same two readings the page in
-                                the header offers, in the space a heading
-                                already has — a row of words under the heading
-                                would be a second line of chrome over the part,
-                                and the part is what this list stands on.
-                              */}
-                              <span className="pointer-events-auto ml-auto flex items-center gap-0.5">
-                                {(
-                                  [
-                                    ['assembly', 'Assemblies', <TreeStructureIcon key="a" />],
-                                    ['components', 'Components', <ListBulletsIcon key="c" />],
-                                  ] as const
-                                ).map(([view, label, icon]) => (
-                                  <IconButton
-                                    key={view}
-                                    type="button"
-                                    size="sm"
-                                    variant="muted"
-                                    aria-pressed={orderView === view}
-                                    aria-label={`Show the order list by ${label.toLowerCase()}`}
-                                    title={
-                                      view === 'assembly'
-                                        ? 'The assemblies on the order list, with their components'
-                                        : 'Every component on the order list, and how many to order'
-                                    }
-                                    onClick={() => setOrderView(view)}
-                                    className={cn(
-                                      '!size-5 shrink-0 rounded border-0 p-0 transition [&_svg]:!size-3.5',
-                                      orderView === view
-                                        ? 'bg-info/15 text-info'
-                                        : 'bg-transparent text-zinc-600 hover:bg-zinc-800 hover:text-zinc-200',
-                                    )}
-                                  >
-                                    {icon}
-                                  </IconButton>
-                                ))}
-                              </span>
-                            </h4>
-
-                            {/*
-                          **The list, and one control that grows it** (Paul,
-                          2026-09-02: "I see a plus sign where the features
-                          dialog is"). What was one field showing the face under
-                          the mouse is now the work above and the reading below.
-                        */}
-                            {orderView === 'components' ? (
-                              <ComponentTally
-                                rows={tallyRows}
-                                empty="Nothing on the order list yet."
-                                sort={orderSort.by}
-                                descending={orderSort.descending}
-                                /* Pressing the column it is already read by
-                                   turns it round; pressing another opens that
-                                   one the way it opens. */
-                                onSort={(by) =>
-                                  setOrderSort((current) =>
-                                    current.by === by
-                                      ? { by, descending: !current.descending }
-                                      : { by, descending: opensDescending(by) },
-                                  )
-                                }
-                              />
-                            ) : (
-                              <FeatureListPanel
-                                items={orderRows}
-                                selectedId={selectedId}
-                                selectedTag={selectedTag}
-                                onSelect={(id, tag, toolGuid) =>
-                                  selectRow(id, tag ?? null, toolGuid)
-                                }
-                                chosenTool={chosenTool}
-                                /*
-                            **The answer sits under the question** (Paul,
-                            2026-09-02: "get rid of the bottom table and just
-                            show the tool for the group or selected features in
-                            the feature list, under the folder or feature").
-                          */
-                                answers={summaryRows}
-                                unit={unit}
-                                open={openItems}
-                                onOpen={(id) =>
-                                  setOpenItems((current) =>
-                                    current.includes(id)
-                                      ? current.filter((each) => each !== id)
-                                      : [...current, id],
-                                  )
-                                }
-                                nameOf={nameOf}
-                                iconOf={iconOf}
-                                directionOf={wayUpOf}
-                                onEdit={startEdit}
-                                /*
-                                **The name is on the stack, and the line stands
-                                for the stack** (Paul, 2026-09-08: "it still
-                                isn't showing the name in the order list in the
-                                parts page"). The bill holds tools; the tree
-                                holds what they were called — matched by what
-                                the stack was *ordered* as, so swapping the
-                                cutter keeps the line pointing at its own stack.
-                              */
-                                assemblyOf={(itemId, toolGuid) => {
-                                  const stacks = trees[itemId] ?? []
-                                  const stack = stacks.find(
-                                    (each) => (each.orderedTool ?? each.toolGuid) === toolGuid,
-                                  )
-                                  if (stack?.name === undefined) {
-                                    return null
-                                  }
-                                  const name = assemblyName(stacks, stack)
-                                  /*
-                                  Not twice: a part-level assembly's row is
-                                  called what the stack in it was called, and a
-                                  line repeating the heading over it is noise.
-                                */
-                                  const item = itemNamed(list, itemId)
-                                  return item !== null && labelOf(item, nameOf) === name
-                                    ? null
-                                    : name
-                                }}
-                                renamingId={renamingId}
-                                onRenameStart={(id) => setRenamingId(id)}
-                                onRename={(id, name) => {
-                                  setList((current) => renameItem(current, id, name))
-                                  setRenamingId(null)
-                                }}
-                                onRenameCancel={() => setRenamingId(null)}
-                                onRemove={(id) => {
-                                  const going = itemNamed(list, id)
-                                  if (going !== null) {
-                                    // Its features, or — for a part-level assembly
-                                    // — the key its own lines are kept under.
-                                    unbill(sheetKeysOf(going))
-                                  }
-                                  /*
-                                **And its tree with it.** Ids are arithmetic, so
-                                a part emptied of rows starts again at
-                                `feature-1` — a tree left behind would attach
-                                itself to whatever row took that id next.
-                              */
-                                  forgetTree(id)
-                                  setList((current) => removeItem(current, id))
-                                  if (selectedId === id) {
-                                    selectRow(null)
-                                  }
-                                }}
-                              />
+                        {listShown ? (
+                          <div
+                            id="order-list"
+                            className={cn(
+                              'pointer-events-none flex max-h-full w-full flex-1 flex-col',
+                              /* Under an open box the two share one column, and the box
+                                 is the taller of them: a floor here is what the fold
+                                 button *promises* — press it and there are rows —
+                                 where a box tall enough to fill the viewer would
+                                 otherwise leave it opening onto nothing. The box
+                                 scrolls instead, which is the half somebody is already
+                                 reading top-down. */
+                              dialogOpen ? 'min-h-28' : 'min-h-0',
                             )}
-                          </div>
-                        </div>
-                      </div>
+                          >
+                            <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+                              {/*
+                              **Named for what it is for** (Paul, 2026-09-08:
+                              "instead of features, the list should be renamed
+                              'order list'"). Every row on it is a thing being
+                              ordered — a feature, a group, or an assembly the
+                              part needs — and nothing reaches the bill except
+                              because a row here put it there. The page in the
+                              header is the same list read the other way round.
+                            */}
+                              <h4 className="text-2xs flex shrink-0 items-center gap-1.5 font-semibold tracking-wide text-zinc-500 uppercase [text-shadow:0_1px_2px_var(--color-zinc-950)]">
+                                <span className="text-zinc-600">
+                                  <CursorClickIcon />
+                                </span>
+                                Order list
+                                {/*
+                                  **Two icons beside the heading** (Paul,
+                                  2026-09-09). The same two readings the page in
+                                  the header offers, in the space a heading
+                                  already has — a row of words under the heading
+                                  would be a second line of chrome over the part,
+                                  and the part is what this list stands on.
+                                */}
+                                <span className="pointer-events-auto ml-auto flex items-center gap-0.5">
+                                  {(
+                                    [
+                                      ['assembly', 'Assemblies', <TreeStructureIcon key="a" />],
+                                      ['components', 'Components', <ListBulletsIcon key="c" />],
+                                    ] as const
+                                  ).map(([view, label, icon]) => (
+                                    <IconButton
+                                      key={view}
+                                      type="button"
+                                      size="sm"
+                                      variant="muted"
+                                      aria-pressed={orderView === view}
+                                      aria-label={`Show the order list by ${label.toLowerCase()}`}
+                                      title={
+                                        view === 'assembly'
+                                          ? 'The assemblies on the order list, with their components'
+                                          : 'Every component on the order list, and how many to order'
+                                      }
+                                      onClick={() => setOrderView(view)}
+                                      className={cn(
+                                        '!size-5 shrink-0 rounded border-0 p-0 transition [&_svg]:!size-3.5',
+                                        orderView === view
+                                          ? 'bg-info/15 text-info'
+                                          : 'bg-transparent text-zinc-600 hover:bg-zinc-800 hover:text-zinc-200',
+                                      )}
+                                    >
+                                      {icon}
+                                    </IconButton>
+                                  ))}
+                                </span>
+                              </h4>
 
-                      {/*
-                      **Beside the list, and level with the top of the part**
-                      (Paul, 2026-09-09) — it is the row's second child now, so
-                      `self-start` is the top of the viewer rather than the top
-                      of the list's rows.
-
-                      **Beside the list, not under it** (Paul, 2026-09-02: "show
-                      the feature and group editor to the right of the feature
-                      list"). The list is what has been asked and this is the
-                      one thing being asked *now*; stacked, the second pushed
-                      the first up until neither had room, and on a part with a
-                      dozen rows the form somebody was filling in was the half
-                      that went off the bottom.
-                    */}
-                      {draft?.kind === 'group' || showReading || showTree ? (
-                        <Card
-                          className={cn(
-                            'filter-off pointer-events-auto max-h-full shrink-0 self-start overflow-y-auto',
-                            draft?.kind === 'group' ? 'w-[26rem]' : 'w-80',
-                          )}
-                        >
-                          {/*
-                            **The way out is the X in the corner** (Paul,
-                            2026-09-09). It is the same press in all three — a
-                            feature, a group, a tool assembly — and it is the
-                            only thing in the box that closes it, now that a
-                            stack reaches the order list through the press under
-                            it and nothing else.
-
-                            **Level with the first row of the box** (Paul,
-                            2026-09-09: "can we get the x in the same row as the
-                            first row of the dialog?"). A row of its own put a
-                            blank band above the reading; the box is the column
-                            beside it instead, so the X sits at the top right of
-                            whatever the box opens with — the reading, the group
-                            heading, or the tree.
+                              {/*
+                            **The list, and one control that grows it** (Paul,
+                            2026-09-02: "I see a plus sign where the features
+                            dialog is"). What was one field showing the face under
+                            the mouse is now the work above and the reading below.
                           */}
-                          <div className="flex items-start gap-1 p-2">
-                            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                              {draft?.kind === 'group' ? (
-                                <GroupEditor
-                                  tags={kept}
-                                  results={draft.results}
-                                  onDrop={(tag) => dispatch({ type: 'toggle', featureTag: tag })}
-                                  nameOf={nameOf}
-                                  onCancel={cancelDraft}
-                                  /*
-                              **The tool is part of the answer** (Paul,
-                              2026-09-02: "I must select a tool from the list
-                              when creating a feature, and that is what adds it
-                              to the BOM"). The list below is showing what fits
-                              what is being built; picking a row there is what
-                              finishes it.
-                            */
-                                  picked={
-                                    draft.results === 'each' ? draftEach.picked : panelTool !== null
+                              {orderView === 'components' ? (
+                                <ComponentTally
+                                  rows={tallyRows}
+                                  empty="Nothing on the order list yet."
+                                  sort={orderSort.by}
+                                  descending={orderSort.descending}
+                                  /* Pressing the column it is already read by
+                                     turns it round; pressing another opens that
+                                     one the way it opens. */
+                                  onSort={(by) =>
+                                    setOrderSort((current) =>
+                                      current.by === by
+                                        ? { by, descending: !current.descending }
+                                        : { by, descending: opensDescending(by) },
+                                    )
                                   }
-                                  matching={draftEach.status}
-                                  editing={draft.editing !== null}
-                                  /*
-                              **What the group measures, at its worst** (Paul,
-                              2026-09-08). The feature box says what one
-                              feature is; a group's is the hardest of its
-                              features', with the feature that set it named.
-                            */
-                                  readings={draftReadings}
-                                  unit={unit}
-                                  mixed={draftMixedBores}
-                                  /*
-                                    **The thread is the whole group's** (Paul,
-                                    2026-09-09). `writeThread` writes it across
-                                    every hole of that bore in the draft, which
-                                    is what the group is.
-                                  */
-                                  {...(draftBore === null
-                                    ? {}
-                                    : {
-                                        thread: {
-                                          holeDiameter: draftBore,
-                                          mode: draftThread.mode,
-                                          spec: draftThread.spec,
-                                          onChange: (choice: HoleChoice) => {
-                                            writeThread(choice, kept, draftBore)
-                                            // A threaded hole is drilled, not
-                                            // milled — the same demand the
-                                            // reading panel's thread writes.
-                                            applyTerm(
-                                              'form',
-                                              choice.mode === 'plain' ? [] : THREADED_FORMS,
-                                            )
-                                          },
-                                        },
-                                      })}
                                 />
-                              ) : !showReading /*
-                              The box can now be open for the tree alone — a
-                              group's row is answered by stacks and reads no
-                              face — and an empty reading over it says only
-                              that nothing is being read.
-                            */ ? null : (
-                                <SelectionPanel
-                                  feature={reading}
-                                  nameOf={nameOf}
-                                  features={report.features}
-                                  regions={report.regions}
-                                  unit={unit}
-                                  siblings={focused === null ? 1 : groupOf(focused).length}
-                                  onInfo={() => setInfo(focused)}
-                                  candidates={candidates}
-                                  onRead={(featureTag) => dispatch({ type: 'read', featureTag })}
-                                  directionOf={(feature) => directionOf(feature)}
-                                  colourOf={(feature) => {
-                                    const at = directionOf(feature)
-                                    return at === null || at < 0
-                                      ? null
-                                      : `#${directionColor(at).toString(16).padStart(6, '0')}`
-                                  }}
-                                  chose={interaction.chose}
+                              ) : (
+                                <FeatureListPanel
+                                  items={orderRows}
+                                  selectedId={selectedId}
+                                  selectedTag={selectedTag}
+                                  onSelect={(id, tag, toolGuid) =>
+                                    selectRow(id, tag ?? null, toolGuid)
+                                  }
+                                  chosenTool={chosenTool}
                                   /*
-                                    **The grouping is offered, not applied**
-                                    (Paul, 2026-09-09: "In Add Feature, I should
-                                    be able to select a single hole. The Add
-                                    Feature Dialog should warn me there are
-                                    other identical holes and ask if I want to
-                                    add them in a group"). A hole used to be
-                                    kept with its siblings on every path, so one
-                                    could not be asked about; the offer is where
-                                    that rule went, and taking it is what turns
-                                    grouping on.
+                              **The answer sits under the question** (Paul,
+                              2026-09-02: "get rid of the bottom table and just
+                              show the tool for the group or selected features in
+                              the feature list, under the folder or feature").
+                            */
+                                  answers={summaryRows}
+                                  unit={unit}
+                                  open={openItems}
+                                  onOpen={(id) =>
+                                    setOpenItems((current) =>
+                                      current.includes(id)
+                                        ? current.filter((each) => each !== id)
+                                        : [...current, id],
+                                    )
+                                  }
+                                  nameOf={nameOf}
+                                  iconOf={iconOf}
+                                  directionOf={wayUpOf}
+                                  onEdit={startEdit}
+                                  /*
+                                  **The name is on the stack, and the line stands
+                                  for the stack** (Paul, 2026-09-08: "it still
+                                  isn't showing the name in the order list in the
+                                  parts page"). The bill holds tools; the tree
+                                  holds what they were called — matched by what
+                                  the stack was *ordered* as, so swapping the
+                                  cutter keeps the line pointing at its own stack.
+                                */
+                                  assemblyOf={(itemId, toolGuid) => {
+                                    const stacks = trees[itemId] ?? []
+                                    const stack = stacks.find(
+                                      (each) => (each.orderedTool ?? each.toolGuid) === toolGuid,
+                                    )
+                                    if (stack?.name === undefined) {
+                                      return null
+                                    }
+                                    const name = assemblyName(stacks, stack)
+                                    /*
+                                    Not twice: a part-level assembly's row is
+                                    called what the stack in it was called, and a
+                                    line repeating the heading over it is noise.
                                   */
-                                  {...(offerGroup === null ? {} : { identical: offerGroup })}
-                                  {...(holeDiameter === null
-                                    ? {}
-                                    : {
-                                        thread: {
-                                          holeDiameter,
-                                          mode: holeChoice.mode,
-                                          spec: threadSpec,
-                                          onChange: (choice: HoleChoice) => {
-                                            /*
-                                            **A thread applies to what is
-                                            selected** (Paul, 2026-09-09) — the
-                                            row or the draft where the hole is
-                                            part of one, and the hole alone
-                                            where it is not. It used to be
-                                            written across every identical hole
-                                            on the part, which was the same
-                                            thing while a hole stood for its
-                                            siblings and is a thread on
-                                            thirty-eight holes nobody chose it
-                                            for now that one can be asked about
-                                            on its own.
-                                          */
-                                            writeThread(choice, threadScope, holeDiameter)
-                                            /**
-                                             * A threaded hole is drilled, not milled.
-                                             *
-                                             * Written into the **filters** rather than
-                                             * hidden inside the list, because the
-                                             * filters are the last word and somebody
-                                             * who wants to interpolate one anyway has
-                                             * to be able to see what stopped them and
-                                             * undo it (Paul, 2026-08-31).
-                                             */
-                                            applyTerm(
-                                              'form',
-                                              choice.mode === 'plain' ? [] : THREADED_FORMS,
-                                            )
-                                          },
-                                        },
-                                      })}
+                                    const item = itemNamed(list, itemId)
+                                    return item !== null && labelOf(item, nameOf) === name
+                                      ? null
+                                      : name
+                                  }}
+                                  renamingId={renamingId}
+                                  onRenameStart={(id) => setRenamingId(id)}
+                                  onRename={(id, name) => {
+                                    setList((current) => renameItem(current, id, name))
+                                    setRenamingId(null)
+                                  }}
+                                  onRenameCancel={() => setRenamingId(null)}
+                                  onRemove={(id) => {
+                                    const going = itemNamed(list, id)
+                                    if (going !== null) {
+                                      // Its features, or — for a part-level assembly
+                                      // — the key its own lines are kept under.
+                                      unbill(sheetKeysOf(going))
+                                    }
+                                    /*
+                                  **And its tree with it.** Ids are arithmetic, so
+                                  a part emptied of rows starts again at
+                                  `feature-1` — a tree left behind would attach
+                                  itself to whatever row took that id next.
+                                */
+                                    forgetTree(id)
+                                    setList((current) => removeItem(current, id))
+                                    if (selectedId === id) {
+                                      selectRow(null)
+                                    }
+                                  }}
                                 />
                               )}
-
-                              {/*
-                              **The stacks sit under the reading that asked for
-                              them** (Paul, 2026-09-07: "moving the tool tree to
-                              the feature panel"). It is still the one editable
-                              copy — the feature list shows each row's answers as
-                              a summary, and this is where a stack is put
-                              together — but it now stands beside the feature it
-                              answers rather than at the bottom of the page, and
-                              the table below is the list for whichever slot is
-                              open here.
-                            */}
-                              {showTree && node !== null ? (
-                                <AssemblyTreePanel
-                                  assemblies={assemblies}
-                                  selected={node}
-                                  onSelect={selectNode}
-                                  labelFor={slotLabelFor}
-                                  orderedFor={orderedLabelFor}
-                                  warningFor={warningFor}
-                                  onClear={clearSlot}
-                                  actionsFor={treeActionsFor}
-                                  /*
-                                    **A part-level assembly is one stack**
-                                    (Paul, 2026-09-08: "we can also remove the
-                                    add assembly button from + Tool Assembly").
-                                    It answers no feature, so a second stack
-                                    under it is a second thing to order with
-                                    nothing to tell it apart — another one is
-                                    another _+ Tool Assembly_, with a row and a
-                                    name of its own.
-                                  */
-                                  {...(assemblyOnly
-                                    ? {}
-                                    : { onAdd: () => writeTree(addAssembly(assemblies)) })}
-                                  onRemove={(id) => writeTree(removeAssembly(assemblies, id))}
-                                  onRename={(id, name) =>
-                                    writeTree(renameAssembly(assemblies, id, name))
-                                  }
-                                  title={listTitle}
-                                  confirmed={activeItem !== null}
-                                />
-                              ) : null}
-
-                              {/*
-                              **A row reaches the list by being ordered** (Paul,
-                              2026-09-09: "I no longer need these cancel or
-                              create group and add tool buttons — the group is
-                              created and added when a tool assembly is created
-                              and added to the order list. Same with add this
-                              feature").
-
-                              *Add this feature*, *Create group and add tool* and
-                              the Cancel beside each of them were a second way to
-                              do what the press under the stack already does:
-                              `treeActionsFor`'s `confirm` makes the row and
-                              writes the assembly in one press, which is the rule
-                              `docs/FEATURE-LIST.md` states. Two presses for one
-                              decision is the defect that spec exists to prevent,
-                              and the X in the corner is the way out of all three.
-
-                              **What is left is saving an edit.** Changing which
-                              features a row holds is not an order, so nothing
-                              under the stack commits it — the press below is the
-                              only thing that does, and it appears only while a
-                              row that already exists is being changed.
-                            */}
-                              {draft !== null && draft.editing !== null && kept.length > 0 ? (
-                                <div className="flex items-center justify-end gap-1.5">
-                                  <Button size="sm" onClick={confirmDraft}>
-                                    {draft.kind === 'group' ? 'Save group' : 'Save this feature'}
-                                  </Button>
-                                </div>
-                              ) : null}
                             </div>
-
-                            <IconButton
-                              variant="muted"
-                              size="sm"
-                              aria-label="Close this dialog"
-                              title="Close"
-                              onClick={closePanel}
-                              className="!size-5 shrink-0 border-0 bg-transparent text-zinc-500 hover:text-zinc-200 [&_svg]:!size-3.5"
-                            >
-                              <XIcon aria-hidden="true" />
-                            </IconButton>
                           </div>
-                        </Card>
-                      ) : null}
+                        ) : null}
+                      </div>
                     </div>
                   </>
                 }
@@ -5906,6 +6147,21 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                     */}
                     </div>
                     <ToolTableToolbar
+                      /*
+                        **Left of the clear press, and left of the pencil when
+                        there is nothing to clear** (Paul, 2026-09-10). It is
+                        the holder rack's press alone: a collet has no collet to
+                        be missing, and a tool is not a stack.
+                      */
+                      before={
+                        componentSlot === 'holder' ? (
+                          <NoColletToggle
+                            count={gappedHolders}
+                            shown={noCollet}
+                            onToggle={() => setNoCollet((current) => !current)}
+                          />
+                        ) : undefined
+                      }
                       onClear={() => {
                         if (componentSlot === 'holder') {
                           setHolderQuery(NO_QUERY)
@@ -6264,7 +6520,20 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           usedIn={heldElsewhere}
                           onFeature={(guid) => guid === savedInSlot}
                           usedOn={usedOn}
-                          gap={componentSlot === 'holder' ? holderGap : undefined}
+                          /*
+                            Keyed by guid because the table holds records of
+                            either kind and only a holder has a collet to be
+                            missing; `holderGap` caches by the same key, so the
+                            lookup is a map read per drawn row.
+                          */
+                          gap={
+                            componentSlot === 'holder'
+                              ? (guid) => {
+                                  const holder = getHolder(guid)
+                                  return holder === null ? null : holderGap(holder)
+                                }
+                              : undefined
+                          }
                           empty={
                             whyEmpty(
                               componentSlot === 'holder' ? holderRows.length : colletRows.length,
@@ -6275,15 +6544,22 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                               // for that reason rather than for an empty crib.
                               asking,
                               /*
-                                And a collet list can now be empty for a third
-                                reason: the chuck above it is one the rack offers
-                                without the crib stocking anything that closes on
-                                it. That is the fact worth printing, over the two
-                                general ones.
+                                And either list can now be empty because of the
+                                collet drawer rather than because of a choice: a
+                                collet slot under a chuck nothing in the crib
+                                closes on, and a holder rack with the press in
+                                the chrome turned off. Both are more specific
+                                than the two general answers, and both name
+                                something to do.
                               */
-                              componentSlot === 'collet' && treeHolder !== null
-                                ? holderGap(treeHolder.guid)
-                                : null,
+                              {
+                                ...(componentSlot === 'collet' && treeHolder !== null
+                                  ? { gap: holderGap(treeHolder) }
+                                  : {}),
+                                ...(componentSlot === 'holder' && !noCollet
+                                  ? { hidden: gappedHolders }
+                                  : {}),
+                              },
                             ) ?? undefined
                           }
                         />

@@ -161,3 +161,21 @@ export const openCube = async (page: Page, query = ''): Promise<void> => {
   await serve(page, report)
   await page.goto(`/parts/part-1?job=job-1${query}`)
 }
+
+/**
+ * The order list, unfolded first if a dialog has folded it away.
+ *
+ * The box for a feature, a group or a tool assembly opens under the three
+ * presses now (Paul, 2026-09-10), in the same column as the rows — so while one
+ * is open the rows fold to a single button and the part is what the space goes
+ * to. A test that reads the list while something is being asked has to press
+ * that button, which is exactly what somebody at the screen does; every other
+ * test gets the list straight back.
+ */
+export const orderList = async (page: Page) => {
+  const fold = page.getByRole('button', { name: /^Order list \d+$/ })
+  if ((await fold.count()) > 0 && (await fold.getAttribute('aria-expanded')) === 'false') {
+    await fold.click()
+  }
+  return page.getByRole('list', { name: 'Features being asked about' })
+}

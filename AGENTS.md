@@ -210,7 +210,12 @@ application unless that application says otherwise.
   press under it puts it on the order list, because an assembly nobody ordered is
   a row about nothing. The three presses that grow
   the list — _+ Feature_, _+ Group_, _+ Tool Assembly_ — live over the top-left
-  of the viewer in `components/add-bar.tsx`, not in the list.
+  of the viewer in `components/add-bar.tsx`, not in the list. **Each opens its
+  box directly beneath itself, and the rows fold away under it** (Paul,
+  2026-09-10) — one column over the part rather than two, with a button under
+  the box that brings the rows back. **The press that orders closes the box, and
+  Enter is that press**: `isOrdering` and `orderingPress` in
+  `shared/assembly-actions.ts` are the rules.
   `shared/feature-list.ts` is the model and
   `components/feature-list-panel.tsx` the list on screen;
   `docs/FEATURE-LIST.md` is the spec, including _Where the rules live_ for
@@ -275,6 +280,8 @@ application unless that application says otherwise.
 | a feature's assemblies, its slots, its storage       | `app/shared/assembly-tree.ts`                        |
 | what narrows what when any part is chosen first      | `app/shared/assembly-narrowing.ts`                   |
 | why an offered chuck cannot be built out of the crib | `colletGap`, same file                               |
+| whether the rack shows them at all, and how many     | `holdersToOffer`, same file                          |
+| the press that shows them, hidden to begin with      | `app/components/no-collet-toggle.tsx`                |
 | a group's worst case, and whose it is                | `app/shared/group-geometry.ts`                       |
 | how far below the holder a stack has to stand        | `belowHolder`, `app/shared/drawn-assembly.ts`        |
 | which slots were filled against the rules            | `overrides`, `app/shared/assembly-tree.ts`           |
@@ -403,6 +410,16 @@ scrape:holding` into `scrape-out/toolholding/`, because a shop re-scrapes
   source for a silhouette is the vendor's own CAD model, which the record points
   at. So the measured profile is load-bearing rather than a nicety; see
   `docs/HOLDER-PROFILES.md`.
+- **A collet's grip is `L9`, and a Kennametal family code is the scraper's.**
+  `@toolpath/tool-scraper` 2.5.0 mints `ColletRecord.clampingLength` (`L9`, the
+  depth of the clamping bore), `squareSize` (what makes a tap collet refuse an
+  end mill) and `FamilyDefinition.familyCode` on toolholding. `clampLength` maps
+  from `L9` rather than `LF` — a different quantity under the same name, which
+  is why catalog version 11 is a re-ingest and not a rebuild — and a collet
+  publishing no `L9` states no grip rather than borrowing one. The hand-pinned
+  `KENNAMETAL_HOLDING_CODES` is a fallback for what upstream leaves silent, not
+  the source: keeping it ahead of the vendor's own is how one goes stale, and
+  one had. See `docs/TOOL-CATALOG-PLAN.md` § _Length below the holder_.
 - **`src/vendors/` is dead and kept on purpose.** Nothing calls it now that the
   seam is taken. It is the only written record of REGO-FIX's DIN 4000 code
   pinning, each mapping citing its evidence, so it stays until either that

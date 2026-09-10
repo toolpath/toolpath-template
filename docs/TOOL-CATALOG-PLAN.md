@@ -474,6 +474,25 @@ everything is that one call with different arguments:
                 OAL − the collet's published grip
               and never under the flutes; `limitedBy` names the winner
 
+**The collet's published grip is `L9`, not `LF`** (2026-09-10). `L9` is the
+depth of the clamping bore — how much shank the collet actually holds — and it
+is what `@toolpath/tool-support` documents `Collet.clampLength` to be and what
+`maxStickout` reads. `LF` was mapped here while it was the only length on the
+record, and it is a different quantity: on Kennametal's ER40 coolant-through
+family `LF` is 46 mm down all nineteen rows where `L9` runs 22 / 28 / 46 by
+size, so the ceiling told a 6 mm collet it grips as deeply as a 26 mm one.
+`@toolpath/tool-scraper` 2.5.0 publishes `L9` and `colletHandoff` maps it.
+
+**A collet that publishes no `L9` states none, and nothing is substituted.**
+`maxStickout` answers `null` in turn and the other two rules decide the ceiling.
+That is a real loss of coverage and it is the right trade: 208 of Kennametal's
+ER standard collets carried an `LF`-derived grip and now carry nothing, while
+165 across the coolant-through and tap families carry a grip that is the
+quantity the rule is about. A plausible wrong number here is a stickout a shop
+would set a tool to; `null` is "nobody has said". Kennametal's inch listings
+publish no `L9` at all, which is why the inch half of every coolant-through
+family states no grip where its metric twin does.
+
 **The shortest it is ever set up at is the flutes plus a diameter** (Paul,
 2026-09-07: "the shortest length below holder depth you should ever do is flute
 length + tool diameter. If the required length below holder is less than that,

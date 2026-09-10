@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
-import { openCube } from './cube-fixture'
+import { expect, test, type Locator, type Page } from '@playwright/test'
+import { openCube, orderList } from './cube-fixture'
 
 /**
  * What a click on the part means.
@@ -159,6 +159,24 @@ const ready = async (page: Page) => {
  */
 const orderPress = (page: Page) =>
   page.locator('[data-assembly-tree]').getByRole('button', { name: 'Add to order list' })
+
+/**
+ * The row just ordered, opened again.
+ *
+ * **The press that orders closes the box** (Paul, 2026-09-10: "clicking 'Add to
+ * Order List' should close the feature, group, or tool assembly dialog"), so a
+ * test that goes on working the stack it has just ordered has to say how it got
+ * back in — by pressing the row on the order list, which is the only way there
+ * is. The row's own button is the one that carries `aria-pressed`, whatever the
+ * reading under it turned out to be called.
+ */
+const openRow = async (page: Page, index = 0) => {
+  const list = await orderList(page)
+  await list.locator('li button[aria-pressed]').nth(index).click()
+  const tree = page.locator('[data-assembly-tree]')
+  await expect(tree).toBeVisible()
+  return tree
+}
 
 /**
  * A tool out of the list, and not finished until the stack is holding it.
@@ -408,7 +426,7 @@ test('a tool is read in the panel and reaches the bill with its feature', async 
   // Read in the panel on the right, which is where a stack is read.
   await expect(page.getByRole('img', { name: /drawn from its stated dimensions/ })).toBeVisible()
   // Selecting it is not ordering it: nothing is on the list until the press.
-  const list = page.getByRole('list', { name: 'Features being asked about' })
+  const list = await orderList(page)
   await expect(list).toBeHidden()
 
   await tree.getByRole('button', { name: 'Add to order list' }).click()
@@ -729,7 +747,7 @@ test('a click previews and asks, and the list answers for itself', async ({ page
 
   // On the list, with its own answer under it — and the panel below waits to
   // be asked rather than falling back to the catalog.
-  const list = page.getByRole('list', { name: 'Features being asked about' })
+  const list = await orderList(page)
   await expect(list).toBeVisible()
   await expect(list.getByRole('listitem')).toHaveCount(1)
   // The number search is the Catalog number column's own filter, not a box in
@@ -798,7 +816,7 @@ test('adds a tool assembly with no feature behind it', async ({ page }) => {
   await expect(tree).toBeVisible()
   await expect(tree.getByText('New tool assembly — no feature')).toBeVisible()
   await expect(tree.getByText('not on the list yet')).toBeVisible()
-  const list = page.getByRole('list', { name: 'Features being asked about' })
+  const list = await orderList(page)
   await expect(list).toBeHidden()
 
   await tree.getByRole('button', { name: /^TOOL for / }).click()
@@ -842,13 +860,16 @@ test('adds a tool assembly with no feature behind it', async ({ page }) => {
  * needs to be wider so I can see what I'm typing").
  */
 test('keeps the default name when none is typed, and takes one from the tick', async ({ page }) => {
-  const list = page.getByRole('list', { name: 'Features being asked about' })
+  const list = await orderList(page)
   const tree = page.locator('[data-assembly-tree]')
 
   await page.getByRole('button', { name: '+ Tool Assembly' }).click()
   await tree.getByRole('button', { name: /^TOOL for / }).click()
   await page.getByRole('grid').first().getByRole('row').first().click()
   await tree.getByRole('button', { name: 'Add to order list' }).click()
+
+  // The box is open over them, so the rows are folded: press for them.
+  await orderList(page)
 
   /*
     **Nothing is asked for.** Named nowhere, the row is the number it was always
@@ -895,7 +916,7 @@ test('keeps the default name when none is typed, and takes one from the tick', a
 test('never scrolls sideways, however long the names in it are', async ({ page }) => {
   const LONG = 'a preposterously long assembly name that nobody would ever type'
   const tree = page.locator('[data-assembly-tree]')
-  const list = page.getByRole('list', { name: 'Features being asked about' })
+  const list = await orderList(page)
 
   // A feature with a full stack under it, named at length — the name reaches
   // the line the row is answered with.
@@ -916,10 +937,10 @@ test('never scrolls sideways, however long the names in it are', async ({ page }
   await tree.getByRole('textbox').press('Enter')
   await tree.getByRole('button', { name: 'Add to order list' }).click()
 
+  // The box is open over them, so the rows are folded: press for them.
+  // Both orders closed the box behind them, so the rows are what is on screen.
   await expect(list.getByText(LONG).first()).toBeVisible()
   expect(await list.evaluate((ul) => ul.scrollWidth - ul.clientWidth)).toBeLessThanOrEqual(0)
-  // The card the name was typed on is held to its panel the same way.
-  expect(await tree.evaluate((card) => card.scrollWidth - card.clientWidth)).toBeLessThanOrEqual(0)
   // Clipped, rather than the row having grown to hold it.
   expect(
     await list
@@ -927,6 +948,11 @@ test('never scrolls sideways, however long the names in it are', async ({ page }
       .first()
       .evaluate((el) => el.scrollWidth > el.clientWidth),
   ).toBe(true)
+
+  // The card the name was typed on is held to its panel the same way — opened
+  // again from the row, because ordering it put the box away.
+  const card = await openRow(page, 1)
+  expect(await card.evaluate((box) => box.scrollWidth - box.clientWidth)).toBeLessThanOrEqual(0)
 })
 
 /**
@@ -941,7 +967,7 @@ test('never scrolls sideways, however long the names in it are', async ({ page }
  * starts.
  */
 test('opens a group from a caret the width of the gutter', async ({ page }) => {
-  const list = page.getByRole('list', { name: 'Features being asked about' })
+  const list = await orderList(page)
 
   /*
     A feature, then a group, so the two kinds are on the list together — and
@@ -961,6 +987,9 @@ test('opens a group from a caret the width of the gutter', async ({ page }) => {
   await inTheGroup(page)
   await pickTool(page)
   await press.click()
+
+  // The box is open over them, so the rows are folded: press for them.
+  await orderList(page)
 
   // A feature and a group, on the list together.
   await expect(list.getByRole('listitem')).toHaveCount(2)
@@ -1005,7 +1034,7 @@ test('offers no second stack on an assembly that answers no feature', async ({ p
  * under the stack — and taking it back off the order list takes the row with it.
  */
 test('leaves no row behind when a tool assembly is not ordered', async ({ page }) => {
-  const list = page.getByRole('list', { name: 'Features being asked about' })
+  const list = await orderList(page)
   const tree = page.locator('[data-assembly-tree]')
 
   /*
@@ -1038,8 +1067,14 @@ test('leaves no row behind when a tool assembly is not ordered', async ({ page }
   await tree.getByRole('button', { name: /^TOOL for / }).click()
   await page.getByRole('grid').first().getByRole('row').first().click()
   await tree.getByRole('button', { name: 'Add to order list' }).click()
+  /*
+    **And the press that ordered it closed the box** (Paul, 2026-09-10), which
+    is what leaves the row on screen with nothing over it.
+  */
+  await expect(tree).toBeHidden()
   await expect(list.getByRole('button', { name: /^Tool assembly \d+$/ })).toBeVisible()
 
+  await openRow(page)
   await tree.getByRole('button', { name: 'Remove from order list' }).click()
   await expect(list).toBeHidden()
 })
@@ -1083,7 +1118,7 @@ test('keeps the list across a reload', async ({ page }) => {
   // press (Paul, 2026-09-09) — there is no confirm on the box any more.
   await orderPress(page).click()
 
-  const list = page.getByRole('list', { name: 'Features being asked about' })
+  const list = await orderList(page)
   await expect(list.getByRole('listitem')).toHaveCount(1)
 
   await page.reload()
@@ -1119,7 +1154,7 @@ test('makes the feature with the assembly that answers it', async ({ page }) => 
   await pickTool(page)
   await press.click()
 
-  const list = page.getByRole('list', { name: 'Features being asked about' })
+  const list = await orderList(page)
   await expect(list.getByRole('listitem')).toHaveCount(1)
 })
 
@@ -1139,7 +1174,7 @@ test('takes a removed row off the bill as well as off the list', async ({ page }
   await page.getByRole('grid').first().getByRole('row').first().click()
   await tree.getByRole('button', { name: 'Add to order list' }).click()
 
-  const list = page.getByRole('list', { name: 'Features being asked about' })
+  const list = await orderList(page)
   await expect(list.getByRole('listitem')).toHaveCount(1)
 
   await list.getByRole('button').first().click({ button: 'right' })
@@ -1174,9 +1209,10 @@ test('takes a feature off the list when its last assembly comes off the order li
   const tree = await buildStack(page)
   await tree.getByRole('button', { name: 'Add to order list' }).click()
 
-  const list = page.getByRole('list', { name: 'Features being asked about' })
+  const list = await orderList(page)
   await expect(list.getByRole('listitem')).toHaveCount(1)
 
+  await openRow(page)
   await tree.getByRole('button', { name: /^Remove from order list/ }).click()
   await expect(list).toBeHidden()
   // And nothing left on the sheet for the other list to go on showing.
@@ -1203,7 +1239,7 @@ test('shows the same order list on the part and on the order list page', async (
   const tree = await buildStack(page)
   await tree.getByRole('button', { name: 'Add to order list' }).click()
 
-  const list = page.getByRole('list', { name: 'Features being asked about' })
+  const list = await orderList(page)
   const ordered =
     (await list
       .getByRole('button', { name: /, for / })
@@ -1220,7 +1256,7 @@ test('shows the same order list on the part and on the order list page', async (
   // Taken off on the part, it is off the bill as well.
   await page.goBack()
   await expect(page.locator('canvas')).toBeVisible()
-  const rows = page.getByRole('list', { name: 'Features being asked about' })
+  const rows = await orderList(page)
   await rows.getByRole('button').first().click()
   await page
     .locator('[data-assembly-tree]')
@@ -1273,6 +1309,10 @@ test('reads the order list by component as well as by assembly', async ({ page }
   const tree = await buildStack(page)
   await tree.getByRole('button', { name: 'Add to order list' }).click()
 
+  // The two readings are icons on the list's own heading, which the open box
+  // has folded away.
+  await orderList(page)
+
   const components = page.getByRole('button', { name: 'Show the order list by components' })
   await components.click()
   // A stack of a tool in a holder is two things to buy, one of each — and the
@@ -1296,7 +1336,7 @@ test('reads the order list by component as well as by assembly', async ({ page }
   )
 
   await page.getByRole('button', { name: 'Show the order list by assemblies' }).click()
-  await expect(page.getByRole('list', { name: 'Features being asked about' })).toBeVisible()
+  await expect(await orderList(page)).toBeVisible()
 
   // And the same two readings on the page in the header. `exact`, or the icon
   // on the part — "Show the order list by components" — is still mounted and
@@ -1342,7 +1382,7 @@ test.skip('a group answers per its result option', async ({ page }) => {
   await expect(page.getByRole('button', { name: /^Create group and add tools?$/ })).toBeEnabled()
   await page.getByRole('button', { name: /^Create group and add tools?$/ }).click()
 
-  const list = page.getByRole('list', { name: 'Features being asked about' })
+  const list = await orderList(page)
   await expect(list.getByRole('listitem')).toHaveCount(1)
   await expect(list.getByText('one each')).toBeVisible()
   await list.getByRole('button', { name: /^Open / }).click()
@@ -1382,20 +1422,20 @@ test('shows what the group measures, at its worst', async ({ page }) => {
 test('presses the tool under a row for everything that fits it', async ({ page }) => {
   await ready(page)
   await page.getByRole('button', { name: '+ Group' }).click()
-  const named = await inTheGroup(page)
+  await inTheGroup(page)
   await pickTool(page)
   // The row's answer is a stack somebody pressed: picking the tool above put it
   // in the stack, and this one press makes the group and puts the stack on the
   // order list together (Paul, 2026-09-09).
   await orderPress(page).click()
 
-  // The group it just made is what it is working on, so the list below is
-  // already the group's. Putting it down goes back to the catalog, and its own
-  // answer is the way back in.
-  await expect(page.getByText('Cuts every feature in the group')).toBeVisible()
-  const list = page.getByRole('list', { name: 'Features being asked about' })
-  await list.getByRole('button', { name: named, exact: true }).click()
+  /*
+    **The press that orders puts the row down with the box** (Paul, 2026-09-10),
+    so the list below is the catalog again — and the row's own answer is the way
+    back in, which is what this test is about.
+  */
   await expect(page.getByText('Every tool in the catalog')).toBeVisible()
+  const list = await orderList(page)
 
   await list.getByRole('button', { name: / for / }).click()
 
@@ -1479,30 +1519,40 @@ test.describe('the tool assembly tree', () => {
   })
 
   /**
-   * **In the feature panel, beside the list** (Paul, 2026-09-07: "moving the
-   * tool tree to the feature panel"). It stood in the tool table's own scroll
-   * area, which put the stack being built at the bottom of the page and the
-   * feature it answers at the top of it. Pinned by where it is rather than by
-   * which element holds it, because the box it sits in is a layout detail and
-   * "to the right of the list, above the table" is the rule.
+   * **Under the press that opened it, over the folded list** (Paul, 2026-09-10:
+   * "move all these dialogs to directly below the + Feature, + Group, and +
+   * Tool Assembly buttons … when a dialog is active, fold up the order list").
+   * It used to stand in a second column beside the list, which is two columns
+   * of chrome over the part on a laptop; before that it was at the bottom of
+   * the tool table, a page away from the feature it answers.
+   *
+   * Pinned by where it is rather than by which element holds it: the box is a
+   * layout detail, and "under the presses, over the list, above the table" is
+   * the rule. The list is read through {@link orderList}, which is what presses
+   * the fold open — so this also pins that the button gets the rows back.
    */
-  test('draws the tree beside the feature list, above the table', async ({ page }) => {
+  test('draws the tree under the add presses, over the list and above the table', async ({
+    page,
+  }) => {
     await ready(page)
     await page.getByRole('button', { name: '+ Feature' }).click()
 
     const tree = page.locator('[data-assembly-tree]')
     await expect(tree).toBeVisible()
 
+    const addBox = await page.getByRole('button', { name: '+ Feature' }).boundingBox()
     const treeBox = await tree.boundingBox()
-    const listBox = await page
-      .getByRole('list', { name: 'Features being asked about' })
-      .boundingBox()
+    const listBox = await (await orderList(page)).boundingBox()
     const tableBox = await page.locator('[data-list-chrome]').boundingBox()
-    if (treeBox === null || listBox === null || tableBox === null) {
-      throw new Error('the tree, the list and the table are all on screen')
+    if (addBox === null || treeBox === null || listBox === null || tableBox === null) {
+      throw new Error('the presses, the tree, the list and the table are all on screen')
     }
 
-    expect(treeBox.x).toBeGreaterThanOrEqual(listBox.x + listBox.width)
+    // One column: the box starts under the presses and shares their left edge.
+    expect(treeBox.y).toBeGreaterThanOrEqual(addBox.y + addBox.height)
+    expect(Math.abs(treeBox.x - addBox.x)).toBeLessThan(24)
+    // The rows the fold gives back are under it, and both are above the table.
+    expect(listBox.y).toBeGreaterThanOrEqual(treeBox.y)
     expect(treeBox.y + treeBox.height).toBeLessThanOrEqual(tableBox.y)
   })
 
@@ -1891,7 +1941,7 @@ test.describe('the tool assembly tree', () => {
    */
   test('the stack button adds the feature and its assembly in one press', async ({ page }) => {
     await ready(page)
-    const list = page.getByRole('list', { name: 'Features being asked about' })
+    const list = await orderList(page)
     await expect(list).toBeHidden()
 
     const tree = page.locator('[data-assembly-tree]')
@@ -1917,10 +1967,20 @@ test.describe('the tool assembly tree', () => {
     await expect(tree.getByText(/Adds the feature to the list as well/)).toBeVisible()
     await add.click()
 
+    /*
+      **And the press is the way out of the box** (Paul, 2026-09-10: "clicking
+      'Add to Order List' should close the feature, group, or tool assembly
+      dialog"). The decision is written; what was left on screen was a form
+      somebody had finished with, over the part.
+    */
+    await expect(tree).toBeHidden()
     await expect(list).toBeVisible()
-    await expect(tree.getByText(/not on the list yet/)).toBeHidden()
-    // On the list now, so the press that is left is the way back off it.
-    await expect(tree.getByRole('button', { name: 'Remove from order list' })).toBeVisible()
+
+    // Opened again from the row: on the list now, so the press that is left is
+    // the way back off it.
+    const again = await openRow(page)
+    await expect(again.getByText(/not on the list yet/)).toBeHidden()
+    await expect(again.getByRole('button', { name: 'Remove from order list' })).toBeVisible()
   })
 
   /**
@@ -1936,8 +1996,9 @@ test.describe('the tool assembly tree', () => {
 
     await tree.getByRole('button', { name: 'Add to order list' }).click()
 
-    await expect(tree.getByRole('button', { name: 'Remove from order list' })).toBeVisible()
-    await expect(tree.getByRole('button', { name: 'Add to order list' })).toHaveCount(0)
+    const again = await openRow(page)
+    await expect(again.getByRole('button', { name: 'Remove from order list' })).toBeVisible()
+    await expect(again.getByRole('button', { name: 'Add to order list' })).toHaveCount(0)
   })
 
   /**
@@ -1972,7 +2033,7 @@ test.describe('the tool assembly tree', () => {
 
     await tree.getByRole('button', { name: 'Add to order list' }).click()
 
-    const list = page.getByRole('list', { name: 'Features being asked about' })
+    const list = await orderList(page)
     await expect(list.getByText('big stupid')).toBeVisible()
   })
 
@@ -1986,7 +2047,7 @@ test.describe('the tool assembly tree', () => {
     await ready(page)
     await page.getByRole('button', { name: '+ Feature' }).click()
 
-    const list = page.getByRole('list', { name: 'Features being asked about' })
+    const list = await orderList(page)
     await expect(list).toBeVisible()
     // A row, and no tool line under it: nothing was picked, so nothing is on it.
     await expect(list.getByRole('button', { name: / for / })).toHaveCount(0)
@@ -2108,6 +2169,11 @@ test.describe('the tool assembly tree', () => {
     await tree.getByRole('button', { name: /^HOLDER for / }).click()
     const holders = page.locator('[data-component-table="holder"]').getByRole('grid')
 
+    // The rack opens on what the crib can build, so the press asks for the rest
+    // (Paul, 2026-09-10: "by default, the holders with no collet should be
+    // hidden").
+    await page.getByRole('button', { name: 'Show 1 with no collet' }).click()
+
     const er20 = holders.getByRole('row').filter({ hasText: 'BT30ER20070M' })
     await expect(er20).toBeVisible()
     await expect(er20.getByText('no collet')).toHaveAttribute(
@@ -2119,6 +2185,119 @@ test.describe('the tool assembly tree', () => {
     const er16 = holders.getByRole('row').filter({ hasText: 'BT30ER16060M' })
     await expect(er16).toBeVisible()
     await expect(er16.getByText('no collet')).toHaveCount(0)
+  })
+
+  /**
+   * **And the widening is a press, not a setting** (Paul, 2026-09-10: "can I
+   * actually get a button to 'show holders with no collet' in the holder
+   * table?"). The rack answers "what could hold this" by default and this takes
+   * it back to "what can I build this afternoon" — the question it could only
+   * ask before 2026-09-09, now one of the two rather than the only one.
+   */
+  test('takes the chucks with no collet off the rack, and puts them back', async ({ page }) => {
+    await ready(page)
+    await page.getByRole('button', { name: '+ Tool Assembly' }).click()
+
+    const tree = page.locator('[data-assembly-tree]')
+    await tree.getByRole('button', { name: /^TOOL for / }).click()
+    await page.getByRole('grid').first().getByRole('row').filter({ hasText: 'TDMX0500' }).click()
+    await tree.getByRole('button', { name: /^HOLDER for / }).click()
+
+    const holders = page.locator('[data-component-table="holder"]').getByRole('grid')
+    const er20 = holders.getByRole('row').filter({ hasText: 'BT30ER20070M' })
+    const er16 = holders.getByRole('row').filter({ hasText: 'BT30ER16060M' })
+
+    // The rack opens on what the crib can build: the ER16 chuck is on it, the
+    // ER20 is behind the press, and the press counts it.
+    await expect(er16).toHaveCount(1)
+    await expect(er20).toHaveCount(0)
+    const press = page.getByRole('button', { name: /with no collet$/ })
+    await expect(press).toHaveText('Show 1 with no collet')
+    await expect(press).toHaveAttribute('aria-pressed', 'false')
+
+    await press.click()
+    await expect(er20).toHaveCount(1)
+    await expect(er16).toHaveCount(1)
+    await expect(press).toHaveText('Hide 1 with no collet')
+    await expect(press).toHaveAttribute('aria-pressed', 'true')
+
+    await press.click()
+    await expect(er20).toHaveCount(0)
+  })
+
+  /**
+   * **The count is rows, not the pool.** Its number is what pressing it puts on
+   * the table, so every other narrowing has to be in it already: counted off
+   * the pool, `Show n with no collet` promised rows a column filter had
+   * already taken off.
+   */
+  test('counts what the press would actually put on the narrowed rack', async ({ page }) => {
+    await ready(page)
+    await page.getByRole('button', { name: '+ Tool Assembly' }).click()
+
+    const tree = page.locator('[data-assembly-tree]')
+    await tree.getByRole('button', { name: /^TOOL for / }).click()
+    await page.getByRole('grid').first().getByRole('row').filter({ hasText: 'TDMX0500' }).click()
+    await tree.getByRole('button', { name: /^HOLDER for / }).click()
+
+    const press = page.getByRole('button', { name: /with no collet$/ })
+    await expect(press).toHaveText('Show 1 with no collet')
+
+    // Narrow the rack to a series the gapped chuck is not in: there is now
+    // nothing for the press to add, so it goes.
+    await page
+      .locator('[data-component-table="holder"]')
+      .getByRole('button', { name: 'Filter by Collet series', exact: true })
+      .click()
+    await page.getByRole('checkbox', { name: 'ER16' }).click()
+
+    await expect(press).toHaveCount(0)
+  })
+
+  /**
+   * **Where Paul asked for it** (2026-09-10: "put it to the left of the pencil
+   * or, when filters are active, to the left of the 'Clear X filter(s)'
+   * button"). Read off the rendered order rather than the source, because the
+   * clear press appears between the two and the chrome wraps.
+   */
+  test('stands left of the pencil, and left of the clear press once one is set', async ({
+    page,
+  }) => {
+    await ready(page)
+    await page.getByRole('button', { name: '+ Tool Assembly' }).click()
+
+    const tree = page.locator('[data-assembly-tree]')
+    await tree.getByRole('button', { name: /^TOOL for / }).click()
+    await page.getByRole('grid').first().getByRole('row').filter({ hasText: 'TDMX0500' }).click()
+    await tree.getByRole('button', { name: /^HOLDER for / }).click()
+
+    const press = page.getByRole('button', { name: /with no collet$/ })
+    const pencil = page.getByRole('button', { name: 'Which columns to show' })
+    const clear = page.getByRole('button', { name: /^Clear \d+ filter/ })
+
+    const leftOf = async (one: Locator, other: Locator) => {
+      const a = await one.first().boundingBox()
+      const b = await other.first().boundingBox()
+      expect(a).not.toBeNull()
+      expect(b).not.toBeNull()
+      return (a?.x ?? 0) < (b?.x ?? 0)
+    }
+
+    await expect(press).toBeVisible()
+    await expect(clear).toHaveCount(0)
+    expect(await leftOf(press, pencil)).toBe(true)
+
+    // Narrow the rack from a column heading, which is where every holder filter
+    // is asked, and the clear press appears between the two.
+    await page
+      .locator('[data-component-table="holder"]')
+      .getByRole('button', { name: 'Filter by Taper', exact: true })
+      .click()
+    await page.getByRole('checkbox', { name: 'BT30' }).click()
+    await expect(clear).toBeVisible()
+
+    expect(await leftOf(press, clear)).toBe(true)
+    expect(await leftOf(clear, pencil)).toBe(true)
   })
 
   /**
@@ -2134,6 +2313,7 @@ test.describe('the tool assembly tree', () => {
     await page.getByRole('grid').first().getByRole('row').filter({ hasText: 'TDMX0500' }).click()
 
     await tree.getByRole('button', { name: /^HOLDER for / }).click()
+    await page.getByRole('button', { name: 'Show 1 with no collet' }).click()
     await page
       .locator('[data-component-table="holder"]')
       .getByRole('grid')
@@ -2150,8 +2330,9 @@ test.describe('the tool assembly tree', () => {
   test('replaces the tool on an assembly already on the order list', async ({ page }) => {
     await ready(page)
     await page.getByRole('button', { name: '+ Feature' }).click()
-    const tree = await buildStack(page)
+    let tree = await buildStack(page)
     await tree.getByRole('button', { name: 'Add to order list' }).click()
+    tree = await openRow(page)
 
     // Read off the sheet rather than off the list beside it: the list shows a
     // row's *answers*, and what this is about is how many lines the feature has.
@@ -2182,8 +2363,11 @@ test.describe('the tool assembly tree', () => {
     await replace.click()
 
     // One line still — the stack's line, with the new cutter on it — and the
-    // press that is left is the way back off the order list.
-    await expect(tree.getByRole('button', { name: 'Remove from order list' })).toBeVisible()
+    // press that is left is the way back off the order list. The change is an
+    // order like any other, so it closed the box behind it.
+    await expect(tree).toBeHidden()
+    const again = await openRow(page)
+    await expect(again.getByRole('button', { name: 'Remove from order list' })).toBeVisible()
     expect(await lines()).toBe(1)
   })
 
@@ -2209,12 +2393,13 @@ test.describe('the tool assembly tree', () => {
 
     // On the order list: the stack as built.
     await tree.getByRole('button', { name: 'Add to order list' }).click()
-    await expect(tree.getByRole('button', { name: 'Remove from order list' })).toBeVisible()
+    const again = await openRow(page)
+    await expect(again.getByRole('button', { name: 'Remove from order list' })).toBeVisible()
 
     // Take the holder out of the tree. The button now says exactly what has
     // changed about the stack, naming the holder it would drop.
-    await tree.getByRole('button', { name: 'Clear the holder' }).click()
-    await expect(tree.getByRole('button', { name: `Take holder ${number} off` })).toBeVisible()
+    await again.getByRole('button', { name: 'Clear the holder' }).click()
+    await expect(again.getByRole('button', { name: `Take holder ${number} off` })).toBeVisible()
   })
 
   /**
@@ -2245,6 +2430,7 @@ test.describe('the tool assembly tree', () => {
     await tree.getByRole('button', { name: 'Add to order list' }).click()
 
     // Back to the rack: the holder the feature is ordered with leads it now.
+    await openRow(page)
     await tree.getByRole('button', { name: /^HOLDER for / }).click()
     await expect(holders.getByRole('row').first()).toContainText(wanted.slice(0, 12))
     await expect(holders.getByRole('row').first().getByText('on the feature')).toBeVisible()
@@ -2301,6 +2487,7 @@ test.describe('the tool assembly tree', () => {
     await tree.getByRole('button', { name: 'Add to order list' }).click()
 
     // Back to the holder table, and take the confirmed holder out of the stack.
+    await openRow(page)
     await holder.click()
     const table = page.locator('[data-component-table="holder"]')
     await expect(table.getByRole('grid').getByRole('row').first()).toBeVisible()
@@ -2317,6 +2504,74 @@ test.describe('the tool assembly tree', () => {
     // Nothing left to confirm: the stack is what the feature already has.
     await expect(tree.getByRole('button', { name: 'Remove from order list' })).toBeVisible()
     await expect(tree.getByRole('button', { name: /^Cancel/ })).toHaveCount(0)
+  })
+
+  /**
+   * **The press that orders is the way out of the box** (Paul, 2026-09-10:
+   * "clicking 'Add to Order List' should close the feature, group, or tool
+   * assembly dialog"). The decision is written the moment it is pressed, and
+   * what stood on screen afterwards was a form somebody had finished with —
+   * over the part, with the order list folded away behind it.
+   *
+   * Pinned on all three kinds of box, because "consistent across +feature,
+   * +group, and +tool assembly" is the rule the X in its corner already
+   * follows and this is the same door.
+   */
+  test('closes the box on the press that orders, in all three', async ({ page }) => {
+    const tree = page.locator('[data-assembly-tree]')
+
+    await ready(page)
+    await page.getByRole('button', { name: '+ Feature' }).click()
+    await pickTool(page)
+    await orderPress(page).click()
+    await expect(tree).toBeHidden()
+
+    await ready(page)
+    await page.getByRole('button', { name: '+ Group' }).click()
+    await inTheGroup(page)
+    await pickTool(page)
+    await orderPress(page).click()
+    await expect(tree).toBeHidden()
+
+    await page.getByRole('button', { name: '+ Tool Assembly' }).click()
+    await pickTool(page)
+    await orderPress(page).click()
+    await expect(tree).toBeHidden()
+
+    // Three rows, and nothing over them.
+    const list = await orderList(page)
+    await expect(list.getByRole('listitem')).toHaveCount(3)
+  })
+
+  /**
+   * **Enter is the button under the stack** (Paul, 2026-09-10: "clicking enter
+   * once any components are selected in one of these dialogs should act like I
+   * clicked add to order list — confirm the currently selected tools and close
+   * the dialog"). A tool is picked in the table, so the table is where the
+   * focus is; reaching back for the mouse to press a button three inches away
+   * is the same decision made twice.
+   *
+   * `orderingPress` in `shared/assembly-actions.ts` is the rule for *which*
+   * press it is, with the cases; this pins that the key reaches it from where
+   * the last click left the focus, and that an empty stack answers nothing.
+   */
+  test('orders the stack on Enter, and closes the box with it', async ({ page }) => {
+    const tree = page.locator('[data-assembly-tree]')
+
+    await ready(page)
+    await page.getByRole('button', { name: '+ Feature' }).click()
+
+    // Nothing in the stack: the press is greyed, so the key does nothing at all.
+    await page.keyboard.press('Enter')
+    await expect(tree).toBeVisible()
+
+    await pickTool(page)
+    await page.keyboard.press('Enter')
+
+    await expect(tree).toBeHidden()
+    const list = await orderList(page)
+    await expect(list.getByRole('listitem')).toHaveCount(1)
+    await expect(list.getByRole('button', { name: / for / })).toBeVisible()
   })
 
   test('another assembly is one press away', async ({ page }) => {

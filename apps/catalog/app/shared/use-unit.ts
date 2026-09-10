@@ -1,4 +1,4 @@
-import { useUnit as useStoredUnit } from '@toolpath/ui'
+import { useUnit as useStoredUnit } from '@toolpath/app-support/react'
 import type { UnitSystem } from '@toolpath/tool-support'
 
 /**
@@ -13,10 +13,10 @@ export const UNIT_STORAGE_KEY = 'tool-catalog.unit'
 /**
  * The unit everything is read in.
  *
- * The hook is `@toolpath/ui`'s, beside the `loadUnit`/`saveUnit` it wraps; all
- * this application supplies is the key. Both applications had the same fifteen
- * lines of `useState` and `useEffect` here, identical but for that string,
- * which is the duplicate AGENTS.md § Shared Code exists to prevent.
+ * The hook is `@toolpath/app-support`'s, beside the `loadUnit`/`saveUnit` it
+ * wraps; all this application supplies is the key. Both applications had the
+ * same fifteen lines of `useState` and `useEffect` here, identical but for that
+ * string, which is the duplicate AGENTS.md § Shared Code exists to prevent.
  */
 export const useUnit = (): [UnitSystem, (next: UnitSystem) => void] =>
   useStoredUnit(UNIT_STORAGE_KEY)

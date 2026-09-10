@@ -375,16 +375,96 @@ describe('why an offered holder cannot be built out of the crib', () => {
 
   it('puts the gap over the choices when a collet list comes back empty', () => {
     expect(
-      whyEmpty(
-        0,
-        { tool: null, holder: er11Chuck, collet: null },
-        {},
-        true,
-        'the crib stocks no ER11 collet',
-      ),
+      whyEmpty(0, { tool: null, holder: er11Chuck, collet: null }, {}, true, {
+        gap: 'the crib stocks no ER11 collet',
+      }),
     ).toBe(
       'No collet fits this holder: the crib stocks no ER11 collet. Order the holder on its own, or choose another.',
     )
+  })
+
+  /**
+   * **The narrower rack is the one the page opens on** (Paul, 2026-09-10: "by
+   * default, the holders with no collet should be hidden"), which makes its
+   * empty list the case the whole rule exists for: nothing fits and something
+   * was hidden read the same on screen and mean opposite things.
+   */
+  it('says what the press is keeping off an empty rack', () => {
+    expect(whyEmpty(0, NOTHING_CHOSEN, {}, true, { hidden: 4 })).toBe(
+      'Nothing here can be built out of the crib as it stands. 4 holders could take it with a collet you do not stock — the press above shows them.',
+    )
+  })
+
+  it('counts one holder as one', () => {
+    expect(whyEmpty(0, NOTHING_CHOSEN, {}, true, { hidden: 1 })).toContain(
+      '1 holder could take it with a collet you do not stock — the press above shows it.',
+    )
+  })
+
+  /** Nothing hidden is the general answer again, not a sentence about none. */
+  it('falls back to the general answers where the press hid nothing', () => {
+    expect(whyEmpty(0, NOTHING_CHOSEN, {}, true, { hidden: 0 })).toBe(
+      'Nothing here takes any of the tools that fit this feature.',
+    )
+  })
+})
+
+describe('the rack with and without the chucks that have no collet', () => {
+  const nothing = { tool: null, collet: null }
+
+  /**
+   * **Both lists at once** (Paul, 2026-09-10, asking for a press in the
+   * chrome): whichever one the table draws, the press over it counts the other,
+   * and a flag would have made the count a second question.
+   */
+  it('answers the same list twice, one of them without the gapped chucks', () => {
+    const offered = holdersToOffer(
+      [er16Chuck, er20Chuck],
+      nothing,
+      collets,
+      {},
+      () => true,
+      [tool('small', 6)],
+      (holder) => colletGapFor(holder, [tool('small', 6)], collets),
+    )
+    // The ER16 closes on 6 mm; nothing in the crib closes on 6 in an ER20.
+    expect(offered.shown.map((each) => each.guid)).toEqual(['holder-a', 'holder-b'])
+    expect(offered.stocked.map((each) => each.guid)).toEqual(['holder-a'])
+  })
+
+  it('leaves the two lists identical where every chuck can be built', () => {
+    const offered = holdersToOffer(
+      [er16Chuck, er20Chuck],
+      nothing,
+      collets,
+      {},
+      () => true,
+      [tool('small', 6), tool('big', 10)],
+      (holder) => colletGapFor(holder, [tool('small', 6), tool('big', 10)], collets),
+    )
+    expect(offered.stocked).toEqual(offered.shown)
+  })
+
+  /** The shape rule is the other list's, and counts what it hid either way. */
+  it('keeps the undrawable count about the drawing alone', () => {
+    const offered = holdersToOffer(
+      [er16Chuck, er20Chuck],
+      nothing,
+      collets,
+      {},
+      (holder) => holder.guid === 'holder-a',
+      [tool('small', 6)],
+      (holder) => colletGapFor(holder, [tool('small', 6)], collets),
+    )
+    expect(offered.shown.map((each) => each.guid)).toEqual(['holder-a'])
+    expect(offered.stocked.map((each) => each.guid)).toEqual(['holder-a'])
+    expect(offered.hidden).toBe(1)
+  })
+
+  /** Nothing handed in, nothing hidden: the old callers are unchanged. */
+  it('treats every holder as stocked when nobody asks about collets', () => {
+    const offered = holdersToOffer([er16Chuck, er20Chuck], nothing, collets, {}, () => true)
+    expect(offered.stocked).toEqual(offered.shown)
   })
 })
 
