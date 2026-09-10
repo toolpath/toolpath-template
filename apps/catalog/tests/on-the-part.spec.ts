@@ -3009,6 +3009,55 @@ test.describe('the tool assembly tree', () => {
   })
 
   /**
+   * **A filter open over the box takes Enter first** (Paul, 2026-09-10: "when a
+   * filter dialog is active underneath a feature/group/tool assembly, hitting
+   * enter should confirm the filter and close the filter dialog before it
+   * closes the feature/group/tool assembly").
+   *
+   * The filter is opened from a column header *inside* the box, so the focus is
+   * on the funnel and the press it competes with is the page's own — which
+   * ordered the assembly and unmounted the filter under it, unread, on the
+   * press somebody meant as "yes, that filter". One press is one step out:
+   * `useKeyLayer` in `shared/use-escape.ts` is the same stack Escape walks.
+   */
+  test('closes an open filter on Enter, and orders on the next one', async ({ page }) => {
+    const tree = page.locator('[data-assembly-tree]')
+
+    await ready(page)
+    await keepFeature(page)
+    await pickTool(page)
+
+    await page.getByRole('button', { name: 'Filter by Vendor', exact: true }).click()
+    const picker = page.getByRole('group', { name: 'Vendor' })
+    await expect(picker).toBeVisible()
+
+    /*
+      **Ticked with the mouse, which is where the focus then sits** (Paul,
+      2026-09-10: "the keyboard focus is staying on the checkbox I used most
+      recently in the drop down filters — enter should never check or uncheck").
+      The kit's `Checkbox` is a `<button role="checkbox">`, so the press it
+      answered was its own: the value came back off and the filter stayed up.
+    */
+    const vendor = picker.getByRole('checkbox').first()
+    await vendor.click()
+    await expect(vendor).toBeChecked()
+
+    // The filter goes, the tick it was given stands, and the box stays.
+    await page.keyboard.press('Enter')
+    await expect(picker).toBeHidden()
+    await expect(tree).toBeVisible()
+    await page.getByRole('button', { name: 'Filter by Vendor', exact: true }).click()
+    await expect(picker.getByRole('checkbox').first()).toBeChecked()
+    await page.keyboard.press('Enter')
+    await expect(picker).toBeHidden()
+
+    // With nothing over it, the press is the page's again.
+    await page.keyboard.press('Enter')
+    await expect(tree).toBeHidden()
+    await expect((await orderList(page)).getByRole('listitem')).toHaveCount(1)
+  })
+
+  /**
    * **Enter is about the box, not about the open slot** (Paul, 2026-09-10: "when
    * I create two tool assemblies on a group and click enter, it only adds the
    * first to the list. It should add everything that is currently in the
@@ -3355,5 +3404,141 @@ test.describe('typing into a column filter', () => {
     await expect(page.locator('[data-assembly-tree]')).toBeVisible()
 
     await acrossTheBoxes(page)
+  })
+})
+
+/**
+ * **A filter menu stays on the screen** (Paul, 2026-09-10: "the filter dialog
+ * for type also needs to be scrollable — right now it just runs off the
+ * screen"). Type lists every phrase the trade has for a tool and the menu was
+ * drawn at whatever height that came to, under a header that sits low down the
+ * page once the box is open: the rows past the bottom edge could not be
+ * reached, because a `fixed` box is not on anything that scrolls.
+ *
+ * The height the menu takes is `column-filter.test.tsx`, where the room can be
+ * stated; this is the half only a real window can answer — that the box the
+ * browser actually lays out ends above the bottom of it.
+ */
+test('keeps a column filter inside the window, scrolling within itself', async ({ page }) => {
+  await ready(page)
+  await keepFeature(page)
+
+  /*
+    A window a shop actually has. The tool table's header sits low in a short
+    one, and what was left under it is a strip — which is the case the menu was
+    running off the bottom of, and the case a 1000-tall window does not have.
+  */
+  await page.setViewportSize({ width: 1680, height: 620 })
+
+  await page.getByRole('button', { name: 'Filter by Type', exact: true }).click()
+  const menu = page.locator('[data-column-filter-menu]')
+  await expect(menu).toBeVisible()
+
+  const box = await menu.boundingBox()
+  expect(box).not.toBeNull()
+  const height = await page.evaluate(() => window.innerHeight)
+  expect(box!.y).toBeGreaterThanOrEqual(0)
+  expect(box!.y + box!.height).toBeLessThanOrEqual(height)
+
+  // And what is past the edge of it is reachable rather than clipped away.
+  const scrolls = menu.locator('[data-column-filter-body]')
+  expect(await scrolls.evaluate((node) => getComputedStyle(node).overflowY)).toBe('auto')
+})
+
+/**
+ * **And so does the list of columns** (Paul, 2026-09-10: "the edit columns drop
+ * down list should be scrollable if it runs off the screen"). The same defect
+ * as the filter above, a day later and one box over: twenty columns drawn at
+ * full height off a pencil near the top of the table ran past the bottom of a
+ * short window, and the columns down there could not be ticked.
+ *
+ * `menuRoom` is the one rule both boxes now follow; this is the half only a
+ * real window can answer.
+ */
+test('keeps the column picker inside the window, scrolling within itself', async ({ page }) => {
+  await ready(page)
+  await keepFeature(page)
+
+  await page.setViewportSize({ width: 1680, height: 620 })
+
+  await page.getByRole('button', { name: 'Which columns to show' }).first().click()
+  const list = page.getByRole('group', { name: 'Columns' }).first()
+  await expect(list).toBeVisible()
+
+  const box = await list.boundingBox()
+  expect(box).not.toBeNull()
+  const height = await page.evaluate(() => window.innerHeight)
+  expect(box!.y).toBeGreaterThanOrEqual(0)
+  expect(box!.y + box!.height).toBeLessThanOrEqual(height)
+
+  expect(await list.evaluate((node) => getComputedStyle(node).overflowY)).toBe('auto')
+})
+
+/**
+ * **A filter open over a box takes Enter, whatever the box is** (Paul,
+ * 2026-09-10: "when I'm editing a feature and have a filter dialog open,
+ * pressing ENTER still closes the feature dialog — it should only apply the
+ * filter, just like if we clicked the check mark").
+ *
+ * The press is asked in each of the four states for the reason the typing tests
+ * above are: the table reaches the screen through a different branch in each,
+ * and a rule that holds for a feature is not thereby holding for a group. The
+ * fourth is a row that is already on the order list, where the press under the
+ * stack is _Remove_ or _Change_ rather than _Add_ — a different press, and the
+ * same answer, because what the filter is over does not change whose press it
+ * is.
+ *
+ * `columnFilterOpen` in `shared/use-escape.ts` is the rule, and it counts the
+ * filters open rather than reading the newest layer: the page deferring only
+ * while nothing else has been pushed since is how the box closes on somebody
+ * anyway.
+ */
+test.describe('Enter with a column filter open', () => {
+  const filterKeepsThePress = async (page: Page) => {
+    const tree = page.locator('[data-assembly-tree]')
+    await expect(tree).toBeVisible()
+
+    await page.getByRole('button', { name: 'Filter by Type', exact: true }).click()
+    const menu = page.locator('[data-column-filter-menu]')
+    await expect(menu).toBeVisible()
+
+    await page.keyboard.press('Enter')
+    await expect(menu).toBeHidden()
+    await expect(tree).toBeVisible()
+  }
+
+  test('on a feature', async ({ page }) => {
+    await ready(page)
+    await keepFeature(page)
+
+    await filterKeepsThePress(page)
+  })
+
+  test('on a group', async ({ page }) => {
+    await ready(page)
+    await page.getByRole('button', { name: '+ Group' }).click()
+    await inTheGroup(page)
+
+    await filterKeepsThePress(page)
+  })
+
+  test('on an assembly that answers no feature', async ({ page }) => {
+    await page.getByRole('button', { name: '+ Tool Assembly' }).click()
+
+    await filterKeepsThePress(page)
+  })
+
+  test('on a row already on the order list', async ({ page }) => {
+    await ready(page)
+    await keepFeature(page)
+    await buildStack(page)
+    await page
+      .locator('[data-assembly-tree]')
+      .getByRole('button', { name: 'Add to order list' })
+      .click()
+    await expect(page.locator('[data-assembly-tree]')).toBeHidden()
+    await openRow(page)
+
+    await filterKeepsThePress(page)
   })
 })

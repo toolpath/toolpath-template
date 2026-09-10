@@ -328,11 +328,18 @@ describe('Enter, from inside a filter menu', () => {
   })
 
   /**
-   * A press on a control inside the menu is that control's own: Enter on the ×
-   * clears and leaves the menu standing, which is the whole point of having an
-   * × rather than only a tick.
+   * **Enter is the dialog's, never a control's** (Paul, 2026-09-10: "enter
+   * should never check or uncheck, it only works at the dialog level for the
+   * checkbox selection filters").
+   *
+   * It used to leave a focused control its own press — Enter on the × cleared
+   * and left the menu standing. That exemption is what put Enter on the kit's
+   * `Checkbox`, which is a `<button role="checkbox">` holding the focus of the
+   * last value clicked: the press somebody meant as "done" unticked it instead.
+   * There is one rule now rather than a rule and an exception, and the × is a
+   * click away as it always was.
    */
-  it('leaves the × to the ×', () => {
+  it('finishes the filter from the ×, rather than clearing', () => {
     const onClose = vi.fn()
     render(
       <Menu
@@ -351,6 +358,6 @@ describe('Enter, from inside a filter menu', () => {
       key: 'Enter',
     })
 
-    expect(onClose.mock.calls.length).toBe(before)
+    expect(onClose.mock.calls.length).toBe(before + 1)
   })
 })

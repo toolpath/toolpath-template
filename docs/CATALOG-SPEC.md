@@ -488,6 +488,21 @@ the order the rules rank them, with a mark on every number the rules read.
   filter must not also re-sort the column it is standing on.
 - **Columns are yours** — hidden, shown and reordered per list; taps and drills
   keep separate sets.
+- **The list opens in the order a row is read** (Paul, 2026-09-10): catalog
+  number, vendor, family, type, then flutes and diameter, then flute length,
+  length below holder, L/D and overall length. The column picker lists every
+  column in that same order top to bottom, because the page seeds the order
+  from the table's own column list, and the shank, the holder and the collet
+  wait at the end of it to be asked for.
+- **Two columns follow what is on the list.** Corner radius is the number a
+  mill is chosen on and a dash beside a drill; tip angle is the reverse. So a
+  mill on the list brings the radius out, a drill brings the angle, and a list
+  holding both draws both. Toggled by hand either one stays where it was put.
+  `app/shared/auto-columns.ts` is the rule.
+- **The table scrolls sideways** rather than squeezing its columns into the
+  panel. Fitting them was tried on 2026-09-10 and taken straight back out: a
+  dozen columns share a panel with fifty pixels of chrome each, so what fits is
+  headings nobody can read over cells nobody can read.
 
 > **Open questions**
 >
@@ -503,6 +518,7 @@ the order the rules rank them, with a mark on every number the rules read.
 - `app/components/part-tool-table.tsx` — the table, its columns, its header filters
 - `app/shared/tool-marks.ts` — the tick, the `i`, the warning and the red `x`
 - `app/shared/column-order.ts` — which columns are shown, and in what order
+- `app/shared/auto-columns.ts` — the two columns the list turns on for itself
 - `app/shared/tool-order.ts` — kept rows first, then the sheet's order
 - `app/shared/geometry.ts` — how a geometry value is printed
 - `app/shared/catalog-matcher.ts` — the one matching truth: what fills these rows

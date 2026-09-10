@@ -272,6 +272,8 @@ application unless that application says otherwise.
 | whether the presses and the rows are drawn at all    | `app/shared/part-chrome.ts`                          |
 | where the part is framed, beside the questions       | `app/shared/frame-inset.ts`                          |
 | how tall the tool list opens                         | `TABLE_OPENS_AT`, `components/part-tool-table.tsx`   |
+| the columns a list opens with, and their order       | `TOOL_COLUMNS`, `components/part-tool-table.tsx`     |
+| the two columns the list turns on for itself         | `app/shared/auto-columns.ts`                         |
 | a row's answer, and what it opens to                 | `app/shared/recommendations.ts`                      |
 | what the panel offers for the tool it shows          | `app/shared/tool-actions.ts`                         |
 | what fills the tool table, and the cache             | `app/shared/catalog-matcher.ts`                      |
@@ -281,7 +283,8 @@ application unless that application says otherwise.
 | whether a value is inside a filter's bound           | `withinRange`, `app/shared/filter.ts`                |
 | the same work, off the UI thread                     | `app/client/catalog-matcher.worker.ts`               |
 | what a click on the part means                       | `app/shared/part-interaction.ts`                     |
-| which layer one press of Escape reaches              | `app/shared/use-escape.ts`                           |
+| which layer one press of Escape or Enter reaches     | `app/shared/use-escape.ts`                           |
+| how tall a menu or the column picker is, which way   | `menuRoom`, `app/components/column-filter.tsx`       |
 | whether an open filter survives the list under it    | `FilterMenu`, `app/components/column-filter.tsx`     |
 | a feature's assemblies, its slots, its storage       | `app/shared/assembly-tree.ts`                        |
 | what narrows what when any part is chosen first      | `app/shared/assembly-narrowing.ts`                   |

@@ -144,6 +144,37 @@ describe('what reaches the viewer package', () => {
     expect(screen.getByText(/no viewable mesh/)).toBeInTheDocument()
     expect(seen.arrows).not.toHaveBeenCalled()
   })
+
+  /**
+   * **A mesh that will not draw says why** (2026-09-10). The boundary threw the
+   * error away and rendered one sentence for every cause there is — a refused
+   * artifact, a report with no mesh on it, a browser with no WebGL context,
+   * stale modules against a restarted dev server. On the day this landed, a
+   * part that would not draw took four rounds of guessing to locate, and the
+   * relay it was blamed on turned out to be answering 200 with a megabyte of
+   * `model/gltf-binary`. The reason belongs on the screen where the failure is.
+   */
+  it('names what it caught when the scene throws', () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
+    /*
+      Every render, not the first: React answers a throw during concurrent
+      rendering by rendering the whole root again synchronously, and a
+      `mockImplementationOnce` is spent by then — the second pass drew the
+      scene happily and the boundary was never reached.
+    */
+    seen.part.mockImplementation(() => {
+      throw new Error('WebGL context could not be created')
+    })
+
+    show()
+    seen.part.mockImplementation(() => undefined)
+
+    expect(screen.getByText(/The mesh could not be loaded/)).toBeInTheDocument()
+    expect(screen.getByText('WebGL context could not be created')).toBeInTheDocument()
+    // And the stack goes where a stack is read, for whoever opens the console.
+    expect(quiet).toHaveBeenCalled()
+    quiet.mockRestore()
+  })
 })
 
 /**

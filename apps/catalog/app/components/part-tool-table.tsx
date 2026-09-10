@@ -47,23 +47,44 @@ export interface PartToolColumn {
 const IDENTITY: ReadonlyArray<PartToolColumn> = [
   { code: 'catalogNumber', label: 'Catalog number', default: true },
   { code: 'brand', label: 'Vendor', default: true },
-  { code: 'type', label: 'Type', default: true },
   { code: 'family', label: 'Family', default: true },
+  { code: 'type', label: 'Type', default: true },
 ]
 
+/**
+ * The tool list's columns, in the order a shop reads a row (Paul, 2026-09-10).
+ *
+ * Which tool it is, then how many teeth and how wide, then the four lengths,
+ * then the shape at either end of it and the shank.
+ *
+ * **The shank is not one of them** (Paul, 2026-09-10). It is what the holding
+ * is chosen on rather than what the tool is chosen on, and the phrase in Type
+ * already says it where it differs from the cut — a *reduced shank* end mill
+ * says so in its name.
+ *
+ * **Corner radius and tip angle follow the list rather than opening with it**
+ * (Paul, 2026-09-10). Each is the number one kind of tool is chosen on and a
+ * dash beside the other, so a mill on the list brings the radius and a drill
+ * brings the angle — `shared/auto-columns.ts` is the rule. They are `false`
+ * here because that is what a fresh list, holding neither, shows.
+ *
+ * The holder and the collet stay off until somebody asks for them, and sit at
+ * the end so that turning one on adds a column rather than moving every other
+ * one along.
+ */
 export const TOOL_COLUMNS: ReadonlyArray<PartToolColumn> = [
   ...IDENTITY,
+  { code: 'NOF', label: 'Flutes', default: true },
   { code: 'DC', label: 'Diameter', default: true },
-  { code: 'holder', label: 'Holder', default: false },
-  { code: 'collet', label: 'Collet', default: false },
   { code: 'LCF', label: 'Flute length', default: true },
   { code: 'LBH', label: 'Length below holder', default: true },
   { code: 'LD', label: 'L/D', default: true },
   { code: 'OAL', label: 'Overall length', default: true },
-  { code: 'RE', label: 'Corner radius', default: true },
-  { code: 'NOF', label: 'Flutes', default: true },
-  { code: 'SFDM', label: 'Shank', default: true },
+  { code: 'RE', label: 'Corner radius', default: false },
+  { code: 'SFDM', label: 'Shank', default: false },
   { code: 'SIG', label: 'Tip angle', default: false },
+  { code: 'holder', label: 'Holder', default: false },
+  { code: 'collet', label: 'Collet', default: false },
 ]
 
 export const TAP_COLUMNS: ReadonlyArray<PartToolColumn> = [

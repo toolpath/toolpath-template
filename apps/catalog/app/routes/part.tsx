@@ -102,6 +102,7 @@ import {
 import { ColumnPicker, sameBound } from 'components/column-filter'
 import { BUTTON_FILTERS, FACET_AXES } from 'components/filter-panel'
 import { orderedCodes } from 'shared/column-order'
+import { hiddenAfterAuto } from 'shared/auto-columns'
 import { capRows, firstBy, keptFirst, oneEach } from 'shared/tool-order'
 import {
   allTools as catalogTools,
@@ -114,7 +115,7 @@ import {
   getTool,
   holders as allHolders,
 } from 'shared/catalog'
-import { useEscape } from 'shared/use-escape'
+import { columnFilterOpen, useEscape } from 'shared/use-escape'
 import { assemblyPressEnabled, pressesShown, rowsShown } from 'shared/part-chrome'
 import {
   DRAFT_TREE,
@@ -561,12 +562,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     TAP_COLUMNS.map((column) => column.code),
   )
   /**
-   * The tip angle column, on by default **once drills are on the list**.
+   * The columns somebody has decided for themselves.
    *
-   * It is the number a drill is chosen on, and dead weight for everything
-   * else, so the list turns it on when a drill appears rather than asking
-   * somebody to go and find it (Paul, 2026-08-31). Turned off by hand it
-   * stays off: `touchedColumns` is what somebody has decided for themselves.
+   * Tip angle and corner radius follow the list — `shared/auto-columns.ts` is
+   * the rule — and a code in here is one the list stops deciding about.
    */
   const touchedColumns = useRef(new Set<string>())
   /** The order the columns are drawn in, dragged in the column picker. */
@@ -631,9 +630,30 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         was tried on 2026-09-10 and it broke exactly that flow. The X and the
         fold are a click away either way, and Escape is still the way out.
       */
-      if (event.key === 'Enter' && !typingInto(event) && orderRef.current()) {
-        event.preventDefault()
-        return
+      if (event.key === 'Enter' && !typingInto(event)) {
+        /*
+          **A filter open over the box takes the press first** (Paul,
+          2026-09-10: "hitting enter should confirm the filter and close the
+          filter dialog before it closes the feature/group/tool assembly"). A
+          column filter is opened from a header *inside* the assembly box, so it
+          owns Enter — and this listener would otherwise order the assembly and
+          unmount the filter under it, having read nothing. `useKeyLayer` in the
+          menu is the other half; the page stands down rather than racing it,
+          because two listeners on the document run in the order they were added
+          and the page's is always first.
+
+          `columnFilterOpen` rather than "is a filter the newest layer": what
+          the page is deferring to is a filter being open, and making that
+          conditional on the order things mounted in is how the box ends up
+          closing on somebody anyway.
+        */
+        if (columnFilterOpen()) {
+          return
+        }
+        if (orderRef.current()) {
+          event.preventDefault()
+          return
+        }
       }
       if (busyTyping(event)) {
         return
@@ -1939,13 +1959,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   )
 
   /**
-   * A drill on the list brings its own column with it, and takes it away
-   * again when the drills go — it is the number a drill is chosen on and dead
-   * weight for everything else (Paul, 2026-08-31). Toggled by hand it stays
-   * where it was put; `touchedColumns` is what somebody decided themselves.
-   */
-  const hasDrills = useMemo(() => listed.some((each) => each.form === 'drill'), [listed])
-  /**
    * Whether an end mill actually reached the list, which is what the
    * stand-in note may say (`shared/threads.ts` § `millStandInNote`). Read off
    * the rows rather than off the filter: the filter is what was asked for, and
@@ -1955,18 +1968,16 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     () => listed.some((each) => PREDRILL_MILL_FORMS.includes(each.form)),
     [listed],
   )
+  /**
+   * The forms on the list, which is what tip angle and corner radius follow —
+   * a drill brings its point angle with it, a mill brings its corner radius,
+   * and a list holding both draws both (Paul, 2026-09-10). The rule is
+   * `shared/auto-columns.ts`; a column toggled by hand leaves it.
+   */
+  const listedForms = useMemo(() => listed.map((each) => each.form), [listed])
   useEffect(() => {
-    if (touchedColumns.current.has('SIG')) {
-      return
-    }
-    setHiddenColumns((current) =>
-      hasDrills
-        ? current.filter((code) => code !== 'SIG')
-        : current.includes('SIG')
-          ? current
-          : [...current, 'SIG'],
-    )
-  }, [hasDrills])
+    setHiddenColumns((current) => hiddenAfterAuto(current, listedForms, touchedColumns.current))
+  }, [listedForms])
   /**
    * The list narrowed by what was typed into the catalog number column.
    *

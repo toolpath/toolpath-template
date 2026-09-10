@@ -33,13 +33,32 @@ class MeshErrorBoundary extends Component<{ children: ReactNode }, { error: Erro
     return { error }
   }
 
-  componentDidCatch(_error: Error, _info: ErrorInfo) {}
+  /**
+   * **What it caught is said, not swallowed** (2026-09-10). This threw away the
+   * error and rendered one sentence for every cause there is — a refused
+   * artifact, a report with no mesh on it, a browser that cannot open a WebGL
+   * context — so a part that would not draw took four rounds of guessing to
+   * even locate. The reason goes on the screen where the failure is, and the
+   * stack goes to the console for whoever opens it.
+   */
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[mesh] the viewer threw', error, info.componentStack)
+  }
 
   render() {
     if (this.state.error) {
       return (
         <div className="grid size-full place-items-center p-8 text-center text-sm text-zinc-400">
-          The mesh could not be loaded. The feature list is still available.
+          <div>
+            <p>The mesh could not be loaded. The feature list is still available.</p>
+            {/*
+              The message rather than the stack: it is the half that names the
+              cause, and it is what somebody can repeat back down a phone.
+            */}
+            <p className="mt-2 font-mono text-xs break-words text-zinc-500">
+              {this.state.error.message || String(this.state.error)}
+            </p>
+          </div>
         </div>
       )
     }

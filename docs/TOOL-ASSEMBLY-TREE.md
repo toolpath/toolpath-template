@@ -150,6 +150,39 @@ this assembly`, because a rack is narrowed to what fits a stack only while
   arrow keys and Space back from it, and a field still owns its own Enter.
   `orderingPress` is which press it stands for — never _Remove_ and never
   _Cancel_, and nothing at all while the press is greyed.
+- **A filter open over the box takes that press first** (Paul, 2026-09-10: "when
+  a filter dialog is active underneath a feature/group/tool assembly, hitting
+  enter should confirm the filter and close the filter dialog before it closes
+  the feature/group/tool assembly"). A column filter is opened from a header
+  _inside_ the box, so it is the newest thing on the screen and one press is one
+  step out of it — the rule Escape already walks. The menu and the page are both
+  listening on the document and the page's listener is always the older of the
+  two, so the page stands down for a named layer rather than waiting to be
+  pre-empted: `useKeyLayer` and `LAYER_COLUMN_FILTER` in `shared/use-escape.ts`.
+  The press after it, with nothing over the box, orders.
+- **Enter is the dialog's, never a control's** (Paul, 2026-09-10: "the keyboard
+  focus is staying on the checkbox I used most recently in the drop down filters
+  — enter should never check or uncheck, it only works at the dialog level").
+  The kit's `Checkbox` is a `<button role="checkbox">`: the focus sits on the
+  last value clicked, and the press somebody meant as _done_ unticked it. So the
+  menu hears Enter on the way **down** — the control never sees it — while
+  Escape stays on the way up, where a kit popover marks its own press handled.
+  The × is a click away, as it always was; there is one rule now rather than a
+  rule and an exception, because the exception is what caused this.
+- **The page defers to a filter being open, not to a filter being newest.** It
+  counts them (`columnFilterOpen`): making the page's standing down conditional
+  on nothing else having mounted since is how the box closes on somebody anyway,
+  and nothing above a filter answers Enter, so the worst a deferral costs is a
+  press that does nothing.
+- **A filter menu is as tall as the screen leaves it** (Paul, 2026-09-10: "the
+  filter dialog for type also needs to be scrollable — right now it just runs off
+  the screen"). Type lists every phrase the trade has for a tool, under a header
+  that sits low once the box is open, and a `fixed` box is not on anything that
+  scrolls — so the rows past the bottom edge could not be reached at all. The
+  menu measures the room under the funnel and scrolls inside it; where what is
+  left under the header is a strip it opens upwards instead, anchored by its
+  bottom. Its own header — the tick and the × — is held out of the scrolling
+  half, because that is what somebody reaches for once the list is long.
 - **The panel on the right is the component being read**, and nothing else. It
   had the buttons, a table away from the stack they described; it does **not**
   list the stack either, because one component list on each side of the table
@@ -868,6 +901,9 @@ gets it.
 | the press that decides, and its words             | `app/components/no-collet-toggle.tsx`            |
 | what a stack offers, and its button's words       | `app/shared/assembly-actions.ts`                 |
 | which press orders, and which Enter stands for    | `isOrdering` / `orderingPress`, same file        |
+| which layer one press of Enter or Escape reaches  | `useKeyLayer`, `app/shared/use-escape.ts`        |
+| whether the page stands down for an open filter   | `columnFilterOpen`, same file                    |
+| how tall a filter menu is, and which way it opens | `place`, `components/column-filter.tsx`          |
 | what overruling the rules offers                  | `overridableTools`, `app/shared/tool-fit.ts`     |
 | what an axis has that the list is not showing     | `hiddenOn`, `app/routes/part.tsx`                |
 | the `…` row that offers it                        | `TermFilter`, `components/column-filter.tsx`     |

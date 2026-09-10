@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { UnitSystem } from '@toolpath/tool-support'
+import { columnFilterOpen } from 'shared/use-escape'
 import {
   ColumnPicker,
   FilterMenu,
@@ -10,6 +11,7 @@ import {
   TermFilter,
   boundFor,
   compareOf,
+  menuRoom,
   optionsMatching,
   type Bound,
   type Kind,
@@ -195,6 +197,28 @@ describe('what an operator and its numbers add up to', () => {
   })
 })
 
+/**
+ * How tall a box opened off a button is, and which way it opens.
+ *
+ * One rule for the filter menus and the column picker both: the picker ran off
+ * the bottom of the screen with its last columns unreachable (Paul,
+ * 2026-09-10), which is the defect the Type filter had a day earlier.
+ */
+describe('the room a menu opens into', () => {
+  it('takes the room under the button and opens downwards', () => {
+    expect(menuRoom({ top: 100, bottom: 130 }, 900)).toEqual({ upwards: false, height: 758 })
+  })
+
+  it('opens upwards where what is left under the button is a strip', () => {
+    expect(menuRoom({ top: 700, bottom: 730 }, 900)).toEqual({ upwards: true, height: 688 })
+  })
+
+  /** A strip above and a strip below still opens downwards, and overhangs. */
+  it('never squeezes itself below the least height worth reading', () => {
+    expect(menuRoom({ top: 40, bottom: 70 }, 200)).toEqual({ upwards: false, height: 220 })
+  })
+})
+
 describe('the column picker', () => {
   it('keeps the pencil at the table header touch target size', () => {
     render(
@@ -206,6 +230,26 @@ describe('the column picker', () => {
     )
 
     expect(screen.getByRole('button', { name: 'Which columns to show' })).toHaveClass('size-6')
+  })
+
+  /**
+   * The list scrolls inside the room the screen leaves it rather than running
+   * off the bottom of the page with its last columns out of reach.
+   */
+  it('scrolls inside a height the screen bounds', () => {
+    render(
+      <ColumnPicker
+        columns={[{ code: 'DC', label: 'Diameter' }]}
+        shown={['DC']}
+        onToggle={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Which columns to show' }))
+
+    const list = screen.getByRole('group', { name: 'Columns' })
+    expect(list).toHaveClass('overflow-y-auto')
+    expect(list.style.maxHeight).not.toBe('')
   })
 })
 
@@ -625,5 +669,230 @@ describe('a filter menu standing over its funnel', () => {
     fireEvent.scroll(window)
     await frame()
     expect(onClose).toHaveBeenCalled()
+  })
+})
+
+/**
+ * **A filter open inside an assembly box takes Enter, and the page stands
+ * down** (Paul, 2026-09-10: "when a filter dialog is active underneath a
+ * feature/group/tool assembly, hitting enter should confirm the filter and
+ * close the filter dialog before it closes the feature/group/tool assembly").
+ *
+ * The menu is opened from a column header, so the focus is on the funnel or
+ * still on the press that opened the box — never inside the menu. A React
+ * keydown on the menu therefore never fired, and the page's own Enter ordered
+ * the whole assembly and unmounted the filter under it unread. `useKeyLayer` in
+ * `shared/use-escape.ts` is the rule: the newest layer takes the press, and it
+ * names itself so the page can recognise it.
+ *
+ * `order` here is what `routes/part.tsx` does on Enter, gate and all — a real
+ * document listener, added *before* the menu's, because that is the order the
+ * page and a menu opened over it register in and the reason the page cannot
+ * simply wait to be pre-empted. It defers to a filter being *open* rather than
+ * to a filter being the newest layer: what closed the box was that question
+ * being answered by the order things mounted in.
+ */
+describe('Enter over a filter menu inside a box', () => {
+  const Standing = ({
+    onClose,
+    onConfirm,
+  }: {
+    readonly onClose: () => void
+    readonly onConfirm?: () => void
+  }) => {
+    const anchors = useRef<HTMLDivElement>(null)
+    return (
+      <div ref={anchors}>
+        <span data-column-funnel="DC" />
+        <button type="button">the press that opened the box</button>
+        <FilterMenu
+          label="Diameter"
+          code="DC"
+          anchors={anchors}
+          align="left"
+          onClose={onClose}
+          confirm={
+            onConfirm === undefined
+              ? undefined
+              : { label: 'Use this diameter', title: 'Use this diameter', onConfirm }
+          }
+        >
+          <button type="button">clear</button>
+        </FilterMenu>
+      </div>
+    )
+  }
+
+  /** The page's Enter, as `routes/part.tsx` holds it. */
+  const pageOrdering = (order: () => void) => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' || columnFilterOpen()) {
+        return
+      }
+      order()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }
+
+  it('confirms and closes the filter, and orders nothing', () => {
+    const onClose = vi.fn()
+    const onConfirm = vi.fn()
+    const order = vi.fn()
+    const stop = pageOrdering(order)
+    render(<Standing onClose={onClose} onConfirm={onConfirm} />)
+
+    // Where the press lands when the menu was opened from a header: outside it.
+    fireEvent.keyDown(screen.getByRole('button', { name: 'the press that opened the box' }), {
+      key: 'Enter',
+      bubbles: true,
+    })
+
+    expect(onConfirm).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(order).not.toHaveBeenCalled()
+    stop()
+  })
+
+  /**
+   * The page has the press back the moment the menu is gone — the second Enter
+   * is the one that orders, and it is the whole point of taking only the first.
+   */
+  it('gives the press back to the page once the menu is gone', () => {
+    const order = vi.fn()
+    const stop = pageOrdering(order)
+    const { unmount } = render(<Standing onClose={() => {}} />)
+
+    unmount()
+    fireEvent.keyDown(document.body, { key: 'Enter', bubbles: true })
+
+    expect(order).toHaveBeenCalledTimes(1)
+    stop()
+  })
+
+  /**
+   * **Enter is the dialog's, never a control's** (Paul, 2026-09-10: "the
+   * keyboard focus is staying on the checkbox I used most recently in the drop
+   * down filters — enter should never check or uncheck, it only works at the
+   * dialog level"). The kit's `Checkbox` is a `<button role="checkbox">`, so
+   * the focus sits on the last value clicked and Enter fired that button's own
+   * default action rather than finishing the filter. The real `TermFilter` is
+   * rendered because the button is the kit's, not this file's.
+   */
+  it('finishes the filter rather than ticking the focused value', () => {
+    const onClose = vi.fn()
+    const onChosen = vi.fn()
+    const anchors = { current: document.body }
+    render(
+      <div>
+        <span data-column-funnel="DC" />
+        <FilterMenu label="Vendor" code="DC" anchors={anchors} align="left" onClose={onClose}>
+          <TermFilter
+            label="Vendor"
+            options={[{ value: 'harvi', label: 'Harvey', count: 3 }]}
+            chosen={['harvi']}
+            onChosen={onChosen}
+          />
+        </FilterMenu>
+      </div>,
+    )
+
+    const tick = screen.getByRole('checkbox', { name: 'Harvey' })
+    tick.focus()
+    fireEvent.keyDown(tick, { key: 'Enter', bubbles: true })
+
+    expect(onChosen).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * The one press left alone is one inside a popover the kit drew: choosing
+   * "\u2265 at least" from the operator list is that list's Enter, and the popover
+   * is a portal of its own rather than anything inside this box.
+   */
+  it('leaves a press inside a popover the kit drew to the kit', () => {
+    const onClose = vi.fn()
+    const onConfirm = vi.fn()
+    render(<Standing onClose={onClose} onConfirm={onConfirm} />)
+
+    const portal = document.createElement('div')
+    portal.setAttribute('data-base-ui-portal', '')
+    const option = document.createElement('button')
+    portal.append(option)
+    document.body.append(portal)
+
+    fireEvent.keyDown(option, { key: 'Enter', bubbles: true })
+
+    expect(onConfirm).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+    portal.remove()
+  })
+})
+
+/**
+ * **A menu is as tall as the screen leaves it** (Paul, 2026-09-10: "the filter
+ * dialog for type also needs to be scrollable — right now it just runs off the
+ * screen"). Type lists every phrase the trade has for a tool, and the menu was
+ * drawn at whatever height that came to, under a header that can sit anywhere
+ * down the page: everything past the bottom edge was unreachable, because a
+ * `fixed` box is not on anything that scrolls.
+ *
+ * jsdom measures every box at zero, so the funnel is given the rect it would
+ * have on screen — the input to the rule, and the only half worth pinning.
+ */
+describe('a filter menu against the bottom of the screen', () => {
+  const Standing = ({ at }: { readonly at: number }) => {
+    const anchors = useRef<HTMLDivElement>(null)
+    const funnel = useRef<HTMLSpanElement>(null)
+    useEffect(() => {
+      const found = funnel.current
+      if (found !== null) {
+        found.getBoundingClientRect = () =>
+          ({ top: at, bottom: at + 20, left: 40, right: 140, width: 100, height: 20 }) as DOMRect
+      }
+    }, [at])
+    return (
+      <div ref={anchors}>
+        <span ref={funnel} data-column-funnel="DC" />
+        <FilterMenu label="Type" code="DC" anchors={anchors} align="left" onClose={() => {}}>
+          <p>the filter</p>
+        </FilterMenu>
+      </div>
+    )
+  }
+
+  /** Two frames: the first look misses the ref, the second finds it. */
+  const standing = async (at: number) => {
+    render(<Standing at={at} />)
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+    })
+    const menu = document.querySelector<HTMLElement>('[data-column-filter-menu]')
+    expect(menu).not.toBeNull()
+    return menu as HTMLElement
+  }
+
+  it('takes the room under the header and scrolls inside it', async () => {
+    const menu = await standing(100)
+
+    // 768 tall in jsdom, less the header at 120 and the margin at the edge.
+    expect(menu.style.maxHeight).toBe('636px')
+    expect(menu.style.top).toBe('124px')
+    expect(menu.style.bottom).toBe('')
+    expect(menu.querySelector('.overflow-y-auto')).not.toBeNull()
+  })
+
+  /**
+   * The tool table's header can end up a strip above the bottom edge, and a
+   * menu squeezed into it is one nobody can read. It opens upwards instead,
+   * anchored by its bottom — a height it has not been measured at yet cannot
+   * place its top without a frame of it in the wrong place.
+   */
+  it('opens upwards where what is under the header is a strip', async () => {
+    const menu = await standing(700)
+
+    expect(menu.style.top).toBe('')
+    expect(menu.style.bottom).toBe('72px')
+    expect(menu.style.maxHeight).toBe('688px')
   })
 })
