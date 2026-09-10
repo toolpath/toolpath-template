@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { onThePart, openCube, orderList } from './cube-fixture'
+import { onThePart, openCube, openCubeWithHole, orderList } from './cube-fixture'
 
 /**
  * What a click on the part means.
@@ -2210,6 +2210,57 @@ test.describe('the tool assembly tree', () => {
     await picker.getByRole('checkbox', { name: before[0]!, exact: true }).click()
     await expect(picker.getByRole('checkbox', { name: before[0]!, exact: true })).toBeChecked()
     await expect(picker.getByRole('checkbox', { name: before[1]!, exact: true })).toBeChecked()
+  })
+
+  /**
+   * **And it says what the second value would bring** (Paul, 2026-09-10: pick a
+   * vendor, open the vendor picker again, and every other vendor reads nought —
+   * "they have compatible tools", which ticking one proves on the spot).
+   *
+   * Offering the value and offering nought beside it are two different answers.
+   * The counts used to be measured over the rows on screen, and the rows are
+   * what the matcher judged — so while a value was ticked, nothing else on that
+   * axis had ever been put to the rules and every one of them counted zero. The
+   * worker now judges the question with the facets cleared and sends the counts
+   * back (`shared/catalog-matcher.ts` § `facetCounts`), so a count beside an
+   * unticked value is what pressing it would actually bring.
+   */
+  test('says what a second vendor would bring while one vendor is narrowing', async ({ page }) => {
+    /*
+      A ⌀6 blind hole, because the plain cube's faces answer "nothing fits" and
+      a count over a list of stand-ins is not the thing under test. This hole
+      the nine tools do answer, with both vendors and three types on it.
+
+      **The vendor is chosen before the feature is**, which is Paul's own
+      sequence and the reason the picker's memory (`shared/filter.ts` §
+      `stillOffered`) could not cover this: the memory is the question's, so a
+      filter already standing when the question is asked has nothing behind it.
+    */
+    await openCubeWithHole(page, { diameter: 6, depth: 8, query: '&brand=Kennametal' })
+    await expect(page.locator('canvas')).toBeVisible()
+    await ready(page)
+    await keepFeature(page)
+    await page
+      .locator('[data-assembly-tree]')
+      .getByRole('button', { name: /^TOOL for / })
+      .click()
+
+    // The list is the one vendor's, which is what was asked for.
+    await expect(page.getByRole('grid').first().getByText('WIDIA')).toBeHidden()
+
+    await page.getByRole('button', { name: 'Filter by Vendor', exact: true }).click()
+    const picker = page.getByRole('group', { name: 'Vendor' })
+    const count = (vendor: string) =>
+      picker.locator(`[data-term-option="${vendor}"] [data-term-count]`)
+
+    // The other vendor is offered on the list itself rather than behind the `…`
+    // row, and it says how many tools pressing it would actually bring.
+    await expect(count('Kennametal')).toHaveText('1')
+    await expect(count('WIDIA')).toHaveText('2')
+
+    // And the number is the truth: ticking it brings exactly those two.
+    await picker.getByRole('checkbox', { name: 'WIDIA', exact: true }).click()
+    await expect(page.getByRole('grid').first().getByText('WIDIA')).toHaveCount(2)
   })
 
   /**

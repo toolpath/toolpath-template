@@ -2,7 +2,15 @@ import type { CatalogTool, Collet, Holder, HolderFilters, Margins } from '@toolp
 import type { PartFeature } from '@toolpath/part-contracts'
 import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { withClampingLength, type ClampingRule } from './clamping-length'
-import { filterTools, type ToolQuery } from './filter'
+import {
+  countBy,
+  facetsNarrowing,
+  filterTools,
+  FACET_AXES,
+  withoutFacets,
+  withoutTerm,
+  type ToolQuery,
+} from './filter'
 import { holdable, policyOf, type HoldThresholds } from './holder-choice'
 import { holdableTools, splitHolding } from './holding'
 import { closestMisses, closestPerForm, type Format, type Reason, type Verdict } from './judge'
@@ -152,6 +160,30 @@ export interface DetailedResult {
   readonly ruleTally: Readonly<Record<string, number>>
   readonly narrowedGuids: ReadonlyArray<string>
   readonly heldGuids: ReadonlyArray<string>
+  /**
+   * What each facet axis would hold if that axis alone were cleared, by value.
+   *
+   * **A count measured over the list is the axis counting itself** (Paul,
+   * 2026-09-10: picking Kennametal and then opening Vendor again shows every
+   * other vendor at nought, "but they have compatible tools"). With a feature
+   * on the screen the rows are what the matcher judged, and the matcher only
+   * judges what the terms already admit — so the moment a vendor is chosen, no
+   * other vendor's tools have been judged for that feature and there is
+   * nothing to count. The panel's own rule since 2026-09-01 is that a count is
+   * measured against every filter **but** the axis's own, and this is the only
+   * place both halves of that exist: the answer for the list, and the pool the
+   * other values would come from.
+   *
+   * `null` when no facet axis is narrowing, because then the rows already are
+   * the whole answer and counting them a second time is work for nothing — and
+   * `null` again when the widened pool holds nothing either, for the reason
+   * given where it is built.
+   *
+   * A plain record rather than a `Map` so it survives the worker boundary, and
+   * counts rather than tools so what crosses it is a few hundred numbers rather
+   * than the widened pool itself.
+   */
+  readonly facetCounts: Readonly<Record<string, Readonly<Record<string, number>>>> | null
 }
 
 export interface RecommendationResult {
@@ -548,14 +580,64 @@ const nearestFew = (
   ]
 }
 
+/**
+ * The tools a facet count is measured over: the same question with every facet
+ * axis cleared, judged and held.
+ *
+ * **Judged, not merely filtered.** A vendor's tools that were never put to the
+ * rules cannot be counted, and the rules are what the list is; taking the
+ * catalog's own count instead would offer a vendor 900 tools and then show
+ * three. So this is the whole pipeline again over the widened pool — measured
+ * on the scraped catalog at ~135 ms against ~50 ms for a narrowed one, in a
+ * worker, and only while a facet is actually narrowing.
+ *
+ * Everything that is not a facet is left standing: the geometry's forms, the
+ * ranges, the crib's taper and collet series. Widening those would count tools
+ * the question is not about.
+ */
+export const facetPool = (
+  context: MatchContext,
+  demand: MatchDemand,
+  catalog: MatcherCatalog,
+): ReadonlyArray<CatalogTool> => {
+  const widened = { ...context, query: withoutFacets(context.query) }
+  return matchDemand(widened, demand, catalog, prepareMatch(widened, catalog)).held.map(
+    (verdict) => verdict.tool,
+  )
+}
+
+/** One pool read per axis, each against every filter but that axis's own. */
+const countsOverPool = (
+  pool: ReadonlyArray<CatalogTool>,
+  query: ToolQuery,
+): Record<string, Record<string, number>> => {
+  const counts: Record<string, Record<string, number>> = {}
+  for (const axis of FACET_AXES) {
+    counts[axis] = Object.fromEntries(countBy(filterTools(pool, withoutTerm(query, axis)), axis))
+  }
+  return counts
+}
+
 /** Runs the existing detailed table pipeline with only cloneable request inputs. */
 export const detailedMatch = (
   context: MatchContext,
   demand: MatchDemand,
   catalog: MatcherCatalog,
   prepared: PreparedMatch = prepareMatch(context, catalog),
+  /**
+   * The widened pool, where a caller already holds one.
+   *
+   * The worker keeps it across every tick of a facet, because it is the one
+   * thing on this page that does not change when one is ticked — the pool is
+   * the question with the facets *cleared*. Passing it in is what keeps a
+   * second vendor from costing a second judging pass.
+   */
+  pool?: ReadonlyArray<CatalogTool>,
 ): DetailedResult => {
   const matched = matchDemand(context, demand, catalog, prepared)
+  const widened = !facetsNarrowing(context.query)
+    ? null
+    : (pool ?? facetPool(context, demand, catalog))
   return {
     demandKey: demand.demandKey,
     fitting: matched.fitting.map(compact),
@@ -577,6 +659,13 @@ export const detailedMatch = (
     ruleTally: ruleTally(matched.excluded),
     narrowedGuids: matched.narrowed.map((verdict) => verdict.tool.guid),
     heldGuids: matched.held.map((verdict) => verdict.tool.guid),
+    /**
+     * Nothing held in the widened pool is nothing to say: the rows on screen
+     * are then the near misses standing in, and counting a value at nought
+     * against a list that is itself a stand-in would read as an answer.
+     */
+    facetCounts:
+      widened === null || widened.length === 0 ? null : countsOverPool(widened, context.query),
   }
 }
 

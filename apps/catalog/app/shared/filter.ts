@@ -383,6 +383,41 @@ export const prioritise = (
 }
 
 /**
+ * The axes whose options are narrowed by the rest of the query.
+ *
+ * The term axes that are properties of a tool, which is what a facet count can
+ * be measured over. The holding axes — a spindle taper, a collet series — are
+ * properties of the crib and are counted elsewhere (Paul, 2026-09-01).
+ *
+ * Here rather than beside the panel that draws them because the **matcher**
+ * has to know them too: a facet count with a feature on screen is measured
+ * over a pool judged without these terms, and `shared/` may not import
+ * `components/`.
+ */
+export const FACET_AXES: ReadonlyArray<string> = [
+  'brand',
+  // The two phrases this catalog builds rather than facets a vendor publishes:
+  // the type with its shank in it, and the family with its product line.
+  'type',
+  'family',
+  'materialGroups',
+  'NOF',
+]
+
+/** Whether any facet axis is narrowing, which is when a count needs widening. */
+export const facetsNarrowing = (query: ToolQuery): boolean =>
+  FACET_AXES.some((axis) => (query.terms[axis]?.length ?? 0) > 0)
+
+/** The same query with every facet axis taken out — the pool a count is measured over. */
+export const withoutFacets = (query: ToolQuery): ToolQuery => {
+  const terms = { ...query.terms }
+  for (const axis of FACET_AXES) {
+    delete terms[axis]
+  }
+  return { ...query, terms }
+}
+
+/**
  * The same query with one axis taken out.
  *
  * What a facet count has to be measured against: "how many Harvey tools are
@@ -390,7 +425,7 @@ export const prioritise = (
  * one vendor would report every other as zero and there would be no way to add
  * a second.
  */
-const withoutTerm = (query: ToolQuery, key: string): ToolQuery => {
+export const withoutTerm = (query: ToolQuery, key: string): ToolQuery => {
   const terms = { ...query.terms }
   delete terms[key]
   return { ...query, terms }

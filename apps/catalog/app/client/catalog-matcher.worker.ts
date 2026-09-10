@@ -1,6 +1,8 @@
+import type { CatalogTool } from '@toolpath/catalog-data'
 import { collets, holders, allTools } from '../shared/catalog'
 import {
   detailedMatch,
+  facetPool,
   matchKey,
   prepareMatch,
   recommendationMatch,
@@ -10,6 +12,7 @@ import {
   type MatchResponse,
   type RecommendationResult,
 } from '../shared/catalog-matcher'
+import { facetsNarrowing, withoutFacets } from '../shared/filter'
 
 const catalog = { tools: allTools, holders, collets }
 
@@ -44,6 +47,18 @@ class Lru<Value> {
 // and recur for every feature and one-each draft, so they get the larger cache.
 const tables = new Lru<ReadonlyArray<DetailedResult>>(4)
 const recommendations = new Lru<RecommendationResult>(256)
+/**
+ * The widened pools the facet counts are measured over, by the question with
+ * every facet cleared.
+ *
+ * **A tick must not cost a judging pass.** The counts beside the Vendor
+ * checkboxes are measured over the question *without* the vendor, so that pool
+ * is identical for every vendor, every family and every type ticked on the same
+ * feature — which is exactly the sequence somebody makes while narrowing. Keyed
+ * on the facet-free question so the cache hits across all of them, and never
+ * sent anywhere: only the counts cross the boundary.
+ */
+const pools = new Lru<ReadonlyArray<CatalogTool>>(4)
 
 /**
  * The part this worker is answering about, kept between requests.
@@ -55,6 +70,22 @@ const recommendations = new Lru<RecommendationResult>(256)
  * `needs-features`, and the client sends them.
  */
 let held: { readonly key: string; readonly features: MatchContext['features'] } | null = null
+
+/** The widened pool for one demand, judged once and kept for the next tick. */
+const poolFor = (
+  context: MatchContext,
+  demand: MatchRequest['demands'][number],
+): ReadonlyArray<CatalogTool> => {
+  const widened = { ...context, query: withoutFacets(context.query) }
+  const key = matchKey('table', widened, [demand])
+  const cached = pools.get(key)
+  if (cached !== undefined) {
+    return cached
+  }
+  const built = facetPool(context, demand, catalog)
+  pools.set(key, built)
+  return built
+}
 
 self.onmessage = (event: MessageEvent<MatchRequest>) => {
   const incoming = event.data
@@ -86,9 +117,12 @@ self.onmessage = (event: MessageEvent<MatchRequest>) => {
         cached ??
         (() => {
           const prepared = prepareMatch(request.context, catalog)
-          const matched = request.demands.map((demand) =>
-            detailedMatch(request.context, demand, catalog, prepared),
-          )
+          const matched = request.demands.map((demand) => {
+            const pool = facetsNarrowing(request.context.query)
+              ? poolFor(request.context, demand)
+              : undefined
+            return detailedMatch(request.context, demand, catalog, prepared, pool)
+          })
           tables.set(request.key, matched)
           return matched
         })()

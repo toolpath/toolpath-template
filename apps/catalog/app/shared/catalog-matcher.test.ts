@@ -4,6 +4,7 @@ import type { PartFeature } from '@toolpath/part-contracts'
 import { SHEET_CLAMPING, withClampingLength } from './clamping-length'
 import {
   detailedMatch,
+  facetPool,
   featuresKey,
   matchKey,
   prepareMatch,
@@ -441,6 +442,73 @@ describe('catalog matcher protocol', () => {
     expect(results.map((result) => result.demandKey)).toEqual(
       features.map((feature) => feature.featureTag),
     )
+  })
+})
+
+/**
+ * **An axis must never count itself** (Paul, 2026-09-10: filter to Kennametal,
+ * open the Vendor menu again, and every other vendor reads nought — "they have
+ * compatible tools", and ticking one proves it).
+ *
+ * With a feature on the screen the rows are what the matcher judged, and the
+ * matcher only judges what the terms already admit, so no other vendor's tools
+ * had ever been put to the rules. The count beside a checkbox is a question
+ * about every filter **but** that checkbox's own axis, which is why it is
+ * answered here — beside the pipeline that is the only thing able to answer it
+ * — rather than by counting the rows on screen.
+ */
+describe('the counts an axis offers while it is narrowing', () => {
+  const branded = (guid: string, brand: string, DC: number): CatalogTool =>
+    ({ ...tool(guid, DC), brand, vendor: brand }) as CatalogTool
+
+  const crib = {
+    tools: [
+      branded('k-1', 'Kennametal', 6),
+      branded('w-1', 'WIDIA', 6),
+      branded('w-2', 'WIDIA', 7),
+    ],
+    holders: [],
+    collets: [],
+  }
+  const feature = pocket('pocket-1')
+  const demand = { demandKey: 'one', tags: [feature.featureTag] }
+  const asked = (terms: Record<string, ReadonlyArray<string>>): MatchContext => ({
+    ...context([feature]),
+    query: { ...EMPTY_QUERY, terms },
+  })
+
+  it('says nothing while no facet is narrowing, because the rows are the answer', () => {
+    expect(detailedMatch(asked({}), demand, crib).facetCounts).toBeNull()
+  })
+
+  it('counts the vendors a chosen vendor hid, over tools the rules actually admit', () => {
+    const result = detailedMatch(asked({ brand: ['Kennametal'] }), demand, crib)
+
+    expect(result.heldGuids).toEqual(['k-1'])
+    expect(result.facetCounts?.brand).toEqual({ Kennametal: 1, WIDIA: 2 })
+  })
+
+  it('measures one axis against every other filter that is set', () => {
+    const result = detailedMatch(
+      asked({ brand: ['Kennametal'], type: ['Flat end mill'] }),
+      demand,
+      crib,
+    )
+
+    // The vendor count still answers "what would WIDIA bring" *with* the type
+    // narrowing standing, and the type count answers it with the vendor's.
+    expect(result.facetCounts?.brand).toEqual({ Kennametal: 1, WIDIA: 2 })
+    expect(result.facetCounts?.type).toEqual({ 'Flat end mill': 1 })
+  })
+
+  it("leaves a caller's widened pool alone rather than judging a second time", () => {
+    const pool = facetPool(asked({ brand: ['Kennametal'] }), demand, crib)
+
+    expect([...pool.map((each) => each.guid)].sort()).toEqual(['k-1', 'w-1', 'w-2'])
+    expect(
+      detailedMatch(asked({ brand: ['Kennametal'] }), demand, crib, undefined, pool).facetCounts
+        ?.brand,
+    ).toEqual({ Kennametal: 1, WIDIA: 2 })
   })
 })
 

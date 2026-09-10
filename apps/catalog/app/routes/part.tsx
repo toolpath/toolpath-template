@@ -100,7 +100,7 @@ import {
   type Holding,
 } from 'components/part-tool-table'
 import { ColumnPicker, sameBound } from 'components/column-filter'
-import { BUTTON_FILTERS, FACET_AXES } from 'components/filter-panel'
+import { BUTTON_FILTERS } from 'components/filter-panel'
 import { orderedCodes } from 'shared/column-order'
 import { hiddenAfterAuto } from 'shared/auto-columns'
 import { capRows, firstBy, keptFirst, oneEach } from 'shared/tool-order'
@@ -177,6 +177,7 @@ import { ComponentTable } from 'components/component-table'
 import { CLAMPING_KNOB, withClampingLength, type ClampingRule } from 'shared/clamping-length'
 import {
   EMPTY_QUERY,
+  FACET_AXES,
   countBy,
   countsByAxis,
   stillOffered,
@@ -1898,6 +1899,28 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     return drillsFirst(shownTools.filter((each) => predrillForms.includes(each.form)))
   }, [asking, catalogList, tools, closest, overrideTools, drillsOnly, predrillForms])
   /**
+   * The counts the **matcher** measured, where a facet is narrowing the list.
+   *
+   * `shared/catalog-matcher.ts` § `facetCounts` is the whole of it: while a
+   * vendor is chosen, no other vendor's tools have been judged for this
+   * feature, so the rows on screen cannot say what a second vendor would bring
+   * — they said nought, and Paul could see on the part that it was not nought
+   * (2026-09-10). The worker judges the question with the facets cleared and
+   * sends the counts back, and they are the answer whenever it has one.
+   */
+  const judgedFacets = useMemo(
+    () =>
+      detailed?.facetCounts == null
+        ? null
+        : new Map<string, ReadonlyMap<string, number>>(
+            Object.entries(detailed.facetCounts).map(([axis, values]) => [
+              axis,
+              new Map(Object.entries(values)),
+            ]),
+          ),
+    [detailed],
+  )
+  /**
    * What each axis would leave, counted against every other filter.
    *
    * This is what lets the panel narrow itself — a vendor chosen takes the
@@ -1905,31 +1928,33 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * the axis's own term, so choosing one vendor does not hide the rest
    * (Paul, 2026-09-01).
    *
-   * **Over the rows the list is actually holding**, which is what "offer what
-   * is there" means. A feature's list has already been answered against the
-   * query — the matcher applied it — so the query is not applied a second time
-   * here: the nearest misses stand in when nothing fits, and they are outside
-   * the query by construction, which counted four rows on screen as nothing to
-   * narrow by. Without a feature the pool is the whole catalog, so there the
-   * query is what makes the counts mean anything.
+   * With a feature and nothing the worker could widen — no facet narrowing yet,
+   * or a question nothing fits at all — it falls back to **the rows the list is
+   * actually holding**, which is what "offer what is there" means. The list has
+   * already been answered against the query, so the query is not applied a
+   * second time there: the nearest misses stand in when nothing fits, and they
+   * are outside the query by construction, which counted four rows on screen as
+   * nothing to narrow by. Without a feature the pool is the whole catalog, so
+   * there the query is what makes the counts mean anything.
    */
   const axisCounts = useMemo(
     () =>
       asking
-        ? countsByAxis(listed, EMPTY_QUERY, FACET_AXES)
+        ? (judgedFacets ?? countsByAxis(listed, EMPTY_QUERY, FACET_AXES))
         : countsByAxis(allTools, effectiveQuery, FACET_AXES),
-    [asking, allTools, listed, effectiveQuery],
+    [asking, allTools, listed, effectiveQuery, judgedFacets],
   )
   /**
    * What each axis is offering, which is not always what it can still count.
    *
-   * `shared/filter.ts` § `stillOffered` has the reason: with a feature on the
-   * screen the counts are measured over what the matcher judged, and the
-   * matcher only judges what the terms already admit — so an axis that has been
-   * narrowed can only report itself, and a second vendor was unreachable. It
-   * keeps offering the list it last had instead. The memory is this feature's:
-   * another question is another set of values, and carrying one over would
-   * offer the last feature's vendors under this one's name.
+   * `shared/filter.ts` § `stillOffered` has the reason, and {@link judgedFacets}
+   * is why it is not always needed: a count the worker measured over the
+   * widened pool already holds every other vendor, so the memory would only put
+   * a stale number beside a fresh one. It stands for the answers that still
+   * come off the rows — a list the worker has not answered yet, and the near
+   * misses standing in when nothing fits. The memory is this feature's: another
+   * question is another set of values, and carrying one over would offer the
+   * last feature's vendors under this one's name.
    */
   const offeredAxes = useRef(new Map<string, ReadonlyMap<string, number>>())
   const askedOf = useRef<string | null>(null)
@@ -1943,14 +1968,14 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       const counts = axisCounts.get(axis) ?? new Map<string, number>()
       offered.set(
         axis,
-        asking
+        asking && judgedFacets === null
           ? stillOffered(counts, query.terms[axis] ?? [], offeredAxes.current.get(axis))
           : counts,
       )
     }
     offeredAxes.current = offered
     return offered
-  }, [asking, axisCounts, query.terms, ask])
+  }, [asking, axisCounts, query.terms, ask, judgedFacets])
 
   /** One axis's values as the pickers read them, however they were arrived at. */
   const countsOn = useCallback(

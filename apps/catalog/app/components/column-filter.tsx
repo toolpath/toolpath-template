@@ -971,6 +971,7 @@ export const TermFilter = ({
             return (
               <div
                 key={option.value}
+                data-term-option={option.value}
                 className="text-2xs flex cursor-pointer items-center gap-2 px-2 py-1 whitespace-nowrap normal-case hover:bg-zinc-900"
               >
                 <Checkbox
@@ -981,7 +982,7 @@ export const TermFilter = ({
                   aria-label={off ? `${option.label} — not on this list` : option.label}
                 />
                 <span className={off ? 'text-zinc-500' : 'text-zinc-200'}>{option.label}</span>
-                <span className="ml-auto pl-3 font-mono tabular-nums text-zinc-600">
+                <span data-term-count className="ml-auto pl-3 font-mono tabular-nums text-zinc-600">
                   {option.count}
                 </span>
               </div>

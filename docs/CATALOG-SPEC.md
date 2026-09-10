@@ -343,16 +343,28 @@ always somebody's preference, and always visible and reversible.
   `components/column-filter.tsx` § `optionsMatching` is the rule and
   `components/column-filter.test.tsx` the sensor. The catalog number stays a
   plain text box: it narrows the rows, not a list of options.
-- **An axis that has been narrowed keeps offering what it last offered.** With a
-  feature on screen the counts are measured over the rows the matcher answered
+- **An axis that has been narrowed is counted over a pool judged without it**
+  (2026-09-10). With a feature on screen the rows are what the matcher answered
   with, and the matcher only judges what the terms already admit — so the moment
   one vendor is ticked, no other vendor's tools have been judged for that
-  feature and the axis can only report itself. `shared/filter.ts` §
-  `stillOffered` remembers the list from the last moment the question could be
-  answered, so a second value is one press away; clearing the axis asks it
-  again. The counts themselves are over **the rows the list is holding**, near
-  misses included — a picker saying "nothing to narrow by" over four rows on
-  screen was the same rule broken at the other end.
+  feature and counting the rows reports every other vendor at nought. Which is
+  what it did, over a list of vendors that plainly had tools for the job (Paul,
+  2026-09-10: filter to Kennametal, drop the family filter, and every other
+  vendor reads zero until you tick one). So the worker judges the same question
+  a second time with **every facet cleared** and sends the counts back —
+  `shared/catalog-matcher.ts` § `facetCounts`, measured per axis against every
+  filter but that axis's own. It is the whole pipeline again, ~135 ms against
+  ~50 ms on the scraped catalog, so it runs only while a facet is actually
+  narrowing and the widened pool is kept across every tick of one: the pool is
+  the question with the facets _off_, which is the one thing ticking a facet
+  does not change.
+- **What is left when the worker cannot answer.** No facet narrowing yet, or a
+  question nothing fits at all, and the counts are over **the rows the list is
+  holding**, near misses included — a picker saying "nothing to narrow by" over
+  four rows on screen was the same rule broken at the other end. `shared/filter.ts`
+  § `stillOffered` still carries that half: it remembers the list from the last
+  moment the question could be answered, so a second value stays one press away
+  while nothing has been judged for it.
 
 > **Open questions**
 >
@@ -367,7 +379,9 @@ always somebody's preference, and always visible and reversible.
 **Where it lives**
 
 - `app/shared/filter.ts` — the query, what it matches, and the per-axis counts
-- `app/components/filter-panel.tsx` — `QUICK_FILTERS` and `FACET_AXES` — every axis and its values
+- `app/shared/filter.ts` — `FACET_AXES`, the axes a count is measured over
+- `app/shared/catalog-matcher.ts` — `facetPool` / `facetCounts`, the counts with a feature on screen
+- `app/components/filter-panel.tsx` — `QUICK_FILTERS` — every axis and its values
 - `app/shared/column-filters.ts` — which column asks which filter, and what is parked
 - `app/shared/tool-type.ts` — what a tool is in one phrase, shank and all
 - `app/components/column-filter.tsx` — the header filters, their menu, and the compare operators

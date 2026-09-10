@@ -164,22 +164,6 @@ const Monogram = ({ brand }: { brand: string }) => (
  * it is held. The two ranges the rules fill in from the feature come last,
  * because they are usually already answered by the time anybody looks.
  */
-/**
- * The axes whose options are narrowed by the rest of the query.
- *
- * The term axes that are properties of a tool, which is what a facet count can
- * be measured over. The holding axes — a spindle taper, a collet series — are
- * properties of the crib and are counted elsewhere (Paul, 2026-09-01).
- */
-export const FACET_AXES: ReadonlyArray<string> = [
-  'brand',
-  // The two phrases this catalog builds rather than facets a vendor publishes:
-  // the type with its shank in it, and the family with its product line.
-  'type',
-  'family',
-  'materialGroups',
-  'NOF',
-]
 
 export const QUICK_FILTERS: ReadonlyArray<QuickFilter> = [
   {
