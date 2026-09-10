@@ -46,7 +46,7 @@ const EditableCard = ({ rule: initial, editing = true }: { rule: Rule; editing?:
         rule={rule}
         scores={new Map()}
         types={[]}
-        unit="mm"
+        unit="millimeters"
       />
     </ul>
   )

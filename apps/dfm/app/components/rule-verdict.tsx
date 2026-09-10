@@ -1,3 +1,4 @@
+import { type UnitSystem } from '@toolpath/tool-support'
 import { InfoIcon } from '@phosphor-icons/react'
 import { Tooltip } from '@toolpath/ui'
 import { bandCss } from 'shared/bands'
@@ -7,7 +8,6 @@ import { bandName, readEveryRule, scoreFeature } from 'shared/rules'
 import type { MetricId, PartContext } from 'shared/metrics'
 import { PART_METRICS, metricFormula, metricQuantity, metricSources } from 'shared/metrics'
 import type { PartFeature } from 'shared/contracts'
-import type { Unit } from 'shared/units'
 
 /**
  * Where a number came from: the arithmetic, then the datasheet fields behind it
@@ -27,7 +27,7 @@ const Working = ({
   feature: PartFeature
   metric: MetricId
   part: PartContext
-  unit: Unit
+  unit: UnitSystem
 }) => {
   const formula = metricFormula(metric, feature, part)
   const readings = metricSources(metric, feature, part)
@@ -63,7 +63,7 @@ const Working = ({
 }
 
 /** The bands the rule judges by, with the one this measurement landed in marked. */
-const Limits = ({ rule, band, unit }: { rule: Rule; band: Band | null; unit: Unit }) => {
+const Limits = ({ rule, band, unit }: { rule: Rule; band: Band | null; unit: UnitSystem }) => {
   const limits = ruleLimits(rule, unit)
 
   if (limits.length === 0) {
@@ -105,7 +105,7 @@ const RuleWorking = ({
   feature: PartFeature
   part: PartContext
   result: RuleResult
-  unit: Unit
+  unit: UnitSystem
 }) => (
   <span className="flex max-w-72 flex-col gap-1.5">
     <span>{result.rule.note}</span>
@@ -149,7 +149,7 @@ export const RuleVerdict = ({
   feature: PartFeature
   rules: ReadonlyArray<Rule>
   verdict: FeatureVerdict
-  unit: Unit
+  unit: UnitSystem
   /**
    * The same part context the verdict was judged with — or reach would be shown
    * here as one number and judged as another.

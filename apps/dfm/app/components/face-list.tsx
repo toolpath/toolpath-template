@@ -1,3 +1,4 @@
+import { formatArea, type UnitSystem } from '@toolpath/tool-support'
 import { Fragment, useEffect, useState } from 'react'
 import type { Vec3 } from '@toolpath/api'
 import { Button } from '@toolpath/ui'
@@ -18,7 +19,6 @@ import { PASSES, cutsFace, faceCounts } from 'shared/setups'
 import type { Pass, SetupPlan } from 'shared/setups'
 import type { PartFeature } from 'shared/contracts'
 import type { FeatureScore } from 'shared/feature-score'
-import { formatArea, type Unit } from 'shared/units'
 import { KEYNAV, ROW, keynavAttributes, rowAttributes } from 'shared/row-nav'
 import { usePartView } from './part-view'
 

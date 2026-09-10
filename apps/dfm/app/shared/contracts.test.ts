@@ -14,6 +14,7 @@ describe('public inspection report', () => {
       features: [],
       candidateDirections: [],
       directionZBounds: null,
+      turnability: null,
       meshPointCount: 0,
       meshTriangleCount: 0,
       thumbnailUrl: 'https://engine.test/thumbnail?signature=secret',

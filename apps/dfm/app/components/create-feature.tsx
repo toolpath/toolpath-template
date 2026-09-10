@@ -1,3 +1,4 @@
+import { formatArea, type UnitSystem } from '@toolpath/tool-support'
 import type { ReactNode } from 'react'
 import type { Vec3 } from '@toolpath/api'
 import { Button } from '@toolpath/ui'
@@ -24,7 +25,6 @@ import {
 import type { PartFeature } from 'shared/contracts'
 import type { PartFaces } from 'shared/setups'
 import type { FeatureScore } from 'shared/feature-score'
-import { formatArea, type Unit } from 'shared/units'
 import { rowAttributes } from 'shared/row-nav'
 import { usePartView } from './part-view'
 

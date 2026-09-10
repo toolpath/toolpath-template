@@ -1,3 +1,4 @@
+import { type UnitSystem } from '@toolpath/tool-support'
 import { useState } from 'react'
 
 import { bandCss } from 'shared/bands'
@@ -5,7 +6,6 @@ import { formatMetric } from 'shared/rule-text'
 import type { RulesSummary, WorstReading } from 'shared/rules-summary'
 import type { Band } from 'shared/rules'
 import { BANDS, bandName } from 'shared/rules'
-import type { Unit } from 'shared/units'
 import { Heading } from './heading'
 import { KindIcon } from './feature-icons'
 import { rowAttributes } from 'shared/row-nav'
@@ -33,7 +33,7 @@ export const RulesSummaryPanel = ({
   summary: RulesSummary
   /** The band being filtered to, where one is. */
   band: Band | null
-  unit: Unit
+  unit: UnitSystem
   onPickBand: (band: Band | null) => void
   onChoose: (tag: string) => void
   onHover: (tags: Array<string>) => void
@@ -183,7 +183,7 @@ const WorstRow = ({
   onHover,
 }: {
   reading: WorstReading
-  unit: Unit
+  unit: UnitSystem
   onChoose: (tag: string) => void
   onHover: (tags: Array<string>) => void
 }) => (

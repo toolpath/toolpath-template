@@ -1,3 +1,4 @@
+import { type UnitSystem } from '@toolpath/tool-support'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { Button } from '@toolpath/ui'
 import { RuleCard } from './rule-editor'
@@ -9,7 +10,6 @@ import { judgesFeatures, judgesPlan } from 'shared/rules'
 import type { RulesSummary } from 'shared/rules-summary'
 import type { Band } from 'shared/rules'
 import type { RulesState } from 'shared/use-rules'
-import type { Unit } from 'shared/units'
 import type { PartFeature } from 'shared/contracts'
 import type { FeatureScore } from 'shared/feature-score'
 import { ruleHits } from 'shared/rule-text'
@@ -64,7 +64,7 @@ const RulesPanelView = ({
   summary: RulesSummary
   /** The feature types this part actually has, for aiming a rule. */
   types: ReadonlyArray<string>
-  unit: Unit
+  unit: UnitSystem
   /** The part's own size, for the sizes-taken card. Null before a mesh lands. */
   partSides?: ReadonlyArray<number> | null
   focusedTag: string | null

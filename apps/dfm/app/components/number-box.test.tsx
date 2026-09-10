@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { UnitSystem } from '@toolpath/tool-support'
 
 import { COMPLETE, NumberBox } from './number-box'
 
@@ -25,7 +26,7 @@ const LABEL = 'Smallest hole'
 
 const Box = ({
   start,
-  unit = 'mm',
+  unit = 'millimeters',
   raw = false,
   clearable = false,
   metric = 'holeDiameter',
@@ -33,7 +34,7 @@ const Box = ({
   onClear,
 }: {
   start?: number | undefined
-  unit?: 'in' | 'mm'
+  unit?: UnitSystem
   raw?: boolean
   clearable?: boolean
   metric?: 'holeDiameter' | 'millingLD'
@@ -197,7 +198,7 @@ describe('the unit the number is typed in', () => {
    */
   it('stores millimetres however it was typed', () => {
     const onChange = vi.fn()
-    render(<Box start={6.35} unit="in" onChange={onChange} />)
+    render(<Box start={6.35} unit="inches" onChange={onChange} />)
 
     type('0.125')
 
@@ -205,14 +206,14 @@ describe('the unit the number is typed in', () => {
   })
 
   it('shows the stored millimetres in the unit being read', () => {
-    render(<Box start={6.35} unit="in" />)
+    render(<Box start={6.35} unit="inches" />)
 
     expect(box().value).toBe('0.25')
   })
 
   it('leaves a ratio alone, because 5:1 is 5:1 in any shop', () => {
     const onChange = vi.fn()
-    render(<Box start={4} unit="in" metric="millingLD" onChange={onChange} />)
+    render(<Box start={4} unit="inches" metric="millingLD" onChange={onChange} />)
 
     type('5')
 

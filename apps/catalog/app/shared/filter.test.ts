@@ -1,0 +1,620 @@
+import { describe, expect, it } from 'vitest'
+import type { CatalogTool } from '@toolpath/catalog-data'
+import {
+  EMPTY_QUERY,
+  countBy,
+  countsByAxis,
+  cycleTerm,
+  filterTools,
+  prioritise,
+  queryFromSearch,
+  searchFromQuery,
+  searchWithQuery,
+  stillOffered,
+  toggleTerm,
+  type ToolQuery,
+} from './filter'
+
+const tool = (over: Partial<CatalogTool> & Pick<CatalogTool, 'guid'>): CatalogTool => ({
+  familyId: 'vhm-endmills',
+  brand: 'WIDIA',
+  vendor: 'Kennametal',
+  catalogNumber: 'TDMX0500',
+  materialNumber: '6694846',
+  toolType: 'endmill',
+  productLine: null,
+  threadMethod: null,
+  form: 'flat end mill',
+  unitSystem: 'millimeters',
+  geometry: { DC: 5, NOF: 4, RE: 0.5 },
+  materialGroups: ['P'],
+  productLink: null,
+  provenance: {},
+  ...over,
+})
+
+const query = (over: Partial<ToolQuery>): ToolQuery => ({ ...EMPTY_QUERY, ...over })
+
+describe('filterTools', () => {
+  it('returns everything for an empty query', () => {
+    const tools = [tool({ guid: 'a' }), tool({ guid: 'b' })]
+    expect(filterTools(tools, EMPTY_QUERY)).toHaveLength(2)
+  })
+
+  it('searches the identifiers a shop types, case-insensitively', () => {
+    const tools = [
+      tool({ guid: 'a', catalogNumber: 'TDMX0500' }),
+      tool({ guid: 'b', catalogNumber: 'VDS400A' }),
+    ]
+
+    expect(filterTools(tools, query({ text: 'tdmx' })).map((each) => each.guid)).toEqual(['a'])
+  })
+
+  it('finds a tool by the vendor’s material number', () => {
+    const tools = [
+      tool({ guid: 'a', materialNumber: '6694846' }),
+      tool({ guid: 'b', materialNumber: null }),
+    ]
+
+    expect(filterTools(tools, query({ text: '6694846' })).map((each) => each.guid)).toEqual(['a'])
+  })
+
+  /** Never geometry: '5' must not match every tool with a 5 mm anything. */
+  it('does not match free text against geometry', () => {
+    const tools = [tool({ guid: 'a', catalogNumber: 'AAA', geometry: { DC: 5 } })]
+
+    expect(filterTools(tools, query({ text: '5' }))).toEqual([])
+  })
+
+  it('treats several values of one axis as alternatives', () => {
+    const tools = [
+      tool({ guid: 'a', toolType: 'endmill' }),
+      tool({ guid: 'b', toolType: 'drill' }),
+      tool({ guid: 'c', toolType: 'tap' }),
+    ]
+
+    const selected = query({ terms: { toolType: ['endmill', 'drill'] } })
+    expect(filterTools(tools, selected).map((each) => each.guid)).toEqual(['a', 'b'])
+  })
+
+  it('treats different axes as requirements, not alternatives', () => {
+    const tools = [
+      tool({ guid: 'a', toolType: 'endmill', brand: 'WIDIA' }),
+      tool({ guid: 'b', toolType: 'endmill', brand: 'Kennametal' }),
+    ]
+
+    const selected = query({ terms: { toolType: ['endmill'], brand: ['WIDIA'] } })
+    expect(filterTools(tools, selected).map((each) => each.guid)).toEqual(['a'])
+  })
+
+  it('filters on a geometry range in millimetres', () => {
+    const tools = [
+      tool({ guid: 'a', geometry: { DC: 3 } }),
+      tool({ guid: 'b', geometry: { DC: 6 } }),
+      tool({ guid: 'c', geometry: { DC: 12 } }),
+    ]
+
+    const selected = query({ ranges: { DC: { min: 4, max: 10 } } })
+    expect(filterTools(tools, selected).map((each) => each.guid)).toEqual(['b'])
+  })
+
+  it('keeps a tool sitting exactly on either end of the range', () => {
+    const tools = [
+      tool({ guid: 'low', geometry: { DC: 4 } }),
+      tool({ guid: 'high', geometry: { DC: 10 } }),
+    ]
+
+    expect(filterTools(tools, query({ ranges: { DC: { min: 4, max: 10 } } })).map((e) => e.guid)) //
+      .toEqual(['low', 'high'])
+  })
+
+  /**
+   * **`at most` means at most, in whichever unit it was typed in** (Paul,
+   * 2026-09-08). The dataset is millimetres and the box converts what was
+   * typed, so `at most 0.750 in` becomes `19.049999999999997` — a hair under
+   * the `19.05` the catalog stores for a ⌀0.750 in cutter, which then went
+   * missing from its own size. 966 values in a scraped catalog land on the
+   * wrong side of their nominal size that way.
+   */
+  it('keeps a tool a float\u2019s last digit outside the bound it is nominally on', () => {
+    const tools = [tool({ guid: 'three-quarter', geometry: { DC: 19.05 } })]
+
+    expect(
+      filterTools(tools, query({ ranges: { DC: { max: 0.75 * 25.4 } } })).map((each) => each.guid),
+    ).toEqual(['three-quarter'])
+    expect(
+      filterTools(tools, query({ ranges: { DC: { min: 0.75 * 25.4 } } })).map((each) => each.guid),
+    ).toEqual(['three-quarter'])
+  })
+
+  /** And it is slack, not blindness: a size below is still a size below. */
+  it('still excludes a tool that is genuinely outside the bound', () => {
+    const tools = [tool({ guid: 'under', geometry: { DC: 19.04 } })]
+
+    expect(filterTools(tools, query({ ranges: { DC: { min: 19.05 } } }))).toEqual([])
+  })
+
+  /**
+   * Asking for a corner radius under 1 mm and being shown tools whose radius
+   * nobody knows is an answer a machinist cannot act on.
+   */
+  it('excludes a tool that does not state the filtered dimension', () => {
+    const tools = [tool({ guid: 'a', geometry: { DC: 5 } })]
+
+    expect(filterTools(tools, query({ ranges: { RE: { max: 1 } } }))).toEqual([])
+  })
+})
+
+describe('the URL round trip', () => {
+  it('round-trips a full selection without loss', () => {
+    const selected = query({
+      text: 'tdmx',
+      terms: { toolType: ['endmill'], NOF: ['3', '4'] },
+      ranges: { DC: { min: 4, max: 10 } },
+    })
+
+    expect(queryFromSearch(searchFromQuery(selected))).toEqual(selected)
+  })
+
+  /**
+   * The order of a term's values is its priority, so the round trip has to
+   * keep it: sorting on the way out lost a promotion somebody had just made,
+   * and made a feature's own suggestion come back unrecognisable to
+   * `applySuggestions` (2026-08-30).
+   */
+  it('keeps the order of a term’s values, which is their priority', () => {
+    const ranked = query({ terms: { form: ['drill', 'bull nose end mill', 'ball end mill'] } })
+
+    expect(queryFromSearch(searchFromQuery(ranked)).terms.form).toEqual([
+      'drill',
+      'bull nose end mill',
+      'ball end mill',
+    ])
+  })
+
+  it('writes nothing for an unconstrained selection', () => {
+    expect(searchFromQuery(EMPTY_QUERY).toString()).toBe('')
+  })
+
+  it('drops a range bound that is not a number rather than guessing at one', () => {
+    const parsed = queryFromSearch(new URLSearchParams('min.DC=wide&max.DC=10'))
+
+    expect(parsed.ranges.DC).toEqual({ max: 10 })
+  })
+
+  it('trims the free text it stores', () => {
+    expect(searchFromQuery(query({ text: '  tdmx  ' })).get('q')).toBe('tdmx')
+  })
+})
+
+describe('toggleTerm', () => {
+  it('adds a value, then removes it, leaving the axis absent rather than empty', () => {
+    const added = toggleTerm(EMPTY_QUERY, 'toolType', 'drill')
+    expect(added.terms.toolType).toEqual(['drill'])
+
+    const removed = toggleTerm(added, 'toolType', 'drill')
+    expect(removed.terms.toolType).toBeUndefined()
+  })
+
+  it('leaves the rest of the selection alone', () => {
+    const selected = query({
+      text: 'tdmx',
+      ranges: { DC: { min: 4 } },
+      terms: { brand: ['WIDIA'] },
+    })
+    const next = toggleTerm(selected, 'toolType', 'drill')
+
+    expect(next.text).toBe('tdmx')
+    expect(next.ranges).toEqual({ DC: { min: 4 } })
+    expect(next.terms.brand).toEqual(['WIDIA'])
+  })
+})
+
+describe('countBy', () => {
+  it('counts the result set it is given, not the catalog', () => {
+    const counts = countBy(
+      [tool({ guid: 'a' }), tool({ guid: 'b', toolType: 'drill' })],
+      'toolType',
+    )
+
+    expect(counts.get('endmill')).toBe(1)
+    expect(counts.get('drill')).toBe(1)
+  })
+
+  it('skips a tool that does not state the axis', () => {
+    const counts = countBy([tool({ guid: 'a', geometry: { DC: 5 } })], 'NOF')
+
+    expect(counts.size).toBe(0)
+  })
+})
+
+describe('a URL that carries more than filters', () => {
+  /**
+   * The part page's URL holds `?job=<id>`. Read as a filter it asks for tools
+   * whose `job` equals a job id — which no tool states, so every tool is
+   * excluded and the list goes silently empty.
+   */
+  it('ignores a parameter that is not one of this page’s axes', () => {
+    const parsed = queryFromSearch(new URLSearchParams('job=abc123&toolType=drill'), [
+      'toolType',
+      'DC',
+    ])
+
+    expect(parsed.terms).toEqual({ toolType: ['drill'] })
+  })
+
+  it('ignores a range bound on an axis this page does not have', () => {
+    const parsed = queryFromSearch(new URLSearchParams('min.NOPE=4&min.DC=6'), ['DC'])
+
+    expect(parsed.ranges).toEqual({ DC: { min: 6 } })
+  })
+
+  it('still takes every parameter when no axes are named', () => {
+    const parsed = queryFromSearch(new URLSearchParams('toolType=drill'))
+
+    expect(parsed.terms).toEqual({ toolType: ['drill'] })
+  })
+
+  it('leaves a filtered selection matching after the round trip', () => {
+    const selected = queryFromSearch(new URLSearchParams('job=abc&toolType=drill'), ['toolType'])
+
+    expect(queryFromSearch(searchFromQuery(selected), ['toolType'])).toEqual(selected)
+  })
+})
+
+describe('writing filters into a URL that carries other things', () => {
+  /**
+   * The part page's own `?job=` lives in the same URL. Replacing the whole
+   * query string with the filters threw it away, and the next render had a part
+   * id and no job.
+   */
+  it('keeps what is not a filter', () => {
+    const current = new URLSearchParams('job=abc123&toolType=drill')
+    const next = searchWithQuery(current, { ...EMPTY_QUERY, terms: { toolType: ['endmill'] } }, [
+      'toolType',
+      'DC',
+    ])
+
+    expect(next.get('job')).toBe('abc123')
+    expect(next.getAll('toolType')).toEqual(['endmill'])
+  })
+
+  it('drops a filter that has been cleared, and keeps the rest of the URL', () => {
+    const current = new URLSearchParams('job=abc123&toolType=drill&max.DC=6')
+    const next = searchWithQuery(current, EMPTY_QUERY, ['toolType', 'DC'])
+
+    expect(next.get('job')).toBe('abc123')
+    expect(next.get('toolType')).toBeNull()
+    expect(next.get('max.DC')).toBeNull()
+  })
+
+  it('replaces the free text rather than doubling it', () => {
+    const current = new URLSearchParams('q=old&job=abc')
+    const next = searchWithQuery(current, { ...EMPTY_QUERY, text: 'new' }, ['toolType'])
+
+    expect(next.getAll('q')).toEqual(['new'])
+  })
+
+  it('round-trips through the reader it was written for', () => {
+    const query = { ...EMPTY_QUERY, terms: { toolType: ['drill'] }, ranges: { DC: { max: 6 } } }
+    const next = searchWithQuery(new URLSearchParams('job=abc'), query, ['toolType', 'DC'])
+
+    expect(queryFromSearch(next, ['toolType', 'DC'])).toEqual(query)
+  })
+})
+
+describe('a press on a tile walks its priority', () => {
+  it('reads 1, 2, off for a second tile pressed again and again', () => {
+    const one = cycleTerm(EMPTY_QUERY, 'form', 'drill')
+    expect(one.terms.form).toEqual(['drill'])
+
+    const two = cycleTerm(one, 'form', 'reamer')
+    expect(two.terms.form).toEqual(['drill', 'reamer'])
+
+    // Press the first again: it moves one place later, and then it is last, and then it is off.
+    const swapped = cycleTerm(two, 'form', 'drill')
+    expect(swapped.terms.form).toEqual(['reamer', 'drill'])
+    const off = cycleTerm(swapped, 'form', 'drill')
+    expect(off.terms.form).toEqual(['reamer'])
+  })
+
+  it('drops the key when the last one is taken off', () => {
+    expect(
+      cycleTerm(cycleTerm(EMPTY_QUERY, 'form', 'drill'), 'form', 'drill').terms.form,
+    ).toBeUndefined()
+  })
+})
+
+describe('the list in the order the priorities ask for', () => {
+  const make = (guid: string, form: string, brand: string): CatalogTool =>
+    ({ ...tool, guid, form, brand }) as CatalogTool
+  const listed = [
+    make('a', 'drill', 'WIDIA'),
+    make('b', 'flat end mill', 'Kennametal'),
+    make('c', 'drill', 'Kennametal'),
+  ]
+
+  it('sorts by tool type first, then brand, keeping the rest of the order', () => {
+    const query = {
+      ...EMPTY_QUERY,
+      terms: { form: ['flat end mill', 'drill'], brand: ['Kennametal'] },
+    }
+
+    expect(prioritise(listed, query).map((each) => each.guid)).toEqual(['b', 'c', 'a'])
+  })
+
+  it('leaves the order alone with nothing to sort by', () => {
+    expect(prioritise(listed, EMPTY_QUERY).map((each) => each.guid)).toEqual(['a', 'b', 'c'])
+    expect(
+      prioritise(listed, { ...EMPTY_QUERY, terms: { form: ['drill'] } }).map((each) => each.guid),
+    ).toEqual(['a', 'b', 'c'])
+  })
+})
+
+describe('the shank a tool has', () => {
+  const tool = (catalogNumber: string, geometry: Record<string, number>): CatalogTool =>
+    ({
+      guid: catalogNumber,
+      catalogNumber,
+      brand: 'Kennametal',
+      form: 'flat end mill',
+      toolType: 'endmill',
+      productLine: null,
+      unitSystem: 'millimeters',
+      geometry,
+      materialGroups: [],
+      productLink: null,
+      provenance: {},
+    }) as unknown as CatalogTool
+
+  /**
+   * The shank is the catalog's own reading of the shoulder, not a geometry
+   * code — and reading it as one meant no tool carried it, so picking either
+   * value emptied the list (Paul, 2026-08-31).
+   */
+  it('filters by the reading rather than by a code no tool has', () => {
+    const necked = tool('NECK', { DC: 6, LCF: 12, 'shoulder-diameter': 5.5, 'shoulder-length': 20 })
+    const plain = tool('PLAIN', { DC: 6, LCF: 12, 'shoulder-diameter': 6, 'shoulder-length': 20 })
+    const tools = [necked, plain]
+
+    expect(
+      filterTools(tools, { ...EMPTY_QUERY, terms: { shank: ['reduced'] } }).map(
+        (each) => each.catalogNumber,
+      ),
+    ).toEqual(['NECK'])
+    expect(
+      filterTools(tools, { ...EMPTY_QUERY, terms: { shank: ['full'] } }).map(
+        (each) => each.catalogNumber,
+      ),
+    ).toEqual(['PLAIN'])
+  })
+
+  /** A tool with no shoulder stated is neither, and is not offered as either. */
+  it('leaves out a tool whose shank cannot be told', () => {
+    const bare = tool('BARE', { DC: 6, LCF: 12 })
+
+    expect(filterTools([bare], { ...EMPTY_QUERY, terms: { shank: ['full'] } })).toEqual([])
+    expect(filterTools([bare], { ...EMPTY_QUERY, terms: { shank: ['reduced'] } })).toEqual([])
+  })
+
+  it('counts both readings for the picker', () => {
+    const necked = tool('NECK', { DC: 6, LCF: 12, 'shoulder-diameter': 5.5, 'shoulder-length': 20 })
+    const plain = tool('PLAIN', { DC: 6, LCF: 12, 'shoulder-diameter': 6, 'shoulder-length': 20 })
+
+    expect(countBy([necked, plain], 'shank')).toEqual(
+      new Map([
+        ['reduced', 1],
+        ['full', 1],
+      ]),
+    )
+  })
+})
+
+describe('what each axis has left to offer', () => {
+  const made = (guid: string, brand: string, familyId: string, form: string): CatalogTool =>
+    ({
+      guid,
+      catalogNumber: guid,
+      brand,
+      vendor: brand,
+      familyId,
+      form,
+      toolType: 'endmill',
+      productLine: null,
+      geometry: { DC: 6 },
+      materialGroups: [],
+      provenance: {},
+    }) as unknown as CatalogTool
+
+  const CRIB = [
+    made('a', 'Harvey Tool', 'harvey_endmill_001', 'flat end mill'),
+    made('b', 'Harvey Tool', 'harvey_keyseat_009', 'slot mill'),
+    made('c', 'Kennametal', 'kendrill_txd', 'drill'),
+  ]
+
+  /**
+   * The panel narrows itself off these: a vendor chosen leaves only that
+   * vendor's families to offer (Paul, 2026-09-01).
+   */
+  it('counts a family axis against the vendor already chosen', () => {
+    const query = { ...EMPTY_QUERY, terms: { brand: ['Harvey Tool'] } }
+    const counts = countsByAxis(CRIB, query, ['familyId', 'brand'])
+
+    expect([...(counts.get('familyId') ?? [])].map(([value]) => value)).toEqual([
+      'harvey_endmill_001',
+      'harvey_keyseat_009',
+    ])
+  })
+
+  /** And an axis never narrows itself, or a second vendor could never be added. */
+  it('counts an axis against every filter but its own', () => {
+    const query = { ...EMPTY_QUERY, terms: { brand: ['Harvey Tool'] } }
+    const counts = countsByAxis(CRIB, query, ['brand'])
+
+    expect(counts.get('brand')?.get('Kennametal')).toBe(1)
+  })
+
+  it('counts the whole crib with nothing chosen', () => {
+    const counts = countsByAxis(CRIB, EMPTY_QUERY, ['form'])
+
+    expect(counts.get('form')?.get('drill')).toBe(1)
+    expect(counts.get('form')?.get('flat end mill')).toBe(1)
+  })
+})
+
+/**
+ * **A second vendor has to stay reachable** (Paul, 2026-09-08: "all options
+ * other than the one that was enabled are hidden. I should be able to
+ * multi-select options while creating an assembly for a feature").
+ *
+ * The counts a feature's list is measured over are the tools the matcher
+ * judged, and it only judges what the terms already admit — so once a vendor is
+ * ticked, the vendor axis can only count that vendor however the query is
+ * unpicked. What it offered a moment ago is the answer, because a moment ago
+ * the question could still be asked.
+ */
+describe('what an axis keeps offering', () => {
+  const before = new Map([
+    ['Harvey Tool', 4],
+    ['Kennametal', 2],
+    ['WIDIA', 1],
+  ])
+
+  it('offers what it last offered while it is the axis being narrowed', () => {
+    const narrowed = new Map([['Harvey Tool', 4]])
+
+    const offered = stillOffered(narrowed, ['Harvey Tool'], before)
+
+    expect([...offered.keys()]).toEqual(['Harvey Tool', 'Kennametal', 'WIDIA'])
+  })
+
+  /** A count it can still measure is the count it shows: only the rest is memory. */
+  it('takes a fresh count wherever there is one', () => {
+    const narrowed = new Map([['Harvey Tool', 3]])
+
+    const offered = stillOffered(narrowed, ['Harvey Tool'], before)
+
+    expect(offered.get('Harvey Tool')).toBe(3)
+    expect(offered.get('Kennametal')).toBe(2)
+  })
+
+  /**
+   * **A chosen value is always offered**, whatever the memory holds — the filter
+   * panel's own rule, reached from a new direction once the `…` row started
+   * offering values the list had never held. One ticked from behind it is in no
+   * memory of this axis, so without this the tick vanished as it was made and
+   * there was no control left to lift it.
+   */
+  it('offers a chosen value the memory never held', () => {
+    const narrowed = new Map([['Sandvik', 7]])
+
+    const offered = stillOffered(narrowed, ['Sandvik'], before)
+
+    expect(offered.get('Sandvik')).toBe(7)
+    expect([...offered.keys()]).toContain('Kennametal')
+  })
+
+  /** Even where the narrowed list cannot count it: nought, and still liftable. */
+  it('offers it at nought where nothing measures it', () => {
+    const offered = stillOffered(new Map(), ['Sandvik'], before)
+
+    expect(offered.get('Sandvik')).toBe(0)
+  })
+
+  it('counts fresh the moment the axis is cleared', () => {
+    const narrowed = new Map([['Harvey Tool', 4]])
+
+    expect(stillOffered(narrowed, [], before)).toBe(narrowed)
+  })
+
+  /** Nothing remembered — a filter arrived at through a link — is the counts. */
+  it('offers what it can count where it has no memory', () => {
+    const narrowed = new Map([['Harvey Tool', 4]])
+
+    expect(stillOffered(narrowed, ['Harvey Tool'], undefined)).toBe(narrowed)
+  })
+})
+
+describe('the product line', () => {
+  const tools = [
+    tool({ guid: 'a', productLine: 'GOdrill™' }),
+    tool({ guid: 'b', productLine: 'KenCut™ FF' }),
+    tool({ guid: 'c', productLine: null }),
+  ]
+
+  it('narrows the list to one vendor’s line', () => {
+    const listed = filterTools(tools, query({ terms: { productLine: ['GOdrill™'] } }))
+    expect(listed.map((each) => each.guid)).toEqual(['a'])
+  })
+
+  /**
+   * A tool whose vendor names no line answers no question about one. That is
+   * the `materialGroups` rule: silence is not a match, and it is not a bucket.
+   */
+  it('leaves out the tools whose vendor names none', () => {
+    const listed = filterTools(
+      tools,
+      query({ terms: { productLine: ['GOdrill™', 'KenCut™ FF'] } }),
+    )
+    expect(listed.map((each) => each.guid)).toEqual(['a', 'b'])
+  })
+
+  /** `GOdrill` is what a machinist types, and it is nowhere else in the row. */
+  it('is free text a search finds the tool by', () => {
+    expect(filterTools(tools, query({ text: 'godrill' })).map((each) => each.guid)).toEqual(['a'])
+  })
+
+  it('counts only the named lines', () => {
+    expect([...countBy(tools, 'productLine')]).toEqual([
+      ['GOdrill™', 1],
+      ['KenCut™ FF', 1],
+    ])
+  })
+})
+
+/**
+ * **Two axes rolled into one apiece** (Paul, 2026-09-08).
+ *
+ * The type carries the shank in its words, and the family carries the vendor's
+ * product line, because a shop reading either pair was reading one grouping
+ * under two headings. Both are matched on the phrase the column shows, so a
+ * row and the filter that names it cannot disagree.
+ */
+describe('the type and the family, as one axis each', () => {
+  const plain = tool({ guid: 'plain', geometry: { DC: 6, SFDM: 6, LCF: 12 } })
+  const necked = tool({
+    guid: 'necked',
+    form: 'bull nose end mill',
+    geometry: { DC: 12, SFDM: 10, LCF: 20 },
+  })
+  const line = tool({ guid: 'line', productLine: 'KenCut FF' })
+
+  it('narrows the type on the phrase the column shows', () => {
+    expect(
+      filterTools(
+        [plain, necked],
+        query({ terms: { type: ['Reduced shank bull nose end mill'] } }),
+      ),
+    ).toEqual([necked])
+    expect(filterTools([plain, necked], query({ terms: { type: ['Flat end mill'] } }))).toEqual([
+      plain,
+    ])
+  })
+
+  /** The line where a vendor names one, the family id where it names none. */
+  it('narrows the family on the line, or on the family under it', () => {
+    expect(filterTools([plain, line], query({ terms: { family: ['KenCut FF'] } }))).toEqual([line])
+    expect(filterTools([plain, line], query({ terms: { family: ['vhm-endmills'] } }))).toEqual([
+      plain,
+    ])
+  })
+
+  it('counts them the same way every other axis is counted', () => {
+    expect(countBy([plain, necked], 'type')).toEqual(
+      new Map([
+        ['Flat end mill', 1],
+        ['Reduced shank bull nose end mill', 1],
+      ]),
+    )
+  })
+})

@@ -42,6 +42,10 @@ const report = (meshGlbUrl: string | null = null) => ({
 const analysisJob = (status: JobDetail['status'], error: string | null = null): JobDetail => ({
   partUuid: 'part-1',
   jobUuid: 'job-1',
+  // Engine API 1.3.1 states both, nullable. This job holds no tool and came
+  // from no import.
+  holderUuid: null,
+  importId: null,
   productType: 'analyze-part',
   status,
   progress: status === 'queued' ? null : 100,

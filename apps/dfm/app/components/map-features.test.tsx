@@ -65,7 +65,7 @@ const panel = (
     plan: plan ?? EMPTY_PLAN,
     scores: scores ?? new Map<string, FeatureScore>(),
     verdicts: verdicts ?? [],
-    unit: unit ?? 'mm',
+    unit: unit ?? 'millimeters',
     showingPass: showingPass ?? 'rough',
   }
 
@@ -659,7 +659,7 @@ describe('the rows survive a re-render', () => {
       plan: EMPTY_PLAN,
       scores: new Map<string, FeatureScore>(),
       verdicts: [],
-      unit: 'mm',
+      unit: 'millimeters',
       showingPass: 'rough',
     }
 

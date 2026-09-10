@@ -1,3 +1,4 @@
+import { decimalsFor, type UnitSystem } from '@toolpath/tool-support'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { CaretDownIcon, PencilSimpleIcon } from '@phosphor-icons/react'
@@ -29,8 +30,6 @@ import {
   judgesPlan,
   plainType,
 } from 'shared/rules'
-import type { Unit } from 'shared/units'
-import { decimalsFor } from 'shared/units'
 import { rowAttributes } from 'shared/row-nav'
 
 /**
@@ -62,7 +61,7 @@ const SizeList = ({
   onChange,
 }: {
   rule: MatchRule
-  unit: Unit
+  unit: UnitSystem
   onChange: (rule: Rule) => void
 }) => {
   const [draft, setDraft] = useState<string | null>(null)
@@ -117,7 +116,7 @@ const ThresholdColumn = ({ range, children }: { range?: string; children: ReactN
 )
 
 /** The five bands as dots, named on hover — one line, whatever the width. */
-const BandDots = ({ rule, unit }: { rule: Rule; unit: Unit }) => {
+const BandDots = ({ rule, unit }: { rule: Rule; unit: UnitSystem }) => {
   const limits = ruleLimits(rule, unit)
 
   if (limits.length === 0) {
@@ -151,7 +150,7 @@ const Limits = ({
   onChange,
 }: {
   rule: Rule
-  unit: Unit
+  unit: UnitSystem
   onChange: (rule: Rule) => void
 }) => {
   if (rule.type === 'threshold') {
@@ -357,7 +356,7 @@ const Settings = ({
 }: {
   rule: Rule
   types: ReadonlyArray<string>
-  unit: Unit
+  unit: UnitSystem
   onChange: (rule: Rule) => void
   onRemove: () => void
 }) => {
@@ -801,7 +800,7 @@ export const RuleCard = ({
   hits: ReadonlyArray<RuleHit>
   scores: ReadonlyMap<string, FeatureScore>
   types: ReadonlyArray<string>
-  unit: Unit
+  unit: UnitSystem
   /** Whether the rule is showing anything at all below its name. */
   open: boolean
   /** Whether what a rule reads and judges is open for changing. */

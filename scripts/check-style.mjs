@@ -4,8 +4,13 @@ import { fileURLToPath } from 'node:url'
 
 const defaultRootDirectory = resolve(fileURLToPath(new URL('..', import.meta.url)))
 
-/** Where hand-written source lives. Everything else is generated or vendored. */
-const SEARCHED_DIRECTORIES = ['apps', 'scripts']
+/**
+ * Where hand-written source lives. Everything else is generated or vendored.
+ *
+ * Both applications: `paul/directions-mapping` landed on 2026-09-02, which is
+ * what this list used to be waiting for.
+ */
+const SEARCHED_DIRECTORIES = ['apps', 'packages', 'scripts']
 
 const SKIPPED_DIRECTORIES = new Set([
   'node_modules',
@@ -22,11 +27,12 @@ const CHECKED_EXTENSIONS = /\.(?:ts|tsx|js|jsx|mjs|cjs)$/
 /**
  * A `function name() {}` declaration at the head of a line.
  *
- * AGENTS.md asks for `const name = () => {}` everywhere instead, and nothing
- * enforced that until this ran, so the codebase had collected thirty-six of
- * them. Anchoring to the start of the line is what keeps prose out of it: the
- * word inside a doc comment is preceded by `*`, and inside a sentence by
- * whatever came before it.
+ * AGENTS.md asks for `const name = () => {}` everywhere instead. Anchoring to
+ * the start of the line is what keeps prose out of it: the word inside a doc
+ * comment is preceded by `*`, and inside a sentence by whatever came before it.
+ *
+ * Taken from the DFM repository's `scripts/check-style.mjs`, where it has held
+ * since 2026-08-27.
  */
 const DECLARATION = /^[ \t]*(?:export[ \t]+)?(?:default[ \t]+)?(?:async[ \t]+)?function\b/
 

@@ -1,3 +1,4 @@
+import { UNIT_ABBREVIATION, type UnitSystem } from '@toolpath/tool-support'
 import {
   Axes,
   DirectionArrows,
@@ -27,7 +28,6 @@ import { directionLabel } from 'shared/report'
 import { BananaIcon, GridIcon, PAINT_MODE_ICONS } from './panel-icons'
 import { Banana } from './banana'
 import { PartSize, formatSides, sidesOf } from './part-size'
-import type { Unit } from 'shared/units'
 import { loadBanana, saveBanana } from 'shared/banana'
 import { applyTheme, loadTheme, saveTheme, type Theme } from 'shared/theme'
 import {
@@ -203,7 +203,7 @@ export const FeatureViewer = ({
   arrowsVisible: boolean
   /** The standing wash: what the part is coloured by while nothing is selected. */
   paintMode: PaintMode
-  onUnit: (unit: Unit) => void
+  onUnit: (unit: UnitSystem) => void
   /**
    * The part's three sides, once the mesh has been measured.
    *
@@ -623,12 +623,16 @@ export const FeatureViewer = ({
               which unit the numbers are in, and how the page is lit. */}
             <button
               type="button"
-              aria-label={`Units: ${unit}. Switch to ${unit === 'mm' ? 'in' : 'mm'}`}
-              title={`Reading in ${unit} — press for ${unit === 'mm' ? 'in' : 'mm'}`}
-              onClick={() => onUnit(unit === 'mm' ? 'in' : 'mm')}
+              aria-label={`Units: ${UNIT_ABBREVIATION[unit]}. Switch to ${
+                UNIT_ABBREVIATION[unit === 'millimeters' ? 'inches' : 'millimeters']
+              }`}
+              title={`Reading in ${UNIT_ABBREVIATION[unit]} — press for ${
+                UNIT_ABBREVIATION[unit === 'millimeters' ? 'inches' : 'millimeters']
+              }`}
+              onClick={() => onUnit(unit === 'millimeters' ? 'inches' : 'millimeters')}
               className="grid h-6 place-items-center rounded px-1.5 text-2xs font-bold uppercase tracking-wide text-ink-muted transition hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-info"
             >
-              {unit}
+              {UNIT_ABBREVIATION[unit]}
             </button>
             <ToolButton
               label={
@@ -670,10 +674,10 @@ export const FeatureViewer = ({
             <button
               type="button"
               aria-label={`Part size, ${formatSides(sidesOf(partBox), unit)}. Press to show ${
-                unit === 'mm' ? 'inches' : 'millimetres'
+                unit === 'millimeters' ? 'inches' : 'millimetres'
               }`}
-              title={`Show ${unit === 'mm' ? 'inches' : 'millimetres'}`}
-              onClick={() => onUnit(unit === 'mm' ? 'in' : 'mm')}
+              title={`Show ${unit === 'millimeters' ? 'inches' : 'millimetres'}`}
+              onClick={() => onUnit(unit === 'millimeters' ? 'inches' : 'millimeters')}
               /*
                * No shelf of its own: it is a reading rather than a control, and
                * a box around it made it the loudest thing on the canvas — three

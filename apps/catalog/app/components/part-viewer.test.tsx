@@ -1,0 +1,284 @@
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import type { PublicInspectionReport } from '@toolpath/part-contracts'
+
+/**
+ * What the viewer hands the viewer package, pinned.
+ *
+ * The 3D scene cannot be rendered here, so the package's components are
+ * replaced with spies and the assertions are about **the props that reach
+ * them**. That is exactly the seam that failed on 2026-08-28: `DirectionArrows`
+ * was drawn without `onPickDirection`, so the arrows were scenery — a click on
+ * one fell through to the mesh behind it, and three rounds of fixes downstream
+ * could not make a control work that was never wired. A prop that is not
+ * passed is not a behaviour anybody can test by clicking.
+ */
+const seen = vi.hoisted(() => ({
+  arrows: vi.fn(),
+  part: vi.fn(),
+}))
+
+vi.mock('@toolpath/viewer', () => ({
+  Viewer: ({ children, projection }: { children: unknown; projection?: string }) => (
+    <div data-testid="viewer" data-projection={projection}>
+      {children as never}
+    </div>
+  ),
+  DirectionArrows: (props: unknown) => {
+    seen.arrows(props)
+    return null
+  },
+  Axes: () => null,
+  Grid: () => null,
+  ViewCube: () => null,
+  sectionFromPick: (plane: unknown) => plane,
+}))
+
+/**
+ * The camera lives inside the R3F canvas, and this test does not mount one.
+ *
+ * `<FrameInset>` is a child of the mocked `<Viewer>` above, so it renders here
+ * with no store behind it — and an R3F hook outside a canvas throws. A canvas
+ * of zero size is exactly what `frameInset` answers `null` to, so under this
+ * mock the component does what it does before the first layout: clears the
+ * offset and asks for a frame.
+ */
+vi.mock('@react-three/fiber', () => ({
+  useThree: (select: (state: unknown) => unknown) =>
+    select({
+      camera: { setViewOffset: () => {}, clearViewOffset: () => {} },
+      size: { width: 0, height: 0 },
+      gl: { domElement: { getBoundingClientRect: () => ({ left: 0, top: 0, height: 0 }) } },
+      invalidate: () => {},
+    }),
+}))
+
+vi.mock('@toolpath/viewer/engine', () => ({
+  EnginePart: (props: { onPick: (pick: unknown) => void }) => {
+    seen.part(props)
+    return (
+      <button type="button" onClick={() => props.onPick(null)}>
+        the mesh
+      </button>
+    )
+  },
+}))
+
+const { PartViewer } = await import('./part-viewer')
+
+const DOWN = { x: 0, y: 0, z: 1 }
+const SIDE = { x: 1, y: 0, z: 0 }
+
+const report = {
+  partId: 'part-1',
+  reportId: 'report-1',
+  jobId: 'job-1',
+  units: { length: 'mm', angle: 'deg' },
+  hasMeshGlb: true,
+  hasMeshStl: false,
+  hasThumbnail: false,
+  candidateDirections: [DOWN, SIDE],
+  features: [],
+  regions: [],
+} as unknown as PublicInspectionReport
+
+const show = (over: Partial<Parameters<typeof PartViewer>[0]> = {}) => {
+  const onPickDirection = vi.fn()
+  const onPickFace = vi.fn()
+  const onClear = vi.fn()
+  render(
+    <PartViewer
+      report={report}
+      jobId="job-1"
+      selected={new Set()}
+      heldRegions={[]}
+      hovered={null}
+      arrows={{ visible: true, shown: 1, active: 1 }}
+      onPickDirection={onPickDirection}
+      directionColor={null}
+      onPickFace={onPickFace}
+      onClear={onClear}
+      {...over}
+    />,
+  )
+  return { onPickDirection, onPickFace, onClear }
+}
+
+describe('what reaches the viewer package', () => {
+  it('wires the arrows to the handler, so pressing one is a press', () => {
+    const { onPickDirection } = show()
+
+    const props = seen.arrows.mock.lastCall?.[0] as Record<string, unknown>
+    expect(props.onPickDirection).toBe(onPickDirection)
+    expect(props.directions).toBe(report.candidateDirections)
+  })
+
+  /**
+   * `activeDirection` is what takes the other arrows away, so it carries the
+   * *scope* — an arrow somebody pressed — and never the way up a reading merely
+   * happens to be cut from, which is `shownDirection`'s job.
+   */
+  it('scopes the arrows by what was pressed, and points by what is read', () => {
+    show({ arrows: { visible: true, shown: 0, active: null } })
+
+    const props = seen.arrows.mock.lastCall?.[0] as Record<string, unknown>
+    expect(props.activeDirection).toBeNull()
+    expect(props.shownDirection).toBe(0)
+    expect(props.visible).toBe(true)
+  })
+
+  /** A miss on the mesh is the part's to report; it is not a clear. */
+  it('hands a miss on the mesh to the face handler, not to clear', () => {
+    const { onPickFace, onClear } = show()
+
+    fireEvent.click(screen.getByRole('button', { name: 'the mesh' }))
+
+    expect(onPickFace).toHaveBeenCalledWith(null)
+    expect(onClear).not.toHaveBeenCalled()
+  })
+
+  it('draws no scene for a report with no mesh, and says so', () => {
+    seen.arrows.mockClear()
+    show({ report: { ...report, hasMeshGlb: false } as PublicInspectionReport })
+
+    expect(screen.getByText(/no viewable mesh/)).toBeInTheDocument()
+    expect(seen.arrows).not.toHaveBeenCalled()
+  })
+
+  /**
+   * **A mesh that will not draw says why** (2026-09-10). The boundary threw the
+   * error away and rendered one sentence for every cause there is — a refused
+   * artifact, a report with no mesh on it, a browser with no WebGL context,
+   * stale modules against a restarted dev server. On the day this landed, a
+   * part that would not draw took four rounds of guessing to locate, and the
+   * relay it was blamed on turned out to be answering 200 with a megabyte of
+   * `model/gltf-binary`. The reason belongs on the screen where the failure is.
+   */
+  it('names what it caught when the scene throws', () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
+    /*
+      Every render, not the first: React answers a throw during concurrent
+      rendering by rendering the whole root again synchronously, and a
+      `mockImplementationOnce` is spent by then — the second pass drew the
+      scene happily and the boundary was never reached.
+    */
+    seen.part.mockImplementation(() => {
+      throw new Error('WebGL context could not be created')
+    })
+
+    show()
+    seen.part.mockImplementation(() => undefined)
+
+    expect(screen.getByText(/The mesh could not be loaded/)).toBeInTheDocument()
+    expect(screen.getByText('WebGL context could not be created')).toBeInTheDocument()
+    // And the stack goes where a stack is read, for whoever opens the console.
+    expect(quiet).toHaveBeenCalled()
+    quiet.mockRestore()
+  })
+})
+
+/**
+ * **Orthographic, always** (Paul, 2026-09-01: "just as the default, no need for
+ * an option"). Parallel edges stay parallel, so two features the same size
+ * measure the same size wherever they sit — which is how a part is read off a
+ * drawing, and the whole reason to prefer it over perspective here.
+ */
+/**
+ * **No wrench** (Paul, 2026-09-01: "remove the wrench icon in the viewer for
+ * now"). It put the drawn stack at the clicked feature; the stack is read in
+ * the panel's drawing instead.
+ */
+describe('the viewer controls', () => {
+  it('offers zoom, aids and the section view, and no assembly toggle', () => {
+    show()
+
+    const controls = screen
+      .getByRole('group', { name: 'Viewer controls' })
+      .querySelectorAll('button')
+
+    expect(controls.length).toBe(3)
+    expect(controls[0]).toHaveClass('!size-7', '[&_svg]:!size-4')
+    expect(screen.queryByRole('button', { name: /assembly/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('how the part is projected', () => {
+  it('draws the part orthographically', () => {
+    show()
+
+    expect(screen.getByTestId('viewer')).toHaveAttribute('data-projection', 'orthographic')
+  })
+})
+
+/**
+ * **The record starts past the questions** (Paul, 2026-09-02: "feature info
+ * needs fixed — it should start to the right of the feature box").
+ *
+ * It started at a fixed `21rem`, which was the width of the two boxes over the
+ * top-left corner on the day it was written. The feature box grows — a threaded
+ * hole adds a thread picker and two rows of predrills — and past 21rem the
+ * record opened over the box it was opened from. Measured now, so it tracks
+ * whatever the corner holds.
+ */
+describe('where the feature record opens', () => {
+  /** A `ResizeObserver` that measures once, like the real one on observe. */
+  class StubResizeObserver {
+    constructor(private readonly callback: ResizeObserverCallback) {}
+    observe() {
+      this.callback([], this as unknown as ResizeObserver)
+    }
+    unobserve() {}
+    disconnect() {}
+  }
+
+  const widthOf = (pixels: number) => {
+    vi.stubGlobal('ResizeObserver', StubResizeObserver)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: pixels,
+      height: 400,
+    } as DOMRect)
+    show({
+      overlay: <div>the questions</div>,
+      details: <p>everything Toolpath measured</p>,
+    })
+    return screen.getByText('everything Toolpath measured').closest('div')?.parentElement
+  }
+
+  it('begins past the corner it was opened from, whatever that corner is wide', () => {
+    // 12px of margin plus the gap between the columns, past the measured box.
+    expect(widthOf(520)).toHaveStyle({ left: '540px' })
+  })
+
+  it('falls back to the class until something has been measured', () => {
+    vi.stubGlobal('ResizeObserver', undefined)
+    show({ overlay: <div>the questions</div>, details: <p>the record</p> })
+
+    const panel = screen.getByText('the record').closest('div')?.parentElement
+    expect(panel?.className).toContain('left-[21rem]')
+    expect(panel?.getAttribute('style')).toBeNull()
+  })
+})
+
+/**
+ * **A form has to be finishable** (Paul, 2026-09-02: "make the selection dialog
+ * go over the table — the table is blocking me from confirming long lists right
+ * now"). The viewer clips its overlay, which is right for a box read at a
+ * glance and wrong for one with a confirm button under a list somebody is still
+ * adding to.
+ */
+describe('an overlay taller than the viewer', () => {
+  const section = () => screen.getByText('the questions').closest('section')
+
+  it('is clipped to the viewer by default', () => {
+    show({ overlay: <div>the questions</div> })
+
+    expect(section()?.className).toContain('overflow-hidden')
+  })
+
+  it('is let out, and above the panel below it, while it says it needs to be', () => {
+    show({ overlay: <div>the questions</div>, overlaySpills: true })
+
+    expect(section()?.className).not.toContain('overflow-hidden')
+    expect(section()?.className).toContain('z-50')
+  })
+})

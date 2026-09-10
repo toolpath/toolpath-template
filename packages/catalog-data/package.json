@@ -1,0 +1,57 @@
+{
+  "name": "@toolpath/catalog-data",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The tool catalog's data contract, its pure record-to-catalog transform, and a committed sample dataset",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./scrape": {
+      "types": "./dist/scrape.d.ts",
+      "import": "./dist/scrape.js"
+    },
+    "./sample-catalog.json": "./fixtures/sample-catalog.json",
+    "./vendors/regofix": {
+      "types": "./dist/vendors/regofix.d.ts",
+      "import": "./dist/vendors/regofix.js"
+    },
+    "./vendors/maritool": {
+      "types": "./dist/vendors/maritool.d.ts",
+      "import": "./dist/vendors/maritool.js"
+    },
+    "./package.json": "./package.json",
+    "./sample-profiles.json": "./fixtures/sample-profiles.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "fixtures"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:sample": "pnpm build && node scripts/build-sample-catalog.mjs",
+    "ingest": "pnpm build && node scripts/ingest.mjs",
+    "rebuild": "pnpm build && node scripts/rebuild.mjs",
+    "scrape": "pnpm build && node scripts/scrape.mjs",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "build:sample-profiles": "pnpm build && node scripts/build-sample-profiles.mjs",
+    "scrape:holding": "pnpm build && node scripts/scrape-holding.mjs",
+    "profiles": "pnpm build && node --env-file-if-exists=.env scripts/profiles.mjs"
+  },
+  "dependencies": {
+    "@toolpath/part-contracts": "workspace:*",
+    "@toolpath/tool-scraper": "2.5.0",
+    "@toolpath/tool-support": "0.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

@@ -30,10 +30,10 @@ See https://developers.toolpath.com/ for documentation on using the Toolpath API
    pnpm setup:local
    ```
 
-   This creates `apps/dfm/.env`, a private file that stays on your computer and
-   is not added to GitHub. It generates the session secret without displaying it
-   and sets the standard Toolpath API URL. It also installs the application
-   files it needs.
+   This creates a private `.env` for each application — `apps/dfm/.env` and
+   `apps/catalog/.env` — that stays on your computer and is not added to GitHub.
+   It generates each session secret without displaying it and sets the standard
+   Toolpath API URL. It also installs the application files it needs.
 
    This also installs the Husky pre-commit hook. It formats staged files automatically before each
    commit so you can have nice formatting without having to think about it.
@@ -51,19 +51,73 @@ See https://developers.toolpath.com/ for documentation on using the Toolpath API
 ## Development
 
 ```sh
-pnpm check # Run all quality checks
-pnpm test:e2e # Run playwright E2E tests
+pnpm check # Run all quality checks, across every application and package
+pnpm test:e2e # Run every Playwright E2E suite
+pnpm dev # Start the DFM app on http://localhost:5173
+pnpm dev:catalog # Start the tool catalog on http://localhost:5174
 pnpm --filter @toolpath/dfm docker:build # Build DFM app docker container
 ```
 
-`pnpm check` runs the style check, `pnpm lint`, the build, type-checking, and
-the unit tests, cheapest first. `pnpm lint` also enforces the layering that
-keeps your API key server-side, so run `pnpm check` rather than its parts.
+Both applications pin their development port, so the two can run side by side.
+In production they default to ports 3000 and 3001 respectively.
 
 The application uses released `@toolpath/api`, `@toolpath/ui`, and `@toolpath/viewer` NPM packages.
 
-See [the application README](apps/dfm/README.md) for architecture and request-flow
-details.
+See [the DFM application README](apps/dfm/README.md) for architecture and
+request-flow details.
+
+## Working on the tool catalog
+
+Four things surprise people on their first day with `apps/catalog`. None of them
+is a bug.
+
+**Build the workspace packages before starting the dev server.** They are
+consumed from `dist/`, which is not in git, so a fresh clone has nothing to
+link:
+
+```sh
+pnpm build        # or pnpm check, which builds as part of the gate
+pnpm dev:catalog  # http://localhost:5174
+```
+
+**A fresh checkout has nine tools, not seventeen thousand.** Vendor data is the
+vendor's and is never committed, so `catalog-dataset` resolves to the committed
+sample and most features answer "nothing fits". To work against a real catalog,
+scrape one on your own machine:
+
+```sh
+pnpm --filter @toolpath/catalog-data scrape   # writes the gitignored scrape-out/
+```
+
+The dev server prints which dataset it picked at start-up. `CATALOG_DATASET`
+overrides the choice if you have a `catalog.json` from somewhere else.
+
+**Everyone brings their own Toolpath API key**, typed into the application
+rather than kept in a file. Nothing secret travels with a branch.
+
+**Never run `pnpm check` while the dev server is running.** It rebuilds the
+workspace packages underneath Vite, which then serves stale optimised
+dependencies and the page goes black. If that happens:
+
+```sh
+rm -rf apps/catalog/node_modules/.vite && pnpm dev:catalog
+```
+
+Then read [`docs/CATALOG-SPEC.md`](docs/CATALOG-SPEC.md) — how a shop uses the
+catalog, what each part of the screen is for, and the seven areas specified with
+their open questions. [`docs/FEATURE-LIST.md`](docs/FEATURE-LIST.md) is the part
+page in full detail.
+
+## The applications in this workspace
+
+| Path           | What it is                                                                   |
+| -------------- | ---------------------------------------------------------------------------- |
+| `apps/dfm`     | The DFM application: upload a part, analyse it, inspect features and rules.  |
+| `apps/catalog` | The tool catalog: browse cutting tools, and match them to a part's features. |
+| `packages/`    | What the applications share, including the one place an API key is handled.  |
+
+Code needed by both applications belongs in `packages/` rather than in one of
+them — see `AGENTS.md` and [`docs/TOOL-CATALOG-PLAN.md`](docs/TOOL-CATALOG-PLAN.md).
 
 ## License
 

@@ -10,3 +10,7 @@ apps/*/build/
 apps/*/.react-router/
 apps/*/test-results/
 apps/*/playwright-report/
+packages/*/dist/
+
+# Scraped vendor data is the vendor's, and a working file rather than source.
+scrape-out/

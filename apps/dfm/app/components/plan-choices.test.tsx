@@ -15,7 +15,7 @@ afterEach(cleanup)
 
 const choices = (limits: Parameters<typeof PlanChoices>[0]['limits'] = {}) => {
   const onChange = vi.fn()
-  render(<PlanChoices limits={limits} onChange={onChange} revision={0} unit="mm" />)
+  render(<PlanChoices limits={limits} onChange={onChange} revision={0} unit="millimeters" />)
   return { onChange }
 }
 
@@ -75,7 +75,9 @@ describe('what a shop will not cut, and how readings are ranked', () => {
 
   it('says what the floor did on this part, when there is a plan to say it about', () => {
     const onChange = vi.fn()
-    render(<PlanChoices revision={0} unit="mm" limits={{}} refused={3} onChange={onChange} />)
+    render(
+      <PlanChoices revision={0} unit="millimeters" limits={{}} refused={3} onChange={onChange} />,
+    )
     open('What is a no-go feature for op-planning?')
 
     expect(screen.getByText(/3 faces were kept from a refused reading/)).toBeInTheDocument()

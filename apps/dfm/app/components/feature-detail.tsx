@@ -1,3 +1,4 @@
+import { type UnitSystem } from '@toolpath/tool-support'
 import { CheckIcon, CopyIcon } from '@phosphor-icons/react'
 import { Badge, Button, IconButton, Tooltip } from '@toolpath/ui'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -17,7 +18,6 @@ import { cutRegions, cutState, faceCounts, takenOn } from 'shared/setups'
 import { PassButtons } from './pass-buttons'
 import type { Pass, SetupPlan } from 'shared/setups'
 import { setupForReading } from 'shared/plan-actions'
-import type { Unit } from 'shared/units'
 import type { FeatureVerdict, Rule } from 'shared/rules'
 import type { PartContext } from 'shared/metrics'
 import { RuleVerdict } from './rule-verdict'
@@ -167,7 +167,7 @@ export const FeatureDetail = ({
   onDelete: (featureTag: string) => void
   onZoom: (featureTag: string) => void
   onClose: () => void
-  unit: Unit
+  unit: UnitSystem
   /** What the rules made of the feature being read, if any is. */
   verdict: FeatureVerdict | null
   rules: ReadonlyArray<Rule>

@@ -1,0 +1,369 @@
+import { describe, expect, it } from 'vitest'
+import {
+  drillFor,
+  matchesThreadSearch,
+  threadsMatching,
+  readLabel,
+  threadOptions,
+  makerOf,
+  methodOf,
+  minorOf,
+  modeFor,
+  millStandInNote,
+  predrillNote,
+  threadNote,
+  threadNamed,
+  threadedName,
+  threadsFor,
+  THREADS,
+} from './threads'
+
+describe('the thread table', () => {
+  /** Every row is one a shop would recognise, and its numbers hang together. */
+  it('holds tap drills between the minor and the nominal size', () => {
+    for (const spec of THREADS) {
+      expect(spec.tapDrill).toBeGreaterThan(minorOf(spec) - 0.15)
+      expect(spec.tapDrill).toBeLessThan(spec.major)
+      expect(spec.pitch).toBeGreaterThan(0)
+    }
+  })
+
+  /** ISO 68-1: `d − 1.0825 p`. An M6×1 minor is 4.917. */
+  it('derives the minor diameter rather than tabulating it', () => {
+    expect(minorOf(threadNamed('M6×1')!)).toBeCloseTo(4.918, 3)
+    expect(minorOf(threadNamed('M10×1.5')!)).toBeCloseTo(8.376, 3)
+  })
+
+  it('names no thread twice', () => {
+    expect(new Set(THREADS.map((each) => each.name)).size).toBe(THREADS.length)
+  })
+})
+
+describe('reading a thread off a hole', () => {
+  /**
+   * A hole is modelled at the tap drill far more often than anything else, so
+   * that reading is offered first even when another is nearer (Paul,
+   * 2026-08-31).
+   */
+  it('reads a tap drill first', () => {
+    const guess = threadsFor(5)[0]!
+
+    expect(guess.spec.name).toBe('M6×1')
+    expect(guess.read).toBe('tap drill')
+    expect(guess.off).toBe(0)
+  })
+
+  /**
+   * The minor diameter and the tap drill are `0.0825 p` apart — under a tenth
+   * of a millimetre on everything but the coarsest thread — so a hole modelled
+   * at either reads as the tap drill, which is the likelier of two answers
+   * that are the same hole. Both are listed.
+   */
+  it('reads a hole at the minor diameter as its spec, tap drill first', () => {
+    const guesses = threadsFor(4.918)
+
+    expect(guesses[0]?.spec.name).toBe('M6×1')
+    expect(guesses.some((each) => each.spec.name === 'M6×1' && each.read === 'minor')).toBe(true)
+  })
+
+  /**
+   * One line per thread on the panel: a hole that reads as both the tap drill
+   * and the minor of one spec would otherwise offer the same answer twice.
+   */
+  it('offers each thread once, by its likeliest reading', () => {
+    const offered = threadOptions(4.918)
+    const names = offered.map((each) => each.spec.name)
+
+    expect(new Set(names).size).toBe(names.length)
+    expect(offered[0]?.spec.name).toBe('M6×1')
+    expect(offered[0]?.read).toBe('tap drill')
+  })
+
+  it('offers no more than it is asked for, and nothing for a hole near no thread', () => {
+    expect(threadOptions(5, 1).map((each) => each.spec.name)).toEqual(['M6×1'])
+    expect(threadOptions(4.918).length).toBeLessThanOrEqual(3)
+    expect(threadOptions(0.4)).toEqual([])
+  })
+
+  /** Nothing's tap drill is near ⌀16, so it reads as the nominal size it is. */
+  it('reads a hole modelled at the nominal size', () => {
+    const guess = threadsFor(16)[0]!
+
+    expect(guess.spec.name).toBe('M16×2')
+    expect(guess.read).toBe('nominal')
+  })
+
+  /** And a hole at an exact tap drill reads as that, whatever else is near. */
+  it('reads an exact tap drill first', () => {
+    const guess = threadsFor(12)[0]!
+
+    expect(guess.spec.name).toBe('M14×2')
+    expect(guess.read).toBe('tap drill')
+    expect(
+      threadsFor(12).some((each) => each.spec.name === 'M12×1.75' && each.read === 'nominal'),
+    ).toBe(true)
+  })
+
+  /** An imperial hole reads as an imperial thread. */
+  it('reads a unified tap drill', () => {
+    const guess = threadsFor(5.105)[0]!
+
+    expect(guess.spec.name).toBe('1/4-20 UNC')
+    expect(guess.read).toBe('tap drill')
+  })
+
+  it('offers the alternatives, closest first', () => {
+    const guesses = threadsFor(6.8)
+
+    expect(guesses[0]?.spec.name).toBe('M8×1.25')
+    expect(guesses.length).toBeGreaterThan(1)
+  })
+
+  /** A hole that is no thread's anything gets no guess, rather than the nearest. */
+  it('says nothing about a hole no thread is near', () => {
+    expect(threadsFor(30)[0]).toBeUndefined()
+    expect(threadsFor(0.4)).toEqual([])
+  })
+})
+
+describe('the hole each way of making a thread starts from', () => {
+  const m6 = threadNamed('M6×1')!
+  const m8 = threadNamed('M8×1.25')!
+  const m10 = threadNamed('M10×1.5')!
+
+  it('drills nothing special for a plain hole', () => {
+    expect(drillFor(m6, 'plain')).toBeNull()
+  })
+
+  /** The chart figure the spec carries: `d − p` on a metric thread. */
+  it('drills the tap drill for a cut tap', () => {
+    expect(drillFor(m6, 'cut tap')).toBe(5)
+    // The Engine's chart says 6.7 for an M8×1.25, not the 6.8 of the wall chart.
+    expect(drillFor(m8, 'cut tap')).toBe(6.7)
+  })
+
+  /**
+   * A roll tap pushes metal into the crest instead of cutting it away, so it
+   * needs a **bigger** hole. Starting one at a cut-tap size snaps the tap, so
+   * this is the one place the difference really matters (Paul, 2026-08-31).
+   *
+   * **The figures are the Engine's `FORMING_TAP_DRILLS`** (Paul, 2026-09-01:
+   * "we should be using whatever Toolpath_UI and Toolpath_Engine do"). The
+   * `d − p/2` rule this file used agreed on M6×1 and M8×1.25 and was wrong
+   * where it mattered: a #6-32 came out ⌀0.122 against the chart's ⌀0.125.
+   */
+  it('drills the Engine’s form-tap chart, not a rule of thumb', () => {
+    expect(drillFor(m6, 'form tap')).toBe(5.5)
+    expect(drillFor(m8, 'form tap')).toBe(7.4)
+    expect(drillFor(m10, 'form tap')).toBe(9.3)
+
+    const six32 = threadNamed('#6-32 UNC')!
+    expect(drillFor(six32, 'form tap')).toBeCloseTo(3.175, 3)
+    expect(six32.major - six32.pitch / 2).toBeCloseTo(3.108, 3)
+  })
+
+  /**
+   * Every row carries both, and both are chart figures rather than arithmetic:
+   * a form drill is always the bigger of the two, and never past the nominal
+   * size.
+   */
+  it('holds a cut and a form drill for every thread, in that order', () => {
+    for (const spec of THREADS) {
+      expect(spec.form, spec.name).toBeGreaterThan(spec.tapDrill)
+      expect(spec.form, spec.name).toBeLessThan(spec.major)
+    }
+  })
+
+  /** A thread mill cuts the whole form from a hole already at the inside size. */
+  it('drills the minor diameter for a thread mill', () => {
+    expect(drillFor(m6, 'thread mill')).toBeCloseTo(4.918, 3)
+  })
+
+  it('says what makes the thread in each mode', () => {
+    expect(makerOf('plain')).toBeNull()
+    expect(makerOf('cut tap')).toBe('tap')
+    expect(makerOf('form tap')).toBe('tap')
+    expect(makerOf('thread mill')).toBe('thread mill')
+  })
+})
+
+/**
+ * **The list ranks; it does not argue** (Paul, 2026-09-02: "just 'tap drill' or
+ * 'nominal diameter', etc"). `nominal` and `minor` are the diameter by those
+ * names, and an option reading only "nominal" is an adjective with its noun
+ * missing.
+ */
+describe('what a reading is called', () => {
+  it('names the diameter, except where the name is already a thing', () => {
+    expect(readLabel('tap drill')).toBe('tap drill')
+    expect(readLabel('nominal')).toBe('nominal diameter')
+    expect(readLabel('minor')).toBe('minor diameter')
+  })
+})
+
+/**
+ * **A threaded hole is not called what a plain one is** (Paul, 2026-09-08:
+ * "once a thread is applied to a hole, the feature should be named '<thread
+ * spec> <type of hole> Hole'"). Forty-two rows reading `Blind Hole` say nothing
+ * about the one fact that decides every tool under them.
+ */
+describe('what a threaded hole is called', () => {
+  const spec = threadNamed('M8×1.25')
+
+  it('puts the spec in front of the hole the kernel reported', () => {
+    expect(threadedName('Blind Hole', spec)).toBe('M8×1.25 Blind Hole')
+  })
+
+  it('leaves a plain hole exactly as it was', () => {
+    expect(threadedName('Blind Hole', null)).toBe('Blind Hole')
+  })
+
+  /** The kind is kept whatever it is: the spec is a prefix, not a replacement. */
+  it('keeps whatever the feature is called', () => {
+    expect(threadedName('Through Hole', spec)).toBe('M8×1.25 Through Hole')
+  })
+})
+
+/**
+ * **One decision, read by two lists** (Paul, 2026-09-09: "if I select a cut tap
+ * first, drills for the cut tap should be selected when I go to the drills
+ * page"). The mode is where cut-or-form is kept; these two are the whole
+ * translation between it and what a tap states about itself, so a list filtered
+ * one way and a drill chosen the other cannot happen.
+ */
+describe('which kind of tap a mode asks for', () => {
+  it('asks for the method the mode is named after', () => {
+    expect(methodOf('cut tap')).toBe('cutting')
+    expect(methodOf('form tap')).toBe('forming')
+  })
+
+  /** Neither is made with a tap, so neither asks anything of a tap list. */
+  it('asks for nothing where no tap makes the thread', () => {
+    expect(methodOf('plain')).toBeNull()
+    expect(methodOf('thread mill')).toBeNull()
+  })
+
+  it('reads the mode back off the tap that was picked', () => {
+    expect(modeFor('cutting')).toBe('cut tap')
+    expect(modeFor('forming')).toBe('form tap')
+  })
+
+  /**
+   * A tap scraped before `@toolpath/tool-scraper` 2.4.0 says nothing about how
+   * it makes a thread, and reading that silence as `cut tap` would move the
+   * drills of a hole nobody had decided about.
+   */
+  it('leaves the mode alone where the tap states no method', () => {
+    expect(modeFor(null)).toBeNull()
+    expect(modeFor(undefined)).toBeNull()
+  })
+})
+
+/**
+ * **The drill list says the number it was actually swept on** (Paul,
+ * 2026-09-09). It carried the tap's nominal size, which on a #4-40 is ⌀0.112 in
+ * over a list of ⌀0.0995 in predrills — a diameter no row in it is near.
+ */
+describe('what each list was swept on', () => {
+  const four40 = threadNamed('#4-40 UNC')!
+
+  /** The taps: the thread's own diameter, said to be that rather than left bare. */
+  it('names the thread diameter for the taps, and that the pitch is unknown', () => {
+    expect(threadNote(four40, 'inches')).toBe(
+      'matched on ⌀0.112 in thread diameter — this catalog holds no pitch, so check it',
+    )
+  })
+
+  /* Three decimals in inches, the same rounding every length on the page uses. */
+  it('names the cut tap predrill, and the tap that decides it', () => {
+    expect(predrillNote(four40, 'cut tap', 'inches')).toBe(
+      "matched on ⌀0.089 in — the cut tap's predrill for #4-40 UNC",
+    )
+  })
+
+  it('names the form tap predrill instead when the thread is rolled', () => {
+    expect(predrillNote(four40, 'form tap', 'inches')).toBe(
+      "matched on ⌀0.099 in — the form tap's predrill for #4-40 UNC",
+    )
+  })
+
+  /**
+   * **And what it says when that number matched nothing** (Paul, 2026-09-09).
+   * The hole is drawn at the cut tap's size, so a form tap's ⌀0.099 in predrill
+   * has no drill — and the shop still makes it, by boring with an end mill.
+   */
+  it('names the number that came up empty, and what stands in', () => {
+    expect(millStandInNote(four40, 'form tap', 'inches', true)).toBe(
+      'no drill matches the ⌀0.099 in form tap predrill — showing end mills that can bore it, and the closest drills',
+    )
+  })
+
+  /**
+   * **It promises the mills only where the list holds one** (Paul, 2026-09-09:
+   * "I have clicked the check after adding end mills to the filter list. None
+   * are being shown"). A note about end mills over eight drills says the
+   * catalog holds none, which was never the claim it was making.
+   */
+  it('claims no end mills over a list without one', () => {
+    expect(millStandInNote(four40, 'cut tap', 'inches', false)).toBe(
+      'no drill matches the ⌀0.089 in cut tap predrill — showing the closest drills',
+    )
+  })
+
+  /** A hole nobody threaded has no predrill to be swept on. */
+  it('says so where there is no predrill at all', () => {
+    expect(predrillNote(four40, 'plain', 'inches')).toBe('no predrill: this hole is not threaded')
+  })
+})
+
+/**
+ * **The list can be typed into** (Paul, 2026-09-09: "I need to be able to
+ * either select from the list we have now or enter text to search the list and
+ * select from it"). A shop writes one thread half a dozen ways, and none of
+ * them is the string in the table.
+ */
+describe('searching the thread list', () => {
+  const names = (query: string) => threadsMatching(query).map((each) => each.name)
+
+  it('offers every thread for text nobody has typed yet', () => {
+    expect(threadsMatching('')).toHaveLength(THREADS.length)
+  })
+
+  it('narrows to a size, coarse and fine alike', () => {
+    expect(names('M6')).toEqual(['M6×1', 'M6×0.75'])
+  })
+
+  it('reads a lower-case size, and an x for the multiplication sign', () => {
+    expect(names('m6x1')).toEqual(['M6×1'])
+  })
+
+  /** `M12x1.5` and `M12x1.25` differ by the decimal, so the decimal is kept. */
+  it('keeps a pitch apart from the pitch it is a prefix of', () => {
+    expect(names('m12x1.5')).toEqual(['M12×1.5'])
+  })
+
+  it('finds a unified thread written without its punctuation', () => {
+    expect(names('1420')).toEqual(['1/4-20 UNC'])
+    expect(names('10 32')).toEqual(['#10-32 UNF'])
+  })
+
+  it('narrows on a series rather than a size', () => {
+    expect(names('unf')).toEqual([
+      '#10-32 UNF',
+      '1/4-28 UNF',
+      '5/16-24 UNF',
+      '3/8-24 UNF',
+      '1/2-20 UNF',
+    ])
+  })
+
+  it('answers nothing for a thread this shop does not hold', () => {
+    expect(names('M99')).toEqual([])
+  })
+
+  /** The one option in the list that is not a thread is searchable too. */
+  it('matches text against any label, not only a spec', () => {
+    expect(matchesThreadSearch('plain', 'No thread — a plain hole')).toBe(true)
+    expect(matchesThreadSearch('m6', 'No thread — a plain hole')).toBe(false)
+  })
+})

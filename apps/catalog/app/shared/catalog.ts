@@ -1,0 +1,175 @@
+import type {
+  Catalog,
+  CatalogTool,
+  Collet,
+  Facets,
+  Holder,
+  HolderProfile,
+  Profiles,
+  ToolFamily,
+} from '@toolpath/catalog-data'
+import {
+  CATALOG_VERSION,
+  PROFILES_VERSION,
+  profileFor,
+  withMeasuredDimensions,
+} from '@toolpath/catalog-data'
+import dataset from 'catalog-dataset'
+import profileDocument from 'catalog-profiles'
+
+/**
+ * The only module in this application that touches the dataset.
+ *
+ * Everything the UI knows about tool data comes through here, so replacing
+ * today's build-time JSON with a fetch against an API later is a one-file
+ * change. Components import {@link allTools} and {@link getTool};
+ * nothing else imports the dataset.
+ *
+ * `catalog-dataset` is resolved by `vite.config.ts`: the gitignored
+ * `scrape-out/catalog.json` when a scrape has been ingested on this machine,
+ * and the committed sample otherwise. Scraped vendor data never enters the
+ * repository, and a checkout still builds.
+ */
+const document = dataset as unknown as Catalog
+
+if (document.version !== CATALOG_VERSION) {
+  // A dataset built against an older contract is a stale artifact, not a
+  // rendering problem: failing at import is what stops it being read field by
+  // field until something looks wrong.
+  throw new Error(
+    `Catalog dataset is version ${document.version}; this application reads version ${CATALOG_VERSION}.`,
+  )
+}
+
+export const allTools: ReadonlyArray<CatalogTool> = document.tools
+export const facets: Facets = document.facets
+
+/**
+ * What the catalog can hold a tool with.
+ *
+ * Empty in a dataset built before toolholding was ingested. The UI has to say
+ * "no toolholding in this dataset" rather than "nothing holds this tool": the
+ * two look the same on screen and mean opposite things.
+ */
+export const collets: ReadonlyArray<Collet> = document.collets ?? []
+
+/**
+ * The measured half, kept out of the catalog document on purpose.
+ *
+ * A profile is ~110 vertices that only an assembly drawing needs, and this
+ * module is imported by every page. It is loaded here rather than in the
+ * drawing so that {@link getProfile} stays the one way to reach it — the same
+ * rule the dataset itself follows.
+ *
+ * **A missing profile is not an error.** A catalog is measured holder by
+ * holder, so a holder with none is the ordinary state and draws parametrically;
+ * only a *version* mismatch is a stale artifact worth refusing at import.
+ */
+const measured = profileDocument as unknown as Profiles
+
+if (measured.profilesVersion !== PROFILES_VERSION) {
+  throw new Error(
+    `Holder profiles are version ${measured.profilesVersion}; this application reads version ${PROFILES_VERSION}.`,
+  )
+}
+
+/** The silhouette measured off this holder's own CAD model, or null where none was. */
+export const getProfile = (guid: string): HolderProfile | null => profileFor(measured, guid)
+
+/**
+ * What the catalog can hold a tool with, **carrying the geometry its own model
+ * measures** where the vendor publishes none.
+ *
+ * Empty in a dataset built before toolholding was ingested. The UI has to say
+ * "no toolholding in this dataset" rather than "nothing holds this tool": the
+ * two look the same on screen and mean opposite things.
+ *
+ * **This is the one seam where a measurement reaches the arithmetic** (Paul,
+ * 2026-09-07). `clearance()` builds its silhouette from the published nose,
+ * body and flange, and a `HolderRecord` carries none of them — so it swept the
+ * tool's shank and nothing else, answered "clears the part" for every holder in
+ * the rack, and returned `requiredStickout: null`. Nothing then told a stack to
+ * stand out, so a tool for a pocket two inches deep was set up at its half-inch
+ * flute length with the holder drawn well inside the part.
+ *
+ * Filling the silence here rather than at each call site is what makes the
+ * grading, the stickout, the drawing and the verdict read the same holder.
+ * Measured on this stack: `requiredStickout` goes from `null` to 53 mm and
+ * `checked` from `["shank"]` to the whole silhouette.
+ *
+ * The cost is one pass over the rack at import, which is the pass that was
+ * already being made to index it.
+ */
+export const holders: ReadonlyArray<Holder> = (document.holders ?? []).map((holder) =>
+  withMeasuredDimensions(holder, profileFor(measured, holder.guid)),
+)
+
+const byGuid = new Map(document.tools.map((tool) => [tool.guid, tool]))
+const familiesById = new Map(document.families.map((family) => [family.id, family]))
+const holdersByGuid = new Map(holders.map((holder) => [holder.guid, holder]))
+const colletsByGuid = new Map(collets.map((collet) => [collet.guid, collet]))
+
+/**
+ * One component, by the guid a sheet keeps it under.
+ *
+ * **A guid is looked up, never scanned for.** These three are the only way to
+ * turn a stored guid back into a record. Until 2026-09-09 most of the
+ * application reached past them for `allTools.find((each) => each.guid === …)`
+ * — a walk of 39,675 tools per lookup, and several of them sat inside a `map`
+ * over the order list's rows in JSX, so a bill of thirty assemblies cost well
+ * over a million string comparisons on **every render of the page**. The maps
+ * were already here for {@link getTool}; almost nothing used it.
+ *
+ * They answer `null` rather than `undefined` because a guid the catalog does
+ * not hold is an ordinary state — a sheet outlives the dataset it was written
+ * against — and `null` is the word the rest of this module uses for it.
+ */
+export const getTool = (guid: string): CatalogTool | null => byGuid.get(guid) ?? null
+
+export const getHolder = (guid: string): Holder | null => holdersByGuid.get(guid) ?? null
+
+export const getCollet = (guid: string): Collet | null => colletsByGuid.get(guid) ?? null
+
+export const getFamily = (id: string): ToolFamily | null => familiesById.get(id) ?? null
+
+/**
+ * Whose each vendor-owned filter value is.
+ *
+ * A family carries its brand on its own record. A product line does not — it
+ * is a string on the tool — so the brands publishing one are read off the
+ * tools once, here, rather than scanned per render. Both answer the one
+ * question the filter panel asks of these axes: with a vendor chosen, which of
+ * these values are that vendor's.
+ *
+ * A list rather than a single brand because nothing stops two vendors printing
+ * the same words on a page, and a value nobody owns comes back empty — which
+ * the panel reads as "not a vendor's to hide".
+ */
+const brandsByProductLine = new Map<string, Set<string>>()
+for (const tool of document.tools) {
+  const line = tool.productLine
+  if (line === null || line === undefined) {
+    continue
+  }
+  const brands = brandsByProductLine.get(line) ?? new Set<string>()
+  brands.add(tool.brand)
+  brandsByProductLine.set(line, brands)
+}
+
+/**
+ * A family as a shop reads it: the vendor's own title, or the value itself.
+ *
+ * The value being either a family id or a product line — one axis since
+ * 2026-09-08 — so the fallback is what a line names itself. A family with no
+ * page fetched keeps its id, which is what the picker has always shown.
+ */
+export const familyName = (value: string): string => getFamily(value)?.name ?? value
+
+export const brandsOfFamily = (id: string): ReadonlyArray<string> => {
+  const family = familiesById.get(id)
+  return family === undefined ? [] : [family.brand]
+}
+
+export const brandsOfProductLine = (line: string): ReadonlyArray<string> => [
+  ...(brandsByProductLine.get(line) ?? []),
+]

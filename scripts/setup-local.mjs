@@ -5,17 +5,27 @@ import { fileURLToPath } from 'node:url'
 
 const defaultRootDirectory = resolve(fileURLToPath(new URL('..', import.meta.url)))
 
-export const setupLocalEnvironment = (rootDirectory = defaultRootDirectory) => {
-  const examplePath = resolve(rootDirectory, 'apps/dfm/.env.example')
-  const environmentPath = resolve(rootDirectory, 'apps/dfm/.env')
+/**
+ * Every application that serves the part API needs its own private settings.
+ *
+ * Each gets its own generated session secret rather than a shared one: the
+ * connection cookies are already domain-separated by application name, and two
+ * independent secrets mean rotating one application's sessions cannot sign
+ * anybody out of the other.
+ */
+const APPLICATIONS = ['apps/dfm', 'apps/catalog']
+
+const createEnvironmentFile = (rootDirectory, application) => {
+  const examplePath = resolve(rootDirectory, application, '.env.example')
+  const environmentPath = resolve(rootDirectory, application, '.env')
 
   if (existsSync(environmentPath)) {
-    return { created: false }
+    return false
   }
 
   const example = readFileSync(examplePath, 'utf8')
   if (!example.includes('APP_SESSION_SECRET=') || !example.includes('TOOLPATH_API_BASE_URL=')) {
-    throw new Error('apps/dfm/.env.example is missing the required environment variables.')
+    throw new Error(`${application}/.env.example is missing the required environment variables.`)
   }
 
   const sessionSecret = randomBytes(32).toString('base64')
@@ -25,14 +35,23 @@ export const setupLocalEnvironment = (rootDirectory = defaultRootDirectory) => {
 
   writeFileSync(environmentPath, environment, { encoding: 'utf8', flag: 'wx', mode: 0o600 })
   chmodSync(environmentPath, 0o600)
-  return { created: true }
+  return true
+}
+
+export const setupLocalEnvironment = (rootDirectory = defaultRootDirectory) => {
+  const created = APPLICATIONS.filter((application) =>
+    createEnvironmentFile(rootDirectory, application),
+  )
+  return { created }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const { created } = setupLocalEnvironment()
-  console.log(
-    created
-      ? 'Created apps/dfm/.env with the standard Toolpath API URL.'
-      : 'apps/dfm/.env already exists; leaving it unchanged.',
-  )
+  for (const application of APPLICATIONS) {
+    console.log(
+      created.includes(application)
+        ? `Created ${application}/.env with the standard Toolpath API URL.`
+        : `${application}/.env already exists; leaving it unchanged.`,
+    )
+  }
 }

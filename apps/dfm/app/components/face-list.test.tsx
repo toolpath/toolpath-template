@@ -28,7 +28,7 @@ const view = (plan: SetupPlan): PartView => ({
   plan,
   scores: new Map(),
   verdicts: [],
-  unit: 'mm',
+  unit: 'millimeters',
   showingPass: 'rough',
 })
 

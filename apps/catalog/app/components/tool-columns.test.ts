@@ -1,0 +1,209 @@
+import { describe, expect, it } from 'vitest'
+import { GEOMETRY_FIELDS } from '@toolpath/catalog-data'
+import { AXES_IN_TOOL_COLUMNS } from 'shared/column-filters'
+import { TAP_COLUMNS, TOOL_COLUMNS, isHolding, isIdentity, isStack } from './part-tool-table'
+
+/**
+ * **A column has to have a number behind it.**
+ *
+ * `LU` — ISO's usable length — sat in this list for months as "Usable length".
+ * No vendor in this dataset states it and nothing derives it, so ticking it in
+ * the column picker drew a column of dashes: a choice that does nothing, with
+ * no error to say so (Paul, 2026-08-31: "what is the usable length? It's
+ * showing as empty — what is the intent?").
+ *
+ * Every column is either a field the catalog defines, or one of the two the
+ * table works out for itself — the holder and collet it is held in, and the
+ * stickout the stack needs.
+ */
+describe('the columns the list offers', () => {
+  it('names a field the catalog defines, or one the table works out', () => {
+    const unknown = TOOL_COLUMNS.filter(
+      (column) =>
+        !isHolding(column.code) &&
+        !isStack(column.code) &&
+        // The four that say which tool this is rather than a number about it.
+        !isIdentity(column.code) &&
+        GEOMETRY_FIELDS[column.code] === undefined,
+    ).map((column) => column.code)
+
+    expect(unknown).toEqual([])
+  })
+})
+
+/**
+ * **What the list opens with is a decision, not a leftover.**
+ *
+ * The column was "Stickout needed" — about a stack somebody had chosen a
+ * holder for, empty on a fresh list, and turning itself on anyway (Paul,
+ * 2026-08-31). It is the tool's own **length below holder** now: the overall
+ * length less the shank the clamping rule holds, which is a number every tool
+ * has and which decides whether it reaches (Paul, 2026-09-01). So it opens
+ * with the rest, and the holder and collet still wait to be asked for.
+ */
+describe('the columns a list opens with', () => {
+  it('opens with the numbers a tool is chosen on, reach among them', () => {
+    expect(TOOL_COLUMNS.filter((column) => column.default).map((column) => column.code)).toEqual([
+      'catalogNumber',
+      'brand',
+      'family',
+      'type',
+      'NOF',
+      'DC',
+      'LCF',
+      'LBH',
+      'LD',
+      'OAL',
+    ])
+  })
+
+  /**
+   * **The order is the order a shop reads a row in** (Paul, 2026-09-10), and
+   * the column picker lists them the same way top to bottom, because the page
+   * seeds its order from this list.
+   */
+  it('is in the order a row is read, holding last', () => {
+    expect(TOOL_COLUMNS.map((column) => column.code)).toEqual([
+      'catalogNumber',
+      'brand',
+      'family',
+      'type',
+      'NOF',
+      'DC',
+      'LCF',
+      'LBH',
+      'LD',
+      'OAL',
+      'RE',
+      'SFDM',
+      'SIG',
+      'holder',
+      'collet',
+    ])
+  })
+
+  /**
+   * **Neither of the two that follow the list opens with it** (Paul,
+   * 2026-09-10). Corner radius is a dash on a drill and tip angle is a dash on
+   * a mill; `shared/auto-columns.ts` turns each on when its tools arrive.
+   *
+   * **Nor does the shank** (Paul, same day): it is what the holding is chosen
+   * on rather than what the tool is chosen on, and Type already says it where
+   * it differs from the cut.
+   */
+  it('leaves corner radius, tip angle and the shank to be asked for', () => {
+    for (const code of ['RE', 'SIG', 'SFDM']) {
+      expect(TOOL_COLUMNS.find((column) => column.code === code)?.default).toBe(false)
+    }
+  })
+
+  it('leaves the holder and the collet for somebody to ask for', () => {
+    for (const code of ['holder', 'collet']) {
+      expect(TOOL_COLUMNS.find((column) => column.code === code)?.default).toBe(false)
+    }
+  })
+})
+
+/**
+ * **The tap list offers the numbers a tap has** (Paul, 2026-09-02: "look at
+ * the fields on a tap and allow me to use those columns if I edit the tap
+ * table").
+ *
+ * A tap in this catalog states `DC`, `SFDM`, `OAL`, `LCF` and `NOF`, and the
+ * build derives `LBH` and `LD` from them. Corner radius and point angle were
+ * columns of dashes on the tap table this replaced; they are not columns here,
+ * so ticking one cannot draw an empty one.
+ */
+describe('the columns a tap list offers', () => {
+  /** Every number 129 taps in the dataset carry, and nothing they do not. */
+  const ON_A_TAP = ['DC', 'SFDM', 'OAL', 'LCF', 'NOF', 'LBH', 'LD']
+
+  it('offers a number a tap carries, or the holding every list can ask for', () => {
+    const unknown = TAP_COLUMNS.filter(
+      (column) =>
+        !isHolding(column.code) && !isIdentity(column.code) && !ON_A_TAP.includes(column.code),
+    ).map((column) => column.code)
+
+    expect(unknown).toEqual([])
+  })
+
+  it('opens with all of them, and leaves the holding to be asked for', () => {
+    expect(TAP_COLUMNS.filter((column) => column.default).map((column) => column.code)).toEqual([
+      'catalogNumber',
+      'brand',
+      'family',
+      'type',
+      'DC',
+      'LCF',
+      'LBH',
+      'LD',
+      'OAL',
+      'NOF',
+      'SFDM',
+    ])
+    for (const code of ['holder', 'collet']) {
+      expect(TAP_COLUMNS.find((column) => column.code === code)?.default).toBe(false)
+    }
+  })
+
+  /**
+   * Two of them mean something else on a tap than on a mill, and say so: `DC`
+   * is the thread's nominal diameter rather than a width of cut, and `LCF` is
+   * the threaded length. `LBH` is the tap's own length below the holder —
+   * "Stickout needed" was a heading about a stack nothing here has chosen.
+   */
+  it('calls them what they are on a tap', () => {
+    const label = (code: string) => TAP_COLUMNS.find((column) => column.code === code)?.label
+
+    expect(label('DC')).toBe('Thread diameter')
+    expect(label('LCF')).toBe('Thread length')
+    expect(label('LBH')).toBe('Below holder')
+  })
+})
+
+/**
+ * **A filter moved onto a header has to have a header to move onto.**
+ *
+ * `AXES_IN_TOOL_COLUMNS` is what takes a question off the button row, and it is
+ * stated by hand because `app/shared` may not import a component. This is the
+ * sensor that keeps it honest: an axis named there with no column to ask it is
+ * a filter that has disappeared from the page entirely.
+ */
+describe('the axes a column header takes over', () => {
+  /** The four every tool row carries, drawn whatever the column picker says. */
+  const FIXED = ['catalogNumber', 'brand', 'family', 'type']
+
+  it('names a column of the tool table', () => {
+    const codes = [...FIXED, ...TOOL_COLUMNS.map((column) => column.code)]
+
+    for (const axis of AXES_IN_TOOL_COLUMNS) {
+      expect(codes).toContain(axis)
+    }
+  })
+})
+
+/**
+ * **Every column is in the picker** (Paul, 2026-09-08: "I should also see ALL
+ * the columns in the list, it is missing some of the ones we changed in this
+ * session"). The four that identify a tool used to be drawn outside the column
+ * set, so the picker could not offer them and a list could not be cut down to
+ * what somebody was actually comparing.
+ */
+describe('what the column picker can reach', () => {
+  it('offers the four that say which tool a row is', () => {
+    for (const code of ['catalogNumber', 'brand', 'family', 'type']) {
+      expect(TOOL_COLUMNS.map((column) => column.code)).toContain(code)
+      expect(TAP_COLUMNS.map((column) => column.code)).toContain(code)
+      expect(isIdentity(code)).toBe(true)
+    }
+  })
+
+  it('leads with them, in the order a row is read', () => {
+    expect(TOOL_COLUMNS.slice(0, 4).map((column) => column.code)).toEqual([
+      'catalogNumber',
+      'brand',
+      'family',
+      'type',
+    ])
+  })
+})

@@ -1,11 +1,10 @@
+import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { CaretDownIcon } from '@phosphor-icons/react'
 import { useState, type ReactNode } from 'react'
 
 import { NumberBox } from './number-box'
 import { outsideSizes } from 'shared/metrics'
-import { formatLength } from 'shared/units'
 import type { MachineEnvelope, MachineSizes, PlanLimits } from 'shared/rules'
-import type { Unit } from 'shared/units'
 
 /**
  * The two decisions about a plan that are **not scales**.
@@ -117,7 +116,7 @@ const SizeRow = ({
   label: string
   hint: string
   sizes: MachineEnvelope | undefined
-  unit: Unit
+  unit: UnitSystem
   onChange: (sizes: MachineEnvelope | undefined) => void
 }) => {
   const [draft, setDraft] = useState<Partial<MachineEnvelope>>(() => sizes ?? {})
@@ -186,7 +185,7 @@ export const PlanChoices = ({
   refused?: number
   /** Bumped when a preset loads, which re-keys the size boxes onto its numbers. */
   revision: number
-  unit: Unit
+  unit: UnitSystem
   onChange: (limits: PlanLimits) => void
 }) => {
   const current: PlanLimits = limits ?? {}

@@ -1,9 +1,15 @@
+import {
+  convertArea,
+  convertLength,
+  decimalsFor,
+  UNIT_ABBREVIATION,
+  type UnitSystem,
+} from '@toolpath/tool-support'
 import { METRICS, type MetricId, metricQuantity } from './metrics'
 import type { Band, FeatureVerdict, Rule } from './rules'
 import { bandName, bandRank, bandRanges, rangeSpectrum } from './rules'
 import type { PartFeature } from './contracts'
 import { directionLabel, featureSummary } from './report'
-import { MODEL_UNIT, type Unit, convertArea, convertLength, decimalsFor } from './units'
 
 /**
  * Rule verdicts, in words.
@@ -24,7 +30,7 @@ import { MODEL_UNIT, type Unit, convertArea, convertLength, decimalsFor } from '
 export const formatMetric = (
   value: number | null,
   metric: MetricId | undefined,
-  unit: Unit,
+  unit: UnitSystem,
 ): string => {
   if (value === null) {
     return '—'
@@ -65,7 +71,7 @@ export interface RuleLimit {
  */
 export const ruleLimits = (
   rule: Rule,
-  unit: Unit,
+  unit: UnitSystem,
   names?: Partial<Record<Band, string>>,
 ): Array<RuleLimit> => {
   if (rule.type !== 'threshold' && rule.type !== 'range') {
@@ -119,39 +125,47 @@ export const ruleReads = (rule: Rule): string => {
  * Ratios, counts and angles convert to nothing: a 5:1 pocket is 5:1 in any
  * shop, and a chamfer is 45° in both.
  */
-export const toDisplay = (value: number, metric: MetricId | undefined, unit: Unit): number => {
+export const toDisplay = (
+  value: number,
+  metric: MetricId | undefined,
+  unit: UnitSystem,
+): number => {
   const quantity = metricQuantity(metric)
 
   if (quantity === 'length') {
-    return convertLength(value, MODEL_UNIT, unit)
+    return convertLength(value, 'millimeters', unit)
   }
   if (quantity === 'area') {
-    return convertArea(value, MODEL_UNIT, unit)
+    return convertArea(value, 'millimeters', unit)
   }
 
   return value
 }
 
-export const fromDisplay = (value: number, metric: MetricId | undefined, unit: Unit): number => {
+export const fromDisplay = (
+  value: number,
+  metric: MetricId | undefined,
+  unit: UnitSystem,
+): number => {
   const quantity = metricQuantity(metric)
 
   if (quantity === 'length') {
-    return convertLength(value, unit, MODEL_UNIT)
+    return convertLength(value, unit, 'millimeters')
   }
   if (quantity === 'area') {
-    return convertArea(value, unit, MODEL_UNIT)
+    return convertArea(value, unit, 'millimeters')
   }
 
   return value
 }
 
 /** What to write after a threshold box, or nothing where the number is bare. */
-export const unitSuffix = (metric: MetricId | undefined, unit: Unit): string => {
+export const unitSuffix = (metric: MetricId | undefined, unit: UnitSystem): string => {
   switch (metricQuantity(metric)) {
     case 'length':
-      return unit
+      return UNIT_ABBREVIATION[unit]
     case 'area':
-      return `${unit}²`
+      return `${UNIT_ABBREVIATION[unit]}²`
     case 'angle':
       return '°'
     case 'percent':
@@ -171,7 +185,7 @@ export const unitSuffix = (metric: MetricId | undefined, unit: Unit): string => 
  * nobody argues about the second decimal of a 5:1 pocket, and a count gets
  * none.
  */
-export const displayDecimals = (metric: MetricId | undefined, unit: Unit): number => {
+export const displayDecimals = (metric: MetricId | undefined, unit: UnitSystem): number => {
   switch (metricQuantity(metric)) {
     case 'length':
     case 'area':
