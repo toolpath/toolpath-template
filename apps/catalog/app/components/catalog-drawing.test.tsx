@@ -165,7 +165,16 @@ describe('the catalog drawing', () => {
     expect(none.querySelectorAll('[data-lit="true"]')).toHaveLength(0)
   })
 
-  it('draws the material and the verdict this application reached, not one of its own', () => {
+  /**
+   * **The material and the collisions, and no verdict written over them.**
+   *
+   * The collisions are still this application's own — the package paints what
+   * it is handed rather than deciding anything — and they are what says a stack
+   * fouls, in the place it fouls. The sentence over the drawing went on
+   * 2026-09-11; `catalog-drawing.tsx`'s own note has the reading that made it
+   * a correctness matter rather than a layout one.
+   */
+  it('draws the material this application swept, and writes no verdict over it', () => {
     const container = drawn(
       <CatalogDrawing
         tool={tool}
@@ -178,7 +187,7 @@ describe('the catalog drawing', () => {
 
     expect(container.querySelector('[data-clearance]')).not.toBeNull()
     expect(container.querySelector('[data-part="material"]')).not.toBeNull()
-    expect(container.querySelector('[data-verdict]')).not.toBeNull()
+    expect(container.querySelector('[data-verdict]')).toBeNull()
   })
 
   it('says an undrawable form in words rather than drawing a plausible cylinder', () => {
@@ -261,23 +270,21 @@ describe('the overlay this application draws', () => {
   })
 
   /**
-   * **The verdict stays; the sentence under it went** (Paul, 2026-09-11).
+   * **Nothing is written over the drawing** (Paul, 2026-09-11, pointing at the
+   * verdict line: "remove the stuff outlined in red").
    *
-   * The sentence named the length the verdict was reached at, because a stack
-   * clears at one stickout and fouls at another. That length is a box now, and
-   * an editable one — so the reading it answered is better answered than it was
-   * — and five lines of the panel went back to the drawing.
-   *
-   * What must not go with it is the verdict itself: a clearance under what was
-   * wanted and a stack actually into the material are different readings, and
-   * only this says the second.
+   * The sentence named the length the verdict was reached at; that length is an
+   * editable box now. The verdict over it said "clears the part" from a sweep
+   * that, on a holder publishing no parametric dimensions, had checked the
+   * tool's shank and nothing else — so it was a claim the data did not support,
+   * printed in the same words as one that did.
    */
-  it('says whether the stack clears, and nothing else', () => {
+  it('writes neither a verdict nor a sentence over the sheet', () => {
     const container = drawn(
       <CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" curve={curve} />,
     )
 
-    expect(container.textContent).toMatch(/(clears|collides)/)
+    expect(container.textContent).not.toMatch(/clears|collides/)
     expect(container.textContent).not.toContain('below the holder')
   })
 

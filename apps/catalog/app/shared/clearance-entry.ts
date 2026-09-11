@@ -64,6 +64,17 @@ export interface ClearanceEdit {
 const SLACK = 1e-6
 
 /**
+ * Near enough that an entry counts as met, in millimetres.
+ *
+ * Two ten-thousandths of an inch — under the third decimal a box shows, and
+ * comfortably over what {@link lengthFor} leaves behind when it stops halving.
+ * Compared against {@link SLACK} it is enormous, and it has to be: a warning
+ * that fires because a bisection landed a nanometre out is a warning nobody
+ * can act on, and after the first one nobody reads the rest either.
+ */
+const MET = 0.005
+
+/**
  * What to ask the stack for, given what was stated.
  *
  * Two answers rather than one, because the margins have two jobs and they are
@@ -82,13 +93,80 @@ export interface ClearanceAsk {
 }
 
 /**
- * The least length below the holder that leaves a given room.
+ * The least length below the holder that leaves a given room on one axis.
  *
- * `clearance().requiredStickout` behind a name, so this module can be tested
- * with a curve made of two numbers instead of a part report. Null where the
- * holder states no nose and there is nothing to sweep.
+ * **Not `clearance().requiredStickout`, and 2026-09-11 is the day that stopped
+ * being a detail.** That function sweeps the *parametric* holder — a nose, a
+ * body and a flange off the vendor's published table — and AGENTS.md § Vendor
+ * Tool Data says in as many words that a holder record carries no silhouette.
+ * `BT30-ER11-110DT` is the ordinary case rather than the awkward one: MariTool
+ * publishes a taper, a gauge length and a collet series, and `null` for all
+ * nine of the dimensions a sweep needs. Asked about that stack it answers
+ *
+ *     requiredStickout: null      checked: ["shank"]
+ *
+ * — the tool's own shank and nothing of what holds it. So an entered clearance
+ * moved nothing at all, on every one of the 378 holders whose silhouette is
+ * measured rather than stated (Paul, 2026-09-11: "I don't think it's reading
+ * out the messaging").
+ *
+ * What answers is the profile that is *drawn*, through {@link lengthFor}. That
+ * is also what makes the three boxes agree: the length is solved on the same
+ * measurement the other two boxes are read from, so a met entry reads as met
+ * instead of as a warning about a stack nobody could see.
  */
-export type RequiredAt = (margins: Margins) => number | null
+export type RequiredAt = (field: 'axial' | 'radial', wanted: number) => number | null
+
+/**
+ * The shortest length below the holder that leaves `wanted` room, by halving.
+ *
+ * The room a stack leaves rises with the length it is set out at — lift the
+ * holder and everything it could foul lifts with it — so the answer is found by
+ * bisection on the one measurement the boxes already read. Two ends are answers
+ * in themselves rather than failures, and are what tells a stack that cannot be
+ * set there from one that simply has not been:
+ *
+ * - the shortest the tool goes already leaves more than was asked, so there is
+ *   no length that leaves exactly that much — the flutes have to clear the
+ *   collet, and every length above that floor gives *more* room, not less;
+ * - the longest it goes still leaves less, because past some length the tool's
+ *   own shank is what the wall is nearest and lifting the holder stops helping.
+ *
+ * Both return the end they hit, so the stack is drawn at the closest it can get
+ * and `ClearanceBox.held` says which way it missed.
+ */
+export const lengthFor = (
+  wanted: number,
+  bracket: { readonly min: number; readonly max: number },
+  roomAt: (stickout: number) => number | null,
+): number | null => {
+  const atMax = roomAt(bracket.max)
+  if (atMax === null) {
+    return null
+  }
+  if (atMax < wanted) {
+    return bracket.max
+  }
+  const atMin = roomAt(bracket.min)
+  if (atMin !== null && atMin >= wanted) {
+    return bracket.min
+  }
+  let low = bracket.min
+  let high = bracket.max
+  // 1e-4 mm is four microns: two orders under MET, so a solved length always
+  // reads as having met what was asked, and forty halvings reach it from any
+  // bracket a tool has.
+  while (high - low > 1e-4) {
+    const middle = (low + high) / 2
+    const room = roomAt(middle)
+    if (room !== null && room >= wanted) {
+      high = middle
+    } else {
+      low = middle
+    }
+  }
+  return high
+}
 
 export const askFor = (
   edit: ClearanceEdit | null,
@@ -104,7 +182,7 @@ export const askFor = (
   const solve: Margins =
     edit.field === 'axial' ? { axial: edit.value, radial: 0 } : { axial: 0, radial: edit.value }
   return {
-    stickout: requiredAt(solve),
+    stickout: requiredAt(edit.field, edit.value),
     margins: { ...defaults, [edit.field]: edit.value },
     solve,
   }
@@ -184,7 +262,7 @@ const boxFor = (
   const entered = edit?.field === field ? edit.value : null
   const asked = entered ?? defaults[field]
   const value = room[field]
-  const missed = entered !== null && value !== null && Math.abs(value - entered) > SLACK
+  const missed = entered !== null && value !== null && Math.abs(value - entered) > MET
   return {
     entered,
     value,
@@ -215,7 +293,7 @@ export const boxesFor = (
       entered,
       value: drawn.stickout,
       clamped:
-        entered !== null && drawn.stickout !== null && Math.abs(drawn.stickout - entered) > SLACK,
+        entered !== null && drawn.stickout !== null && Math.abs(drawn.stickout - entered) > MET,
       overLimit: drawn.overLimit,
     },
     axial: boxFor('axial', edit, defaults, room),

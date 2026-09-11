@@ -46,15 +46,28 @@ describe('what a tool column asks', () => {
 })
 
 /**
- * **A tap list answers two questions and sorts on the rest** (Paul, 2026-09-09:
- * "when I am in the TAPs row or table, it should be filtering to taps"). Its
- * rows are the thread's rather than the query's, so a funnel over its numbers
- * would be a control that changes nothing.
+ * **A tap list answers the questions the page can answer over the swept pool**
+ * (Paul, 2026-09-09: "when I am in the TAPs row or table, it should be
+ * filtering to taps"). Its rows are the thread's rather than the query's, so a
+ * funnel over its numbers would be a control that changes nothing — but the
+ * words on a row are the row's whatever swept it in.
  */
 describe('what a tap column asks', () => {
   it('searches the catalog number and narrows the type', () => {
     expect(askOfTapColumn('catalogNumber')).toEqual({ shape: 'text' })
     expect(askOfTapColumn('type')).toEqual({ shape: 'terms', axis: 'type' })
+  })
+
+  /**
+   * **The vendor and the family narrow a tap list too** (Paul, 2026-09-11: "I
+   * don't see the filter option for vendor when I am selecting a tap for a tool
+   * assembly. Why is that? I should … Same thing for family"). They carried no
+   * funnel because the tool query does not reach `makersFor`; the page narrows
+   * the swept pool on them itself — `routes/part.tsx` § `tapRows`.
+   */
+  it('narrows the vendor and the family, which the pool can answer', () => {
+    expect(askOfTapColumn('brand')).toEqual({ shape: 'terms', axis: 'brand' })
+    expect(askOfTapColumn('family')).toEqual({ shape: 'terms', axis: 'family' })
   })
 
   /**
@@ -70,14 +83,14 @@ describe('what a tap column asks', () => {
   })
 
   it('asks nothing of the columns the thread already decided', () => {
-    for (const code of ['brand', 'family', 'LBH', 'NOF', 'OAL', 'SFDM']) {
+    for (const code of ['LBH', 'NOF', 'OAL', 'SFDM']) {
       expect(askOfTapColumn(code)).toBeNull()
     }
   })
 
-  /** The two it does ask are the tool list's own questions, not a second pair. */
+  /** Every one it asks is the tool list's own question, not a second version. */
   it('asks them exactly as the tool list does', () => {
-    for (const code of ['catalogNumber', 'type', 'DC', 'LCF']) {
+    for (const code of ['catalogNumber', 'type', 'brand', 'family', 'DC', 'LCF']) {
       expect(askOfTapColumn(code)).toEqual(askOfToolColumn(code))
     }
   })

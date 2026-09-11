@@ -115,14 +115,6 @@ export type AssemblyActionKind =
 /** What one press would put on the list, where it is not on it yet. */
 export type Subject = 'feature' | 'group' | 'assembly'
 
-/** What the press says it is making as well as ordering. */
-const ALSO: Readonly<Record<Subject, string>> = {
-  feature: 'Adds the feature to the list as well — it is not on it yet.',
-  group: 'Adds the group to the list as well — it is not on it yet.',
-  // Named for what it is rather than for a feature it does not have.
-  assembly: 'Adds this tool assembly to the list as well — it is not on it yet.',
-}
-
 export interface AssemblyAction {
   readonly kind: AssemblyActionKind
   readonly label: string
@@ -460,7 +452,6 @@ export const assemblyActions = (
       {
         kind: 'confirm',
         label: 'Add to order list',
-        note: ALSO[subject],
       },
     ]
   }
@@ -574,7 +565,6 @@ export const groupActions = (
       {
         kind: 'confirm',
         label: 'Add to order list',
-        note: ALSO[subject],
       },
     ]
   }

@@ -1,22 +1,51 @@
 @import 'tailwindcss';
 @import '@toolpath/ui/theme.css';
 
-/**
- * The state colours, a shade quieter.
- *
- * Tailwind's own emerald, amber and red are pitched for a white page; against
- * this ground they shouted next to `@toolpath/ui`'s palette, which is already
- * soft (its danger is #ba5b4b, its info #6bb0b3). These are the same hues at
- * lower chroma so a tick, a caution and a refusal still read apart from each
- * other at a glance without pulling the eye off the part (Paul, 2026-08-31:
- * "mute the colour palette just a touch").
- *
- * Muted, not faint: the first pass took them far enough down that a caution
- * at 12 px was a smudge, so each is a step brighter than it was and the three
- * are further apart from each other (Paul, 2026-08-31: "the orange warning
- * check is hard to read").
- */
 @theme {
+  /**
+   * One corner radius, half what it was.
+   *
+   * The page used four steps of Tailwind's scale — `sm` through `xl` here, and
+   * `sm`/`md`/`lg` inside `@toolpath/ui` — so a card, a button and a menu all
+   * rounded off by a different amount and the difference read as noise rather
+   * than as hierarchy (Paul, 2026-09-11: "make them all the same and 1/2 of
+   * what they are now"). Every step is now the one value, 4 px: half of
+   * `rounded-lg`, which is the radius this application reached for most.
+   *
+   * Redefining the scale rather than rewriting five hundred class names, which
+   * is also what makes it hold for the kit: `@toolpath/ui`'s `@source './src'`
+   * compiles its utilities in this build, against these tokens.
+   *
+   * `rounded-full` is untouched on purpose — it is `calc(infinity * 1px)`
+   * rather than a step of the scale, and a pill or a dot is a shape, not a
+   * corner.
+   */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.25rem;
+  --radius-2xl: 0.25rem;
+  --radius-3xl: 0.25rem;
+  --radius-4xl: 0.25rem;
+  /* Bare `rounded`, `rounded-t` and friends, which `@toolpath/ui` uses. */
+  --radius: 0.25rem;
+
+  /**
+   * The state colours, a shade quieter.
+   *
+   * Tailwind's own emerald, amber and red are pitched for a white page; against
+   * this ground they shouted next to `@toolpath/ui`'s palette, which is already
+   * soft (its danger is #ba5b4b, its info #6bb0b3). These are the same hues at
+   * lower chroma so a tick, a caution and a refusal still read apart from each
+   * other at a glance without pulling the eye off the part (Paul, 2026-08-31:
+   * "mute the colour palette just a touch").
+   *
+   * Muted, not faint: the first pass took them far enough down that a caution
+   * at 12 px was a smudge, so each is a step brighter than it was and the three
+   * are further apart from each other (Paul, 2026-08-31: "the orange warning
+   * check is hard to read").
+   */
   --color-emerald-300: #96d0b3;
   --color-emerald-400: #7ec4a3;
   --color-emerald-500: #63a888;

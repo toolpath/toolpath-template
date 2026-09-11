@@ -192,17 +192,24 @@ export const sayBound = (
 /**
  * What the header over a tap column asks.
  *
- * **Two of them, and the rest sort** (Paul, 2026-09-09: "when I am in the TAPs
- * row or table, it should be filtering to taps"). A tap list is swept out of
- * the catalog by the thread — `makersFor` — rather than narrowed by the tool
- * query, so a funnel on its Vendor or Flute length heading would be a control
- * that changes nothing, which is why it carried none at all. The two that do
- * change something:
+ * A tap list is swept out of the catalog by the thread — `makersFor` — rather
+ * than narrowed by the tool query, so what a column may ask is whatever the
+ * page can answer over the swept pool rather than whatever the tool query
+ * holds. Four of them ask, two state a number, and the rest sort:
  *
  * - the catalog number, which every list of tools searches;
  * - the type, because a threaded hole's `form` filter is the drill **and** the
  *   taps and this list is the tap half of it — `hole-mode.ts` §
  *   `formsAskingTaps` is what a tick there writes;
+ * - **the vendor and the family** (Paul, 2026-09-11: "I don't see the filter
+ *   option for vendor when I am selecting a tap … I should, and if vendors
+ *   don't have taps, it should simply show zero. Same thing for family"). They
+ *   carried no funnel because the tool query does not reach the swept pool —
+ *   but a pool is a list of tools like any other, and the page narrows it on
+ *   these two axes itself (`routes/part.tsx` § `tapRows`). A vendor with no tap
+ *   for this thread is then a nought behind the `…` row, which is what every
+ *   other contextual list does with a value it is not holding, rather than a
+ *   question the header refuses to ask;
  * - **the thread diameter and the thread length**, which the sweep already
  *   narrowed on and nothing said so (Paul, 2026-09-09: "shouldn't thread
  *   diameter and thread length be applied from the thread spec and model
@@ -216,10 +223,11 @@ export const sayBound = (
  */
 const TAP_STATED = ['DC', 'LCF']
 
+/** The tap columns a funnel narrows on, all of them answered over the pool. */
+const TAP_ASKED = ['catalogNumber', 'type', 'brand', 'family']
+
 export const askOfTapColumn = (code: string): ColumnAsk | null =>
-  code === 'catalogNumber' || code === 'type' || TAP_STATED.includes(code)
-    ? askOfToolColumn(code)
-    : null
+  TAP_ASKED.includes(code) || TAP_STATED.includes(code) ? askOfToolColumn(code) : null
 
 /**
  * The name each axis wears where no column carries it.

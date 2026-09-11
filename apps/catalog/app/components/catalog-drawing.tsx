@@ -126,23 +126,26 @@ export interface CatalogDrawingProps {
 }
 
 /**
- * **The sentence under the verdict came out on 2026-09-11.**
+ * **Nothing is written over the drawing any more** (Paul, 2026-09-11).
  *
- * It read "at 47.00 mm below the holder · tightest: 24.80 mm into the wall at
- * the shank — 0.51 mm up and 0.51 mm sideways wanted", which was five lines of
- * the panel saying what the three clearance boxes under the sheet now say in
- * three — and say editably, which a sentence cannot. Paul's call once the boxes
- * were on screen: "you can remove the previous messaging above the tool
- * visualization and make the tool visualization bigger."
+ * Two things used to be. The sentence went first: "at 47.00 mm below the
+ * holder · tightest: 24.80 mm into the wall at the shank — 0.51 mm up and
+ * 0.51 mm sideways wanted", five lines saying what the three clearance boxes
+ * under the sheet now say in three, and say editably.
  *
- * **The verdict itself stays.** "collides with the part" is the one thing the
- * boxes do not say: a clearance under what was wanted and a stack actually into
- * the material are different readings, and the second is the one a shop must
- * not miss. The package writes it from `clears` alone, with no note under it.
+ * The verdict over it went with it, and that one was not only a layout call.
+ * "clears the part" is reached by `clearance()`, which sweeps the holder's
+ * *parametric* nose, body and flange — and most holders publish none of those.
+ * Asked about `BT30-ER11-110DT` + `11ERSS0250` + `V2160617` it answers
+ * `clears: true` with `checked: ["shank"]`: a pass for the tool's own shank and
+ * nothing whatever about what holds it, printed in the same words as a pass
+ * that checked a whole stack. The clearance boxes read the measured silhouette
+ * instead, so they answer the same question about the holder that is actually
+ * drawn — and a gap that has gone into the material reads as a negative number
+ * there, which is the honest version of the same warning.
  *
- * What was lost with the sentence is *where* the tightest point was — "at the
- * shank" — which is `describeGaps`'s and has no box. The drawing paints the
- * colliding part red, which is the same answer in the place it is about.
+ * The collisions are still handed down, so the part that fouls is still painted
+ * on the drawing. That is the verdict in the place it is about.
  */
 
 export const CatalogDrawing = ({
@@ -199,7 +202,7 @@ export const CatalogDrawing = ({
       {...(onDimensionHover === undefined ? {} : { onDimensionHover })}
       padding={padding}
       collisions={verdict?.collisions}
-      verdict={verdict === null ? null : { clears: verdict.clears, note: null }}
+      verdict={null}
       className="size-full"
     >
       {overlaid && profile !== null && gaps !== null ? (

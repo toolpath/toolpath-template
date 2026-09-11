@@ -337,11 +337,12 @@ describe('the filters a heading asks', () => {
   })
 
   /**
-   * **The tap list asks two of them** (Paul, 2026-09-09: "when I am in the TAPs
-   * row or table, it should be filtering to taps"). Its rows are the thread's
-   * rather than the query's, so its numbers and its vendor are not questions it
-   * can answer — but which kind of tap is, because that is the tap half of the
-   * `form` filter a threaded hole writes.
+   * **The tap list asks what it can answer** (Paul, 2026-09-09: "when I am in
+   * the TAPs row or table, it should be filtering to taps"). Its rows are the
+   * thread's rather than the query's, so its numbers are not questions it can
+   * answer — but which kind of tap is, because that is the tap half of the
+   * `form` filter a threaded hole writes, and so are the vendor and the family
+   * the page narrows the swept pool on (Paul, 2026-09-11).
    */
   it('asks what the list it is drawn for says it asks', () => {
     const onTerm = vi.fn()
@@ -363,8 +364,8 @@ describe('the filters a heading asks', () => {
       'Filtered by Type',
     )
     expect(screen.getByRole('button', { name: 'Filter by Catalog number' })).toBeVisible()
-    // A vendor and a number are the thread's, so no funnel offers to change them.
-    expect(screen.queryByRole('button', { name: 'Filter by Vendor' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter by Vendor' })).toBeVisible()
+    // A number is the thread's, so no funnel offers to change it.
     expect(screen.queryByRole('button', { name: 'Filter by Diameter' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Filter by Type' }))

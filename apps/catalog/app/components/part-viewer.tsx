@@ -451,7 +451,16 @@ export const PartViewer = ({
         ref={bottom}
         /* Close to the table under it (Paul, 2026-09-11: "reduce the vertical
            spacing between the buttons and the table"). */
-        className="pointer-events-none absolute inset-x-3 bottom-1 z-30 flex flex-col gap-2"
+        /*
+          **Full width, so the page can line its chrome up with the table**
+          (Paul, 2026-09-11: "move the tools, holders, collets, etc buttons
+          left so they are in line with the left edge of the table"). An inset
+          here was a margin the page could not see or undo, and the list's
+          chrome came out 12px in from an edge it is meant to share with the
+          list below. The slot is the viewer's whole width; what stands in it
+          decides its own.
+        */
+        className="pointer-events-none absolute inset-x-0 bottom-1 z-30 flex flex-col gap-2"
       >
         {bottomChrome}
       </div>

@@ -2629,10 +2629,10 @@ test.describe('the tool assembly tree', () => {
     await expect(tree.getByRole('button', { name: /^TOOL for / })).not.toContainText('—')
     await expect(list).toBeHidden()
 
-    // The button under the stack is where it becomes a feature, and it says
-    // that is what it will do.
+    // The button under the stack is where it becomes a feature. It says so by
+    // its name alone — the note under it came out on 2026-09-11.
     const add = tree.getByRole('button', { name: 'Add to order list' })
-    await expect(tree.getByText(/Adds the feature to the list as well/)).toBeVisible()
+    await expect(tree.getByText(/to the list as well/)).toHaveCount(0)
     await add.click()
 
     /*

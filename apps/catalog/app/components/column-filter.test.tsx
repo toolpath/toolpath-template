@@ -284,6 +284,28 @@ describe('the column picker', () => {
     expect(list).toHaveClass('overflow-y-auto')
     expect(list.style.maxHeight).not.toBe('')
   })
+
+  /**
+   * The pencil stands in the bar floating at the bottom of the viewer, which is
+   * inside a panel that clips: a list positioned inside that box opened
+   * downwards into the table and was cut off at the panel's edge (Paul,
+   * 2026-09-11). It is drawn on the page instead.
+   */
+  it('draws the list on the page rather than inside the clipping panel', () => {
+    const { container } = render(
+      <ColumnPicker
+        columns={[{ code: 'DC', label: 'Diameter' }]}
+        shown={['DC']}
+        onToggle={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Which columns to show' }))
+
+    const list = screen.getByRole('group', { name: 'Columns' })
+    expect(container.contains(list)).toBe(false)
+    expect(list).toHaveClass('fixed')
+  })
 })
 
 /**

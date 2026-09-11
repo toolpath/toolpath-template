@@ -1081,6 +1081,14 @@ export const TextFilter = ({
  * columns move with it (Paul, 2026-08-31). The handle is left of the tick
  * because the tick is the row's own control and dragging must not toggle it;
  * arrow keys on a focused handle do the same thing without a pointer.
+ *
+ * **The list is a portal, like every other menu here** (Paul, 2026-09-11: "the
+ * edit filters pencil icon is going behind the table, it needs to go in front
+ * to be usable"). The pencil moved into the bar floating at the bottom of the
+ * viewer, and that bar is inside a panel that clips — so a box positioned
+ * inside it opened downwards into the table and was cut off at the panel's own
+ * edge. Placed against the pencil and drawn on the page instead, the same way
+ * `FilterMenu` escapes the table's scroll box.
  */
 export const ColumnPicker = ({
   columns,
@@ -1098,8 +1106,9 @@ export const ColumnPicker = ({
   const [open, setOpen] = useState(false)
   const [held, setHeld] = useState<string | null>(null)
   const box = useRef<HTMLDivElement>(null)
+  const menu = useRef<HTMLDivElement>(null)
   const pencil = useRef<HTMLButtonElement>(null)
-  const [room, setRoom] = useState({ upwards: false, height: MENU_LEAST })
+  const [spot, setSpot] = useState<Placed>({ top: 0, bottom: null, left: 0, height: MENU_LEAST })
   const order = columns.map((column) => column.code)
 
   const move = (code: string, index: number) => {
@@ -1114,7 +1123,11 @@ export const ColumnPicker = ({
       return
     }
     const onDown = (event: PointerEvent) => {
-      if (!box.current?.contains(event.target as Node)) {
+      const target = event.target as Node
+      // The list is drawn in a portal now, so it is outside this box in the
+      // document as well as on the screen: a press in it is still a press
+      // inside the picker, and closing on it would undo the tick that made it.
+      if (box.current?.contains(target) !== true && menu.current?.contains(target) !== true) {
         setOpen(false)
       }
     }
@@ -1136,14 +1149,35 @@ export const ColumnPicker = ({
     }
     const measure = () => {
       const button = pencil.current?.getBoundingClientRect()
-      if (button !== undefined) {
-        setRoom(menuRoom(button, window.innerHeight))
+      if (button === undefined) {
+        return
       }
+      /*
+        `menuRoom` is the rule for which way it opens, and where it says upwards
+        the list is anchored by its bottom rather than placed at a height it has
+        not been measured at yet — the same flip `FilterMenu` makes.
+      */
+      const room = menuRoom(button, window.innerHeight)
+      const width = menu.current?.getBoundingClientRect().width ?? 0
+      setSpot({
+        top: room.upwards ? null : button.bottom + 4,
+        bottom: room.upwards ? window.innerHeight - button.top + 4 : null,
+        // Its right edge under the pencil's, and never off the left of the screen.
+        left: Math.max(
+          MENU_EDGE,
+          Math.min(button.right - width, window.innerWidth - width - MENU_EDGE),
+        ),
+        height: room.height,
+      })
     }
     // A scroll inside the list is the list's own business, exactly as it is
     // inside a filter menu.
     const onScroll = (event: Event) => {
-      if (event.target instanceof Node && box.current?.contains(event.target) === true) {
+      if (
+        event.target instanceof Node &&
+        (box.current?.contains(event.target) === true ||
+          menu.current?.contains(event.target) === true)
+      ) {
         return
       }
       measure()
@@ -1178,73 +1212,78 @@ export const ColumnPicker = ({
       >
         <PencilSimpleIcon />
       </IconButton>
-      {open ? (
-        <div
-          role="group"
-          aria-label="Columns"
-          style={{ maxHeight: room.height }}
-          className={cn(
-            'absolute right-0 z-30 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950 py-1 shadow-xl',
-            room.upwards ? 'bottom-full mb-1' : 'top-full mt-1',
-          )}
-        >
-          {columns.map((column, at) => (
+      {open
+        ? createPortal(
             <div
-              key={column.code}
-              // The row is the drop target; the handle is what starts the
-              // drag, so a press on the tick still only ticks.
-              onDragOver={(event) => {
-                if (held !== null) {
-                  event.preventDefault()
-                }
+              ref={menu}
+              role="group"
+              aria-label="Columns"
+              style={{
+                ...(spot.top === null ? { bottom: spot.bottom ?? 0 } : { top: spot.top }),
+                left: spot.left,
+                maxHeight: spot.height,
               }}
-              onDrop={(event) => {
-                event.preventDefault()
-                if (held !== null) {
-                  move(held, at)
-                  setHeld(null)
-                }
-              }}
-              className={cn(
-                'text-2xs flex items-center gap-1.5 px-2 py-1 whitespace-nowrap hover:bg-zinc-900',
-                held === column.code && 'opacity-50',
-              )}
+              className="fixed z-50 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950 py-1 shadow-xl"
             >
-              {onReorder === undefined ? null : (
-                <IconButton
-                  size="md"
-                  variant="muted"
-                  draggable
-                  aria-label={`Move ${column.label.toLowerCase()}`}
-                  title="Drag to reorder, or use the arrow keys"
-                  onDragStart={() => setHeld(column.code)}
-                  onDragEnd={() => setHeld(null)}
-                  onKeyDown={(event) => {
-                    const by = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0
-                    if (by !== 0) {
+              {columns.map((column, at) => (
+                <div
+                  key={column.code}
+                  // The row is the drop target; the handle is what starts the
+                  // drag, so a press on the tick still only ticks.
+                  onDragOver={(event) => {
+                    if (held !== null) {
                       event.preventDefault()
-                      onReorder(movedBy(order, column.code, by))
                     }
                   }}
-                  className="focus-visible:ring-info/60 shrink-0 cursor-grab rounded text-zinc-600 transition hover:text-zinc-300 focus-visible:ring-1 focus-visible:outline-none active:cursor-grabbing"
+                  onDrop={(event) => {
+                    event.preventDefault()
+                    if (held !== null) {
+                      move(held, at)
+                      setHeld(null)
+                    }
+                  }}
+                  className={cn(
+                    'text-2xs flex items-center gap-1.5 px-2 py-1 whitespace-nowrap hover:bg-zinc-900',
+                    held === column.code && 'opacity-50',
+                  )}
                 >
-                  <DotsSixVerticalIcon aria-hidden="true" />
-                </IconButton>
-              )}
-              <div className="flex flex-1 cursor-pointer items-center gap-2">
-                <Checkbox
-                  name={`column-${column.code}`}
-                  checked={shown.includes(column.code)}
-                  onChange={() => onToggle(column.code)}
-                  size="sm"
-                  aria-label={column.label}
-                />
-                <span className="text-zinc-200">{column.label}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : null}
+                  {onReorder === undefined ? null : (
+                    <IconButton
+                      size="md"
+                      variant="muted"
+                      draggable
+                      aria-label={`Move ${column.label.toLowerCase()}`}
+                      title="Drag to reorder, or use the arrow keys"
+                      onDragStart={() => setHeld(column.code)}
+                      onDragEnd={() => setHeld(null)}
+                      onKeyDown={(event) => {
+                        const by = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0
+                        if (by !== 0) {
+                          event.preventDefault()
+                          onReorder(movedBy(order, column.code, by))
+                        }
+                      }}
+                      className="focus-visible:ring-info/60 shrink-0 cursor-grab rounded text-zinc-600 transition hover:text-zinc-300 focus-visible:ring-1 focus-visible:outline-none active:cursor-grabbing"
+                    >
+                      <DotsSixVerticalIcon aria-hidden="true" />
+                    </IconButton>
+                  )}
+                  <div className="flex flex-1 cursor-pointer items-center gap-2">
+                    <Checkbox
+                      name={`column-${column.code}`}
+                      checked={shown.includes(column.code)}
+                      onChange={() => onToggle(column.code)}
+                      size="sm"
+                      aria-label={column.label}
+                    />
+                    <span className="text-zinc-200">{column.label}</span>
+                  </div>
+                </div>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }

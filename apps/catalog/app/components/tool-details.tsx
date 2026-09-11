@@ -3,7 +3,7 @@ import { ArrowSquareOutIcon } from '@phosphor-icons/react'
 import { Badge, Button, Combobox, Toggle, cn } from '@toolpath/ui'
 import {
   NO_MARGINS,
-  clearance,
+  stickoutLimits,
   type CatalogTool,
   type Collet,
   type Holder,
@@ -15,7 +15,7 @@ import { formatGeometry } from 'shared/geometry'
 import { getFamily } from 'shared/catalog'
 import { drawnAssembly } from 'shared/drawn-assembly'
 import { roomAt } from 'shared/assembly-gaps'
-import { askFor, boxesFor, type ClearanceEdit } from 'shared/clearance-entry'
+import { askFor, boxesFor, lengthFor, type ClearanceEdit } from 'shared/clearance-entry'
 import { thresholdsFrom } from 'shared/holder-choice'
 import { ToolTypeIcon, formLabel } from './tool-icons'
 import { MeasurementIcon } from './feature-icons'
@@ -237,18 +237,52 @@ export const ToolDetails = ({
   const edit = stated.key === stackKey ? stated.edit : null
 
   /**
-   * The least this stack can stand out of the holder and still leave the room
-   * asked for — `clearance()`'s own answer, behind the name the rule wants.
+   * The least this stack can stand out and still leave the room asked for.
+   *
+   * **Solved on the holder that is drawn, not the one the vendor tabulated.**
+   * `clearance().requiredStickout` was the obvious answer and is the wrong one:
+   * it sweeps the parametric nose, body and flange, and most holders publish
+   * none of those — `RequiredAt` in `shared/clearance-entry.ts` has the reading
+   * off `BT30-ER11-110DT` that settled it. `lengthFor` halves its way down the
+   * same measurement the other two boxes are read from, so the three of them
+   * describe one stack rather than two.
+   *
+   * Memoised on what it depends on, because a solve is forty sweeps and an
+   * entry that stands must not re-run them on every keystroke elsewhere.
    */
-  const requiredAt = (limits: Margins): number | null =>
-    holderChosen === undefined || curve === null
+  /*
+    The ends to search between. `StickoutRange.max` is null where the tool
+    states no overall length — an unbounded range rather than a bound of
+    nothing — and a search needs a far end, so the tool's own length stands in
+    and the ends collapse onto the floor where there is not even that.
+  */
+  const bracket = useMemo(() => {
+    const range = stickoutLimits(tool, stack?.collet ?? null)
+    return range === null
       ? null
-      : clearance(
-          { tool, holder: holderChosen, collet: stack?.collet ?? null, stickout: 0 },
-          curve,
-          limits,
-        ).requiredStickout
-  const ask = askFor(edit, margins, requiredAt)
+      : { min: range.min, max: range.max ?? tool.geometry.OAL ?? range.min }
+  }, [tool, stack?.collet])
+  const requiredAt = useMemo(
+    () =>
+      (field: 'axial' | 'radial', wanted: number): number | null => {
+        if (holderChosen === undefined || curve === null || bracket === null) {
+          return null
+        }
+        return lengthFor(
+          wanted,
+          bracket,
+          (stickout) => roomAt({ tool, holder: holderChosen }, stickout, curve, margins)[field],
+        )
+      },
+    [tool, holderChosen, curve, margins, bracket],
+  )
+  /*
+    The ask is memoised, not just the search behind it: `askFor` calls the
+    search, the search is forty sweeps of the outline, and this panel re-renders
+    on anything the page does. Without this, every keystroke in a filter on the
+    other side of the screen would re-solve a length nobody had touched.
+  */
+  const ask = useMemo(() => askFor(edit, margins, requiredAt), [edit, margins, requiredAt])
 
   const drawn = drawnAssembly(
     tool,

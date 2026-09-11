@@ -200,6 +200,7 @@ import {
   askOfToolColumn,
   narrowingNames,
   sayBound,
+  type ColumnAsk,
 } from 'shared/column-filters'
 import {
   DERIVED_AXES,
@@ -2655,21 +2656,14 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   )
 
   /**
-   * The taps narrow on their catalog number and which kind of tap they are.
+   * What narrows a tap list, which is not what narrows the tool list.
    *
-   * **Everything else about them is the thread's** (Paul, 2026-09-09: "when I
-   * am in the TAPs row or table, it should be filtering to taps"). They are
-   * swept out of the whole catalog by the thread — the tool filters never reach
-   * `makersFor` — so a funnel on the tap list's Vendor or Flute length heading
-   * would be a control that changes nothing, and the list carried none at all
-   * while the chrome over it counted three filters. `askOfTapColumn` is the
-   * pair it does answer.
-   *
-   * Offered only while the `form` axis is saying something, which on a threaded
-   * hole is always: choosing a thread writes `THREADED_FORMS`. With the filters
-   * cleared the list is genuinely unconstrained, the column has no answer to
-   * show, and a tick would then be the only form in the filter — which is the
-   * one shape that would empty the drills.
+   * The taps are swept out of the whole catalog by the thread — the tool query
+   * never reaches `makersFor` — so every narrowing on them is one this route
+   * applies itself over that pool: the catalog number, which kind of tap, and
+   * **the vendor and the family** (Paul, 2026-09-11). The rest of the columns
+   * are the thread's own numbers, stated rather than asked.
+   * `shared/column-filters.ts` § `askOfTapColumn` is the list.
    */
   /**
    * The two numbers the thread and the depth put on this list, as bounds.
@@ -2683,45 +2677,130 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     [threadSpec, threadReach],
   )
 
+  /**
+   * The vendor and the family this list is being narrowed on.
+   *
+   * The **same** `query.terms` every other list reads, rather than a second
+   * set of ticks for the taps: a shop that has asked for one vendor has asked
+   * for it, and a tap list quietly ignoring the question was the defect here
+   * (Paul, 2026-09-11). Read out as their own object because the pool, the
+   * counts and the rows are three readers of one answer.
+   */
+  const tapTerms = useMemo(
+    () => ({ brand: query.terms.brand ?? [], family: query.terms.family ?? [] }),
+    [query.terms.brand, query.terms.family],
+  )
+
+  /**
+   * Every tap the thread turned up, of the kinds the filter is asking for.
+   *
+   * The pool the vendor and family columns are counted over and the rows are
+   * drawn from — measured before those two axes are applied, so that an axis
+   * never narrows itself and the counts beside the other vendors still say
+   * what each would bring back.
+   */
+  const tapPool = useMemo(() => {
+    const forms = query.terms.form ?? []
+    return forms.length === 0
+      ? makers.made
+      : makers.made.filter((each) => forms.includes(each.form))
+  }, [makers.made, query.terms.form])
+
+  /**
+   * What the vendor and the family columns count, each against the other.
+   *
+   * `shared/filter.ts` § `countsByAxis` is the rule the tool list's own facets
+   * follow: an axis is counted over the pool narrowed by every term but its
+   * own, so choosing one vendor does not take the rest off the list.
+   */
+  const tapFacets = useMemo(
+    () => countsByAxis(tapPool, { ...EMPTY_QUERY, terms: tapTerms }, ['brand', 'family']),
+    [tapPool, tapTerms],
+  )
+
+  /**
+   * What the catalog has that this thread's taps do not — behind the `…` row,
+   * greyed at nought.
+   *
+   * **A vendor with no tap for this thread reads zero rather than vanishing**
+   * (Paul, 2026-09-11: "if vendors don't have taps, it should simply show
+   * zero"). {@link hiddenOn} is the same answer for the tool list; this is its
+   * tap half, measured against the swept pool rather than against the matcher.
+   */
+  const tapHidden = useCallback(
+    (axis: string): ReadonlyArray<{ value: string; label: string }> => {
+      const offered = tapFacets.get(axis)
+      return [...(everyValue.get(axis) ?? new Map<string, number>()).keys()]
+        .filter((value) => !(offered?.has(value) ?? false))
+        .map((value) => ({ value, label: axis === 'family' ? familyName(value) : value }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true }))
+    },
+    [tapFacets, everyValue],
+  )
+
+  /**
+   * The Type column asks nothing while the `form` axis is silent.
+   *
+   * With the filters cleared the list is genuinely unconstrained, the column
+   * has no answer to show, and a tick would then be the only form in the
+   * filter — which is the one shape that would empty the drills on the stack
+   * beside it. The vendor and the family have no such coupling: they narrow
+   * this pool and the drill list the same way, whatever the forms say.
+   */
+  const askOfTapHeading = useCallback(
+    (code: string): ColumnAsk | null =>
+      code === 'type' && (query.terms.form ?? []).length === 0 ? null : askOfTapColumn(code),
+    [query.terms.form],
+  )
+
   const tapFiltering = useMemo(
     () => ({
       search: { value: numberSearch, onChange: setNumberSearch },
-      ask: askOfTapColumn,
-      ...((query.terms.form ?? []).length === 0
-        ? {}
-        : {
-            catalog: {
-              query: {
-                ...EMPTY_QUERY,
-                terms: { type: shownTapTypes },
-                ranges: tapRanges,
-              },
-              onTerm: applyTapTerm,
-              options: () => tapTypes,
-              /*
+      ask: askOfTapHeading,
+      catalog: {
+        query: {
+          ...EMPTY_QUERY,
+          terms: { ...tapTerms, type: shownTapTypes },
+          ranges: tapRanges,
+        },
+        onTerm: applyTapTerm,
+        options: (axis: string) =>
+          axis === 'type'
+            ? tapTypes
+            : [...(tapFacets.get(axis) ?? new Map<string, number>())]
+                .map(([value, count]) => ({
+                  value,
+                  label: axis === 'family' ? familyName(value) : value,
+                  count,
+                }))
+                .sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true })),
+        hidden: (axis: string) => (axis === 'type' ? [] : tapHidden(axis)),
+        /*
                 Stated, not asked: `onRange` is absent, so the two headings say
                 the number and where it came from instead of offering boxes.
                 The list is swept on them — and a short list's near misses are
                 the very rows that break them, which a filter would hide along
                 with the reason it was showing them.
               */
-              stated: (code: string) =>
-                threadSpec === null
-                  ? undefined
-                  : code === 'DC'
-                    ? `Every tap the ${threadSpec.name} thread takes. The list is swept on it rather than filtered, so there is nothing to change here.`
-                    : code === 'LCF' && threadReach !== null
-                      ? `The thread has to cover the ${formatLength(threadReach.depth, unit)} depth of what is selected. A tap that falls short is on the list only when nothing reaches, and its length is painted red.`
-                      : undefined,
-            },
-          }),
+        stated: (code: string) =>
+          threadSpec === null
+            ? undefined
+            : code === 'DC'
+              ? `Every tap the ${threadSpec.name} thread takes. The list is swept on it rather than filtered, so there is nothing to change here.`
+              : code === 'LCF' && threadReach !== null
+                ? `The thread has to cover the ${formatLength(threadReach.depth, unit)} depth of what is selected. A tap that falls short is on the list only when nothing reaches, and its length is painted red.`
+                : undefined,
+      },
     }),
     [
       numberSearch,
-      query.terms.form,
+      askOfTapHeading,
+      tapTerms,
       shownTapTypes,
       applyTapTerm,
       tapTypes,
+      tapFacets,
+      tapHidden,
       tapRanges,
       threadSpec,
       threadReach,
@@ -2743,13 +2822,25 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    */
   const clearTapFilters = useCallback(() => {
     setNumberSearch('')
-    applyTerm(
-      'form',
-      formsAskingTaps(query.terms.form ?? [], [
-        ...new Set(tapTypes.flatMap((each) => formOfTypeLabel(each.value) ?? [])),
-      ]),
-    )
-  }, [applyTerm, query.terms.form, tapTypes])
+    /*
+      **The vendor and the family go with it** (Paul, 2026-09-11). They are
+      narrowing this list now, so a press that says it clears the filters and
+      leaves one vendor ticked is the same disagreement between the button and
+      the funnels that the count above was fixed for. Cleared on the shared
+      query, because that is where the ticks are.
+    */
+    apply({
+      ...query,
+      terms: {
+        ...query.terms,
+        brand: [],
+        family: [],
+        form: formsAskingTaps(query.terms.form ?? [], [
+          ...new Set(tapTypes.flatMap((each) => formOfTypeLabel(each.value) ?? [])),
+        ]),
+      },
+    })
+  }, [apply, query, tapTypes])
 
   /**
    * What the rules said about each tool, column by column — a tick on what
@@ -2942,18 +3033,18 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const tapRows = useMemo(() => {
     const wanted = numberSearch.trim().toLowerCase()
     /*
-      **And by which kind of tap the filter is asking for** (Paul, 2026-09-09).
-      The whole `form` axis rather than its tap half: a filter naming forms and
-      no tap among them is a question this list has no answer to, where an empty
-      axis is nobody asking. `hole-mode.ts` § `formsAskingTaps` is what writes it.
+      **By which kind of tap the filter is asking for** (Paul, 2026-09-09) —
+      {@link tapPool} is that half, the whole `form` axis rather than its tap
+      half — **and by the vendor and the family** (Paul, 2026-09-11), which are
+      the two term axes this list can answer over a pool the tool query never
+      reaches. `filterTools` so that the rows are narrowed by the same rule the
+      counts in their headings were measured with.
     */
-    const forms = query.terms.form ?? []
-    const asked =
-      forms.length === 0 ? makers.made : makers.made.filter((each) => forms.includes(each.form))
+    const asked = filterTools(tapPool, { ...EMPTY_QUERY, terms: tapTerms })
     return wanted === ''
       ? asked
       : asked.filter((each) => `${each.catalogNumber} ${each.brand}`.toLowerCase().includes(wanted))
-  }, [makers.made, numberSearch, query.terms.form])
+  }, [tapPool, tapTerms, numberSearch])
 
   /**
    * What is wrong with a tap, in the column it is about — the red the tap
@@ -5528,7 +5619,16 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         follow: the controls take a click and the strip between them does not,
         so a drag that starts on the sky still turns the part.
       */
-      className="pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 gap-y-1 rounded-lg bg-zinc-950/75 px-2 py-1 text-sm"
+      /*
+        **Flush with the table under it** (Paul, 2026-09-11: "move the tools,
+        holders, collets, etc buttons left so they are in line with the left
+        edge of the table"). The buttons and the list are one control and one
+        answer, and the bar standing 20px in from the table's edge — the
+        viewer's inset plus this padding — read as a second, narrower thing
+        floating above it. No horizontal padding here and none in the viewer's
+        slot, so the first press starts where the first column does.
+      */
+      className="pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 gap-y-1 rounded-lg bg-zinc-950/75 px-0 py-1 text-sm"
     >
       {/*
         **One row, always** (Paul, 2026-09-11: "all information we show there
@@ -5619,10 +5719,20 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           of the buttons"). Ellipsising every note to keep one line turned the
           heading into "Cuts the bl…" and each note into three words and a dot,
           which is a bar that says nothing. So the text takes a box of its own
-          beside the buttons and wraps inside it, two lines of `text-2xs` being
-          about the height of the presses it stands beside.
+          beside the buttons and wraps inside it.
+
+          **And nothing here is clipped** (Paul, 2026-09-11: "this text can't
+          cut off"). It was capped at the height of the presses and cut what
+          did not fit — but the cut-tap and form-tap buttons stand on the first
+          line of this very box, so the second line of a two-line note started
+          below the cap and was sliced in half: `matched on ⌀0.089 in — the cut
+          tap's predrill for #4-40 UNC` read as a row of half-letters. The box
+          asks for the height of the presses (`min-h-8`) and takes another line
+          where the words need one; the bar is measured, so the column of
+          questions above it moves up by that line rather than the words
+          disappearing under it.
         */}
-        <div className="flex max-h-8 min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 overflow-hidden leading-tight">
+        <div className="flex min-h-8 min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 leading-tight">
           {/*
           The heading of whichever list is on screen. A threaded
           hole used to put two tabs here — taps, then drills —
@@ -5907,7 +6017,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                 ? narrowingNames(
                     {
                       text: numberSearch,
-                      terms: { type: shownTapTypes },
+                      terms: { ...tapTerms, type: shownTapTypes },
                       /*
                         **The bounds the part set count too**
                         (Paul, 2026-09-09: "button should show to

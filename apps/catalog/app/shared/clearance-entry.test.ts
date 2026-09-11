@@ -1,19 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import type { Margins } from '@toolpath/catalog-data'
-import { askFor, boxesFor, shownIn, type RequiredAt } from './clearance-entry'
+import { askFor, boxesFor, lengthFor, shownIn, type RequiredAt } from './clearance-entry'
 
 /** The sheet's own figures, 0.020 in both ways, which is what the page opens on. */
 const SHEET: Margins = { axial: 0.508, radial: 0.508 }
 
 /**
- * A stand-in for `clearance().requiredStickout`: the holder has to stand one
- * millimetre off the tip to touch nothing, plus whatever room is asked for.
+ * A stand-in for the solve: the holder stands one millimetre off the tip to
+ * touch nothing, plus whatever room is asked for.
  *
- * Linear in both axes, which the real sweep is not, and that is the point —
- * this module decides *what* to ask and what the answer means, and a fake that
- * can be read at a glance is what keeps those two questions apart.
+ * Linear, which the real search is not, and that is the point — this module
+ * decides *what* to ask and what the answer means, and a fake that can be read
+ * at a glance is what keeps those two questions apart. `lengthFor` has its own
+ * tests below for the search itself.
  */
-const required: RequiredAt = (margins) => 1 + margins.axial + margins.radial
+const required: RequiredAt = (_field, wanted) => 1 + wanted
 
 describe('askFor', () => {
   it('asks the stack for nothing while all three boxes are the app’s', () => {
@@ -50,6 +51,16 @@ describe('askFor', () => {
     expect(ask.stickout).toBe(3)
   })
 
+  /** The axis is named, so the search knows which gap it is closing on. */
+  it('asks the search about the axis that was stated', () => {
+    const asked: Array<string> = []
+    askFor({ field: 'radial', value: 2 }, SHEET, (field) => {
+      asked.push(field)
+      return 1
+    })
+    expect(asked).toEqual(['radial'])
+  })
+
   /**
    * The drawing is told both limits, not the one being solved for: the overlay
    * draws a margin line and writes a verdict, and drawing them against a nought
@@ -62,8 +73,58 @@ describe('askFor', () => {
     })
   })
 
-  it('leaves the length to the stack where the holder states no nose', () => {
+  it('leaves the length to the stack where nothing can be measured', () => {
     expect(askFor({ field: 'axial', value: 2 }, SHEET, () => null).stickout).toBeNull()
+  })
+})
+
+/**
+ * The search that replaced `clearance().requiredStickout` on 2026-09-11.
+ *
+ * The room a stack leaves rises with the length it is set out at, so the whole
+ * of it is a bisection — and the two ends are answers rather than failures,
+ * which is what tells a stack that cannot be set there from one that has not
+ * been. The reading that forced the change is in `RequiredAt`'s own note.
+ */
+describe('lengthFor', () => {
+  const BRACKET = { min: 10, max: 60 }
+  /**
+   * Room rises one for one with the length, then flattens where the shank
+   * binds — which is the shape the real stack has: `BT30-ER11-110DT` measured
+   * −1.540 in at half an inch out, 0.054 in at 2.094 in, and 0.315 in at every
+   * length past 2.362 in.
+   */
+  const room = (stickout: number) => Math.min(stickout - 8, 8)
+
+  it('finds the shortest length that leaves the room asked for', () => {
+    expect(lengthFor(4, BRACKET, room)).toBeCloseTo(12, 3)
+  })
+
+  /**
+   * The shortest the tool goes already leaves more than was asked, so no length
+   * leaves exactly that: the flutes have to clear the collet, and every length
+   * above that floor gives more room rather than less.
+   */
+  it('gives the floor where the shortest setting already leaves more', () => {
+    expect(lengthFor(1, BRACKET, room)).toBe(10)
+  })
+
+  /** Past the point where the shank binds, standing out further stops helping. */
+  it('gives the ceiling where no length leaves that much', () => {
+    expect(lengthFor(20, BRACKET, room)).toBe(60)
+  })
+
+  it('answers nothing where there is nothing to measure', () => {
+    expect(lengthFor(4, BRACKET, () => null)).toBeNull()
+  })
+
+  /**
+   * Close enough that `boxesFor` reads the entry as met — the reason `MET` is
+   * two orders over what the search leaves behind.
+   */
+  it('lands near enough that the entry reads as met', () => {
+    const found = lengthFor(4, BRACKET, room)
+    expect(Math.abs(room(found ?? 0) - 4)).toBeLessThan(0.005)
   })
 })
 

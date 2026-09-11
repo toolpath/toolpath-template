@@ -241,6 +241,14 @@ export const ClearanceEntry = ({ boxes, unit, edit, onEdit }: ClearanceEntryProp
    */
   const [open, setOpen] = useState(false)
 
+  const marks = {
+    below: markForBelow(boxes, edit, say),
+    axial: markFor(boxes.axial, say),
+    radial: markFor(boxes.radial, say),
+  }
+  /** The first of the three with something wrong, which is what gets the line. */
+  const amiss = FIELDS.map((field) => marks[field]).find((mark) => mark.amiss)
+
   return (
     <div className="shrink-0 rounded-lg border border-zinc-800 bg-zinc-950 p-2">
       <Button
@@ -284,10 +292,24 @@ export const ClearanceEntry = ({ boxes, unit, edit, onEdit }: ClearanceEntryProp
         id="clearance-boxes"
         className={cn('mt-1.5 grid grid-cols-3 gap-2', open ? '' : 'hidden')}
       >
-        {box('below', shownIn(boxes.below), markForBelow(boxes, edit, say))}
-        {box('axial', shownIn(boxes.axial), markFor(boxes.axial, say))}
-        {box('radial', shownIn(boxes.radial), markFor(boxes.radial, say))}
+        {box('below', shownIn(boxes.below), marks.below)}
+        {box('axial', shownIn(boxes.axial), marks.axial)}
+        {box('radial', shownIn(boxes.radial), marks.radial)}
       </div>
+      {/*
+        **A warning gets words, and only a warning does** (Paul, 2026-09-11: "I
+        don't think it's reading out the messaging").
+
+        The captions under every box came out because three sentences in a third
+        of a panel each is noise on a row that is usually just telling you three
+        numbers. A stack that cannot be set where it was asked is the other case
+        — the one moment the row has something to say an icon cannot — and
+        putting it in a `title` meant it was said only to whoever thought to
+        hover. One line under the row, for the first thing that is amiss.
+      */}
+      {open && amiss !== undefined ? (
+        <p className="text-2xs mt-1.5 leading-tight text-amber-400">{amiss.said}</p>
+      ) : null}
       {/*
         The way back to the app's own answer. Emptying the box that was typed
         into does the same thing, and this is for the shop that has typed in two
