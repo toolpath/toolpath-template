@@ -1,8 +1,25 @@
-import type { CatalogTool, Collet, Holder, HolderFilters, Margins } from '@toolpath/catalog-data'
+import {
+  TOOL_FORMS,
+  type CatalogTool,
+  type Collet,
+  type Holder,
+  type HolderFilters,
+  type Margins,
+} from '@toolpath/catalog-data'
 import type { PartFeature } from '@toolpath/part-contracts'
 import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { withClampingLength, type ClampingRule } from './clamping-length'
-import { filterTools, type ToolQuery } from './filter'
+import {
+  countBy,
+  facetsNarrowing,
+  filterTools,
+  FACET_AXES,
+  withinRanges,
+  withoutFacets,
+  withoutTerm,
+  type ToolQuery,
+} from './filter'
+import { narrowTools } from './assembly-narrowing'
 import { holdable, policyOf, type HoldThresholds } from './holder-choice'
 import { holdableTools, splitHolding } from './holding'
 import { closestMisses, closestPerForm, type Format, type Reason, type Verdict } from './judge'
@@ -16,6 +33,15 @@ import {
 } from './tool-fit'
 import { holeAt } from './hole-mode'
 import { RULES, type Knob } from './rules'
+
+/**
+ * Every form there is, which is what a Type nobody has ticked could ask for.
+ *
+ * The catalog's vocabulary rather than a walk of the tools: `TOOL_FORMS` is the
+ * list the Type column's phrases are built out of, so a form no tool carries
+ * costs a name in this array and nothing else.
+ */
+const EVERY_FORM: ReadonlyArray<string> = TOOL_FORMS.map((each) => each.value)
 
 /** The serializable inputs which can affect a catalog answer. */
 export interface MatchContext {
@@ -43,6 +69,19 @@ export interface MatchContext {
    * move it and must not evict its cache entry.
    */
   readonly overrides: ReadonlyArray<string>
+  /**
+   * The range bounds somebody set themselves, as against the ones this feature
+   * asked for — `ownBounds` in `shared/filter.ts`, computed where the
+   * suggestions are.
+   *
+   * It narrows one thing: which of the removed tools may stand in when nothing
+   * fits. A near miss is a tool a little outside the *geometry's* bounds, and
+   * never one outside a bound somebody typed (Paul, 2026-09-10). It is in the
+   * context rather than derived from `query` because only the page knows what
+   * the feature suggested, and it has to be in the key that owns the answer for
+   * the same reason `overrides` is.
+   */
+  readonly ownRanges: ToolQuery['ranges']
 }
 
 /** One question in a table request or a recommendation batch. */
@@ -53,6 +92,29 @@ export interface MatchDemand {
   readonly bores?: Readonly<Record<string, number>>
   /** The feature whose reach curve decides whether an assembly is usable. */
   readonly reachTag?: string | null
+  /**
+   * What the open stack already holds, by guid — the narrowing the table puts
+   * on its own rows after this answer lands.
+   *
+   * **A count has to be measured over the list it is beside** (Paul,
+   * 2026-09-10: a pocket offering six necked bull nose end mills over a table
+   * holding none). The tool table under an assembly is `narrowTools`
+   * (`shared/assembly-narrowing.ts`) applied to this answer's rows, so a collet
+   * in the stack takes every shank it cannot close on off the screen — and
+   * `facetCounts` knew nothing about it, counting the tools the *crib* could
+   * hold rather than the ones this stack can. An ER32 collet bored for ⌀0.375
+   * grips eleven of the catalog's 2,638 necked bull nose end mills, which is
+   * the whole of the gap between the number and the rows.
+   *
+   * Only the counts read it: the rows themselves are narrowed on the page,
+   * where the holder and the collet are chosen. It is on the demand rather than
+   * the context because it is one stack's answer, and the worker's pool cache
+   * deliberately leaves it out of its key — `poolFor` says why.
+   */
+  readonly stack?: {
+    readonly holderGuid?: string | null
+    readonly colletGuid?: string | null
+  }
 }
 
 export type MatchKind = 'table' | 'recommendations'
@@ -123,10 +185,11 @@ export interface DetailedResult {
    * offers, nearest first.
    *
    * Distinct from {@link nearMisses} in both directions. Those are the closest
-   * misses to the *rules*, drawn without the ranges so that a tool a little
-   * outside one can be offered when nothing fits; these are what the person's
-   * own ranges ask for, however far outside a rule they land. `tool-fit.ts`
-   * `overridableTools` is the rule and says why the two cannot be one list.
+   * misses to the *rules*, drawn without the geometry's own bounds so that a
+   * tool a little outside one can be offered when nothing fits; these are what
+   * the person's own ranges ask for, however far outside a rule they land.
+   * `tool-fit.ts` `overridableTools` is the rule and says why the two cannot be
+   * one list.
    *
    * Empty until {@link MatchContext.overrides} names a column: nothing is
    * forgiven that nobody asked to have forgiven.
@@ -152,6 +215,30 @@ export interface DetailedResult {
   readonly ruleTally: Readonly<Record<string, number>>
   readonly narrowedGuids: ReadonlyArray<string>
   readonly heldGuids: ReadonlyArray<string>
+  /**
+   * What each facet axis would hold if that axis alone were cleared, by value.
+   *
+   * **A count measured over the list is the axis counting itself** (Paul,
+   * 2026-09-10: picking Kennametal and then opening Vendor again shows every
+   * other vendor at nought, "but they have compatible tools"). With a feature
+   * on the screen the rows are what the matcher judged, and the matcher only
+   * judges what the terms already admit — so the moment a vendor is chosen, no
+   * other vendor's tools have been judged for that feature and there is
+   * nothing to count. The panel's own rule since 2026-09-01 is that a count is
+   * measured against every filter **but** the axis's own, and this is the only
+   * place both halves of that exist: the answer for the list, and the pool the
+   * other values would come from.
+   *
+   * `null` when no facet axis is narrowing, because then the rows already are
+   * the whole answer and counting them a second time is work for nothing — and
+   * `null` again when the widened pool holds nothing either, for the reason
+   * given where it is built.
+   *
+   * A plain record rather than a `Map` so it survives the worker boundary, and
+   * counts rather than tools so what crosses it is a few hundred numbers rather
+   * than the widened pool itself.
+   */
+  readonly facetCounts: Readonly<Record<string, Readonly<Record<string, number>>>> | null
 }
 
 export interface RecommendationResult {
@@ -267,10 +354,11 @@ export const matchKey = (
   stable({
     kind,
     // Recommendation verdicts contain only a GUID, so display units cannot affect
-    // either the answer or its cache entry.
+    // either the answer or its cache entry. Nor can the two things that only
+    // move the removed set: a one-each pick is never drawn from it.
     context: {
       ...(kind === 'recommendations'
-        ? { ...context, unit: 'millimeters', overrides: [] }
+        ? { ...context, unit: 'millimeters', overrides: [], ownRanges: {} }
         : { ...context, overrides: [...context.overrides].sort() }),
       features: featuresKey(context.features),
     },
@@ -391,9 +479,10 @@ export interface PreparedMatch {
    * before a single drill reached the table. Judging this set instead is 65 ms.
    *
    * The ranges are deliberately left out rather than folded in with the rest:
-   * `closeCandidates` drops them too, because "close" is exactly a tool a
-   * little outside a range, and a near miss judged away here could not be
-   * offered as one later.
+   * `closeCandidates` drops the geometry's own too, because "close" is exactly
+   * a tool a little outside one, and a near miss judged away here could not be
+   * offered as one later. A bound somebody typed is obeyed instead, where the
+   * misses are ranked — {@link nearestFew}.
    */
   readonly considered: ReadonlyArray<CatalogTool>
   /** Those of them the filters actually admit — what a row may show. */
@@ -437,6 +526,21 @@ const matchDemand = (
   demand: MatchDemand,
   catalog: MatcherCatalog,
   prepared: PreparedMatch,
+  /*
+    **A form the filter asks for is a form the question is about.** The type
+    table is the feature's default, and the `form` filter is the one place
+    that says which forms are being asked about — so a group added there
+    (`formsAsking`, `shared/tool-type.ts`) reaches the judging rather than being
+    removed by the type table under a filter that had just admitted it. It is
+    already in the context, so no cache key changes and no second state can
+    disagree with it.
+
+    A parameter rather than only that, because {@link facetPool} judges a
+    question nobody has asked yet — every form, so that the count beside a Type
+    nobody has ticked says what ticking it would bring. It is the pool's alone:
+    the answer on screen always passes the filter's own forms.
+  */
+  asked: ReadonlyArray<string> = context.query.terms.form ?? [],
 ): DemandMatch => {
   const fitting = fittingTools(
     effectiveFeatures(context, demand),
@@ -444,16 +548,7 @@ const matchDemand = (
     prepared.considered,
     matcherFormat(context.unit),
     context.knobs,
-    /*
-      **A form the filter asks for is a form the question is about.** The type
-      table is the feature's default, and the `form` filter is the one place
-      that says which forms are being asked about — so a group added there
-      (`formsAsking`, `shared/tool-type.ts`) reaches the judging rather than being
-      removed by the type table under a filter that had just admitted it. It is
-      already in the context, so no cache key changes and no second state can
-      disagree with it.
-    */
-    context.query.terms.form ?? [],
+    asked,
   )
   const narrowed = fitting.fitting.filter((verdict) =>
     prepared.admittedGuids.has(verdict.tool.guid),
@@ -530,22 +625,157 @@ const OVERRIDABLE = 2000
  *
  * One form, or none, is the whole removed set ranked once, which is what it
  * always was.
+ *
+ * **The bounds somebody typed narrow the set before it is ranked, not after**
+ * (Paul, 2026-09-10). Fifty nearest misses to a rule are fifty tools chosen
+ * without ever asking the flute count, so narrowing them on the far side of
+ * the boundary can only empty the list: the one three-flute tool that misses
+ * by a little was never among the fifty. The whole removed set is here, which
+ * is the only place the question can be asked without a cap over the answer.
  */
 const nearestFew = (
   excluded: ReadonlyArray<Verdict>,
   forms: ReadonlyArray<string>,
+  own: ToolQuery['ranges'],
 ): Array<Verdict> => {
-  const overall = closestMisses(excluded, NEAR_MISSES)
+  const asked =
+    Object.keys(own).length === 0
+      ? excluded
+      : excluded.filter((verdict) => withinRanges(verdict.tool, own))
+  const overall = closestMisses(asked, NEAR_MISSES)
   if (forms.length < 2) {
     return overall
   }
   const sent = new Set(overall.map((verdict) => verdict.tool.guid))
   return [
     ...overall,
-    ...closestPerForm(excluded, forms, NEAR_MISSES).filter(
-      (verdict) => !sent.has(verdict.tool.guid),
-    ),
+    ...closestPerForm(asked, forms, NEAR_MISSES).filter((verdict) => !sent.has(verdict.tool.guid)),
   ]
+}
+
+/**
+ * The tools a facet count is measured over: the same question with every facet
+ * axis cleared, judged and held.
+ *
+ * **Judged, not merely filtered.** A vendor's tools that were never put to the
+ * rules cannot be counted, and the rules are what the list is; taking the
+ * catalog's own count instead would offer a vendor 900 tools and then show
+ * three. So this is the whole pipeline again over the widened pool — measured
+ * on the scraped catalog at ~135 ms against ~50 ms for a narrowed one, in a
+ * worker, and only while a facet is actually narrowing.
+ *
+ * Everything that is not a facet is left standing: the geometry's forms, the
+ * ranges, the crib's taper and collet series. Widening those would count tools
+ * the question is not about.
+ */
+export const facetPool = (
+  context: MatchContext,
+  demand: MatchDemand,
+  catalog: MatcherCatalog,
+): ReadonlyArray<CatalogTool> => {
+  const widened = { ...context, query: withoutFacets(context.query) }
+  return matchDemand(
+    widened,
+    demand,
+    catalog,
+    prepareMatch(widened, catalog),
+    /*
+      **The type table stands down over the whole pool.** Clearing the `form`
+      term is only half of what a tick on Type does: the other half is standing
+      the feature's own table down for the form behind the phrase, and a
+      threaded hole's table is `tap right hand; drill`. Widened without this,
+      every end mill was let into the pool by the filter and removed again by
+      the table, and `Flat end mill` still read nought (Paul, 2026-09-10).
+
+      Every rule the feature has still runs — this is the type table alone, the
+      same stand-down `judge.ts` § `JudgeOptions.asked` describes, over the one
+      question nobody has asked yet.
+    */
+    EVERY_FORM,
+  ).held.map((verdict) => verdict.tool)
+}
+
+/**
+ * The pool as the table would actually draw it: narrowed by the open stack.
+ *
+ * `MatchDemand.stack` is the reason and states what it cost. The guids are
+ * resolved here rather than sent as records because the worker holds the crib
+ * already, and a holder is ~40 fields nobody needs a second copy of.
+ */
+const forStack = (
+  pool: ReadonlyArray<CatalogTool>,
+  demand: MatchDemand,
+  catalog: MatcherCatalog,
+): ReadonlyArray<CatalogTool> => {
+  const holderGuid = demand.stack?.holderGuid ?? null
+  const colletGuid = demand.stack?.colletGuid ?? null
+  if (holderGuid === null && colletGuid === null) {
+    return pool
+  }
+  const holder = catalog.holders.find((each) => each.guid === holderGuid) ?? null
+  const collet = catalog.collets.find((each) => each.guid === colletGuid) ?? null
+  // A guid naming nothing in this crib narrows nothing: the stack is stored on
+  // the sheet and the catalog under it can be rebuilt, and a count measured as
+  // though the slot were empty is the same answer the table's own narrowing
+  // gives for the same missing record.
+  return holder === null && collet === null
+    ? pool
+    : narrowTools(pool, { holder, collet }, catalog.collets)
+}
+
+/**
+ * What one axis is measured against: every filter but its own.
+ *
+ * **Type takes `form` with it.** They are one question asked in two
+ * vocabularies — the phrase in the column and the form behind it — and a tick
+ * writes both, so counting types against a standing `form` reports every type
+ * that filter is not already holding as nought. Every other axis keeps it: how
+ * many Kennametal tools a pocket would bring is a question asked with the
+ * pocket's own forms standing.
+ */
+const againstOthers = (query: ToolQuery, axis: string): ToolQuery =>
+  axis === 'type' ? withoutTerm(withoutTerm(query, 'type'), 'form') : withoutTerm(query, axis)
+
+/** One pool read per axis, each against every filter but that axis's own. */
+const countsOverPool = (
+  pool: ReadonlyArray<CatalogTool>,
+  query: ToolQuery,
+): Record<string, Record<string, number>> => {
+  const counts: Record<string, Record<string, number>> = {}
+  for (const axis of FACET_AXES) {
+    counts[axis] = Object.fromEntries(countBy(filterTools(pool, againstOthers(query, axis)), axis))
+  }
+  return counts
+}
+
+/**
+ * The counts for one demand, over a pool the caller already holds.
+ *
+ * Exported because the worker works them out **after** it has answered
+ * (`countLater`), and there must be one derivation of them rather than one for
+ * the answer and one for the follow-up.
+ */
+export const facetCountsFor = (
+  context: MatchContext,
+  demand: MatchDemand,
+  catalog: MatcherCatalog,
+  pool: ReadonlyArray<CatalogTool>,
+): DetailedResult['facetCounts'] => {
+  /**
+   * The pool the counts are taken over, which is the pool the table draws.
+   *
+   * Narrowed here rather than in {@link facetPool} so the pool itself stays the
+   * facet-free question and the worker can keep one across every holder and
+   * collet tried in the stack — the judging pass is what that cache exists to
+   * save, and the stack does not change it.
+   */
+  const counted = forStack(pool, demand, catalog)
+  /**
+   * Nothing held in the widened pool is nothing to say: the rows on screen
+   * are then the near misses standing in, and counting a value at nought
+   * against a list that is itself a stand-in would read as an answer.
+   */
+  return counted.length === 0 ? null : countsOverPool(counted, context.query)
 }
 
 /** Runs the existing detailed table pipeline with only cloneable request inputs. */
@@ -554,12 +784,34 @@ export const detailedMatch = (
   demand: MatchDemand,
   catalog: MatcherCatalog,
   prepared: PreparedMatch = prepareMatch(context, catalog),
+  /**
+   * The widened pool, where a caller already holds one.
+   *
+   * The worker keeps it across every tick of a facet, because it is the one
+   * thing on this page that does not change when one is ticked — the pool is
+   * the question with the facets *cleared*. Passing it in is what keeps a
+   * second vendor from costing a second judging pass.
+   *
+   * **`null` is "not now".** Judging the pool is the expensive half of this
+   * function and none of it is the answer — the rows are. The worker answers
+   * with `null` here and works the counts out afterwards, so a feature's table
+   * lands in the time it always did and the numbers beside the checkboxes
+   * follow: `countLater` in `client/catalog-matcher.worker.ts` is the rule, and
+   * `facetCountsFor` above is what it calls.
+   */
+  pool?: ReadonlyArray<CatalogTool> | null,
 ): DetailedResult => {
   const matched = matchDemand(context, demand, catalog, prepared)
+  const widened =
+    pool === null || !facetsNarrowing(context.query)
+      ? null
+      : (pool ?? facetPool(context, demand, catalog))
   return {
     demandKey: demand.demandKey,
     fitting: matched.fitting.map(compact),
-    nearMisses: nearestFew(matched.excluded, context.query.terms.form ?? []).map(compact),
+    nearMisses: nearestFew(matched.excluded, context.query.terms.form ?? [], context.ownRanges).map(
+      compact,
+    ),
     overridable: overridableTools(
       matched.excluded,
       prepared.admittedGuids,
@@ -577,6 +829,7 @@ export const detailedMatch = (
     ruleTally: ruleTally(matched.excluded),
     narrowedGuids: matched.narrowed.map((verdict) => verdict.tool.guid),
     heldGuids: matched.held.map((verdict) => verdict.tool.guid),
+    facetCounts: widened === null ? null : facetCountsFor(context, demand, catalog, widened),
   }
 }
 

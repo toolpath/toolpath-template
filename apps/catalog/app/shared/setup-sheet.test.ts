@@ -5,9 +5,11 @@ import {
   chosenFor,
   clearChoice,
   emptySheet,
+  lineId,
   quantityOf,
   readSheet,
   removeChoice,
+  removeTool,
   setQuantity,
   setTotal,
   totalOf,
@@ -34,6 +36,76 @@ describe('the setup sheet', () => {
     expect(choicesFor(sheet, 'pocket-1')).toEqual([
       { toolGuid: 't', holderGuid: 'h', stickout: 30 },
     ])
+  })
+
+  /**
+   * **A line is the stack that wrote it** (Paul, 2026-09-11: "when I have two
+   * (or more) tool assemblies on a feature or group, both need to be shown in
+   * the order list"). Keyed by its tool, one feature held one line per cutter,
+   * so the second stack given that cutter wrote over the first and took its
+   * holder with it.
+   */
+  it('keeps two stacks of one cutter as two lines', () => {
+    const sheet = addChoice(
+      addChoice(emptySheet('part-1'), 'pocket-1', {
+        toolGuid: 't',
+        holderGuid: 'a',
+        assemblyId: 'assembly-1',
+      }),
+      'pocket-1',
+      { toolGuid: 't', holderGuid: 'b', assemblyId: 'assembly-2' },
+    )
+
+    expect(choicesFor(sheet, 'pocket-1')).toEqual([
+      { toolGuid: 't', holderGuid: 'a', assemblyId: 'assembly-1' },
+      { toolGuid: 't', holderGuid: 'b', assemblyId: 'assembly-2' },
+    ])
+  })
+
+  it('replaces the line one stack already wrote, where that stack writes again', () => {
+    const sheet = addChoice(
+      addChoice(emptySheet('part-1'), 'pocket-1', {
+        toolGuid: 't',
+        holderGuid: 'a',
+        assemblyId: 'assembly-1',
+      }),
+      'pocket-1',
+      { toolGuid: 'u', holderGuid: 'b', assemblyId: 'assembly-1' },
+    )
+
+    expect(choicesFor(sheet, 'pocket-1')).toEqual([
+      { toolGuid: 'u', holderGuid: 'b', assemblyId: 'assembly-1' },
+    ])
+  })
+
+  /** A line nothing built out of a tree is its tool, exactly as it always was. */
+  it('names a line by its tool where no stack wrote it', () => {
+    expect(lineId({ toolGuid: 't' })).toBe('t')
+    expect(lineId({ toolGuid: 't', assemblyId: 'assembly-2' })).toBe('assembly-2')
+  })
+
+  it('takes one stack off and leaves the other standing', () => {
+    const sheet = addChoice(
+      addChoice(emptySheet('part-1'), 'pocket-1', { toolGuid: 't', assemblyId: 'assembly-1' }),
+      'pocket-1',
+      { toolGuid: 't', assemblyId: 'assembly-2' },
+    )
+
+    expect(removeChoice(sheet, 'pocket-1', 'assembly-1')).toEqual({
+      partId: 'part-1',
+      choices: { 'pocket-1': [{ toolGuid: 't', assemblyId: 'assembly-2' }] },
+    })
+  })
+
+  /** What the tool panel's *Remove* means: this tool, however many stacks hold it. */
+  it('takes a tool off every stack of the feature holding it', () => {
+    const sheet = addChoice(
+      addChoice(emptySheet('part-1'), 'pocket-1', { toolGuid: 't', assemblyId: 'assembly-1' }),
+      'pocket-1',
+      { toolGuid: 't', assemblyId: 'assembly-2' },
+    )
+
+    expect(choicesFor(removeTool(sheet, 'pocket-1', 't'), 'pocket-1')).toEqual([])
   })
 
   it('removes a cleared feature rather than leaving a null behind', () => {

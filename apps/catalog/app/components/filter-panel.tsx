@@ -18,7 +18,7 @@ import { toggleTerm, type ToolQuery } from 'shared/filter'
 import { AXES_IN_TOOL_COLUMNS, AXES_PARKED } from 'shared/column-filters'
 import { useEscape } from 'shared/use-escape'
 import { Chip, ChipGroup } from './chip'
-import { RangeFilter, type Bound, type Kind } from './column-filter'
+import { menuRoom, RangeFilter, type Bound, type Kind } from './column-filter'
 import { DrillDeviationFields } from './drill-deviation'
 import {
   ColletIcon,
@@ -27,6 +27,7 @@ import {
   ReducedShankIcon,
   ToolTypeIcon,
 } from './tool-icons'
+import { SECTION_LABEL } from 'shared/type'
 
 /**
  * What each ISO 513 letter means at the machine.
@@ -153,7 +154,7 @@ const monogram = (brand: string): string => {
 }
 
 const Monogram = ({ brand }: { brand: string }) => (
-  <span className="grid size-6 place-items-center rounded-sm bg-zinc-800 text-2xs font-bold text-current">
+  <span className="grid size-6 place-items-center rounded-sm bg-zinc-800 text-2xs font-semibold text-current">
     {monogram(brand)}
   </span>
 )
@@ -164,22 +165,6 @@ const Monogram = ({ brand }: { brand: string }) => (
  * it is held. The two ranges the rules fill in from the feature come last,
  * because they are usually already answered by the time anybody looks.
  */
-/**
- * The axes whose options are narrowed by the rest of the query.
- *
- * The term axes that are properties of a tool, which is what a facet count can
- * be measured over. The holding axes — a spindle taper, a collet series — are
- * properties of the crib and are counted elsewhere (Paul, 2026-09-01).
- */
-export const FACET_AXES: ReadonlyArray<string> = [
-  'brand',
-  // The two phrases this catalog builds rather than facets a vendor publishes:
-  // the type with its shank in it, and the family with its product line.
-  'type',
-  'family',
-  'materialGroups',
-  'NOF',
-]
 
 export const QUICK_FILTERS: ReadonlyArray<QuickFilter> = [
   {
@@ -402,7 +387,7 @@ const Field = ({
   children: ReactNode
 }) => (
   <section className={cn('min-w-0', span === 2 && 'col-span-full')}>
-    <h4 className="text-2xs mb-1 flex items-center gap-1.5 font-semibold tracking-wide text-zinc-500 uppercase">
+    <h4 className={cn(SECTION_LABEL, 'mb-1 flex items-center gap-1.5')}>
       <span className="text-zinc-600">{icon}</span>
       {label}
     </h4>
@@ -446,7 +431,21 @@ const ToolbarFilterBody = ({
   children: ReactNode
 }) => {
   const menu = useRef<HTMLDivElement>(null)
+  const press = useRef<HTMLDivElement>(null)
   const [menuOffset, setMenuOffset] = useState(0)
+  /**
+   * Which way it opens, and the most it may be.
+   *
+   * **These buttons stand at the bottom of the viewer now** (Paul, 2026-09-11),
+   * so a box opening downwards opens past the edge of a viewer that clips, and
+   * what is under the button is a strip. `menuRoom` is the same rule the column
+   * funnels and the column picker follow: take the room the screen leaves, and
+   * turn over where there is none.
+   */
+  const [room, setRoom] = useState<{ readonly upwards: boolean; readonly height: number }>({
+    upwards: false,
+    height: 0,
+  })
 
   useLayoutEffect(() => {
     if (!open || menu.current === null) {
@@ -470,6 +469,10 @@ const ToolbarFilterBody = ({
             ? right - menuRect.right
             : 0
       setMenuOffset(correction)
+      const button = press.current?.getBoundingClientRect()
+      if (button !== undefined) {
+        setRoom(menuRoom(button, window.innerHeight))
+      }
     }
 
     place()
@@ -478,7 +481,7 @@ const ToolbarFilterBody = ({
   }, [open])
 
   return (
-    <div className="relative min-w-0">
+    <div ref={press} className="relative min-w-0">
       <Button
         type="button"
         variant="muted"
@@ -502,8 +505,14 @@ const ToolbarFilterBody = ({
         <div
           data-tool-filter-menu
           ref={menu}
-          style={{ transform: `translateX(${String(menuOffset)}px)` }}
-          className="absolute top-full right-0 z-30 mt-1 w-[min(30rem,calc(100vw-2rem))] rounded-md border border-zinc-800 bg-zinc-950 p-2 shadow-xl"
+          style={{
+            transform: `translateX(${String(menuOffset)}px)`,
+            ...(room.height === 0 ? {} : { maxHeight: room.height }),
+          }}
+          className={cn(
+            'absolute right-0 z-30 w-[min(30rem,calc(100vw-2rem))] overflow-y-auto rounded-md border border-zinc-800 bg-zinc-950 p-2 shadow-xl',
+            room.upwards ? 'bottom-full mb-1' : 'top-full mt-1',
+          )}
         >
           {children}
         </div>
@@ -982,9 +991,7 @@ const TilePicker = ({
             {groups.map(([group, members]) => (
               <section key={group}>
                 {group ? (
-                  <h5 className="text-2xs mb-1 px-0.5 tracking-wide text-zinc-600 uppercase">
-                    {group}
-                  </h5>
+                  <h5 className={cn(SECTION_LABEL, 'mb-1 px-0.5 text-zinc-600')}>{group}</h5>
                 ) : null}
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(5.75rem,1fr))] gap-1">
                   {members.map(tile)}

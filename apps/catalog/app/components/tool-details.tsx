@@ -147,13 +147,14 @@ export interface ToolDetailsProps {
   /** Room the shop wants kept between the stack and the part. */
   readonly margins?: Margins
   /**
-   * The stack around the tool, which something other than this panel chose.
+   * The stack around the tool, worked out by the tree that holds it.
    *
-   * **The tool assembly tree is that something** (Paul, 2026-09-07): a holder
-   * is a slot with a table of its own, and without this the sheet would draw
-   * the cutter alone beside a stack the tree had fully assembled. It is the
-   * panel's only source for a holder or a collet, so the picture cannot
-   * disagree with the tree about what is on the tool.
+   * **The tree is the only thing that holds a tool** (Paul, 2026-09-07 for the
+   * tree, 2026-09-10 for the last of the dropdowns): a holder is a slot with a
+   * table of its own, and this panel offers no holding of its own at all.
+   * Without this the sheet would draw the cutter on its own beside a stack the
+   * tree had fully assembled; with it there is one answer rather than two that
+   * can disagree.
    */
   readonly stack?: { readonly holder: Holder | null; readonly collet: Collet | null }
   /**
@@ -290,7 +291,7 @@ export const ToolDetails = ({
           <ToolTypeIcon toolType={tool.form} className="size-6" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-mono text-lg leading-tight font-bold text-zinc-100">
+          <span className="block truncate font-mono text-lg leading-tight text-zinc-100">
             {tool.catalogNumber}
           </span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400">

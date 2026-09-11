@@ -144,13 +144,104 @@ export const withinRange = (
   !(bound.min !== undefined && value < bound.min - BOUND_SLACK) &&
   !(bound.max !== undefined && value > bound.max + BOUND_SLACK)
 
-const matchesRanges = (tool: CatalogTool, ranges: ToolQuery['ranges']): boolean =>
+/** Whether a tool is inside every one of a set of bounds, missing values out. */
+export const withinRanges = (tool: CatalogTool, ranges: ToolQuery['ranges']): boolean =>
   Object.entries(ranges).every(([key, bound]) => {
     if (bound.min === undefined && bound.max === undefined) {
       return true
     }
     const value = tool.geometry[key]
     return value === undefined ? false : withinRange(value, bound)
+  })
+
+const sameEnd = (a: number | undefined, b: number | undefined): boolean =>
+  a === undefined || b === undefined ? a === b : Math.abs(a - b) < BOUND_SLACK
+
+/**
+ * Whether two bounds ask the same thing, allowing for a float's last digit.
+ *
+ * Here rather than beside the control that draws one because `ownBounds` below
+ * is the same question asked of the matcher, and `shared/` may not import
+ * `components/`.
+ */
+export const sameBound = (
+  a: { readonly min?: number; readonly max?: number } | undefined,
+  b: { readonly min?: number; readonly max?: number } | undefined,
+): boolean => {
+  if (a === undefined || b === undefined) {
+    return a === b
+  }
+  return sameEnd(a.min, b.min) && sameEnd(a.max, b.max)
+}
+
+/**
+ * The bounds somebody set themselves, as against the ones the feature asked for.
+ *
+ * **A filter is somebody's answer the moment it is not the geometry's** — the
+ * rule `overrideOffered` states in `components/column-filter.tsx`, and the one
+ * `applySuggestions` tells a stale suggestion from an answer by. A bound still
+ * reading exactly what this feature suggested is the rules speaking through a
+ * control; anything else is a shop's own word about what it wants to see.
+ *
+ * **What reads it is the near-miss stand-in** (Paul, 2026-09-10: at most three
+ * flutes, then Kennametal, and four-flute tools on the list — "they should not
+ * be … we should see 'no tools meet these filters'"). Nothing fits, so the
+ * closest misses stand in, and they are drawn without the ranges because a tool
+ * a little outside one is exactly what *closest* means. That is right for the
+ * bound the geometry wrote and wrong for the bound somebody typed: the second
+ * is the question, not the tolerance on it. `closeCandidates` and
+ * `nearestFew` both narrow by this, so a filter is obeyed on the list and in
+ * the worker that ranks what reaches it.
+ *
+ * A bound holding neither end narrows nothing and is nobody's answer.
+ */
+export const ownBounds = (
+  ranges: ToolQuery['ranges'],
+  suggested: ToolQuery['ranges'],
+): ToolQuery['ranges'] => {
+  const own: Record<string, { min?: number; max?: number }> = {}
+  for (const [key, bound] of Object.entries(ranges)) {
+    if (bound.min === undefined && bound.max === undefined) {
+      continue
+    }
+    if (!sameBound(bound, suggested[key])) {
+      own[key] = bound
+    }
+  }
+  return own
+}
+
+/**
+ * The columns whose number the geometry set and somebody took away.
+ *
+ * **An empty box means unbounded, and unbounded includes the rules** (Paul,
+ * 2026-09-11: "when I remove a value for min or max, it is not showing tools
+ * down to the smallest or largest tool in the library with a feature or group
+ * active"). Clearing a bound took the *filter* off and left the `must` rows
+ * that wrote it judging every tool exactly as before — and the one way to set
+ * those aside, the tick in that column's dialog, was offered only while a
+ * number stood in the box. So the list could not be widened by clearing it and
+ * could not be widened by the control either: each half of "show me
+ * everything" was behind the other.
+ *
+ * The number and the forgiveness stay one decision, which is what
+ * {@link ownBounds} above and `part.tsx` § `overrideFor` have said since
+ * 2026-09-09 — it is the *number* that is different here. No bound at all is
+ * the loosest thing a column can say, so the rules go with it; typing the
+ * geometry's own number back in puts them back, which is still the whole way
+ * out of an override.
+ *
+ * Only a column the geometry actually bounded. Everywhere else the rules are
+ * the only thing narrowing that number, which is the ordinary state of the
+ * page, and an empty box there is not an answer about anything.
+ */
+export const releasedBounds = (
+  ranges: ToolQuery['ranges'],
+  suggested: ToolQuery['ranges'],
+): ReadonlyArray<string> =>
+  Object.keys(suggested).filter((key) => {
+    const held = ranges[key]
+    return held === undefined || (held.min === undefined && held.max === undefined)
   })
 
 /** Pure, and the whole of the search: the same function the tests run on literals. */
@@ -163,7 +254,7 @@ export const filterTools = (
     (tool) =>
       (text === '' || haystack(tool).includes(text)) &&
       matchesTerms(tool, query.terms) &&
-      matchesRanges(tool, query.ranges),
+      withinRanges(tool, query.ranges),
   )
 }
 
@@ -383,6 +474,58 @@ export const prioritise = (
 }
 
 /**
+ * The axes whose options are narrowed by the rest of the query.
+ *
+ * The term axes that are properties of a tool, which is what a facet count can
+ * be measured over. The holding axes — a spindle taper, a collet series — are
+ * properties of the crib and are counted elsewhere (Paul, 2026-09-01).
+ *
+ * Here rather than beside the panel that draws them because the **matcher**
+ * has to know them too: a facet count with a feature on screen is measured
+ * over a pool judged without these terms, and `shared/` may not import
+ * `components/`.
+ */
+export const FACET_AXES: ReadonlyArray<string> = [
+  'brand',
+  // The two phrases this catalog builds rather than facets a vendor publishes:
+  // the type with its shank in it, and the family with its product line.
+  'type',
+  'family',
+  'materialGroups',
+  'NOF',
+]
+
+/**
+ * The axes the pool is widened past, which is one more than the axes counted.
+ *
+ * **The Type column asks two of them** (Paul, 2026-09-10: a threaded hole's
+ * drill list offering `Flat end mill 0`, "checking any of the boxes shows there
+ * are end mills that do work"). A tick on Type writes the phrase to `type` and
+ * the form behind it to `form` — `formsAsking` in `shared/tool-type.ts` — and
+ * `form` is the axis a feature's suggestions and a chosen thread write for
+ * themselves. So the matcher had judged drills and taps and nothing else, every
+ * end mill read nought, and the only way to find out otherwise was to tick a
+ * box that said there was nothing behind it.
+ *
+ * `form` is widened past and never counted: it has no column of its own, and
+ * the Type column is where its values are read out in the trade's words.
+ */
+const POOL_AXES: ReadonlyArray<string> = [...FACET_AXES, 'form']
+
+/** Whether any facet axis is narrowing, which is when a count needs widening. */
+export const facetsNarrowing = (query: ToolQuery): boolean =>
+  POOL_AXES.some((axis) => (query.terms[axis]?.length ?? 0) > 0)
+
+/** The same query with every facet axis taken out — the pool a count is measured over. */
+export const withoutFacets = (query: ToolQuery): ToolQuery => {
+  const terms = { ...query.terms }
+  for (const axis of POOL_AXES) {
+    delete terms[axis]
+  }
+  return { ...query, terms }
+}
+
+/**
  * The same query with one axis taken out.
  *
  * What a facet count has to be measured against: "how many Harvey tools are
@@ -390,7 +533,7 @@ export const prioritise = (
  * one vendor would report every other as zero and there would be no way to add
  * a second.
  */
-const withoutTerm = (query: ToolQuery, key: string): ToolQuery => {
+export const withoutTerm = (query: ToolQuery, key: string): ToolQuery => {
   const terms = { ...query.terms }
   delete terms[key]
   return { ...query, terms }

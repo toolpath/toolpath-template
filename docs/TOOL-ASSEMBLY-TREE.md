@@ -118,21 +118,33 @@ this assembly`, because a rack is narrowed to what fits a stack only while
   this stack reads `TDMX0800 → TDMX0500`, the old one struck through. The button
   says the change in a sentence, which is the right place for _what pressing it
   does_ and the wrong place to find out which of three slots moved. An em dash
-  stands for a slot the line has nothing in; a stack that is not on the order
-  list at all says nothing on any row, because "not on the list yet" is the
-  stack's own state.
-- **One button per assembly, under the components it is about** (Paul,
-  2026-09-07: "I should just have an 'add to order list' button (or update,
-  context aware), at the top level of each tool assembly"). It writes the whole
-  assembly — tool, holder and collet are one line on the sheet and one thing a
-  shop orders — and its label is the change: _Add to order list_, _Change holder
-  from A to B_, _Remove from order list_. **A threaded hole is one press, not
-  two** (Paul, 2026-09-08: "there should only be one 'add to order list' button
-  for the full assembly"): the drill hangs under the tap, so the tap, its
-  holding, the drill and the drill's holding go on the list together. A tap
-  orderable on its own is a thread with no hole under it to cut. A sentence per
-  stack that moved, the first on the button and the rest under it, each naming
-  the stack it is about — `TAP: Change holder from A to B`.
+  stands for a slot the line has nothing in; a stack not on the order list says
+  nothing on any row. It used to carry a line reading _not on the list yet_; that
+  came out on 2026-09-11, along with the heading naming what the tree was for —
+  the card above it names the reading, and the list is dashed and marked once it
+  is a row.
+- **One button under the whole box, not one per assembly** (Paul, 2026-09-07: "I
+  should just have an 'add to order list' button (or update, context aware)",
+  and 2026-09-11: "the button should be below BOTH of them, and add both
+  assemblies to the order list — we only need one button and it just adds
+  everything on the list"). It writes every stack in the box — tool, holder and
+  collet are one line on the sheet and one thing a shop orders — and its label
+  is the change: _Add to order list_, _Change holder from A to B_, _Remove from
+  order list_. **A threaded hole is one press, not two** (Paul, 2026-09-08:
+  "there should only be one 'add to order list' button for the full assembly"):
+  the drill hangs under the tap, so the tap, its holding, the drill and the
+  drill's holding go on the list together. A tap orderable on its own is a
+  thread with no hole under it to cut. A rougher and a finisher go the same way
+  — one press, both stacks, which is what Enter on the same box had done since
+  2026-09-10 while the buttons disagreed with it. A sentence per stack that
+  moved, the first on the button and the rest under it, each naming the stack it
+  is about — `TAP: Change holder from A to B`.
+- **_Add assembly_ is a row of the tree, over that press** (Paul, 2026-09-11:
+  "add assembly should be above the add feature to list or add to order list
+  buttons — like another row with a plus button in the list of components"). It
+  stood outside the card as a second full-width button competing with the one
+  that finishes the box. It is drawn on the last card only: it makes a card
+  rather than a row inside one.
 - **The press that orders closes the box** (Paul, 2026-09-10: "clicking 'Add to
   Order List' should close the feature, group, or tool assembly dialog"). The
   decision is written the moment it is pressed, and what stood on screen
@@ -241,7 +253,8 @@ which tap was chosen. `treeRows` is the nesting and the drawing order:
   │   │ ○ HOLDER  —     │
   │   │ ○ COLLET  —     │
   └─────────────────────┘
-  [ Add to order list ]
+  + Add assembly
+[ Add to order list ]
 ```
 
 **The drill is a slot of the tap, not a card beside it** (Paul, 2026-09-08).
@@ -297,10 +310,10 @@ and the group editor alike — and its stacks are kept under `DRAFT_TREE`.
 **A stack is selected, not chosen** (Paul, 2026-09-07: "it should also no longer
 autoselect the tool component row that I click on"). Clicking a row in any of
 the three tables puts that component into the stack on screen and nowhere else —
-nothing reaches the list or the order list until the stack's own button is
-pressed. The tree says so while it is unconfirmed: _not on the list yet_.
+nothing reaches the list or the order list until the button under the box is
+pressed.
 
-**One press does both.** Where the feature is not a row yet, the stack's button
+**One press does both.** Where the feature is not a row yet, the box's button
 is still **Add to order list**, and the note under it says it adds the feature to
 the list as well. There is no order in which you confirm the feature and then
 confirm its tools: they are one decision, and splitting them left a built stack
@@ -311,7 +324,8 @@ row is given.
 2026-09-10: "I should be able to create a feature or group without adding a
 tool"). It reads **Add feature to list** — **Add group to list** for a group —
 and it orders nothing: the row goes onto the list marked incomplete, dashed, with
-whatever is standing in the stack carried onto it. The moment a component is
+whatever is standing in the stack carried onto it — which the list says by being
+dashed and marked, so the press no longer carries a note saying it (2026-09-11). The moment a component is
 picked it becomes **Add to order list** again, in the same place, so choosing a
 tool changes what the button will do rather than where it is. A **part-level tool
 assembly** is the one subject with no such press: it _is_ its order, so an empty
@@ -478,9 +492,10 @@ reach the bottom of a 2.066 in pocket. Two numbers for one length, on one
 screen.
 
 Nothing was wrong with the machinery; the tree walked away from it. The column
-asked `Holding.requiredStickout`, which reads a holder picked **in a dropdown on
+asked `Holding.requiredStickout`, which read a holder picked **in a dropdown on
 the row** — and those dropdowns came out with the flag on 2026-09-08, so nothing
-has set that holder since and every row fell back to the tool's own figure.
+had set that holder since and every row fell back to the tool's own figure.
+`Holding` itself is gone as of 2026-09-10; see § 8.
 
 A holder is the assembly's now, so the question is asked of the assembly once
 per row: the least the stack has to stand out to clear the part by the shop's
@@ -516,7 +531,7 @@ What changed is where a line comes from:
 - **A stack is the line's identity, not its tool** (Paul, 2026-09-07: "when
   editing an already active assembly, a tool not in the order list should say
   'replace' in the active assembly. Right now it is adding a new assembly to the
-  feature"). A line on the sheet is keyed by its tool, so a stack that swapped
+  feature"). A line on the sheet was keyed by its tool, so a stack that swapped
   cutters looked up nothing and read as never ordered — and its button offered to
   add a _second_ assembly to a feature that has one. `orderedTool` on the stack
   is the link back: what the sheet holds for this stack, written by the press
@@ -560,22 +575,38 @@ What changed is where a line comes from:
   one, because a collet bought twice is two collets whichever row it sits on. The
   table's own mark is about the order list; this is about the tree in hand.
 
-  **And two of one assembly are counted rather than collapsed** (Paul,
-  2026-09-10: "duplicates are now showing up as separate line items — in either
-  order list view … that should show 2 assemblies and a count of two of each
-  component"). The sheet keys a line by its tool, so a row cannot hold the same
-  cutter on two lines — what it holds is `Choice.total`, how many of that
-  assembly, which `componentTotals` has always multiplied every component by.
-  Nothing was writing it: `applyStacks` in `routes/part.tsx` now counts the
-  stacks of the row standing as that cutter and writes it, the part page's line
-  wears the `×2`, and taking one of two off leaves the line with a one on it
-  rather than removing it.
+  **And two of one assembly are two lines** (Paul, 2026-09-10: "duplicates are
+  now showing up as separate line items — in either order list view … that
+  should show 2 assemblies and a count of two of each component", and
+  2026-09-11: "when I have two (or more) tool assemblies on a feature or group,
+  both need to be shown in the order list. Only the first is being shown right
+  now"). The sheet keyed a line by its tool, so a row could not hold the same
+  cutter on two lines at all. What stood in for the second of them was
+  `Choice.total`, a count on the one line — which `componentTotals` multiplies
+  every component by, so the bill added up and the order list still drew one row
+  where a shop had built two.
 
-  **What is still keyed by the tool is the line itself.** A row holding one
-  cutter in two stacks _with different holding_ — the same end mill at two
-  stickouts — cannot keep both: the second overwrites the first. Counting fixes
-  the identical case, which is the one a shop hits; the general case needs a line
-  keyed by the stack that ordered it rather than by the tool in it.
+  **A line carries the id of the stack that wrote it.** `Choice.assemblyId`, and
+  `lineId` in `app/shared/setup-sheet.ts` is the one reading of it: the stack,
+  or the tool where nothing built the line out of a tree — the tool panel writes
+  one, and so does every sheet saved before 2026-09-11. `addChoice` replaces the
+  line with the same id rather than the same tool, `removeChoice` takes one line
+  off and `removeTool` takes every line of a tool off (which is what the tool
+  panel's _Remove_ means), and `applyStacks` in `routes/part.tsx` writes the id
+  with the line. So the identical case is two rows and two of each component to
+  buy, and the case a count could never have covered — the same end mill in two
+  holders, at two stickouts — keeps the holding each stack was given, instead of
+  the second writing over the first.
+
+  `Choice.total` stays what it always was: how many of _that_ assembly a shop
+  wants, edited on the order list page. Nothing writes it automatically any
+  more.
+
+  Two _rows_ that ordered one stack are still one thing to buy (Paul,
+  2026-08-31), so `orderAssemblies` in `app/shared/order-list.ts` groups by the
+  stack's contents across rows and by how many copies of it a row holds: the
+  first copy merges across rows the way it always has, and a second takes a key
+  of its own.
 
 - **Enter is about the box; the button is about the assembly** (Paul,
   2026-09-10: "when I create two tool assemblies on a group and click enter, it
@@ -886,39 +917,41 @@ the press under the stack makes the row and orders the assembly in one go, and
 an **X** in the top right of the box is the way out of all three. See
 `docs/FEATURE-LIST.md` § _The X in the corner_.
 
-### The last two dropdowns, 2026-09-11
+### What the dropdowns left behind, 2026-09-11
 
-The flag's removal took the dropdowns off a **tool row**. It did not take them
-off the **panel**, and nobody noticed for three days, because the tree covers
-every state the panel is drawn in but one: a tool read with no feature selected.
-`treeKey` is `null` when nothing is asked (`routes/part.tsx`, _"Nothing asked is
-nothing to assemble"_), so `assemblies` is empty, `node` is `null`, and the
-right-hand panel falls through to `<ToolDetails holding={holding}>` — a Holder
-combobox, a Collet combobox, and the "_n_ more fit but have no model to draw"
-note under them (Paul, 2026-09-11: _"I think the two dropdowns are not there any
-more"_ — they were, in that one state, on `main` as well as on the branch).
+The dropdowns themselves came off on 2026-09-10, in two places on the same day:
+the Holder and Collet columns off `PartToolTable`, and the panel's own pair off
+`ToolDetails` — § _Where the rules live_ above has both. What they left behind
+was the machinery on the route that had fed them, and it outlived them by a day
+because nothing on screen was drawn from it any more.
 
-Two ways to fill one slot, and no rule saying which won: the dropdowns wrote a
-`picked` map on the route, the tree writes the assembly, and nothing reconciled
-them. Both dropdowns are gone, and with them:
+`picked` was a map of holder and collet guids keyed by tool, written only by the
+panel's dropdowns. With those gone it had no writer at all, so it could only
+ever be empty — and an empty map still read like an unsaved answer at three call
+sites. Gone, and with it:
 
-- `ToolDetails`'s `holding` prop. `stack` — what the tree put in the slots — is
-  now the panel's only source for a holder or a collet, so the picture cannot
-  disagree with the tree.
-- The `holding` memo on the route, its `optionsFor` cache and `hasPicture`.
-- The `picked` map, and the `pick` and `saveAssembly` callbacks that read it.
-  The dropdowns were its only writer, so it could only ever have been empty —
-  and an empty map still read like an unsaved answer at three call sites.
-- `panelActions`'s `assemblyChanged`, which compared the dropdowns against the
-  ordered line to offer _Update_. The panel holds nothing to differ with now,
-  so it is `false`; reading the empty pick as a change would have offered
-  _Update_ on every tool ordered with a holder.
-- `Holding`, `HoldingCell`, `isHolding` and the Holder and Collet columns on
-  `PartToolTable` — dead since 2026-09-08, drawing an em-dash per row.
+- The `pick` and `saveAssembly` callbacks, whose only caller was the panel, and
+  the per-tool `optionsFor` cache that fed them.
+- `panelActions`'s `assemblyChanged`, which compared `picked` against the ordered
+  line to offer _Update_. The panel holds nothing to differ with now, so it is
+  `false`. Reading the empty pick as a change would have offered _Update_ on
+  every tool ordered with a holder.
 
-`OrderDialog` still carries a pair of its own and was **left standing**: it has
-been unreachable since before any of this — `setAdding` is only ever called with
-`null` — so removing it is a separate decision about a separate dialog.
+**And the switch over the sheet went with them**, for the reason the dropdowns
+did: it was a second answer to a question the tree settles. _Tool_ / _Tool +
+holder_ let the one picture on the page draw a bare cutter beside a stack the
+tree had fully assembled. What a reader wanted from the _Tool_ half was the
+working end drawn bigger, so the press is now a zoom — `@toolpath/tool-drawing`'s
+`zoom` prop, which cuts the sheet just above the holder nose rather than dropping
+the holder out of the picture. `ToolDetails` holds it as `Zoom` state and the
+sheet is the stack either way, so `LBH` reads the stack's stickout under both
+framings; `components/tool-details.test.tsx` § _prints the stickout the stack is
+drawn at_ is the sensor, and it presses the zoom to say so.
+
+`OrderDialog` still carries a holder and collet pair of its own and was **left
+standing**: it has been unreachable since before any of this — `setAdding` is
+only ever called with `null` — so removing it is a separate decision about a
+separate dialog.
 
 What went with it that had no home under the tree: the **Show compatible end
 mills** press, which lived inside the drill tab and so had already been
@@ -930,55 +963,58 @@ gets it.
 
 ## 7. Where the rules live
 
-| Rule                                              | File                                             |
-| ------------------------------------------------- | ------------------------------------------------ |
-| what a tree holds, its slots, its storage         | `app/shared/assembly-tree.ts`                    |
-| what a threaded hole starts with                  | `defaultAssemblies`, same file                   |
-| the stacks following the thread on the hole read  | `forThread`, same file                           |
-| how the stacks nest, and their drawing order      | `treeRows`, same file                            |
-| what narrows what                                 | `app/shared/assembly-narrowing.ts`               |
-| whether a chuck is worth offering with no collet  | `holderMayTake`, `@toolpath/catalog-data`        |
-| why an offered chuck cannot be built today        | `colletGap`, `app/shared/assembly-narrowing.ts`  |
-| whether the rack shows them, and how many         | `holdersToOffer` `shown` / `stocked`, same file  |
-| the press that decides, and its words             | `app/components/no-collet-toggle.tsx`            |
-| what a stack offers, and its button's words       | `app/shared/assembly-actions.ts`                 |
-| which press orders, and which Enter stands for    | `isOrdering` / `orderingPress`, same file        |
-| which layer one press of Enter or Escape reaches  | `useKeyLayer`, `app/shared/use-escape.ts`        |
-| whether the page stands down for an open filter   | `columnFilterOpen`, same file                    |
-| how tall a filter menu is, and which way it opens | `place`, `components/column-filter.tsx`          |
-| what overruling the rules offers                  | `overridableTools`, `app/shared/tool-fit.ts`     |
-| what an axis has that the list is not showing     | `hiddenOn`, `app/routes/part.tsx`                |
-| the `…` row that offers it                        | `TermFilter`, `components/column-filter.tsx`     |
-| the form behind a Type phrase                     | `formOfTypeLabel`, `app/shared/tool-type.ts`     |
-| what a tick on Type asks the form filter          | `formsAsking`, same file                         |
-| the forms the type table stands down for          | `asked`, `app/shared/judge.ts`                   |
-| how many questions a group actually asks          | `distinctQuestions`, `app/shared/tool-fit.ts`    |
-| folding one tool's verdicts as they are judged    | `foldOnto`, `app/shared/judge.ts`                |
-| what a threaded hole's drill list may show        | `predrillFormsOf`, `app/shared/hole-mode.ts`     |
-| how many each column alone holds back             | `overridableTally`, same file                    |
-| which column a rule is about                      | `columnOfRule`, `app/shared/tool-marks.ts`       |
-| the note a changed filter raises                  | `OverrideNotice`, `components/column-filter.tsx` |
-| the press that confirms it                        | `OverrideToggle`, same file                      |
-| `at most` meaning at most across a unit change    | `BOUND_SLACK`, `app/shared/filter.ts`            |
-| which slots were filled against the rules         | `overrides`, `assembly-tree.ts`                  |
-| the words a warning says                          | `overrideNote`, `app/shared/tool-marks.ts`       |
-| what a whole assembly offers, over all its stacks | `groupActions`, same file                        |
-| which stacks make up one assembly                 | `treeGroups` / `stacksOf`, `assembly-tree.ts`    |
-| what the bill already holds for a stack           | `savedFor`, same file                            |
-| putting a stack back to the bill's line           | `restoreAssembly`, `assembly-tree.ts`            |
-| what a stack is called, and where a part stands   | `assemblyName` / `heldIn`, same file             |
-| the name somebody gave a stack, and clearing it   | `renameAssembly`, same file                      |
-| the field a name is typed in, in both places      | `app/components/name-field.tsx`                  |
-| the length below the holder a stack needs         | `belowHolder`, `app/shared/drawn-assembly.ts`    |
-| the words the clearance verdict is said in        | `verdictNote`, `components/catalog-drawing.tsx`  |
-| the columns a holder and a collet are read on     | `app/shared/component-columns.ts`                |
-| narrowing a rack by brand, type, family, a number | `app/shared/component-query.ts`                  |
-| which of the three lists the table is             | `listKind` / `chooseList`, `routes/part.tsx`     |
-| the tree on screen                                | `app/components/assembly-tree-panel.tsx`         |
-| the holder and collet tables                      | `app/components/component-table.tsx`             |
-| their filters                                     | `app/components/component-filters.tsx`           |
-| the component being read                          | `app/components/assembly-panel.tsx`              |
-| everything wired together                         | `app/routes/part.tsx`                            |
+| Rule                                                | File                                                 |
+| --------------------------------------------------- | ---------------------------------------------------- |
+| what a tree holds, its slots, its storage           | `app/shared/assembly-tree.ts`                        |
+| what a threaded hole starts with                    | `defaultAssemblies`, same file                       |
+| the stacks following the thread on the hole read    | `forThread`, same file                               |
+| how the stacks nest, and their drawing order        | `treeRows`, same file                                |
+| what narrows what                                   | `app/shared/assembly-narrowing.ts`                   |
+| the same narrowing under a filter's own counts      | `MatchDemand.stack`, `app/shared/catalog-matcher.ts` |
+| the axes a count is widened past, `form` among them | `POOL_AXES`, `app/shared/filter.ts`                  |
+| when those counts are worked out, and after what    | `countLater`, `client/catalog-matcher.worker.ts`     |
+| whether a chuck is worth offering with no collet    | `holderMayTake`, `@toolpath/catalog-data`            |
+| why an offered chuck cannot be built today          | `colletGap`, `app/shared/assembly-narrowing.ts`      |
+| whether the rack shows them, and how many           | `holdersToOffer` `shown` / `stocked`, same file      |
+| the press that decides, and its words               | `app/components/no-collet-toggle.tsx`                |
+| what a stack offers, and its button's words         | `app/shared/assembly-actions.ts`                     |
+| which press orders, and which Enter stands for      | `isOrdering` / `orderingPress`, same file            |
+| which layer one press of Enter or Escape reaches    | `useKeyLayer`, `app/shared/use-escape.ts`            |
+| whether the page stands down for an open filter     | `columnFilterOpen`, same file                        |
+| how tall a filter menu is, and which way it opens   | `place`, `components/column-filter.tsx`              |
+| what overruling the rules offers                    | `overridableTools`, `app/shared/tool-fit.ts`         |
+| what an axis has that the list is not showing       | `hiddenOn`, `app/routes/part.tsx`                    |
+| the `…` row that offers it                          | `TermFilter`, `components/column-filter.tsx`         |
+| the form behind a Type phrase                       | `formOfTypeLabel`, `app/shared/tool-type.ts`         |
+| what a tick on Type asks the form filter            | `formsAsking`, same file                             |
+| the forms the type table stands down for            | `asked`, `app/shared/judge.ts`                       |
+| how many questions a group actually asks            | `distinctQuestions`, `app/shared/tool-fit.ts`        |
+| folding one tool's verdicts as they are judged      | `foldOnto`, `app/shared/judge.ts`                    |
+| what a threaded hole's drill list may show          | `predrillFormsOf`, `app/shared/hole-mode.ts`         |
+| how many each column alone holds back               | `overridableTally`, same file                        |
+| which column a rule is about                        | `columnOfRule`, `app/shared/tool-marks.ts`           |
+| the note a changed filter raises                    | `OverrideNotice`, `components/column-filter.tsx`     |
+| the press that confirms it                          | `OverrideToggle`, same file                          |
+| `at most` meaning at most across a unit change      | `BOUND_SLACK`, `app/shared/filter.ts`                |
+| which slots were filled against the rules           | `overrides`, `assembly-tree.ts`                      |
+| the words a warning says                            | `overrideNote`, `app/shared/tool-marks.ts`           |
+| what a whole assembly offers, over all its stacks   | `groupActions`, same file                            |
+| which stacks make up one assembly                   | `treeGroups` / `stacksOf`, `assembly-tree.ts`        |
+| what the bill already holds for a stack             | `savedFor`, same file                                |
+| putting a stack back to the bill's line             | `restoreAssembly`, `assembly-tree.ts`                |
+| what a stack is called, and where a part stands     | `assemblyName` / `heldIn`, same file                 |
+| the name somebody gave a stack, and clearing it     | `renameAssembly`, same file                          |
+| the field a name is typed in, in both places        | `app/components/name-field.tsx`                      |
+| the length below the holder a stack needs           | `belowHolder`, `app/shared/drawn-assembly.ts`        |
+| the words the clearance verdict is said in          | `verdictNote`, `components/catalog-drawing.tsx`      |
+| the columns a holder and a collet are read on       | `app/shared/component-columns.ts`                    |
+| narrowing a rack by brand, type, family, a number   | `app/shared/component-query.ts`                      |
+| which of the three lists the table is               | `listKind` / `chooseList`, `routes/part.tsx`         |
+| the tree on screen                                  | `app/components/assembly-tree-panel.tsx`             |
+| the holder and collet tables                        | `app/components/component-table.tsx`                 |
+| their filters                                       | `app/components/component-filters.tsx`               |
+| the component being read                            | `app/components/assembly-panel.tsx`                  |
+| everything wired together                           | `app/routes/part.tsx`                                |
 
 Each pure module owns its tests. The tree's own end-to-end coverage is the
 `the tool assembly tree` block in `tests/on-the-part.spec.ts`, against the cube
@@ -1002,9 +1038,19 @@ crib, which is the claim.
   about a _tool_; threading a row type through them would have put every one
   behind a conditional to gain a shared shell. If a third kind of component ever
   wants a table, extract then.
-- **Nothing but a slot fills a slot**, and as of 2026-09-11 there is no second
-  way left to try. `Holding`, `HoldingCell` and the `holding` prop are gone from
-  `PartToolTable`, and the Holder and Collet columns with them — the part page
-  had passed that prop from nowhere since the flag came out, so both columns
-  drew an em-dash on every row. `ToolDetails` lost its own pair the same day;
-  see § 6.
+- **The tool table has no holder and no collet at all.** The holder is a slot of
+  the stack with a table of its own, and a second way to set it from a dropdown
+  on the tool row is the defect the tree exists to remove. The page had already
+  stopped handing the list any `holding`, which left the two columns ticked in
+  the column picker to draw dashes — so on 2026-09-10 the columns, the
+  `HoldingCell` behind them and the `holding` prop came off `PartToolTable`
+  together. `components/tool-columns.test.ts` § _offers neither a holder nor a
+  collet_ is the sensor.
+- **Neither does the tool panel.** `ToolDetails` kept a _No holder_ / _No
+  collet_ pair of its own, drawn on the panel with no feature open — the last of
+  the pre-tree dropdowns, and a second place a stack could be assembled. They
+  came off the same day, and with them the `Holding` contract, the `holding`
+  memo in `routes/part.tsx` and the per-tool `holderOptions` cache that fed it.
+  The panel draws whatever `stack` the tree hands it and nothing else, so a
+  holder reaches the sheet one way. `components/tool-details.test.tsx` §
+  _the material around the feature_ is that seam, drawn from `stack` alone.

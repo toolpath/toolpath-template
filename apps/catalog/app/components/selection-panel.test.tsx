@@ -116,3 +116,53 @@ describe('the offer to group identical holes', () => {
     expect(screen.queryByText(/identical/)).not.toBeInTheDocument()
   })
 })
+
+/**
+ * **The thread is read before the numbers, not after them** (Paul, 2026-09-11:
+ * "the option to add a thread should be more prominent — put it directly
+ * underneath the group bubble in a similar bubble with grey background").
+ *
+ * Whether a hole is tapped decides which catalog the table below is even
+ * showing, and it sat at the foot of the panel under a hairline rule, below
+ * every measurement — which is where this page puts a detail.
+ */
+describe('where the thread is asked', () => {
+  const both = {
+    identical: { count: 8, onGroup: () => undefined, onDismiss: () => undefined },
+    thread: {
+      holeDiameter: 5,
+      mode: 'plain' as const,
+      spec: null,
+      onChange: () => undefined,
+    },
+  }
+
+  it('puts it directly under the grouping offer, in a bubble of its own', () => {
+    draw({ siblings: 8, ...both })
+
+    const offer = screen
+      .getByRole('button', { name: 'Add all 8 as a group' })
+      .closest('div.rounded')
+    const thread = screen.getByText('Modeled hole diameter:').closest('div.rounded')
+
+    expect(offer).not.toBeNull()
+    expect(thread).not.toBeNull()
+    // The next box down, rather than the last thing on the panel.
+    expect(offer?.nextElementSibling).toBe(thread)
+    // Grey, where the offer above it is the page's blue: a standing question
+    // about the hole rather than something to answer now.
+    expect(thread?.className).toContain('bg-zinc-800/60')
+  })
+
+  /**
+   * **And nothing points at the arrows** (Paul, 2026-09-11: "once a feature is
+   * selected, it should no longer show 'click an arrow for machining
+   * direction'"). It was advice for picking a way up, under a box already
+   * naming the one being read.
+   */
+  it('says nothing about clicking an arrow', () => {
+    draw({ siblings: 8, ...both })
+
+    expect(screen.queryByText(/click an arrow/)).not.toBeInTheDocument()
+  })
+})

@@ -4,6 +4,7 @@ import type { PartFeature } from '@toolpath/part-contracts'
 import { SHEET_CLAMPING, withClampingLength } from './clamping-length'
 import {
   detailedMatch,
+  facetPool,
   featuresKey,
   matchKey,
   prepareMatch,
@@ -54,6 +55,7 @@ const context = (features: ReadonlyArray<PartFeature>): MatchContext => ({
   margins: { radial: 0, axial: 0 },
   thresholds: thresholdsFrom(),
   overrides: [],
+  ownRanges: {},
 })
 
 const catalog = { tools: [tool('SMALL', 6), tool('LARGE', 10)], holders: [], collets: [] }
@@ -445,6 +447,158 @@ describe('catalog matcher protocol', () => {
 })
 
 /**
+ * **An axis must never count itself** (Paul, 2026-09-10: filter to Kennametal,
+ * open the Vendor menu again, and every other vendor reads nought — "they have
+ * compatible tools", and ticking one proves it).
+ *
+ * With a feature on the screen the rows are what the matcher judged, and the
+ * matcher only judges what the terms already admit, so no other vendor's tools
+ * had ever been put to the rules. The count beside a checkbox is a question
+ * about every filter **but** that checkbox's own axis, which is why it is
+ * answered here — beside the pipeline that is the only thing able to answer it
+ * — rather than by counting the rows on screen.
+ */
+describe('the counts an axis offers while it is narrowing', () => {
+  const branded = (guid: string, brand: string, DC: number): CatalogTool =>
+    ({ ...tool(guid, DC), brand, vendor: brand }) as CatalogTool
+
+  const crib = {
+    tools: [
+      branded('k-1', 'Kennametal', 6),
+      branded('w-1', 'WIDIA', 6),
+      branded('w-2', 'WIDIA', 7),
+    ],
+    holders: [],
+    collets: [],
+  }
+  const feature = pocket('pocket-1')
+  const demand = { demandKey: 'one', tags: [feature.featureTag] }
+  const asked = (terms: Record<string, ReadonlyArray<string>>): MatchContext => ({
+    ...context([feature]),
+    query: { ...EMPTY_QUERY, terms },
+  })
+
+  it('says nothing while no facet is narrowing, because the rows are the answer', () => {
+    expect(detailedMatch(asked({}), demand, crib).facetCounts).toBeNull()
+  })
+
+  it('counts the vendors a chosen vendor hid, over tools the rules actually admit', () => {
+    const result = detailedMatch(asked({ brand: ['Kennametal'] }), demand, crib)
+
+    expect(result.heldGuids).toEqual(['k-1'])
+    expect(result.facetCounts?.brand).toEqual({ Kennametal: 1, WIDIA: 2 })
+  })
+
+  it('measures one axis against every other filter that is set', () => {
+    const result = detailedMatch(
+      asked({ brand: ['Kennametal'], type: ['Flat end mill'] }),
+      demand,
+      crib,
+    )
+
+    // The vendor count still answers "what would WIDIA bring" *with* the type
+    // narrowing standing, and the type count answers it with the vendor's.
+    expect(result.facetCounts?.brand).toEqual({ Kennametal: 1, WIDIA: 2 })
+    expect(result.facetCounts?.type).toEqual({ 'Flat end mill': 1 })
+  })
+
+  /**
+   * **A count is measured over the rows it stands beside** (Paul, 2026-09-10: a
+   * pocket offering six necked bull nose end mills over a table holding none).
+   * The tool table under an assembly is `narrowTools` applied to this answer,
+   * so a collet in the stack takes every shank it cannot close on off the
+   * screen — and the counts knew nothing about it.
+   */
+  it('counts only what the collet in the stack can hold', () => {
+    const wider: Collet = {
+      ...collet,
+      guid: 'collet-2',
+      catalogNumber: 'PG6-7',
+      clampMin: 7,
+      clampMax: 7,
+    }
+    const stocked = { tools: crib.tools, holders: [holder], collets: [collet, wider] }
+    const query = asked({ brand: ['Kennametal'] })
+
+    // The crib holds both shanks, so all three tools are on the widened pool.
+    expect(detailedMatch(query, demand, stocked).facetCounts?.brand).toEqual({
+      Kennametal: 1,
+      WIDIA: 2,
+    })
+
+    const inStack = { ...demand, stack: { holderGuid: holder.guid, colletGuid: collet.guid } }
+
+    // `collet-1` closes on ⌀6 alone, which is the ⌀7 WIDIA tool off the table.
+    expect(detailedMatch(query, inStack, stocked).facetCounts?.brand).toEqual({
+      Kennametal: 1,
+      WIDIA: 1,
+    })
+  })
+
+  it('leaves a stack whose guids name nothing in this crib alone', () => {
+    const stocked = { tools: crib.tools, holders: [holder], collets: [collet] }
+    const gone = { ...demand, stack: { holderGuid: 'holder-gone', colletGuid: 'collet-gone' } }
+
+    expect(
+      detailedMatch(asked({ brand: ['Kennametal'] }), gone, stocked).facetCounts?.brand,
+    ).toEqual({ Kennametal: 1, WIDIA: 1 })
+  })
+
+  /**
+   * **The Type column asks the `form` axis too** (Paul, 2026-09-10: a threaded
+   * hole's drill list "showing zero compatible end mills currently, but
+   * checking any of the boxes shows there are end mills that do work"). A
+   * thread writes the drill and the taps into `form`, so the matcher had judged
+   * nothing else — and the feature's own type table turns a form away besides.
+   * The pool is widened past both, or the number beside a box is nought until
+   * the box is ticked.
+   */
+  describe('the type a filter has never let the matcher see', () => {
+    const drill = { ...tool('drill-1', 6), form: 'drill' } as CatalogTool
+    const drilling = { tools: [tool('mill-1', 6), drill], holders: [], collets: [] }
+    // A pocket considers end mills and not drills, so `asked` is what lets the
+    // drill past the table — the same stand-down a tick on Type writes.
+    const drillsOnly = {
+      ...context([feature]),
+      query: { ...EMPTY_QUERY, terms: { form: ['drill'] } },
+    }
+
+    it('counts what ticking it would bring, not what the filter admits', () => {
+      const result = detailedMatch(drillsOnly, demand, drilling)
+
+      expect(result.heldGuids).toEqual(['drill-1'])
+      expect(result.facetCounts?.type).toEqual({ Drill: 1, 'Flat end mill': 1 })
+    })
+
+    it('keeps the forms standing for every other axis', () => {
+      const branded = { ...drill, guid: 'drill-2', brand: 'WIDIA', vendor: 'WIDIA' } as CatalogTool
+      const result = detailedMatch(drillsOnly, demand, {
+        ...drilling,
+        tools: [...drilling.tools, branded],
+      })
+
+      // "What would WIDIA bring" is asked with the drill filter standing: the
+      // end mill it is holding back is not a tool that vendor would add.
+      expect(result.facetCounts?.brand).toEqual({ Test: 1, WIDIA: 1 })
+    })
+
+    it('says nothing at all when the caller asks for no pool', () => {
+      expect(detailedMatch(drillsOnly, demand, drilling, undefined, null).facetCounts).toBeNull()
+    })
+  })
+
+  it("leaves a caller's widened pool alone rather than judging a second time", () => {
+    const pool = facetPool(asked({ brand: ['Kennametal'] }), demand, crib)
+
+    expect([...pool.map((each) => each.guid)].sort()).toEqual(['k-1', 'w-1', 'w-2'])
+    expect(
+      detailedMatch(asked({ brand: ['Kennametal'] }), demand, crib, undefined, pool).facetCounts
+        ?.brand,
+    ).toEqual({ Kennametal: 1, WIDIA: 2 })
+  })
+})
+
+/**
  * **The report crosses the worker boundary once** (Paul, 2026-09-07: "it still
  * lags quite a bit when I finish with one feature then go to select another …
  * the hover highlight and ability to click on the model hangs"). A key was
@@ -475,5 +629,55 @@ describe('the features key', () => {
     const key = matchKey('table', context(features), [{ demandKey: 'one', tags: ['a'] }])
     expect(key).toContain(featuresKey(features))
     expect(key).not.toContain('featureType')
+  })
+})
+
+/**
+ * **A bound somebody typed is obeyed by the list that stands in when nothing
+ * fits** (Paul, 2026-09-10: at most three flutes, then Kennametal, and
+ * four-flute tools on the list — "they should not be … we should see 'no tools
+ * meet these filters'").
+ *
+ * And obeyed **here**, before the fifty nearest are taken. The cap ranks on how
+ * far a tool is outside the *rules*, which never asks the flute count — so the
+ * one three-flute tool that could stand in is exactly the one a cap taken first
+ * would drop, and no amount of narrowing on the far side of the worker boundary
+ * could put it back.
+ */
+describe('the misses a typed bound leaves standing', () => {
+  const flutes = (guid: string, DC: number, NOF: number): CatalogTool => {
+    const each = tool(guid, DC)
+    return { ...each, geometry: { ...each.geometry, NOF } } as CatalogTool
+  }
+
+  const feature = pocket('pocket-1')
+  const demand = { demandKey: 'one', tags: [feature.featureTag] }
+  // Sixty four-flute cutters that miss the pocket by a hair, and one
+  // three-flute that misses it by a mile.
+  const crib = {
+    tools: [
+      ...Array.from({ length: 60 }, (each, at) => flutes(`four-${String(at)}`, 11, 4)),
+      flutes('three', 30, 3),
+    ],
+    holders: [],
+    collets: [],
+  }
+
+  it('ranks on the rules alone while only the geometry is bounding the list', () => {
+    const result = detailedMatch(context([feature]), demand, crib)
+
+    expect(result.excludedCount).toBe(61)
+    expect(result.nearMisses).toHaveLength(50)
+    expect(result.nearMisses.map((each) => each.toolGuid)).not.toContain('three')
+  })
+
+  it('narrows to the bound before the nearest are taken', () => {
+    const result = detailedMatch(
+      { ...context([feature]), ownRanges: { NOF: { max: 3 } } },
+      demand,
+      crib,
+    )
+
+    expect(result.nearMisses.map((each) => each.toolGuid)).toEqual(['three'])
   })
 })

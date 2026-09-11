@@ -12,10 +12,8 @@ import { TAP_COLUMNS, TOOL_COLUMNS, isIdentity, isStack } from './part-tool-tabl
  * no error to say so (Paul, 2026-08-31: "what is the usable length? It's
  * showing as empty — what is the intent?").
  *
- * Every column is either a field the catalog defines, or the one the table
- * works out for itself: the stickout the stack needs. The Holder and Collet
- * columns were a third kind — a dropdown per row — and came off on 2026-09-11
- * with the last of the panel's own dropdowns.
+ * Every column is either a field the catalog defines, one of the four that say
+ * which tool it is, or the length below the holder the table works out.
  */
 describe('the columns the list offers', () => {
   it('names a field the catalog defines, or one the table works out', () => {
@@ -39,7 +37,7 @@ describe('the columns the list offers', () => {
  * 2026-08-31). It is the tool's own **length below holder** now: the overall
  * length less the shank the clamping rule holds, which is a number every tool
  * has and which decides whether it reaches (Paul, 2026-09-01). So it opens
- * with the rest, and the holder and collet still wait to be asked for.
+ * with the rest.
  */
 describe('the columns a list opens with', () => {
   it('opens with the numbers a tool is chosen on, reach among them', () => {
@@ -94,6 +92,19 @@ describe('the columns a list opens with', () => {
       expect(TOOL_COLUMNS.find((column) => column.code === code)?.default).toBe(false)
     }
   })
+
+  /**
+   * **The holder and the collet are not columns** (Paul, 2026-09-10). They were
+   * the per-row dropdowns from before the assembly tree; the tree took the
+   * choice off the row and the page stopped handing the list any holding, so
+   * both had become columns of dashes anybody could tick in the picker.
+   */
+  it('offers neither a holder nor a collet, on either list', () => {
+    for (const code of ['holder', 'collet']) {
+      expect(TOOL_COLUMNS.map((column) => column.code)).not.toContain(code)
+      expect(TAP_COLUMNS.map((column) => column.code)).not.toContain(code)
+    }
+  })
 })
 
 /**
@@ -132,19 +143,6 @@ describe('the columns a tap list offers', () => {
       'NOF',
       'SFDM',
     ])
-  })
-
-  /**
-   * The pair that came off on 2026-09-11. Each drew a dropdown per row, which
-   * is the second way to fill a slot the tool assembly tree owns — and neither
-   * had been wired to anything since the tree landed, so both drew a column of
-   * em-dashes in the meantime.
-   */
-  it('offers no Holder or Collet column on either list', () => {
-    for (const columns of [TOOL_COLUMNS, TAP_COLUMNS]) {
-      expect(columns.map((column) => column.code)).not.toContain('holder')
-      expect(columns.map((column) => column.code)).not.toContain('collet')
-    }
   })
 
   /**

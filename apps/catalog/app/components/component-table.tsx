@@ -23,6 +23,7 @@ import {
 } from 'shared/component-columns'
 import { askOfComponentColumn } from 'shared/column-filters'
 import { setBound, setTerm, setText, type ComponentQuery } from 'shared/component-query'
+import { TABLE_FACE, TABLE_INK } from 'shared/type'
 import {
   ColumnFilterMenu,
   ColumnHeading,
@@ -45,8 +46,8 @@ import {
  * table carries the rules' marks, the holding comboboxes and the bill's `on
  * list` badge, all of which are about a *tool*, and threading a row type
  * through them would have put every one of those behind a conditional to gain a
- * shared shell. The four columns every component has — number, vendor, type,
- * family — are fixed here for the same reason they are fixed there.
+ * shared shell. The columns every component has — number, vendor, family — are
+ * fixed here for the same reason they are fixed there.
  */
 
 /**
@@ -164,6 +165,9 @@ const WIDTH: Readonly<Record<string, string>> = {
   catalogNumber: '10rem',
   brand: '7rem',
   type: '11rem',
+  // The holder's Type: `end mill holder` in the default six is two lines of
+  // ellipsis.
+  clamping: '9rem',
   familyId: '9rem',
 }
 
@@ -182,11 +186,7 @@ const ValueCell = ({
   const value = valueOf(kind, record, column.code)
   return (
     <span
-      className={cn(
-        'truncate',
-        column.kind === 'length' ? 'font-mono text-zinc-300' : 'text-zinc-300',
-        value === null ? 'text-zinc-600' : '',
-      )}
+      className={cn('truncate', value === null ? 'text-zinc-600' : '')}
       title={typeof value === 'string' ? value : undefined}
     >
       {formatValue(value, column.kind, unit)}
@@ -274,9 +274,8 @@ export const ComponentTable = ({
   /**
    * One heading, with the two things it can do: sort, and narrow.
    *
-   * The type a holder reads as is the only heading that asks nothing — it is
-   * three of the other columns said as one phrase, so narrowing on it would be
-   * a fourth way to ask what Taper, Clamping and Collet series already ask.
+   * Which heading asks what is `shared/column-filters.ts`; a heading it says
+   * nothing for sorts and offers no funnel.
    */
   const filterProps = (code: string, label: string): ColumnHeadingProps => {
     if (filtering === undefined) {
@@ -349,7 +348,11 @@ export const ComponentTable = ({
   )
 
   return (
-    <div ref={inside} data-component-table={kind} className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div
+      ref={inside}
+      data-component-table={kind}
+      className={cn(TABLE_FACE, TABLE_INK, 'flex min-h-0 min-w-0 flex-1 flex-col')}
+    >
       <div className="min-h-0 flex-1">
         <Table
           id={`part-${kind}s`}
@@ -384,7 +387,26 @@ export const ComponentTable = ({
                   >
                     {column.code === 'catalogNumber' ? (
                       <>
-                        <span className="font-mono text-zinc-100">{record.catalogNumber}</span>
+                        <span>{record.catalogNumber}</span>
+                        {/*
+                          **The vendor's page is on the number** (Paul,
+                          2026-09-11), as it already is on the order list: the
+                          catalogue number is what a shop orders by and looks
+                          up, so the link belongs beside it rather than a cell
+                          away in Vendor.
+                        */}
+                        {record.productLink === null ? null : (
+                          <a
+                            href={record.productLink}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            aria-label={`Open ${record.catalogNumber} at the vendor`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="text-info ml-1 shrink-0"
+                          >
+                            <ArrowSquareOutIcon />
+                          </a>
+                        )}
                         {/*
                           What is on the feature already, so a swap can be
                           backed out of by eye as well as by the Cancel beside
@@ -432,22 +454,8 @@ export const ComponentTable = ({
                         )}
                       </>
                     ) : column.code === 'brand' ? (
-                      <span className="flex min-w-0 items-center gap-1">
-                        <span className="truncate text-zinc-400" title={record.brand}>
-                          {record.brand}
-                        </span>
-                        {record.productLink === null ? null : (
-                          <a
-                            href={record.productLink}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                            aria-label={`Open ${record.catalogNumber} at the vendor`}
-                            onClick={(event) => event.stopPropagation()}
-                            className="shrink-0 text-info"
-                          >
-                            <ArrowSquareOutIcon />
-                          </a>
-                        )}
+                      <span className="truncate text-zinc-400" title={record.brand}>
+                        {record.brand}
                       </span>
                     ) : (
                       <ValueCell kind={kind} record={record} column={column} unit={unit} />

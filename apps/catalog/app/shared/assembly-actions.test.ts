@@ -189,11 +189,7 @@ describe('a feature that is not a row yet', () => {
    */
   it('offers the row itself where there is no row yet and no tool', () => {
     expect(assemblyActions(stack({ toolGuid: null }), [], false)).toEqual([
-      {
-        kind: 'list',
-        label: 'Add feature to list',
-        note: 'Nothing is ordered against it yet, so it goes on the list marked incomplete.',
-      },
+      { kind: 'list', label: 'Add feature to list' },
     ])
   })
 

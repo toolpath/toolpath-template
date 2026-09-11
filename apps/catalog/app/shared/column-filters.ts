@@ -59,14 +59,13 @@ const TOOL_RANGE_KINDS: Readonly<Record<string, RangeKind>> = {
 }
 
 /**
- * The two tool columns that are a control rather than a value.
+ * What the header over a tool column asks.
  *
- * A holder cell is a dropdown that *sets* the holding on that row, so a funnel
- * beside it would read as narrowing by a choice the row does not have yet.
+ * Every tool column is a value now, so every heading asks something: the two
+ * that were a control rather than a value — the holder and the collet
+ * dropdowns — came off the list on 2026-09-10. The `null` stays in the type
+ * because `askOfTapColumn` shares it and a tap column can still ask nothing.
  */
-const NOT_ASKED = ['holder', 'collet']
-
-/** What the header over a tool column asks, or nothing where it asks nothing. */
 export const askOfToolColumn = (code: string): ColumnAsk | null => {
   if (code === 'catalogNumber') {
     return { shape: 'text' }
@@ -74,9 +73,6 @@ export const askOfToolColumn = (code: string): ColumnAsk | null => {
   const axis = TOOL_TERM_COLUMNS[code]
   if (axis !== undefined) {
     return { shape: 'terms', axis }
-  }
-  if (NOT_ASKED.includes(code)) {
-    return null
   }
   return { shape: 'range', kind: TOOL_RANGE_KINDS[code] ?? 'length' }
 }
@@ -124,10 +120,9 @@ export const AXES_PARKED: ReadonlyArray<string> = [
 /**
  * What the header over a holder or collet column asks.
  *
- * The type and the term axes first — type, brand and family are fixed columns
- * rather than `columnsFor` entries, and each is narrowed on the words its cell
- * shows — then every length, which is the same rule the filter panel used when
- * it built a range control per length column.
+ * The type and the term axes first — type, brand and family are narrowed on the
+ * words their cells show — then every length, which is the same rule the filter
+ * panel used when it built a range control per length column.
  */
 export const askOfComponentColumn = (kind: ComponentKind, code: string): ColumnAsk | null => {
   // The one column a shop arrives at already knowing the answer to — the same
@@ -136,12 +131,18 @@ export const askOfComponentColumn = (kind: ComponentKind, code: string): ColumnA
     return { shape: 'text' }
   }
   /**
-   * The type is a column of its own before it is an axis: it is three of a
-   * holder's columns said as one phrase — `BT30 ER11 collet chuck` — and that
-   * phrase is what a shop calls the thing (Paul, 2026-09-08). `termOn` builds
-   * it, so the list a header offers is the words the column shows.
+   * A collet's type is a column of its own before it is an axis: `ER20 collet`
+   * is what a shop calls the thing (Paul, 2026-09-08), and `termOn` builds it,
+   * so the list a header offers is the words the column shows.
+   *
+   * A **holder has no such column** — the phrase glued its Taper and Collet
+   * series onto how it grips and was wrong for it (Paul, 2026-09-11). Its type
+   * is the `clamping` axis, under the heading now called Type.
    */
-  if (code === 'type' || termAxesFor(kind).some((axis) => axis.code === code)) {
+  if (
+    (code === 'type' && kind === 'collet') ||
+    termAxesFor(kind).some((axis) => axis.code === code)
+  ) {
     return { shape: 'terms', axis: code }
   }
   const column = columnsFor(kind).find((each) => each.code === code)

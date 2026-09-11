@@ -321,7 +321,7 @@ describe('Enter, from inside a filter menu', () => {
     )
 
     const before = onClose.mock.calls.length
-    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Diameter — value' }), { key: 'Enter' })
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Diameter — max' }), { key: 'Enter' })
 
     expect(onOverride).toHaveBeenCalled()
     expect(onClose.mock.calls.length).toBe(before + 1)

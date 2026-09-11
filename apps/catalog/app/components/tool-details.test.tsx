@@ -244,8 +244,48 @@ describe('the material around the feature', () => {
     provenance: {},
   }
 
-  /** What the tree has put in the slots — the panel's only source for a stack. */
+  /**
+   * The stack the tree hands in. **The only way a holder reaches this panel**
+   * (Paul, 2026-09-10): the two dropdowns that used to offer one of its own
+   * came off, so a stack on this sheet is a stack somebody assembled in the
+   * tree.
+   */
   const held = { holder, collet: null }
+
+  /**
+   * **The number in the table is the number on the sheet** (2026-09-03).
+   *
+   * The panel printed the tool's own `LBH` beside a drawing of the stack, and
+   * the two were different quantities: `LBH` is the most the tool could stand
+   * out and the drawing is drawn at the setup, so the sheet dimensioned a
+   * length the table beside it contradicted — the report's symptom, a
+   * dimension line running up into the holder body. They are one number now,
+   * and this is the lockstep that keeps them one. AGENTS.md § Testing: a
+   * duplicate across a boundary gets a test, not a comment.
+   *
+   * The figure is `shared/drawn-assembly`'s, worked out from this holder and
+   * this tool. It used to be whatever the panel's own `stickoutFor` said,
+   * which was a dropdown's answer; with the dropdowns gone the stack is the
+   * only thing that can answer it.
+   */
+  it('prints the stickout the stack is drawn at, not the tool\u2019s own', () => {
+    measured(<ToolDetails tool={tool} unit="millimeters" stack={held} />)
+
+    // `drawnAssembly`'s figure for this tool in this chuck, not the 46 mm the
+    // tool carries on its own.
+    expect(screen.getByText('Below holder').closest('div')?.textContent).toBe(
+      'Below holderLBH12.70 mm*',
+    )
+
+    // And it stays that figure under the zoom, which is the 2026-09-11 half of
+    // the same rule: the press over the sheet moves the frame, not the stack.
+    // The switch it replaced drew a bare tool, and the number went back to the
+    // tool's own 46 mm with it; there is no bare tool to go back to now.
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom to tool' }))
+    expect(screen.getByText('Below holder').closest('div')?.textContent).toBe(
+      'Below holderLBH12.70 mm*',
+    )
+  })
 
   it('draws the part wall and the gaps beside the stack when there is a feature', () => {
     const { container } = measured(
