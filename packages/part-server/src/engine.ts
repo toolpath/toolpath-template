@@ -145,6 +145,41 @@ const keyStatusFromResponse = async (
   }
 }
 
+/**
+ * Asks the Engine for a short-lived demo API key.
+ *
+ * Demo keys are only sometimes offered — the feature can be disabled, the pool
+ * exhausted, or the request can simply fail in transit. Every one of those is
+ * "no demo key today" rather than an error: this returns `null` and the caller
+ * falls back to asking for the user's own key. The key it does return is minted
+ * by the Engine, so it is sealed into the session without a second validation
+ * round trip.
+ */
+export const requestDemoSession = async (appName = 'toolpath'): Promise<string | null> => {
+  let response: Response
+  try {
+    response = await fetch(`${apiBaseUrl()}/v1/demo/session`, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+    })
+  } catch (cause) {
+    console.error(`[${appName}] Demo session request failed`, {
+      engineUrl: apiBaseUrl(),
+      error: cause instanceof Error ? cause.message : String(cause),
+    })
+    return null
+  }
+  if (!response.ok) {
+    return null
+  }
+  try {
+    const body = (await response.json()) as { apiKey?: unknown }
+    return typeof body.apiKey === 'string' && body.apiKey ? body.apiKey : null
+  } catch {
+    return null
+  }
+}
+
 /** Confirms a submitted BYOK key before it is persisted in the encrypted browser session. */
 export const validateApiKey = async (apiKey: string): Promise<void> => {
   try {

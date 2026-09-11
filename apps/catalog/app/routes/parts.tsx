@@ -23,7 +23,9 @@ import { useUnit } from 'shared/use-unit'
  */
 const Parts = () => {
   const [unit, setUnit] = useUnit()
-  const session = useSession()
+  // Try a shared demo key first, so the catalog can be used without one; the
+  // manual key form below is the fallback when no demo key is available.
+  const session = useSession({ demoFallback: true })
   const upload = usePartUpload()
   const form = useRef<HTMLFormElement>(null)
 
@@ -48,7 +50,15 @@ const Parts = () => {
       {/* This is the viewer stage before the first mesh exists. */}
       <div className="min-h-0 flex-1 p-3">
         <section className="relative size-full overflow-hidden rounded-xl bg-zinc-950">
-          {session.status === 'connected' ? (
+          {session.status === 'checking' ? (
+            // A demo key is being tried; hold the stage rather than flash the
+            // manual key form on the way to the uploader.
+            <Card className="flex size-full items-center justify-center p-6">
+              <p role="status" className="text-sm text-zinc-400">
+                Connecting…
+              </p>
+            </Card>
+          ) : session.status === 'connected' ? (
             <PartUploadOverlay
               full
               title="Match tools to a part"
