@@ -286,8 +286,9 @@ const ClearanceProbe = ({
     return () => {
       delete (window as unknown as { __clearanceDebug?: () => ClearanceCase }).__clearanceDebug
     }
-    // The signature is what identifies a drawing; the rest is read through it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // The signature is what identifies a drawing; the rest is read through it,
+    // so it is the whole dependency. (No `react-hooks` plugin is configured in
+    // this repository, so there is no exhaustive-deps directive to disable.)
   }, [signature])
   return <g ref={anchor} data-clearance-probe />
 }

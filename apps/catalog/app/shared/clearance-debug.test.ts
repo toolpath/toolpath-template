@@ -55,9 +55,22 @@ describe('clearanceReport', () => {
     expect(clearanceReport(input())).toContain('the curve is millimetre-sized against the stack')
   })
 
+  /**
+   * The flank that reserved nothing, which is one of the four things a wall
+   * standing hard against the cut can mean and the only one the picture cannot
+   * distinguish. A wide curve does not reach this branch: `lastRise` is where
+   * the staircase's final step *starts*, so widening the curve moves the last
+   * corner without moving what the wall asks for. It is the sheet that has to
+   * be narrow — here the `+r` reserve is `null` and the stack is 2 mm across,
+   * which puts the edge at 3.6 mm under a wall wanting 13.
+   */
   it('names the sheet when the flank grants less room than the wall wants', () => {
-    const wide: ReachCurve = { horizontalOffset: [0, 10, 40], verticalOffset: [12, 20, 30] }
-    const text = clearanceReport(input({ curve: wide, profile: materialProfile(wide, 3) }))
+    const text = clearanceReport(
+      input({
+        extent: { height: 60, radius: 2 },
+        granted: { padding: { minus: 16, plus: 16, along: 16 }, reserve: null },
+      }),
+    )
     expect(text).toContain('clipped by: the sheet')
   })
 
