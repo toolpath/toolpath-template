@@ -326,11 +326,35 @@ export const CatalogDrawing = ({
    */
   const outline = curve === null ? null : assemblyOutline(viewer)
   const verdict = curve !== null && assembly !== null ? clearance(assembly, curve, margins) : null
-  const cuttingRadius = (tool.geometry.DC ?? 0) / 2
+  /**
+   * The flank the material stands beside, and `null` where the tool has none.
+   *
+   * **A reach curve is measured out from the cut**, so every r the overlay
+   * draws is `cuttingRadius + offset` and the wall's inner face *is* the
+   * cutting radius. `(DC ?? 0) / 2` put that face on the centreline for any
+   * tool stating no cutting diameter, and the guard beside it —
+   * `DC !== undefined` — let one through: a `DC` of `null` or `0` is not
+   * `undefined`, so the wall was drawn, from `r = 0`, straight through the
+   * tool it was supposed to stand clear of (Paul, 2026-09-11). The hatch
+   * covered the tool's whole `+r` flank and the drawing said the cutter was
+   * buried in the part.
+   *
+   * `typeof` rather than `!== undefined`, because the type says
+   * `Record<string, number>` and a catalog built from a vendor that published
+   * no cutting diameter carries `null` at runtime — which is the case the old
+   * guard was written for and the one it missed.
+   *
+   * A tool with no cutting diameter has no flank, so there is nothing to
+   * measure a gap from either: `gaps` goes with it, `overlaid` turns off, and
+   * the sheet is the tool on its own. That is the honest picture — the
+   * alternative is a wall drawn from a radius nobody stated.
+   */
+  const stated = tool.geometry.DC
+  const cuttingRadius = typeof stated === 'number' && stated > 0 ? stated / 2 : null
   const profile =
-    curve !== null && tool.geometry.DC !== undefined ? materialProfile(curve, cuttingRadius) : null
+    curve !== null && cuttingRadius !== null ? materialProfile(curve, cuttingRadius) : null
   const gaps =
-    curve !== null && outline !== null
+    curve !== null && outline !== null && cuttingRadius !== null
       ? tightestGaps(outline.segments, curve, cuttingRadius, margins)
       : null
 
@@ -359,7 +383,11 @@ export const CatalogDrawing = ({
       }
       className="size-full"
     >
-      {overlaid && profile !== null && gaps !== null && outline !== null ? (
+      {overlaid &&
+      profile !== null &&
+      gaps !== null &&
+      outline !== null &&
+      cuttingRadius !== null ? (
         <>
           <ClearanceOverlay
             profile={profile}
