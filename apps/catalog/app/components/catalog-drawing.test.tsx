@@ -406,3 +406,68 @@ describe('the overlay this application draws', () => {
     )
   })
 })
+
+/**
+ * **The wall stands beside the cut, never on the centreline.**
+ *
+ * A reach curve is measured out from the cut, so every radius the overlay draws
+ * is `cuttingRadius + offset` and the wall's inner face *is* the cutting
+ * radius. `(DC ?? 0) / 2` behind a `DC !== undefined` guard put that face at
+ * `r = 0` for any tool stating no cutting diameter — `null` and `0` are not
+ * `undefined` — so the hatch was drawn from the centreline outward, straight
+ * through the tool it was supposed to stand clear of (Paul, 2026-09-11).
+ *
+ * The two halves are the rule: a tool that states a diameter gets a wall at its
+ * flank, and one that does not gets no wall at all rather than one drawn from a
+ * radius nobody stated.
+ */
+describe('where the material is drawn', () => {
+  /** Every coordinate the material path visits, in the frame's own units. */
+  const points = (container: Element): Array<{ readonly along: number; readonly across: number }> =>
+    [
+      ...(container.querySelector('[data-part="material"]')?.getAttribute('d') ?? '').matchAll(
+        /(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g,
+      ),
+    ].map((found) => ({ along: Number(found[1]), across: Number(found[2]) }))
+
+  it('stands the wall off the cut by the tool’s own radius', () => {
+    const container = drawn(<CatalogDrawing tool={tool} unit="millimeters" curve={curve} />)
+    const across = points(container).map((point) => point.across)
+
+    expect(across.length).toBeGreaterThan(0)
+    // The inner face is the cutting radius — DC 3 mm — and not the centreline.
+    expect(Math.min(...across)).toBeCloseTo(tool.geometry.DC / 2, 6)
+    expect(Math.min(...across)).toBeGreaterThan(0)
+  })
+
+  it('draws no wall for a tool that states no cutting diameter', () => {
+    const { DC: _dropped, ...rest } = tool.geometry
+    const undiametered: CatalogTool = { ...tool, geometry: rest }
+    expect(
+      drawn(<CatalogDrawing tool={undiametered} unit="millimeters" curve={curve} />).querySelector(
+        '[data-part="material"]',
+      ),
+    ).toBeNull()
+  })
+
+  /**
+   * The case the old guard was written for and missed. The type says
+   * `Record<string, number>`, but a catalog built from a vendor that published
+   * no cutting diameter carries `null` through the JSON, and `null !==
+   * undefined` — so this is the tool that drew its wall from the centreline.
+   */
+  it('draws no wall for a tool whose diameter is null or zero', () => {
+    for (const stated of [null, 0]) {
+      StubResizeObserver.all = []
+      const broken = {
+        ...tool,
+        geometry: { ...tool.geometry, DC: stated as unknown as number },
+      } satisfies CatalogTool
+      expect(
+        drawn(<CatalogDrawing tool={broken} unit="millimeters" curve={curve} />).querySelector(
+          '[data-part="material"]',
+        ),
+      ).toBeNull()
+    }
+  })
+})

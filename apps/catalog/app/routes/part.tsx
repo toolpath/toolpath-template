@@ -82,7 +82,7 @@ import {
   orderAssemblies,
   type ComponentSort,
 } from 'shared/order-list'
-import { groupReadings, sharedHoleDiameter } from 'shared/group-geometry'
+import { askedCurve, groupReadings, sharedHoleDiameter } from 'shared/group-geometry'
 import { groupOffer } from 'shared/group-offer'
 import { usedElsewhere, usesByGuid } from 'shared/component-usage'
 import { toolActionLabel, toolActions, type ToolAction } from 'shared/tool-actions'
@@ -211,7 +211,6 @@ import {
   splitHolding,
   tapers,
 } from 'shared/holding'
-import { sectionOf } from 'shared/section-of'
 import { belowHolder, type BelowHolder } from 'shared/drawn-assembly'
 import { drawable, holdable, holderOptions, policyOf, thresholdsFrom } from 'shared/holder-choice'
 import { closestMisses, closestPerForm, type Format } from 'shared/judge'
@@ -1506,10 +1505,26 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     return bore ?? holeDiameter
   }, [threadSpec, holeChoice.mode, holeDiameter])
 
-  /** The reach curve the holders are swept over, read off the feature. */
+  /**
+   * The reach curve the holders are swept over: **the whole question's**.
+   *
+   * It was read off `reading`, the face clicked last, so a group of six was
+   * drawn, swept and judged against whichever of the six that happened to be
+   * (Paul, 2026-09-11). One tool for all of them has to get past all of their
+   * material, so the curve is the union of theirs — `groupCurve` in
+   * `shared/group-geometry`, beside the fold that answers every other number a
+   * group is chosen against, and `askedCurve` is the scope it is folded over.
+   *
+   * The scope is what the page is being asked, and not one feature of it: the
+   * same `asked()` answer the tool list is judged against, so the verdict under
+   * the drawing and the column beside it are about the same thing. A group
+   * asked for one tool **each** is not one question — every feature gets its
+   * own tool — so that case reads the feature in front of it, as does a reading
+   * hovered while the list speaks for itself.
+   */
   const curve = useMemo(
-    () => (reading ? (sectionOf(reading, report.features)?.curve ?? null) : null),
-    [reading, report.features],
+    () => askedCurve(askedNow.results, selectedFeatures, reading, report.features),
+    [askedNow.results, selectedFeatures, reading, report.features],
   )
 
   const thresholds = useMemo(() => thresholdsFrom(), [])

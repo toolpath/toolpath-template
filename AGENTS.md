@@ -334,7 +334,7 @@ application unless that application says otherwise.
 | which layer one press of Escape or Enter reaches      | `app/shared/use-escape.ts`                           |
 | which list the arrows move through, and the focus     | `app/shared/arrow-target.ts`                         |
 | where a menu opened off a button stands, and how tall | `app/shared/menu-place.ts`                           |
-| keeping an open menu against its button               | `app/shared/use-anchored-menu.ts`                    |
+| keeping an open menu against its button               | `Menu.Popover`, `@toolpath/ui`                       |
 | whether an open filter survives the list under it     | `FilterMenu`, `app/components/column-filter.tsx`     |
 | a feature's assemblies, its slots, its storage        | `app/shared/assembly-tree.ts`                        |
 | what narrows what when any part is chosen first       | `app/shared/assembly-narrowing.ts`                   |
@@ -342,6 +342,7 @@ application unless that application says otherwise.
 | whether the rack shows them at all, and how many      | `holdersToOffer`, same file                          |
 | the press that shows them, hidden to begin with       | `app/components/no-collet-toggle.tsx`                |
 | a group's worst case, and whose it is                 | `app/shared/group-geometry.ts`                       |
+| the material a whole question has to clear            | `askedCurve`, same file                              |
 | how far below the holder a stack has to stand         | `belowHolder`, `app/shared/drawn-assembly.ts`        |
 | which slots were filled against the rules             | `overrides`, `app/shared/assembly-tree.ts`           |
 | what a stack offers, and its button's words           | `app/shared/assembly-actions.ts`                     |
