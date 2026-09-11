@@ -25,7 +25,7 @@ import {
 } from 'shared/component-columns'
 import { askOfComponentColumn } from 'shared/column-filters'
 import { setBound, setTerm, setText, type ComponentQuery } from 'shared/component-query'
-import { TABLE_FACE, TABLE_INK } from 'shared/type'
+import { TABLE_FACE, TABLE_HEAD, TABLE_INK } from 'shared/type'
 import {
   ColumnFilterMenu,
   ColumnHeading,
@@ -326,7 +326,7 @@ export const ComponentTable = ({
   )
 
   const header = (
-    <Table.HeaderRow>
+    <Table.HeaderRow className={TABLE_HEAD}>
       {shown.map((column) => (
         <Table.HeaderCell
           key={column.code}

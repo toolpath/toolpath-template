@@ -29,6 +29,27 @@
 :root {
   /** A lift off the page, the same weight either way round. */
   --row-stripe: rgba(255, 255, 255, 0.045);
+  /**
+   * The ground under a table's headings.
+   *
+   * The heading row is where a list is narrowed and sorted, and the accent is
+   * already what this page paints a set filter with, so the row that takes
+   * those answers carries the same colour (Paul, 2026-09-11: "blue is our
+   * selection color and that's a spot to make selections").
+   *
+   * **The same blue the chosen feature is drawn in** (Paul, 2026-09-11: "the
+   * blue should match the feature or group blue shown in that dialog in the
+   * upper left"). That box is `bg-info/15` on the page's own ground, so this
+   * is that composite written out: 15 % of the accent in `srgb`, which is what
+   * a 15 % alpha over `--color-zinc-950` resolves to. One blue means one
+   * thing, and two near-misses of it read as two different states.
+   *
+   * Opaque rather than an alpha, because the heading row is sticky and the
+   * rows scroll underneath it. Both halves are theme tokens, so light mode
+   * needs no second value — the same mix over the mirrored ramp is a pale
+   * blue band.
+   */
+  --table-head: color-mix(in srgb, var(--color-info) 15%, var(--color-zinc-950));
   color-scheme: dark;
   font-family: var(--font-body);
   background: var(--color-zinc-950);

@@ -92,3 +92,21 @@ export const TABLE_FACE = 'font-body tabular-nums'
  * dimmed merely for being prose.
  */
 export const TABLE_INK = 'text-zinc-300'
+
+/**
+ * The heading row's ground — the accent, because that row is where the
+ * answering happens.
+ *
+ * Every column heading sorts the list and opens the filter that narrows it, so
+ * the row of them is the one strip of a table a shop presses rather than reads
+ * (Paul, 2026-09-11: "blue is our selection color and that's a spot to make
+ * selections"). `--table-head` in `styles.css` is the colour and carries the
+ * reasoning; this is the pair of classes that reaches it.
+ *
+ * **Both halves, and both with `!`.** `@toolpath/ui`'s `HeaderRow` paints
+ * itself `!bg-white dark:!bg-zinc-900`, and the table library sets a third
+ * background through its own theme. `cn` is `twMerge`, so naming the same two
+ * variants takes the kit's pair off — one of them alone would leave the other
+ * theme's white or zinc standing.
+ */
+export const TABLE_HEAD = '!bg-(--table-head) dark:!bg-(--table-head)'

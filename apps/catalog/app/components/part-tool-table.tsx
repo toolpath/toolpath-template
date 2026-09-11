@@ -29,7 +29,7 @@ import {
   type ColumnHeadingProps,
 } from './column-heading'
 import type { Bound, ColumnOverride } from './column-filter'
-import { TABLE_FACE, TABLE_INK } from 'shared/type'
+import { TABLE_FACE, TABLE_HEAD, TABLE_INK } from 'shared/type'
 
 export interface PartToolColumn {
   readonly code: string
@@ -580,7 +580,7 @@ export const PartToolTable = ({
   )
 
   const header = (
-    <Table.HeaderRow>
+    <Table.HeaderRow className={TABLE_HEAD}>
       {shown.map((column) => (
         <Table.HeaderCell
           key={column.code}
