@@ -275,6 +275,8 @@ application unless that application says otherwise.
 | the columns a list opens with, and their order       | `TOOL_COLUMNS`, `components/part-tool-table.tsx`     |
 | the two columns the list turns on for itself         | `app/shared/auto-columns.ts`                         |
 | a row's answer, and what it opens to                 | `app/shared/recommendations.ts`                      |
+| what a press on a row of the order list opens        | `pressRow`, `app/routes/part.tsx`                    |
+| whose stacks the tree beside an open box shows       | `editedItem` / `treeKey`, same file                  |
 | what the panel offers for the tool it shows          | `app/shared/tool-actions.ts`                         |
 | what fills the tool table, and the cache             | `app/shared/catalog-matcher.ts`                      |
 | a stored guid turned back into a record              | `getTool`/`getHolder`/`getCollet`, `catalog.ts`      |

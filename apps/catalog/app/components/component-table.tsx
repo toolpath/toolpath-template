@@ -45,8 +45,8 @@ import {
  * table carries the rules' marks, the holding comboboxes and the bill's `on
  * list` badge, all of which are about a *tool*, and threading a row type
  * through them would have put every one of those behind a conditional to gain a
- * shared shell. The four columns every component has — number, vendor, type,
- * family — are fixed here for the same reason they are fixed there.
+ * shared shell. The columns every component has — number, vendor, family — are
+ * fixed here for the same reason they are fixed there.
  */
 
 /**
@@ -164,6 +164,9 @@ const WIDTH: Readonly<Record<string, string>> = {
   catalogNumber: '10rem',
   brand: '7rem',
   type: '11rem',
+  // The holder's Type: `end mill holder` in the default six is two lines of
+  // ellipsis.
+  clamping: '9rem',
   familyId: '9rem',
 }
 
@@ -274,9 +277,8 @@ export const ComponentTable = ({
   /**
    * One heading, with the two things it can do: sort, and narrow.
    *
-   * The type a holder reads as is the only heading that asks nothing — it is
-   * three of the other columns said as one phrase, so narrowing on it would be
-   * a fourth way to ask what Taper, Clamping and Collet series already ask.
+   * Which heading asks what is `shared/column-filters.ts`; a heading it says
+   * nothing for sorts and offers no funnel.
    */
   const filterProps = (code: string, label: string): ColumnHeadingProps => {
     if (filtering === undefined) {

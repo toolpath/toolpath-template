@@ -788,6 +788,19 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const selectedItem = useMemo(() => itemNamed(list, selectedId), [list, selectedId])
 
   /**
+   * The row a draft is changing, where it is changing one rather than making
+   * one.
+   *
+   * **A row being edited is still that row** (Paul, 2026-09-11: "edit group
+   * does not show the tool assembly applied to the group"). Editing clears the
+   * selection — the box over the part is the question now, not the row — so
+   * every rule that reads {@link selectedItem} lost sight of a row that had not
+   * gone anywhere, and the tree beside the editor opened on empty stacks while
+   * the order list underneath it was showing that group's tools.
+   */
+  const editedItem = useMemo(() => itemNamed(list, draft?.editing ?? null), [list, draft?.editing])
+
+  /**
    * The rows the order list draws: every row on the list.
    *
    * **A row can be flagged before it is answered** (Paul, 2026-09-10: "I should
@@ -1578,6 +1591,14 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const activeItem = useMemo(
     () =>
       /*
+        **A row being edited is the row in play**, whatever the draft's tags
+        have been dragged down to meanwhile: dropping a face out of a group
+        leaves the search below matching some other row that happens to hold
+        the rest, and the press under the stack would then write that row's
+        lines (Paul, 2026-09-11).
+      */
+      editedItem ??
+      /*
         **An assembly being built is not a row, and is not any other row
         either** (Paul, 2026-09-08). It asks about no features, so the search
         below would hand back whichever row happened to match nothing — and the
@@ -1605,13 +1626,13 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               under the stack read as *add a tool to that feature* and the group
               was never made — the confirm button used to make it, and there is
               no confirm button any more. A group being *edited* is the row it
-              is editing, which the search below still finds.
+              is editing — `editedItem` above.
             */
             draft?.kind === 'group' && draft.editing === null
             ? null
             : list.find((item) => askedNow.tags.every((tag) => item.tags.includes(tag)))) ??
       null,
-    [selectedItem, list, askedNow.tags, draft?.kind, draft?.editing],
+    [editedItem, selectedItem, list, askedNow.tags, draft?.kind, draft?.editing],
   )
 
   /* ----------------------- the tool assembly tree ------------------------- */
@@ -1683,6 +1704,17 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    */
   const treeKey =
     /*
+      **A row being changed keeps its own stacks** (Paul, 2026-09-11: "edit
+      group does not show the tool assembly applied to the group"). Editing
+      opens a draft, and every draft below is keyed by what is being *built* —
+      so the tree beside the editor opened empty on a row the order list was
+      already answering, and the assembly somebody was there to change was not
+      on screen at all. The row exists, its stacks are keyed by its id, and an
+      edit is a change to those rather than a new thing beside them.
+    */
+    editedItem !== null
+      ? editedItem.id
+      : /*
       **Only the group editor takes the plain key** (Paul, 2026-09-07: "new hole
       selections should be treated as new"). Its tags change under the mouse as
       faces are toggled, so a key that moved with them would reset the tree
@@ -1691,32 +1723,32 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       built for one hole were still standing the next time anybody pressed
       *Add feature*, on a hole nobody had called threaded.
     */
-    draft?.kind === 'group'
-      ? DRAFT_TREE
-      : /*
+        draft?.kind === 'group'
+        ? DRAFT_TREE
+        : /*
           **An assembly being built keeps its stacks under a key of its own.**
           It has no tags, so `draftKeyFor([])` is that key — and `carryDraftTree`
           reads the same one when the press makes the row, so nothing built
           before the press is lost by making it.
         */
-        draft?.kind === 'assembly'
-        ? draftKeyFor([])
-        : /*
+          draft?.kind === 'assembly'
+          ? draftKeyFor([])
+          : /*
           **A part-level assembly is a tree with no question above it** (Paul,
           2026-09-08). It asks about no feature, so `asking` is false for it —
           and the row is still the thing being built, keyed by its own id like
           every other row's tree.
         */
-          selectedItem?.kind === 'assembly'
-          ? selectedItem.id
-          : // Nothing asked is nothing to assemble: the table is the whole catalog
-            // then, and a tree beside it would be answering for a feature nobody
-            // has selected.
-            !asking
-            ? null
-            : draft !== null
-              ? draftKeyFor(askedNow.tags)
-              : (activeItem?.id ?? draftKeyFor(askedNow.tags))
+            selectedItem?.kind === 'assembly'
+            ? selectedItem.id
+            : // Nothing asked is nothing to assemble: the table is the whole catalog
+              // then, and a tree beside it would be answering for a feature nobody
+              // has selected.
+              !asking
+              ? null
+              : draft !== null
+                ? draftKeyFor(askedNow.tags)
+                : (activeItem?.id ?? draftKeyFor(askedNow.tags))
   /**
    * The stacks for that row — what was built, or what the bill already holds.
    *
@@ -1742,8 +1774,14 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       A draft opens on empty stacks rather than on the bill: it has no lines
       yet, and reading the focused feature's would show another row's answers
       under a feature being created.
+
+      **A draft that is changing a row is the exception** (Paul, 2026-09-11): it
+      has lines, they are that row's, and opening empty in front of somebody who
+      came to change a holder is the bug. `editedItem` is the row, and the keys
+      below are its own.
     */
-    return draft !== null || treeKey === DRAFT_TREE
+    const row = editedItem ?? selectedItem
+    return (draft !== null && editedItem === null) || treeKey === DRAFT_TREE
       ? defaultAssemblies(threaded)
       : treeFromLines(
           /*
@@ -1752,13 +1790,13 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
             on whatever face was last clicked. Every key of the row it is,
             because that is where the lines were written (`shared/order-list`).
           */
-          linesOf(sheet, selectedItem === null ? [choiceKey] : sheetKeysOf(selectedItem)),
+          linesOf(sheet, row === null ? [choiceKey] : sheetKeysOf(row)),
           threaded,
           // Which line is the tap is a fact about the tool, and the catalog is
           // the route's to read.
           (toolGuid) => getTool(toolGuid)?.form.startsWith('tap ') ?? false,
         )
-  }, [trees, treeKey, sheet, choiceKey, threadSpec, draft, selectedItem])
+  }, [trees, treeKey, sheet, choiceKey, threadSpec, draft, selectedItem, editedItem])
 
   /**
    * The slot open now: what was clicked while it still exists, else the first
@@ -3554,6 +3592,41 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       dispatch({ type: 'collect', tags: item.tags, collecting: item.kind === 'group' })
     },
     [list],
+  )
+
+  /**
+   * A press on a row of the order list.
+   *
+   * **A group row opens the group** (Paul, 2026-09-11: clicking one "opens an
+   * individual feature dialog rather than the dialog for the group … it should
+   * work like right click *edit group* does"). Selecting a group read the first
+   * feature it holds, so what stood over the part was one hole's box — a
+   * question about one feature where the question about all of them belongs,
+   * and no way in to the faces the group is made of except the menu. There is
+   * one way into a group now, and the right-click item is the second door onto
+   * it rather than the only one.
+   *
+   * **The lines under the row are the same press** (Paul, 2026-09-11: "clicking
+   * on the tool assembly itself in the order list still brings me to a single
+   * feature. The tool assembly(s) added to the GROUP should open the GROUP
+   * dialog"). A group's answers are the group's, so pressing one asks the
+   * group's question: there is one way into a group, and every part of its row
+   * takes it.
+   *
+   * **A tag is the exception**, because it names something else — a feature
+   * inside a group opened for *one tool each* is its own question, and
+   * {@link selectRow} is what that press has always meant.
+   */
+  const pressRow = useCallback(
+    (id: string | null, tag: string | null, toolGuid?: string) => {
+      const item = itemNamed(list, id)
+      if (item?.kind === 'group' && tag === null) {
+        startEdit(item.id)
+        return
+      }
+      selectRow(id, tag, toolGuid)
+    },
+    [list, startEdit, selectRow],
   )
 
   /**
@@ -5852,8 +5925,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                   items={orderRows}
                                   selectedId={selectedId}
                                   selectedTag={selectedTag}
+                                  /* A group row opens the group; everything
+                                     else selects what it names — `pressRow`. */
                                   onSelect={(id, tag, toolGuid) =>
-                                    selectRow(id, tag ?? null, toolGuid)
+                                    pressRow(id, tag ?? null, toolGuid)
                                   }
                                   chosenTool={chosenTool}
                                   /*

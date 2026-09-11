@@ -113,21 +113,32 @@ describe('what a holder or collet column asks', () => {
     }
   })
 
-  /**
-   * The type a holder reads as is its taper, its series and its clamping said
-   * as one phrase — and that phrase is what a shop calls the thing, so it is a
-   * list of its own (Paul, 2026-09-08). The three columns behind it still ask
-   * for themselves: one press for every BT30, or one for every BT30 ER11
-   * collet chuck.
-   */
   it('searches the catalog number, the one answer a shop arrives with', () => {
     expect(askOfComponentColumn('holder', 'catalogNumber')).toEqual({ shape: 'text' })
     expect(askOfComponentColumn('collet', 'catalogNumber')).toEqual({ shape: 'text' })
   })
 
-  it('offers the type a component reads as, as a list', () => {
-    expect(askOfComponentColumn('holder', 'type')).toEqual({ shape: 'terms', axis: 'type' })
+  /**
+   * A collet's type is its series said as a phrase — `ER20 collet` — and that
+   * phrase is what a shop calls the thing, so it is a list of its own (Paul,
+   * 2026-09-08).
+   */
+  it('offers the type a collet reads as, as a list', () => {
     expect(askOfComponentColumn('collet', 'type')).toEqual({ shape: 'terms', axis: 'type' })
+  })
+
+  /**
+   * **A holder has no such column** (Paul, 2026-09-11): the phrase glued its
+   * taper and its collet series onto how it grips, so it said what Taper and
+   * Collet series already said and could disagree with them. How it grips is
+   * the holder's type, and `clamping` is the axis under that heading.
+   */
+  it('asks a holder nothing for the type that came off', () => {
+    expect(askOfComponentColumn('holder', 'type')).toBeNull()
+    expect(askOfComponentColumn('holder', 'clamping')).toEqual({
+      shape: 'terms',
+      axis: 'clamping',
+    })
   })
 })
 

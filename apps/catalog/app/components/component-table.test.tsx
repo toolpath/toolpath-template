@@ -118,20 +118,28 @@ describe('the filters a holder heading asks', () => {
   })
 
   /**
-   * **The type is a list of its own** (Paul, 2026-09-08: "I should be able to
-   * filter by holder type as a list … same with collet type"). It is three of
-   * a holder's columns said as one phrase — `BT30 ER11 collet chuck` — and
-   * that phrase is what a shop calls the thing; the three behind it still ask
-   * for themselves, so one press can take every BT30 or every BT30 ER11 collet
-   * chuck.
+   * **A holder's type is how it grips** (Paul, 2026-09-11: the Type field was
+   * incorrect and came off, and Clamping is what Type means now). It used to be
+   * a phrase glued out of three other columns — `BT30 ER11 collet chuck` —
+   * which repeated Taper and Collet series and could disagree with them; the
+   * heading writes the `clamping` axis now, and Taper still asks for itself.
    */
-  it('offers the type a holder reads as, as a list', () => {
+  it('narrows how a holder grips from the Type heading', () => {
     const onQuery = show()
 
     fireEvent.click(screen.getByRole('button', { name: 'Filter by Type' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'BT30' }))
 
-    expect(onQuery).toHaveBeenCalledWith({ text: '', terms: { type: ['BT30'] }, bounds: {} })
+    expect(onQuery).toHaveBeenCalledWith({ text: '', terms: { clamping: ['BT30'] }, bounds: {} })
+  })
+
+  /** One Type heading, not two: the glued phrase is off the rack entirely. */
+  it('shows the type once, as how it grips', () => {
+    show()
+
+    expect(screen.getAllByRole('button', { name: 'Filter by Type' })).toHaveLength(1)
+    expect(screen.getByText('collet chuck')).toBeVisible()
+    expect(screen.queryByText('BT30 ER11 collet chuck')).toBeNull()
   })
 })
 

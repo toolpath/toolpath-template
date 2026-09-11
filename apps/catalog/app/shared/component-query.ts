@@ -45,7 +45,9 @@ export interface Bound {
 export const HOLDER_TERM_AXES: ReadonlyArray<{ code: string; label: string }> = [
   { code: 'brand', label: 'Brand' },
   { code: 'taper', label: 'Taper' },
-  { code: 'clamping', label: 'Clamping' },
+  // The heading over it says Type, and the button that clears filters names an
+  // axis by its column — `narrowingNames` — so the two have to agree.
+  { code: 'clamping', label: 'Type' },
   { code: 'colletSeries', label: 'Collet series' },
   { code: 'contact', label: 'Contact' },
   { code: 'familyId', label: 'Family' },
@@ -157,15 +159,15 @@ export const termOn = (
     return familyLabel(record.familyId)
   }
   /**
-   * **What a holder *is*, as one line of a list** (Paul, 2026-09-08: "I should
+   * **What a collet *is*, as one line of a list** (Paul, 2026-09-08: "I should
    * be able to filter by holder type as a list. Let's add that … same with
-   * collet type").
+   * collet type"). `ER20 collet` is how a shop says it out loud, and it is the
+   * phrase the Type column shows.
    *
-   * `BT30 ER11 collet chuck` is how a shop says it out loud, and it is the
-   * phrase the Type column already shows. The three columns behind it — taper,
-   * collet series, clamping — still ask for themselves, because a shop that
-   * wants every BT30 it owns should not have to tick eleven phrases to get
-   * them; this is the shortcut through all three at once.
+   * A holder answered here too until 2026-09-11, with `BT30 ER11 collet chuck`
+   * — three of its columns glued into one phrase, and wrong for it. Its Type
+   * column is `clamping` now, which answers through `valueOf` like any other
+   * word, so nothing asks a holder this.
    */
   if (code === 'type') {
     return kind === 'holder' ? holderTypeLabel(record as Holder) : colletTypeLabel(record as Collet)

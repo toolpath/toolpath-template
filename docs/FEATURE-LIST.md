@@ -465,6 +465,21 @@ nothing looks exactly like one answering a feature nobody can see any more.
 a thing being ordered, and nothing reaches the bill except because a row here put
 it there; the page in the header is the same list read the other way round.
 
+**A press on a row opens what that row is.** A feature row is selected — the
+table below is asked its question and the stack beside it is its answer. A
+**group row opens the group** (Paul, 2026-09-11: clicking one "opens an
+individual feature dialog rather than the dialog for the group … it should work
+like right click _edit group_ does"): selecting a group read the first feature it
+held, so the box over the part asked about one hole of thirty-nine and there was
+no way into the faces the group is made of except the right-click menu.
+**And the lines under a group row are the same press** (Paul, 2026-09-11:
+"clicking on the tool assembly itself in the order list still brings me to a
+single feature. The tool assembly(s) added to the GROUP should open the GROUP
+dialog"). A group's answers are the group's, so there is one way into a group and
+every part of its row takes it. `pressRow` in `routes/part.tsx` is the rule; the
+one exception is a **tag**, which names something else — a feature inside a group
+opened for _one tool each_ is its own question, and that press still selects it.
+
 ### What the list holds
 
 **Every row, answered or not** (Paul, 2026-09-10: "I should be able to create a
@@ -547,9 +562,10 @@ same keys, and `clearKeys` clears all of them.
 **One line per tool the row is answered with**, each with what it is held in
 beneath the catalog number. Pressing one asks that row's question in full — the
 tool table below fills with everything that fits — and opens _that_ tool in the
-panel beside the table, which is where it is removed or re-held. Without that
-press there is no way to reach the second tool of a feature, and no way to take
-it off.
+panel beside the table, which is where it is removed or re-held. **On a group the
+line opens the group** (Paul, 2026-09-11), because a group's answers are the
+group's — `pressRow`, § _A row_. Without that press there is no way to reach the
+second tool of a feature, and no way to take it off.
 
 **The decision where there is one, the recommendation where there is not.** Once
 a tool is on the bill for a feature, that — with its holder and collet — is the
@@ -582,7 +598,9 @@ nose end mill`, with the diameter at the right (Paul, 2026-09-09: "I'd like to
 
 ### Right-click
 
-**Edit…** and **Remove**, fixed to the window at the click point. A part-level
+**Edit…** and **Remove**, fixed to the window at the click point. On a group
+_Edit group…_ is the second door onto what pressing the row already opens, not
+the only one. A part-level
 assembly is offered **Rename…** and **Remove**: it holds no features, so there
 is nothing an editor could ask about — what it does have is a name, which is the
 second way in after the one the press that made it opened. Positioned
@@ -939,6 +957,9 @@ true of the work the worker does:
 | whether the offer to group them is made      | `app/shared/group-offer.ts`                           |
 | the offer on screen, and both answers        | `identical`, `components/selection-panel.tsx`         |
 | a feature row turned into a group            | `changeToGroup`, `app/routes/part.tsx`                |
+| what a press on a row of the list opens      | `pressRow`, same file                                 |
+| the row a draft is changing, where it is one | `editedItem`, same file                               |
+| whose stacks the tree beside the box shows   | `treeKey`, same file                                  |
 | which key a reading's lines are kept under   | `choiceKey`, same file                                |
 | which holes a thread choice is written to    | `writeThread` / `holesAt`, `shared/hole-mode.ts`      |
 | the reading and its thread                   | `app/components/selection-panel.tsx`                  |

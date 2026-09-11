@@ -1077,6 +1077,62 @@ test('opens a group from a caret the width of the gutter', async ({ page }) => {
 })
 
 /**
+ * **A press on a group row opens the group** (Paul, 2026-09-11: clicking one
+ * "opens an individual feature dialog rather than the dialog for the group …
+ * it should work like right click *edit group* does"), **and the group's
+ * assembly is in it** ("edit group does not show the tool assembly applied to
+ * the group").
+ *
+ * Two halves of one way in, and each was broken on its own: selecting a group
+ * read the first feature it held, so the box over the part asked about one
+ * hole — and the editor, however it was opened, keyed its tree by what was
+ * being *built*, so the stack somebody came to change was not on screen at all
+ * while the row underneath went on listing it.
+ */
+test('opens a group, with the assembly it was ordered with, from its row', async ({ page }) => {
+  await ready(page)
+  await page.getByRole('button', { name: '+ Group' }).click()
+  await inTheGroup(page)
+  await pickTool(page)
+
+  const tree = page.locator('[data-assembly-tree]')
+  // The catalog number the stack holds now, so the reopened tree can be checked
+  // against it rather than against whichever tool this fixture sorts first. The
+  // slot's own text is `TOOL` and then the number, so the label comes off it.
+  const slot = tree.getByRole('button', { name: /^TOOL for / })
+  const tool = ((await slot.textContent()) ?? '').replace(/^TOOL/, '').trim()
+  expect(tool).not.toBe('')
+  await orderPress(page).click()
+
+  // The press that orders closes the box; the row is the way back in.
+  await openRow(page)
+
+  // The group's own box, not a feature's — the same one *Edit group…* opens.
+  await expect(page.getByText('Edit group')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save group' })).toBeVisible()
+  // And what it was ordered with is standing in the tree beside it.
+  await expect(tree.getByRole('button', { name: /^TOOL for / })).toContainText(tool)
+  await expect(tree.getByRole('button', { name: 'Remove from order list' })).toBeVisible()
+
+  /*
+    **And the line under the row is the same press** (Paul, 2026-09-11:
+    "clicking on the tool assembly itself in the order list still brings me to a
+    single feature"). A group's answers are the group's, so pressing one asks
+    the group's question rather than opening the first hole it holds.
+  */
+  await page.getByRole('button', { name: 'Close this dialog' }).click()
+  await expect(page.getByText('Edit group')).toBeHidden()
+
+  const list = await orderList(page)
+  // The row's own control is the first pressable thing on it; the line under it
+  // is the assembly it was ordered with.
+  await list.locator(':scope > li').first().locator('button[aria-pressed]').nth(1).click()
+
+  await expect(page.getByText('Edit group')).toBeVisible()
+  await expect(tree.getByRole('button', { name: /^TOOL for / })).toContainText(tool)
+})
+
+/**
  * **The + Tool Assembly tree has no second stack** (Paul, 2026-09-08: "we can
  * also remove the add assembly button from + Tool Assembly"). It answers no
  * feature, so another stack the part needs is another row with a name of its

@@ -120,10 +120,9 @@ export const AXES_PARKED: ReadonlyArray<string> = [
 /**
  * What the header over a holder or collet column asks.
  *
- * The type and the term axes first — type, brand and family are fixed columns
- * rather than `columnsFor` entries, and each is narrowed on the words its cell
- * shows — then every length, which is the same rule the filter panel used when
- * it built a range control per length column.
+ * The type and the term axes first — type, brand and family are narrowed on the
+ * words their cells show — then every length, which is the same rule the filter
+ * panel used when it built a range control per length column.
  */
 export const askOfComponentColumn = (kind: ComponentKind, code: string): ColumnAsk | null => {
   // The one column a shop arrives at already knowing the answer to — the same
@@ -132,12 +131,18 @@ export const askOfComponentColumn = (kind: ComponentKind, code: string): ColumnA
     return { shape: 'text' }
   }
   /**
-   * The type is a column of its own before it is an axis: it is three of a
-   * holder's columns said as one phrase — `BT30 ER11 collet chuck` — and that
-   * phrase is what a shop calls the thing (Paul, 2026-09-08). `termOn` builds
-   * it, so the list a header offers is the words the column shows.
+   * A collet's type is a column of its own before it is an axis: `ER20 collet`
+   * is what a shop calls the thing (Paul, 2026-09-08), and `termOn` builds it,
+   * so the list a header offers is the words the column shows.
+   *
+   * A **holder has no such column** — the phrase glued its Taper and Collet
+   * series onto how it grips and was wrong for it (Paul, 2026-09-11). Its type
+   * is the `clamping` axis, under the heading now called Type.
    */
-  if (code === 'type' || termAxesFor(kind).some((axis) => axis.code === code)) {
+  if (
+    (code === 'type' && kind === 'collet') ||
+    termAxesFor(kind).some((axis) => axis.code === code)
+  ) {
     return { shape: 'terms', axis: code }
   }
   const column = columnsFor(kind).find((each) => each.code === code)
