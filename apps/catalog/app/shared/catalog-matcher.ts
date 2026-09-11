@@ -1,4 +1,11 @@
-import type { CatalogTool, Collet, Holder, HolderFilters, Margins } from '@toolpath/catalog-data'
+import {
+  TOOL_FORMS,
+  type CatalogTool,
+  type Collet,
+  type Holder,
+  type HolderFilters,
+  type Margins,
+} from '@toolpath/catalog-data'
 import type { PartFeature } from '@toolpath/part-contracts'
 import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { withClampingLength, type ClampingRule } from './clamping-length'
@@ -26,6 +33,15 @@ import {
 } from './tool-fit'
 import { holeAt } from './hole-mode'
 import { RULES, type Knob } from './rules'
+
+/**
+ * Every form there is, which is what a Type nobody has ticked could ask for.
+ *
+ * The catalog's vocabulary rather than a walk of the tools: `TOOL_FORMS` is the
+ * list the Type column's phrases are built out of, so a form no tool carries
+ * costs a name in this array and nothing else.
+ */
+const EVERY_FORM: ReadonlyArray<string> = TOOL_FORMS.map((each) => each.value)
 
 /** The serializable inputs which can affect a catalog answer. */
 export interface MatchContext {
@@ -510,6 +526,21 @@ const matchDemand = (
   demand: MatchDemand,
   catalog: MatcherCatalog,
   prepared: PreparedMatch,
+  /*
+    **A form the filter asks for is a form the question is about.** The type
+    table is the feature's default, and the `form` filter is the one place
+    that says which forms are being asked about — so a group added there
+    (`formsAsking`, `shared/tool-type.ts`) reaches the judging rather than being
+    removed by the type table under a filter that had just admitted it. It is
+    already in the context, so no cache key changes and no second state can
+    disagree with it.
+
+    A parameter rather than only that, because {@link facetPool} judges a
+    question nobody has asked yet — every form, so that the count beside a Type
+    nobody has ticked says what ticking it would bring. It is the pool's alone:
+    the answer on screen always passes the filter's own forms.
+  */
+  asked: ReadonlyArray<string> = context.query.terms.form ?? [],
 ): DemandMatch => {
   const fitting = fittingTools(
     effectiveFeatures(context, demand),
@@ -517,16 +548,7 @@ const matchDemand = (
     prepared.considered,
     matcherFormat(context.unit),
     context.knobs,
-    /*
-      **A form the filter asks for is a form the question is about.** The type
-      table is the feature's default, and the `form` filter is the one place
-      that says which forms are being asked about — so a group added there
-      (`formsAsking`, `shared/tool-type.ts`) reaches the judging rather than being
-      removed by the type table under a filter that had just admitted it. It is
-      already in the context, so no cache key changes and no second state can
-      disagree with it.
-    */
-    context.query.terms.form ?? [],
+    asked,
   )
   const narrowed = fitting.fitting.filter((verdict) =>
     prepared.admittedGuids.has(verdict.tool.guid),
@@ -652,9 +674,25 @@ export const facetPool = (
   catalog: MatcherCatalog,
 ): ReadonlyArray<CatalogTool> => {
   const widened = { ...context, query: withoutFacets(context.query) }
-  return matchDemand(widened, demand, catalog, prepareMatch(widened, catalog)).held.map(
-    (verdict) => verdict.tool,
-  )
+  return matchDemand(
+    widened,
+    demand,
+    catalog,
+    prepareMatch(widened, catalog),
+    /*
+      **The type table stands down over the whole pool.** Clearing the `form`
+      term is only half of what a tick on Type does: the other half is standing
+      the feature's own table down for the form behind the phrase, and a
+      threaded hole's table is `tap right hand; drill`. Widened without this,
+      every end mill was let into the pool by the filter and removed again by
+      the table, and `Flat end mill` still read nought (Paul, 2026-09-10).
+
+      Every rule the feature has still runs — this is the type table alone, the
+      same stand-down `judge.ts` § `JudgeOptions.asked` describes, over the one
+      question nobody has asked yet.
+    */
+    EVERY_FORM,
+  ).held.map((verdict) => verdict.tool)
 }
 
 /**
@@ -685,6 +723,19 @@ const forStack = (
     : narrowTools(pool, { holder, collet }, catalog.collets)
 }
 
+/**
+ * What one axis is measured against: every filter but its own.
+ *
+ * **Type takes `form` with it.** They are one question asked in two
+ * vocabularies — the phrase in the column and the form behind it — and a tick
+ * writes both, so counting types against a standing `form` reports every type
+ * that filter is not already holding as nought. Every other axis keeps it: how
+ * many Kennametal tools a pocket would bring is a question asked with the
+ * pocket's own forms standing.
+ */
+const againstOthers = (query: ToolQuery, axis: string): ToolQuery =>
+  axis === 'type' ? withoutTerm(withoutTerm(query, 'type'), 'form') : withoutTerm(query, axis)
+
 /** One pool read per axis, each against every filter but that axis's own. */
 const countsOverPool = (
   pool: ReadonlyArray<CatalogTool>,
@@ -692,9 +743,39 @@ const countsOverPool = (
 ): Record<string, Record<string, number>> => {
   const counts: Record<string, Record<string, number>> = {}
   for (const axis of FACET_AXES) {
-    counts[axis] = Object.fromEntries(countBy(filterTools(pool, withoutTerm(query, axis)), axis))
+    counts[axis] = Object.fromEntries(countBy(filterTools(pool, againstOthers(query, axis)), axis))
   }
   return counts
+}
+
+/**
+ * The counts for one demand, over a pool the caller already holds.
+ *
+ * Exported because the worker works them out **after** it has answered
+ * (`countLater`), and there must be one derivation of them rather than one for
+ * the answer and one for the follow-up.
+ */
+export const facetCountsFor = (
+  context: MatchContext,
+  demand: MatchDemand,
+  catalog: MatcherCatalog,
+  pool: ReadonlyArray<CatalogTool>,
+): DetailedResult['facetCounts'] => {
+  /**
+   * The pool the counts are taken over, which is the pool the table draws.
+   *
+   * Narrowed here rather than in {@link facetPool} so the pool itself stays the
+   * facet-free question and the worker can keep one across every holder and
+   * collet tried in the stack — the judging pass is what that cache exists to
+   * save, and the stack does not change it.
+   */
+  const counted = forStack(pool, demand, catalog)
+  /**
+   * Nothing held in the widened pool is nothing to say: the rows on screen
+   * are then the near misses standing in, and counting a value at nought
+   * against a list that is itself a stand-in would read as an answer.
+   */
+  return counted.length === 0 ? null : countsOverPool(counted, context.query)
 }
 
 /** Runs the existing detailed table pipeline with only cloneable request inputs. */
@@ -710,22 +791,21 @@ export const detailedMatch = (
    * thing on this page that does not change when one is ticked — the pool is
    * the question with the facets *cleared*. Passing it in is what keeps a
    * second vendor from costing a second judging pass.
+   *
+   * **`null` is "not now".** Judging the pool is the expensive half of this
+   * function and none of it is the answer — the rows are. The worker answers
+   * with `null` here and works the counts out afterwards, so a feature's table
+   * lands in the time it always did and the numbers beside the checkboxes
+   * follow: `countLater` in `client/catalog-matcher.worker.ts` is the rule, and
+   * `facetCountsFor` above is what it calls.
    */
-  pool?: ReadonlyArray<CatalogTool>,
+  pool?: ReadonlyArray<CatalogTool> | null,
 ): DetailedResult => {
   const matched = matchDemand(context, demand, catalog, prepared)
-  const widened = !facetsNarrowing(context.query)
-    ? null
-    : (pool ?? facetPool(context, demand, catalog))
-  /**
-   * The pool the counts are taken over, which is the pool the table draws.
-   *
-   * Narrowed here rather than in {@link facetPool} so the pool itself stays the
-   * facet-free question and the worker can keep one across every holder and
-   * collet tried in the stack — the judging pass is what that cache exists to
-   * save, and the stack does not change it.
-   */
-  const counted = widened === null ? null : forStack(widened, demand, catalog)
+  const widened =
+    pool === null || !facetsNarrowing(context.query)
+      ? null
+      : (pool ?? facetPool(context, demand, catalog))
   return {
     demandKey: demand.demandKey,
     fitting: matched.fitting.map(compact),
@@ -749,13 +829,7 @@ export const detailedMatch = (
     ruleTally: ruleTally(matched.excluded),
     narrowedGuids: matched.narrowed.map((verdict) => verdict.tool.guid),
     heldGuids: matched.held.map((verdict) => verdict.tool.guid),
-    /**
-     * Nothing held in the widened pool is nothing to say: the rows on screen
-     * are then the near misses standing in, and counting a value at nought
-     * against a list that is itself a stand-in would read as an answer.
-     */
-    facetCounts:
-      counted === null || counted.length === 0 ? null : countsOverPool(counted, context.query),
+    facetCounts: widened === null ? null : facetCountsFor(context, demand, catalog, widened),
   }
 }
 

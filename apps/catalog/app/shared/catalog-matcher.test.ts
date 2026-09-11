@@ -544,6 +544,49 @@ describe('the counts an axis offers while it is narrowing', () => {
     ).toEqual({ Kennametal: 1, WIDIA: 1 })
   })
 
+  /**
+   * **The Type column asks the `form` axis too** (Paul, 2026-09-10: a threaded
+   * hole's drill list "showing zero compatible end mills currently, but
+   * checking any of the boxes shows there are end mills that do work"). A
+   * thread writes the drill and the taps into `form`, so the matcher had judged
+   * nothing else — and the feature's own type table turns a form away besides.
+   * The pool is widened past both, or the number beside a box is nought until
+   * the box is ticked.
+   */
+  describe('the type a filter has never let the matcher see', () => {
+    const drill = { ...tool('drill-1', 6), form: 'drill' } as CatalogTool
+    const drilling = { tools: [tool('mill-1', 6), drill], holders: [], collets: [] }
+    // A pocket considers end mills and not drills, so `asked` is what lets the
+    // drill past the table — the same stand-down a tick on Type writes.
+    const drillsOnly = {
+      ...context([feature]),
+      query: { ...EMPTY_QUERY, terms: { form: ['drill'] } },
+    }
+
+    it('counts what ticking it would bring, not what the filter admits', () => {
+      const result = detailedMatch(drillsOnly, demand, drilling)
+
+      expect(result.heldGuids).toEqual(['drill-1'])
+      expect(result.facetCounts?.type).toEqual({ Drill: 1, 'Flat end mill': 1 })
+    })
+
+    it('keeps the forms standing for every other axis', () => {
+      const branded = { ...drill, guid: 'drill-2', brand: 'WIDIA', vendor: 'WIDIA' } as CatalogTool
+      const result = detailedMatch(drillsOnly, demand, {
+        ...drilling,
+        tools: [...drilling.tools, branded],
+      })
+
+      // "What would WIDIA bring" is asked with the drill filter standing: the
+      // end mill it is holding back is not a tool that vendor would add.
+      expect(result.facetCounts?.brand).toEqual({ Test: 1, WIDIA: 1 })
+    })
+
+    it('says nothing at all when the caller asks for no pool', () => {
+      expect(detailedMatch(drillsOnly, demand, drilling, undefined, null).facetCounts).toBeNull()
+    })
+  })
+
   it("leaves a caller's widened pool alone rather than judging a second time", () => {
     const pool = facetPool(asked({ brand: ['Kennametal'] }), demand, crib)
 

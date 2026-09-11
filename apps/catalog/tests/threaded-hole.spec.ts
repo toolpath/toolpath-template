@@ -214,6 +214,48 @@ test('stands the mills in where no drill makes the predrill, and says so', async
 })
 
 /**
+ * **A count says whether ticking a box is worth it, so it cannot be nought
+ * while the answer is not** (Paul, 2026-09-10: "it is showing zero compatible
+ * end mills currently, but checking any of the boxes shows there are end mills
+ * that do work").
+ *
+ * The matcher judges what the filters admit, and a threaded hole's `form` axis
+ * holds the drill and the taps — so no end mill had ever been put to this
+ * hole's rules and every one of them read nought. The feature's own type table
+ * turns them away besides: `ThreadedBlindHole` considers `tap right hand;
+ * drill`. The pool the counts are measured over is widened past both.
+ *
+ * Taking the type off the filter is what makes it visible here — the fixture's
+ * predrill has no drill that makes it, so the page turns the mills on by itself
+ * — and it is the same state either way: a type the list is not holding, over a
+ * feature it works on. The number must not move.
+ */
+test('says how many end mills work while the filter is holding none', async ({ page }) => {
+  await open(page, 'DRILL')
+  await page.getByRole('button', { name: 'Filter by Type', exact: true }).click()
+  const types = page.getByRole('group', { name: 'Type' })
+  const flat = types.locator('[data-term-option="Flat end mill"]')
+  await expect(flat.locator('[data-term-count]')).toHaveText('1')
+
+  await types.getByRole('checkbox', { name: 'Flat end mill' }).click()
+
+  await expect
+    .poll(async () => new URL(page.url()).searchParams.getAll('form'))
+    .not.toContain('flat end mill')
+  /*
+    **The row that says how many are behind the list must not move.** Two of
+    the sample's types work on no hole at all and are behind it either way;
+    taking the mill off the filter used to put it there too, which is the
+    defect — and asserting the row rather than the count is what makes this a
+    sensor rather than a race, because the counts land a task after the rows
+    (`countLater`) and the panel shows what it last offered until they do.
+  */
+  await expect(types.getByRole('button', { name: '… 2 more' })).toBeVisible()
+  // Off the list, and still the answer to "what would ticking this bring".
+  await expect(flat.locator('[data-term-count]')).toHaveText('1')
+})
+
+/**
  * **Nothing on the control is marked** (Paul, 2026-09-09: "we also shouldn't
  * show the X on drills"). A red `✗` said *no standard drill makes this predrill
  * from the model as drawn* and was read as *this option is unavailable* — over

@@ -462,14 +462,31 @@ export const FACET_AXES: ReadonlyArray<string> = [
   'NOF',
 ]
 
+/**
+ * The axes the pool is widened past, which is one more than the axes counted.
+ *
+ * **The Type column asks two of them** (Paul, 2026-09-10: a threaded hole's
+ * drill list offering `Flat end mill 0`, "checking any of the boxes shows there
+ * are end mills that do work"). A tick on Type writes the phrase to `type` and
+ * the form behind it to `form` — `formsAsking` in `shared/tool-type.ts` — and
+ * `form` is the axis a feature's suggestions and a chosen thread write for
+ * themselves. So the matcher had judged drills and taps and nothing else, every
+ * end mill read nought, and the only way to find out otherwise was to tick a
+ * box that said there was nothing behind it.
+ *
+ * `form` is widened past and never counted: it has no column of its own, and
+ * the Type column is where its values are read out in the trade's words.
+ */
+const POOL_AXES: ReadonlyArray<string> = [...FACET_AXES, 'form']
+
 /** Whether any facet axis is narrowing, which is when a count needs widening. */
 export const facetsNarrowing = (query: ToolQuery): boolean =>
-  FACET_AXES.some((axis) => (query.terms[axis]?.length ?? 0) > 0)
+  POOL_AXES.some((axis) => (query.terms[axis]?.length ?? 0) > 0)
 
 /** The same query with every facet axis taken out — the pool a count is measured over. */
 export const withoutFacets = (query: ToolQuery): ToolQuery => {
   const terms = { ...query.terms }
-  for (const axis of FACET_AXES) {
+  for (const axis of POOL_AXES) {
     delete terms[axis]
   }
   return { ...query, terms }
