@@ -859,6 +859,63 @@ test('the columns divide the panel, at every width and column set', async ({ pag
 })
 
 /**
+ * **A shop sets its columns once** (Paul, 2026-09-11: "save column order and
+ * visibility in local storage").
+ *
+ * Cutting a thirteen-column list down to what somebody compares on, and
+ * dragging those into the order they read them in, is a decision about how the
+ * shop works rather than about this part — and it was thrown away on every
+ * reload. `app/shared/column-layout.ts` is the rule, and its own tests cover
+ * what a stored answer means once the catalog's columns have moved under it;
+ * this is the half only a real browser can answer: that the write happens, that
+ * the read happens, and that the table drawn afterwards is the stored one.
+ *
+ * **Deliberately not what happens to a column's *width*.** That is not stored,
+ * because the kit stores widths positionally and hiding one column re-applies
+ * every width to the wrong column — see "the columns divide the panel" above.
+ */
+test('remembers which columns are shown, and their order, across a reload', async ({ page }) => {
+  await ready(page)
+  await keepFeature(page)
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+
+  const headings = () =>
+    page.locator('[data-part-tool-table]').first().getByRole('columnheader').allInnerTexts()
+
+  const opened = await headings()
+  expect(opened.some((heading) => heading.includes('Flutes'))).toBe(true)
+  expect(opened.some((heading) => heading.includes('Shank'))).toBe(false)
+
+  await page.getByRole('button', { name: 'Which columns to show' }).first().click()
+  const columns = page.getByRole('group', { name: 'Columns' }).first()
+  await expect(columns).toBeVisible()
+  // One off and one on, so both halves of "which columns" are being asked.
+  await columns.getByRole('checkbox', { name: 'Flutes' }).click()
+  await columns.getByRole('checkbox', { name: 'Shank' }).click()
+  // Up two places, by the keyboard: the drag is the same rule and nothing a
+  // test can do honestly — `movedBy` in `shared/column-order.ts`.
+  await columns.getByRole('button', { name: 'Move shank' }).click()
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('Escape')
+
+  const chosen = await headings()
+  expect(chosen.some((heading) => heading.includes('Flutes'))).toBe(false)
+  expect(chosen.some((heading) => heading.includes('Shank'))).toBe(true)
+
+  await page.reload()
+  await ready(page)
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+
+  // The same columns, in the same order, and still filling the panel.
+  await expect(async () => {
+    expect(await headings()).toEqual(chosen)
+  }).toPass()
+  const fit = await tableFit(page)
+  expect(fit.table).toBe(fit.room)
+})
+
+/**
  * **A menu belongs to the page, not to the card it was opened from** (Paul,
  * 2026-09-11: "the 'which columns to show' menu is now hidden behind the table
  * when opened. Same with the 'part material' menu").
