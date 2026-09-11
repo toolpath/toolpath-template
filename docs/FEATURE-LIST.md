@@ -59,10 +59,10 @@ current hole grouping should only be applied in GROUP. In Add Feature, I should
 be able to select a single hole"). A bolt circle of eight was one decision on
 every path: `groupOf` in `part-interaction` expanded a hole into its siblings
 whatever was being asked, so a click on one of them made a `feature` holding all
-eight and a single hole could not be asked about at all. The expansion is now
-gated on `Interaction.collecting`, which only a group turns on — so a `feature`
-made by clicking a hole holds one tag, and one made from a group holds as many
-as were picked.
+eight and a single hole could not be asked about at all. The expansion now
+happens once, where somebody asks for a group — so a `feature` made by clicking
+a hole holds one tag, and one made from a group holds as many as were picked,
+less any that were taken back out of it.
 
 What replaced the silent grouping is an **offer**: a hole with siblings raises a
 notice in the reading panel saying how many others are identical, with _Add all
@@ -244,22 +244,37 @@ could see. A click on nothing (the whitespace) does the same.
 
 ### A click while a group is being built
 
-**Identical holes group from here.** `{ type: 'group' }` is what turns
-`collecting` on, and it also **grows what is already kept** into whole hole
-groups — so _+ Group_ pressed over a previewed hole, and the offer beside that
-hole, both arrive at the same thirty-nine. The flag is in the state rather than
-on the action because `click`, `read`, `arm`, `step` and `toggle` all expand and
-all have to agree: with it on `click` alone, choosing a direction mid-group
-re-read the face without its group and left the rest of it in `kept` as orphans.
+**Identical holes group when the group opens, and never again.**
+`{ type: 'group' }` is what turns `collecting` on, and it is the one place a
+hole is expanded into its siblings: it **grows what is already kept** into whole
+hole groups, so _+ Group_ pressed over a previewed hole, and the offer beside
+that hole, both arrive at the same thirty-nine. What it grew is kept as
+somebody's answer rather than as a guess — a guess is what the next click,
+arrow or click on nothing takes back out, all of it at once.
 
-A click itself is a **toggle**, and nothing else:
+**From there the group is edited a hole at a time** (Paul, 2026-09-11: "when I
+create a group of all holes with the same diameter and depth, removing one of
+the holes removes all of them from the list. In this mode, I should be able to
+add or remove individual holes, even if they are identical"). The expansion used
+to be applied on every path while `collecting` was on — `click`, `read`, `arm`,
+`step` and `toggle` — which made the set a group opened with impossible to
+correct: the X beside one hole, and a press on one hole, each took all
+thirty-nine. A group of all-but-one could not be asked for at all.
+
+A click itself is a **toggle** of one feature, and nothing else:
 
 - a face not in the group goes in;
-- a face already in comes out;
-- pressing the **same** face again takes it out, asked the way `pickFace` asks
-  it — by the region held, not by which readings the click resolved to. A
-  reading can own several faces, so comparing readings made the second feature
-  of a group read as the first being pressed twice.
+- a face already in comes out, and the reading goes with it — the part lights
+  what is focused as well as what is kept, so a hole left focused under the
+  press that dropped it goes on looking exactly like the ones still in;
+- pressing the **same** face again means the reading already open rather than
+  the next of its readings, asked the way `pickFace` asks it — by the region
+  held, not by which readings the click resolved to. A reading can own several
+  faces, so comparing readings made the second feature of a group read as the
+  first being pressed twice. So one face pressed over and over is in, out, in.
+
+**The X beside a hole in the group box is the same rule from the other side**:
+it is a `toggle`, and it takes that hole out and leaves the rest standing.
 
 **The arrows choose the reading.** `arm` swaps what the click guessed, which is
 the "after I select the direction, if applicable" half.
@@ -888,53 +903,54 @@ true of the work the worker does:
 
 ## 11. Where the rules live
 
-| Rule                                        | File                                                  |
-| ------------------------------------------- | ----------------------------------------------------- |
-| what the list holds, names, ids, storage    | `app/shared/feature-list.ts`                          |
-| the name a shop gave an assembly row        | `renameItem` / `defaultLabelOf`, same file            |
-| the field that name is typed in             | `app/components/name-field.tsx`                       |
-| what the bottom of the page is asked        | `asked()`, same file                                  |
-| which key a row's lines are kept under      | `sheetKeysOf`, same file                              |
-| reading, writing and clearing those keys    | `app/shared/order-list.ts`                            |
-| whether a row has anything ordered for it   | `isIncomplete`, same file                             |
-| the order list both pages show              | `orderAssemblies`, same file                          |
-| what to buy, once each, and how many        | `componentTotals`, same file                          |
-| setting a component's whole order           | `setComponentCount`, same file                        |
-| the components view on the part             | `app/components/component-tally.tsx`                  |
-| the three presses that grow the list        | `app/components/add-bar.tsx`                          |
-| whether the rows are folded under the box   | `rowsShown`, `app/shared/part-chrome.ts`              |
-| whether the three presses are on screen     | `pressesShown`, same file                             |
-| where the part is framed, beside the column | `app/shared/frame-inset.ts`                           |
-| how tall the tool list opens                | `TABLE_OPENS_AT`, `components/part-tool-table.tsx`    |
-| whether _+ Tool Assembly_ can be pressed    | `assemblyPressEnabled`, same file                     |
-| the row a reading already has, if any       | `rowFor`, `app/shared/feature-list.ts`                |
-| what _+ Feature_ does over a reading        | `keepReading`, `app/routes/part.tsx`                  |
-| which press closes the box, and Enter's     | `isOrdering` / `orderingPress`, `assembly-actions.ts` |
-| what Enter presses, over the whole box      | `orderPress` / `applyStacks`, `routes/part.tsx`       |
-| a component standing in two stacks at once  | `sharedWith` / `sharedPhrase`, `assembly-tree.ts`     |
-| how many of one assembly a row ordered      | `Choice.total`, `app/shared/setup-sheet.ts`           |
-| a row's answer, and what opens              | `app/shared/recommendations.ts`                       |
-| what a click means                          | `app/shared/part-interaction.ts`                      |
-| the list on screen                          | `app/components/feature-list-panel.tsx`               |
-| building a group                            | `app/components/group-editor.tsx`                     |
-| a group's worst case, and whose it is       | `app/shared/group-geometry.ts`                        |
-| the one bore a group shares                 | `sharedHoleDiameter`, same file                       |
-| whether identical holes group               | `Interaction.collecting`, `part-interaction.ts`       |
-| whether the offer to group them is made     | `app/shared/group-offer.ts`                           |
-| the offer on screen, and both answers       | `identical`, `components/selection-panel.tsx`         |
-| a feature row turned into a group           | `changeToGroup`, `app/routes/part.tsx`                |
-| which key a reading's lines are kept under  | `choiceKey`, same file                                |
-| which holes a thread choice is written to   | `writeThread` / `holesAt`, `shared/hole-mode.ts`      |
-| the reading and its thread                  | `app/components/selection-panel.tsx`                  |
-| what a threaded hole is called              | `threadedName`, `app/shared/threads.ts`               |
-| what the panel and the ⓘ dialog call it     | `nameOf`, handed down by `part.tsx`                   |
-| the tool table and its marks                | `app/components/part-tool-table.tsx`                  |
-| what overruling the rules offers            | `overridableTools`, `shared/tool-fit.ts`              |
-| the warning and its confirm                 | `OverrideNotice`, `components/column-filter.tsx`      |
-| what a filter is not showing, and the `…`   | `TermFilter`, `components/column-filter.tsx`          |
-| what a tick on Type asks of the forms       | `formsAsking`, `app/shared/tool-type.ts`              |
-| which slots were filled against them        | `overrides`, `shared/assembly-tree.ts`                |
-| everything wired together                   | `app/routes/part.tsx`                                 |
+| Rule                                         | File                                                  |
+| -------------------------------------------- | ----------------------------------------------------- |
+| what the list holds, names, ids, storage     | `app/shared/feature-list.ts`                          |
+| the name a shop gave an assembly row         | `renameItem` / `defaultLabelOf`, same file            |
+| the field that name is typed in              | `app/components/name-field.tsx`                       |
+| what the bottom of the page is asked         | `asked()`, same file                                  |
+| which key a row's lines are kept under       | `sheetKeysOf`, same file                              |
+| reading, writing and clearing those keys     | `app/shared/order-list.ts`                            |
+| whether a row has anything ordered for it    | `isIncomplete`, same file                             |
+| the order list both pages show               | `orderAssemblies`, same file                          |
+| what to buy, once each, and how many         | `componentTotals`, same file                          |
+| setting a component's whole order            | `setComponentCount`, same file                        |
+| the components view on the part              | `app/components/component-tally.tsx`                  |
+| the three presses that grow the list         | `app/components/add-bar.tsx`                          |
+| whether the rows are folded under the box    | `rowsShown`, `app/shared/part-chrome.ts`              |
+| whether the three presses are on screen      | `pressesShown`, same file                             |
+| where the part is framed, beside the column  | `app/shared/frame-inset.ts`                           |
+| how tall the tool list opens                 | `TABLE_OPENS_AT`, `components/part-tool-table.tsx`    |
+| whether _+ Tool Assembly_ can be pressed     | `assemblyPressEnabled`, same file                     |
+| the row a reading already has, if any        | `rowFor`, `app/shared/feature-list.ts`                |
+| what _+ Feature_ does over a reading         | `keepReading`, `app/routes/part.tsx`                  |
+| which press closes the box, and Enter's      | `isOrdering` / `orderingPress`, `assembly-actions.ts` |
+| what Enter presses, over the whole box       | `orderPress` / `applyStacks`, `routes/part.tsx`       |
+| a component standing in two stacks at once   | `sharedWith` / `sharedPhrase`, `assembly-tree.ts`     |
+| how many of one assembly a row ordered       | `Choice.total`, `app/shared/setup-sheet.ts`           |
+| a row's answer, and what opens               | `app/shared/recommendations.ts`                       |
+| what a click means                           | `app/shared/part-interaction.ts`                      |
+| the list on screen                           | `app/components/feature-list-panel.tsx`               |
+| building a group                             | `app/components/group-editor.tsx`                     |
+| a group's worst case, and whose it is        | `app/shared/group-geometry.ts`                        |
+| the one bore a group shares                  | `sharedHoleDiameter`, same file                       |
+| what a click on the part means, group or not | `Interaction.collecting`, `part-interaction.ts`       |
+| where identical holes are grouped, once      | `{ type: 'group' }`, `part-interaction.ts`            |
+| whether the offer to group them is made      | `app/shared/group-offer.ts`                           |
+| the offer on screen, and both answers        | `identical`, `components/selection-panel.tsx`         |
+| a feature row turned into a group            | `changeToGroup`, `app/routes/part.tsx`                |
+| which key a reading's lines are kept under   | `choiceKey`, same file                                |
+| which holes a thread choice is written to    | `writeThread` / `holesAt`, `shared/hole-mode.ts`      |
+| the reading and its thread                   | `app/components/selection-panel.tsx`                  |
+| what a threaded hole is called               | `threadedName`, `app/shared/threads.ts`               |
+| what the panel and the ⓘ dialog call it      | `nameOf`, handed down by `part.tsx`                   |
+| the tool table and its marks                 | `app/components/part-tool-table.tsx`                  |
+| what overruling the rules offers             | `overridableTools`, `shared/tool-fit.ts`              |
+| the warning and its confirm                  | `OverrideNotice`, `components/column-filter.tsx`      |
+| what a filter is not showing, and the `…`    | `TermFilter`, `components/column-filter.tsx`          |
+| what a tick on Type asks of the forms        | `formsAsking`, `app/shared/tool-type.ts`              |
+| which slots were filled against them         | `overrides`, `shared/assembly-tree.ts`                |
+| everything wired together                    | `app/routes/part.tsx`                                 |
 
 Each pure module owns its tests. `tests/on-the-part.spec.ts` walks the paths that
 begin with a click on the part, against the cube fixture — the only fixture that

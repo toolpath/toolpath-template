@@ -268,3 +268,44 @@ test('marks neither way of making the thread', async ({ page }) => {
   await open(page, 'DRILL')
   await expect(chrome(page).locator('.text-danger')).toHaveCount(0)
 })
+
+/**
+ * **A group of identical holes is corrected one hole at a time** (Paul,
+ * 2026-09-11: "when I create a group of all holes with the same diameter and
+ * depth, removing one of the holes removes all of them from the list. In this
+ * mode, I should be able to add or remove individual holes, even if they are
+ * identical").
+ *
+ * The group opens on every hole like the one being read — that is what the
+ * offer beside it promises — and from there it is editable: the X beside a hole
+ * takes that hole out, and a press on a hole already in the group takes that
+ * hole out. Both used to take the whole set, so the first correction to a
+ * thirty-nine-hole group emptied it, and a group of all-but-one could not be
+ * asked for at all.
+ *
+ * Here rather than in `on-the-part.spec.ts` for the usual reason: the plain
+ * cube has no two identical holes, so the offer this begins with never appears.
+ */
+test('takes one hole out of a group of identical holes at a time', async ({ page }) => {
+  const offer = page.getByRole('button', { name: /^Add all \d+ as a group$/ })
+  await expect(offer).toBeVisible()
+  const all = Number(/\d+/.exec((await offer.innerText()) ?? '')?.[0] ?? '0')
+  expect(all).toBeGreaterThan(2)
+
+  await offer.click()
+  // Pre-selected: every hole identical to the one being read (Paul, 2026-09-11).
+  const chips = page.getByRole('button', { name: /^Take .+ out of the group$/ })
+  await expect(chips).toHaveCount(all)
+
+  /*
+    A press on the hole already selected takes it out — and only it. The click
+    lands on the face the group was opened from, which is the one hole here
+    that is certain to still be in the group.
+  */
+  await at(page, FACE)
+  await expect(chips).toHaveCount(all - 1)
+
+  // And so does the X beside one, which is the same rule from the other side.
+  await chips.first().click()
+  await expect(chips).toHaveCount(all - 2)
+})
