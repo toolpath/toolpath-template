@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@toolpath/tool-scraper': link:../toolpath-ui-packages/packages/tool-scraper
-
 importers:
 
   .:
@@ -72,8 +69,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/part-server
       '@toolpath/tool-drawing':
-        specifier: 0.3.2
-        version: 0.3.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        specifier: 1.0.0
+        version: 1.0.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@toolpath/tool-support':
         specifier: 0.3.0
         version: 0.3.0
@@ -281,8 +278,8 @@ importers:
         specifier: workspace:*
         version: link:../part-contracts
       '@toolpath/tool-scraper':
-        specifier: link:../../../toolpath-ui-packages/packages/tool-scraper
-        version: link:../../../toolpath-ui-packages/packages/tool-scraper
+        specifier: 3.0.0
+        version: 3.0.0
       '@toolpath/tool-support':
         specifier: 0.3.0
         version: 0.3.0
@@ -1311,15 +1308,24 @@ packages:
       react: ^19.0.0
       react-dom: ^19.0.0
 
-  '@toolpath/tool-drawing@0.3.2':
-    resolution: {integrity: sha512-viH7w9xnkU/2lsENgLq2bBsr8BQr6lIrkzD1+V+aLRX9WWq2hIWG+LbxpFIq6BLbwC9SXCbFV9w1SHrLbYgGoA==}
+  '@toolpath/tool-drawing@1.0.0':
+    resolution: {integrity: sha512-ppLG270AACmRAT/hoUl8scHDtsgQ7RIjTROMc0+drLa5IADsAAZ/97CWXn/YEVoeIfrNAYudnwnH8RoR9ocPrA==}
     engines: {node: '>=20'}
     peerDependencies:
       react: ^19.0.0
       react-dom: ^19.0.0
 
+  '@toolpath/tool-scraper@3.0.0':
+    resolution: {integrity: sha512-Uzoc3fdDpdQeOE0DUnKc+fnERbbGHyrjBWxIidkPTVlGgKBDg1qnmP9OmWuMgKUPJCgfJ/wFNFFbEtRiusZerA==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   '@toolpath/tool-support@0.3.0':
     resolution: {integrity: sha512-7sv9UMTgEyOIBKTUhlbgOtUJ5tOA10G61crfRZcO8BILooWzfw/V2cUTOt35M15WyLnxMu/uPX1pBY1eO8nziw==}
+    engines: {node: '>=20'}
+
+  '@toolpath/tool-support@0.3.1':
+    resolution: {integrity: sha512-X2sTebw0liETcmbypaz2I/KYeO2N4oQCN/pHhgkMzNfbeSaCwMkJy5UiukbksAjWJfeH56AcfZrjLMX/aMSCig==}
     engines: {node: '>=20'}
 
   '@toolpath/ui@1.0.0':
@@ -1873,6 +1879,22 @@ packages:
   dom-accessibility-api@0.6.3:
     resolution: {integrity: sha512-7ZgogeTnjuHbo+ct10G9Ffp0mif17idi0IyWNVA/wcwcm7NPOD/WEHVP3n7n3MhXqxoIYm8d6MuZohYWIZ4T3w==}
 
+  dom-serializer@3.1.1:
+    resolution: {integrity: sha512-4MEa38/QexBob6gFNwu+EGdWvhJ1OKuNwdYY3Y3NyeWDQfnGeDYQUDfIRzWu5B5gsv03so2Uxd28YC6zrsx3Lw==}
+    engines: {node: '>=20.19.0'}
+
+  domelementtype@3.0.0:
+    resolution: {integrity: sha512-umCQid3jKbDmVjx8jGaW7uUykm4DEUeyV21hPxNMo2nV955DhUThwqyOIDtreepP31hl84X7G5U9ZfsWvIB3Pg==}
+    engines: {node: '>=20.19.0'}
+
+  domhandler@6.0.1:
+    resolution: {integrity: sha512-gYzvtM72ZtxQO0T048kd6HWSbbGCNOUwcnfQ01cqIJ4X2IYKFFHZ5mKvrQETcFXxsRObZulDaKmy//R7TPtsBg==}
+    engines: {node: '>=20.19.0'}
+
+  domutils@4.0.2:
+    resolution: {integrity: sha512-qI4JLRKnSzqFqr7hAlS5xQDusBCjKSEG4t4+7aNrIQMHBcsC2TGEhuyABJdYkgSewL57PNLYEiibY2iPKhKpaA==}
+    engines: {node: '>=20.19.0'}
+
   draco3d@1.5.7:
     resolution: {integrity: sha512-m6WCKt/erDXcw+70IJXnG7M3awwQPAsZvJGX5zY7beBqpELw6RDGkYVU0W43AFxye4pDZ5i2Lbyc/NNGqwjUVQ==}
 
@@ -2136,6 +2158,10 @@ packages:
   html-encoding-sniffer@6.0.0:
     resolution: {integrity: sha512-CV9TW3Y3f8/wT0BRFc1/KAVQ3TUHiXmaAb6VW9vtiMFf7SLoMd1PdAc4W3KFOFETBJUb90KatHqlsZMWV+R9Gg==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
+
+  htmlparser2@12.0.0:
+    resolution: {integrity: sha512-Tz7u1i95/g2x2jz81+x0FBVhBhY5aRTvD3tXXdFaljuNdzDLJ8UGNRrTcj2cgQvAg3iW/h77Fz15nLW0L0CrZw==}
+    engines: {node: '>=20.19.0'}
 
   husky@9.1.7:
     resolution: {integrity: sha512-5gs5ytaNjBrh5Ow3zrvdUUY+0VxIuWVL4i9irt6friV+BqdCfmV11CQTWMiBYWHbXhco+J1kHfTOUkePhCDvMA==}
@@ -3954,13 +3980,20 @@ snapshots:
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
 
-  '@toolpath/tool-drawing@0.3.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+  '@toolpath/tool-drawing@1.0.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
-      '@toolpath/tool-support': 0.3.0
+      '@toolpath/tool-support': 0.3.1
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
 
+  '@toolpath/tool-scraper@3.0.0':
+    dependencies:
+      '@toolpath/tool-support': 0.3.1
+      htmlparser2: 12.0.0
+
   '@toolpath/tool-support@0.3.0': {}
+
+  '@toolpath/tool-support@0.3.1': {}
 
   '@toolpath/ui@1.0.0(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)':
     dependencies:
@@ -4492,6 +4525,24 @@ snapshots:
 
   dom-accessibility-api@0.6.3: {}
 
+  dom-serializer@3.1.1:
+    dependencies:
+      domelementtype: 3.0.0
+      domhandler: 6.0.1
+      entities: 8.0.0
+
+  domelementtype@3.0.0: {}
+
+  domhandler@6.0.1:
+    dependencies:
+      domelementtype: 3.0.0
+
+  domutils@4.0.2:
+    dependencies:
+      dom-serializer: 3.1.1
+      domelementtype: 3.0.0
+      domhandler: 6.0.1
+
   draco3d@1.5.7: {}
 
   electron-to-chromium@1.5.411: {}
@@ -4781,6 +4832,13 @@ snapshots:
       '@exodus/bytes': 1.15.1
     transitivePeerDependencies:
       - '@noble/hashes'
+
+  htmlparser2@12.0.0:
+    dependencies:
+      domelementtype: 3.0.0
+      domhandler: 6.0.1
+      domutils: 4.0.2
+      entities: 8.0.0
 
   husky@9.1.7: {}
 
