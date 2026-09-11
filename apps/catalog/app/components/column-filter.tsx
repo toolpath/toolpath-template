@@ -103,7 +103,16 @@ const says = (
   return Math.abs(meant - value) < 1e-9
 }
 
-/** What the boxes take besides a number, said in the characters a keyboard has. */
+/**
+ * What the boxes take besides a number, for the one place it is said.
+ *
+ * **On the box, not under it** (Paul, 2026-09-11: "it's a good party trick but
+ * maybe hide the note"). This stood as a line of its own while the caret was in
+ * either box, and a line of bare symbols is a line that has to be explained —
+ * `>6` and `=6` say nothing about which end they are without their words, and
+ * the boxes already say min and max on their own. So the shorthand is a
+ * shortcut somebody finds rather than a legend everybody reads past.
+ */
 const howToType = (kind: Kind): string =>
   kind === 'length' ? 'A number — or 6-12, >6, <12, =6, 1/4"' : 'A number — or 6-12, >6, <12, =6'
 
@@ -133,8 +142,6 @@ export const RangeFilter = ({
 }: RangeFilterProps) => {
   const [lower, setLower] = useState(() => toDraft(bound?.min, unit, kind))
   const [upper, setUpper] = useState(() => toDraft(bound?.max, unit, kind))
-  /** Whether the caret is in either box, which is when the shorthand is worth saying. */
-  const [typing, setTyping] = useState(false)
   const first = useRef<HTMLInputElement>(null)
 
   const min = bound?.min
@@ -250,27 +257,13 @@ export const RangeFilter = ({
   )
 
   return (
-    <div
-      className="flex flex-col gap-1"
-      onFocus={() => setTyping(true)}
-      onBlur={(event) => {
-        // Moving between the two boxes is not leaving the filter, and the hint
-        // blinking out and back in between them would be the only thing on the
-        // screen that moved.
-        if (!event.currentTarget.contains(event.relatedTarget)) {
-          setTyping(false)
-        }
-      }}
-    >
-      <div className="flex flex-wrap items-center gap-1">
-        {box('min', lower, (raw) => commit(raw, upper))}
-        <span className="text-2xs text-zinc-600">–</span>
-        {box('max', upper, (raw) => commit(lower, raw))}
-        {kind === 'length' ? (
-          <span className="text-2xs text-zinc-600">{UNIT_ABBREVIATION[unit]}</span>
-        ) : null}
-      </div>
-      {typing ? <p className="text-2xs text-zinc-500">{howToType(kind)}</p> : null}
+    <div className="flex flex-wrap items-center gap-1">
+      {box('min', lower, (raw) => commit(raw, upper))}
+      <span className="text-2xs text-zinc-600">–</span>
+      {box('max', upper, (raw) => commit(lower, raw))}
+      {kind === 'length' ? (
+        <span className="text-2xs text-zinc-600">{UNIT_ABBREVIATION[unit]}</span>
+      ) : null}
     </div>
   )
 }

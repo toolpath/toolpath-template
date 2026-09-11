@@ -49,9 +49,50 @@ describe('what is offered', () => {
    * pressed and nothing else about it.
    */
   it('offers the press greyed out for a stack with no tool', () => {
+    expect(assemblyActions(stack({ toolGuid: null }), [])[0]).toEqual({
+      kind: 'add',
+      label: 'Add to order list',
+      disabled: true,
+    })
+  })
+
+  /**
+   * **The emptied box is not a dead end** (Paul, 2026-09-11: "if I have removed
+   * all the tools from an assembly on a feature, it should give me the option
+   * to remove the feature as the button. This is a spot you can get stuck
+   * currently"). The greyed press was the whole of what a row on the list with
+   * an emptied tree offered, so the one thing somebody had just said — *nothing
+   * goes here after all* — had no press to finish it.
+   */
+  it('offers the row itself off the list where it is on it with no tool left', () => {
     expect(assemblyActions(stack({ toolGuid: null }), [])).toEqual([
       { kind: 'add', label: 'Add to order list', disabled: true },
+      { kind: 'drop', label: 'Remove feature from list', danger: true },
     ])
+  })
+
+  it('names the row it would take off, for each kind of row', () => {
+    const labelled = (subject: 'feature' | 'group' | 'assembly') =>
+      assemblyActions(stack({ toolGuid: null }), [], true, subject).find(
+        (each) => each.kind === 'drop',
+      )?.label
+    expect(labelled('group')).toBe('Remove group from list')
+    expect(labelled('assembly')).toBe('Remove tool assembly from list')
+  })
+
+  /** Nothing to take off a list the row is not on yet — that is Cancel's job. */
+  it('offers no removal where the row is not on the list yet', () => {
+    expect(
+      assemblyActions(stack({ toolGuid: null }), [], false).map((each) => each.kind),
+    ).not.toContain('drop')
+  })
+
+  /**
+   * The greyed press only stands where there is nothing to order. A stack with
+   * a tool in it has a press that works, so nothing is offered beside it.
+   */
+  it('offers no removal while there is still a tool in the stack', () => {
+    expect(assemblyActions(stack(), []).map((each) => each.kind)).not.toContain('drop')
   })
 
   it('offers Add to order list where the tool is not on the bill for this feature', () => {
@@ -439,8 +480,23 @@ describe('what a whole assembly offers', () => {
 
   it('greys the one press where no stack of it has a tool', () => {
     expect(
-      offered([emptyAssembly('assembly-1', 'tap'), emptyAssembly('assembly-2', 'drill')], []),
-    ).toEqual([{ kind: 'add', label: 'Add to order list', disabled: true }])
+      offered([emptyAssembly('assembly-1', 'tap'), emptyAssembly('assembly-2', 'drill')], []).map(
+        (each) => each.kind,
+      ),
+    ).toEqual(['add', 'drop'])
+  })
+
+  /**
+   * The press under the box reads every stack in the tree, so a threaded hole
+   * emptied of both its tap and its drill is the same dead end a single stack
+   * was (Paul, 2026-09-11).
+   */
+  it('offers the feature off the list where the tap and the drill are both emptied', () => {
+    const [, second] = offered(
+      [emptyAssembly('assembly-1', 'tap'), emptyAssembly('assembly-2', 'drill')],
+      [],
+    )
+    expect(second).toEqual({ kind: 'drop', label: 'Remove feature from list', danger: true })
   })
 
   /** The same reversal, over a group of stacks: an empty tree can still be kept. */
@@ -536,5 +592,8 @@ describe('orderingPress', () => {
     // Enter is the way *on*. Remove and Cancel are presses somebody makes.
     expect(orderingPress([{ kind: 'remove' }])).toBeNull()
     expect(orderingPress([{ kind: 'revert' }])).toBeNull()
+    /* And not the one that takes the row itself off: a key that can delete a
+       feature is a key nobody can press with confidence. */
+    expect(orderingPress([{ kind: 'add', disabled: true }, { kind: 'drop' }])).toBeNull()
   })
 })

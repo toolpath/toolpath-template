@@ -17,16 +17,9 @@ import {
   type Sheet,
   type ViewerAssembly,
 } from '@toolpath/tool-drawing'
-import { assemblyOutline } from '@toolpath/tool-drawing/geometry'
-import {
-  ClearanceOverlay,
-  describeGaps,
-  tightestGaps,
-  type Gaps,
-} from '@toolpath/tool-drawing/clearance'
+import { ClearanceOverlay, type Gaps } from '@toolpath/tool-drawing/clearance'
 import { assemblyLabel } from 'shared/assemblies'
-import { getProfile } from 'shared/catalog'
-import { toViewerAssembly } from 'shared/tool-drawing-input'
+import { cuttingRadiusOf, gapsFor, viewerFor } from 'shared/assembly-gaps'
 import { useTheme } from 'shared/use-theme'
 
 /**
@@ -133,32 +126,24 @@ export interface CatalogDrawingProps {
 }
 
 /**
- * The verdict's sentence, and **the length below the holder it is about**.
+ * **The sentence under the verdict came out on 2026-09-11.**
  *
- * The package writes "clears the part"; this writes what follows it. It used
- * to be the two tightest gaps alone, which left the reading unanswerable
- * (Paul, 2026-09-08: "it's not clear what length below holder this applies
- * to"): a stack clears at one stickout and fouls at another, so a verdict with
- * no length on it is a verdict about nothing in particular. The number is the
- * one the sheet is drawn at and the one the list's column now prints — the
- * same `drawnAssembly` stickout in all three places.
+ * It read "at 47.00 mm below the holder · tightest: 24.80 mm into the wall at
+ * the shank — 0.51 mm up and 0.51 mm sideways wanted", which was five lines of
+ * the panel saying what the three clearance boxes under the sheet now say in
+ * three — and say editably, which a sentence cannot. Paul's call once the boxes
+ * were on screen: "you can remove the previous messaging above the tool
+ * visualization and make the tool visualization bigger."
  *
- * On a tool drawn alone there is no holder and so no such length, and the
- * sentence is the gaps by themselves as before.
+ * **The verdict itself stays.** "collides with the part" is the one thing the
+ * boxes do not say: a clearance under what was wanted and a stack actually into
+ * the material are different readings, and the second is the one a shop must
+ * not miss. The package writes it from `clears` alone, with no note under it.
+ *
+ * What was lost with the sentence is *where* the tightest point was — "at the
+ * shank" — which is `describeGaps`'s and has no box. The drawing paints the
+ * colliding part red, which is the same answer in the place it is about.
  */
-const verdictNote = (
-  stickout: number | null,
-  gaps: Gaps | null,
-  margins: Margins,
-  format: (millimetres: number) => string,
-): string | null => {
-  const said = gaps === null ? null : describeGaps(gaps, margins, format)
-  if (stickout === null) {
-    return said
-  }
-  const at = `at ${format(stickout)} below the holder`
-  return said === null ? at : `${at} · ${said}`
-}
 
 export const CatalogDrawing = ({
   tool,
@@ -176,15 +161,7 @@ export const CatalogDrawing = ({
   const [theme] = useTheme()
   const format = (millimetres: number) => formatLength(millimetres, unit)
   const holder = assembly?.holder ?? null
-  const holderProfile = measured && holder !== null ? getProfile(holder.guid) : null
-  const viewer = toViewerAssembly(
-    {
-      tool,
-      holder,
-      stickout: assembly?.stickout ?? null,
-    },
-    holderProfile,
-  )
+  const viewer = viewerFor({ tool, holder, stickout: assembly?.stickout ?? null }, measured)
   const caption = assembly === null ? tool.catalogNumber : assemblyLabel(assembly)
 
   /**
@@ -194,17 +171,21 @@ export const CatalogDrawing = ({
    * answer this application's own engine already gave, so the number under the
    * drawing is the number the tool list sorted on.
    */
-  const outline = curve === null ? null : assemblyOutline(viewer)
   const verdict = curve !== null && assembly !== null ? clearance(assembly, curve, margins) : null
-  const cuttingRadius = (tool.geometry.DC ?? 0) / 2
+  const cuttingRadius = cuttingRadiusOf(tool)
   const profile =
     curve !== null && tool.geometry.DC !== undefined ? materialProfile(curve, cuttingRadius) : null
-  const gaps =
-    curve !== null && outline !== null
-      ? tightestGaps(outline.segments, curve, cuttingRadius, margins)
-      : null
+  /**
+   * The gaps, measured where every other reader of them measures them.
+   *
+   * `shared/assembly-gaps` and not an outline of its own: the three boxes under
+   * this sheet show the same two numbers the caption below writes out, and two
+   * measurements of one gap is the divergence-with-a-delay this repository has
+   * paid for once already.
+   */
+  const gaps = gapsFor(viewer, curve, cuttingRadius, margins)
 
-  const overlaid = profile !== null && gaps !== null && outline !== null
+  const overlaid = profile !== null && gaps !== null
   const padding: Partial<Padding> = overlaid ? { plus: materialRoom } : {}
 
   return (
@@ -218,17 +199,10 @@ export const CatalogDrawing = ({
       {...(onDimensionHover === undefined ? {} : { onDimensionHover })}
       padding={padding}
       collisions={verdict?.collisions}
-      verdict={
-        verdict === null
-          ? null
-          : {
-              clears: verdict.clears,
-              note: verdictNote(viewer.stickout, gaps, margins, format),
-            }
-      }
+      verdict={verdict === null ? null : { clears: verdict.clears, note: null }}
       className="size-full"
     >
-      {overlaid && profile !== null && gaps !== null && outline !== null ? (
+      {overlaid && profile !== null && gaps !== null ? (
         <ClearanceOverlay
           profile={profile}
           cuttingRadius={cuttingRadius}

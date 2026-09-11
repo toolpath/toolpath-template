@@ -140,6 +140,7 @@ import {
   groupOf as groupWith,
   stacksOf,
   markOrdered,
+  orderedAs,
   removeAssembly,
   renameAssembly,
   restoreAssembly,
@@ -3710,13 +3711,32 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const pressRow = useCallback(
     (id: string | null, tag: string | null, toolGuid?: string) => {
       const item = itemNamed(list, id)
+      /*
+        **A press on a line opens the stack that line came from** (Paul,
+        2026-09-11: "when I click on a specific tool assembly row in the order
+        list, focus should go to the top line component of the specific assembly
+        I clicked"). The line names its tool and `orderedAs` names its stack, so
+        the tree beside the box can open on it — without this it opened on
+        `firstNode`, which is the first *unanswered* slot, so pressing the third
+        assembly of a row landed on the first one's empty collet and the stack
+        somebody pressed was not on screen.
+
+        Its top line is the tool slot: the stack is a tool with its holding
+        under it, and the tool is what the line stands for.
+      */
+      if (item !== null && toolGuid !== undefined) {
+        const stack = orderedAs(trees[item.id] ?? [], toolGuid)
+        if (stack !== null) {
+          setNodeHeld({ itemId: item.id, node: { assemblyId: stack.id, slot: 'tool' } })
+        }
+      }
       if (item?.kind === 'group' && tag === null) {
         startEdit(item.id)
         return
       }
       selectRow(id, tag, toolGuid)
     },
-    [list, startEdit, selectRow],
+    [list, trees, startEdit, selectRow],
   )
 
   /**
@@ -3806,6 +3826,38 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       commit(clearKeys(sheet, keys))
     },
     [commit, sheet],
+  )
+
+  /**
+   * One row off the list, with its lines and its tree.
+   *
+   * The whole of what removing a row means, in one place, because there are two
+   * presses that mean it: right-click → *Remove* on the list, and the press
+   * under an emptied tree (`assembly-actions` § `drop`, Paul, 2026-09-11). They
+   * were one press and one handler inside the list's JSX, so the second one
+   * would have been a second reading of what *gone* includes — and a row
+   * removed without `unbill` goes on being ordered by a bill nobody can see any
+   * more.
+   *
+   * **And its tree with it.** Ids are arithmetic, so a part emptied of rows
+   * starts again at `feature-1`; a tree left behind would attach itself to
+   * whatever row took that id next.
+   */
+  const removeRow = useCallback(
+    (id: string) => {
+      const going = itemNamed(list, id)
+      if (going !== null) {
+        // Its features, or — for a part-level assembly — the key its own lines
+        // are kept under.
+        unbill(sheetKeysOf(going))
+      }
+      forgetTree(id)
+      setList((current) => removeItem(current, id))
+      if (selectedId === id) {
+        selectRow(null)
+      }
+    },
+    [list, unbill, forgetTree, setList, selectedId, selectRow],
   )
 
   /**
@@ -4815,7 +4867,13 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         stacks,
         treeLines,
         activeItem !== null,
-        draft?.kind === 'group' ? 'group' : draft?.kind === 'assembly' ? 'assembly' : 'feature',
+        /*
+          **What the press is about is the row, where there is one.** A draft
+          names what it would create; an existing row names itself — the drop
+          press says *Remove group from list* over a group, and saying *feature*
+          there names something the list does not hold (Paul, 2026-09-11).
+        */
+        draft?.kind ?? activeItem?.kind ?? 'feature',
         componentName,
       ).map((action) => ({
         key: `${stacks[0]?.id ?? 'assembly'}-${action.kind}`,
@@ -4844,6 +4902,21 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           ? { disabled: true }
           : {}),
         onClick: () => {
+          /*
+            **The row itself goes, and the box goes with it** (Paul,
+            2026-09-11). Offered only under a tree with no tool in it at all —
+            `assembly-actions` § `drop` is the rule — so there is nothing in the
+            tree left to write; `removeRow` takes the row's lines and its tree,
+            and what is left on screen is an editor for a row that no longer
+            exists.
+          */
+          if (action.kind === 'drop') {
+            if (activeItem !== null) {
+              removeRow(activeItem.id)
+            }
+            putDown()
+            return
+          }
           /*
             **Backing out touches the tree, not the bill.** The change was never
             written, so there is nothing to undo on the sheet — what is put back
@@ -4881,6 +4954,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       componentName,
       writeTree,
       putDown,
+      removeRow,
     ],
   )
 
@@ -6722,9 +6796,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                 */
                                   assemblyOf={(itemId, toolGuid) => {
                                     const stacks = trees[itemId] ?? []
-                                    const stack = stacks.find(
-                                      (each) => (each.orderedTool ?? each.toolGuid) === toolGuid,
-                                    )
+                                    const stack = orderedAs(stacks, toolGuid)
                                     if (stack?.name === undefined) {
                                       return null
                                     }
@@ -6746,25 +6818,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                     setRenamingId(null)
                                   }}
                                   onRenameCancel={() => setRenamingId(null)}
-                                  onRemove={(id) => {
-                                    const going = itemNamed(list, id)
-                                    if (going !== null) {
-                                      // Its features, or — for a part-level assembly
-                                      // — the key its own lines are kept under.
-                                      unbill(sheetKeysOf(going))
-                                    }
-                                    /*
-                                  **And its tree with it.** Ids are arithmetic, so
-                                  a part emptied of rows starts again at
-                                  `feature-1` — a tree left behind would attach
-                                  itself to whatever row took that id next.
-                                */
-                                    forgetTree(id)
-                                    setList((current) => removeItem(current, id))
-                                    if (selectedId === id) {
-                                      selectRow(null)
-                                    }
-                                  }}
+                                  onRemove={removeRow}
                                 />
                               )}
                             </div>

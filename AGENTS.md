@@ -305,6 +305,9 @@ application unless that application says otherwise.
 | the press that shows them, hidden to begin with      | `app/components/no-collet-toggle.tsx`                |
 | a group's worst case, and whose it is                | `app/shared/group-geometry.ts`                       |
 | how far below the holder a stack has to stand        | `belowHolder`, `app/shared/drawn-assembly.ts`        |
+| the room a stack leaves, measured once for everyone  | `app/shared/assembly-gaps.ts`                        |
+| which of the three clearance numbers a shop stated   | `app/shared/clearance-entry.ts`                      |
+| the three boxes that state it, under the drawing     | `app/components/clearance-entry.tsx`                 |
 | which slots were filled against the rules            | `overrides`, `app/shared/assembly-tree.ts`           |
 | what a stack offers, and its button's words          | `app/shared/assembly-actions.ts`                     |
 | what a shop calls an assembly, and its field         | `renameItem` / `renameAssembly`, `name-field.tsx`    |

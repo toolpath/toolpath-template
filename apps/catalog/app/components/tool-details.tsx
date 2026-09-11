@@ -1,8 +1,9 @@
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { ArrowSquareOutIcon } from '@phosphor-icons/react'
 import { Badge, Button, Combobox, Toggle, cn } from '@toolpath/ui'
 import {
   NO_MARGINS,
+  clearance,
   type CatalogTool,
   type Collet,
   type Holder,
@@ -13,10 +14,13 @@ import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { formatGeometry } from 'shared/geometry'
 import { getFamily } from 'shared/catalog'
 import { drawnAssembly } from 'shared/drawn-assembly'
+import { roomAt } from 'shared/assembly-gaps'
+import { askFor, boxesFor, type ClearanceEdit } from 'shared/clearance-entry'
 import { thresholdsFrom } from 'shared/holder-choice'
 import { ToolTypeIcon, formLabel } from './tool-icons'
 import { MeasurementIcon } from './feature-icons'
 import { CatalogDrawing } from './catalog-drawing'
+import { ClearanceEntry } from './clearance-entry'
 import { CatalogComboboxButton } from './catalog-combobox-button'
 
 /**
@@ -216,16 +220,77 @@ export const ToolDetails = ({
    * the rail asks for, and a holder that has dropped off that list is one the
    * panel has always drawn nothing for.
    */
+  /**
+   * The one of the three clearance numbers a shop has stated, if any.
+   *
+   * **Kept against the stack it was stated about**, rather than reset from an
+   * effect: a length below the holder typed for one assembly means nothing on
+   * the next tool or under a different holder, and an effect would leave it on
+   * screen for the render in between. Reading it through the key is how it
+   * cannot outlive what it was about.
+   */
+  const stackKey = `${tool.guid}:${chosen.holderGuid ?? ''}:${chosen.colletGuid ?? ''}`
+  const [stated, setStated] = useState<{
+    readonly key: string
+    readonly edit: ClearanceEdit | null
+  }>({ key: stackKey, edit: null })
+  const edit = stated.key === stackKey ? stated.edit : null
+
+  /**
+   * The least this stack can stand out of the holder and still leave the room
+   * asked for — `clearance()`'s own answer, behind the name the rule wants.
+   */
+  const requiredAt = (limits: Margins): number | null =>
+    holderChosen === undefined || curve === null
+      ? null
+      : clearance(
+          { tool, holder: holderChosen, collet: stack?.collet ?? null, stickout: 0 },
+          curve,
+          limits,
+        ).requiredStickout
+  const ask = askFor(edit, margins, requiredAt)
+
   const drawn = drawnAssembly(
     tool,
-    { holder: chosen.holderGuid, collet: chosen.colletGuid, stickout: null },
+    { holder: chosen.holderGuid, collet: chosen.colletGuid, stickout: ask.stickout },
     curve,
-    margins,
+    ask.margins,
     thresholdsFrom(),
     holderChosen === undefined ? [] : [holderChosen],
   )
   /** Whether the sheet below is the stack rather than the bare tool. */
   const drawnAsStack = drawn.assembly !== null && view === 'stack'
+
+  /**
+   * The room this stack actually leaves, at the length it is actually drawn at.
+   *
+   * Measured after the stack has had the ask, because the stack floors and caps
+   * a stated length — a box showing the room at a length nobody is looking at
+   * would be worse than no box. Memoised on the stack and the length: the sweep
+   * is a loop over a few dozen segments, but it is one the panel would otherwise
+   * run on every keystroke anywhere on the page.
+   */
+  const room = useMemo(
+    () =>
+      drawnAsStack
+        ? roomAt({ tool, holder: drawn.holder }, drawn.stickout, curve, ask.margins)
+        : { axial: null, radial: null },
+    [
+      drawnAsStack,
+      tool,
+      drawn.holder,
+      drawn.stickout,
+      curve,
+      ask.margins.axial,
+      ask.margins.radial,
+    ],
+  )
+  const boxes = boxesFor(
+    edit,
+    margins,
+    { stickout: drawn.stickout, overLimit: drawn.overLimit },
+    room,
+  )
 
   return (
     /*
@@ -371,7 +436,18 @@ export const ToolDetails = ({
           panel only makes it more portrait.
         */}
         <div className="flex min-h-0 flex-1 flex-col items-center">
-          <div className="h-full min-h-[18rem] w-full max-w-[16rem]">
+          {/*
+            **Bigger, now that nothing is written over it** (Paul, 2026-09-11).
+            The five lines the verdict's sentence took went to the sheet, and
+            the clearance row under it is folded to begin with.
+
+            Still a capped width under a floored height, and for the reason the
+            note above gives: `orientationFor` is `width >= height`, measured
+            once, so the two figures have to stay apart or a tall panel lays the
+            tool on its side. 18 rem under 22 rem cannot be landscape whatever
+            the panel does.
+          */}
+          <div className="h-full min-h-[22rem] w-full max-w-[18rem]">
             <CatalogDrawing
               tool={tool}
               unit={unit}
@@ -387,6 +463,21 @@ export const ToolDetails = ({
           </div>
         </div>
       </div>
+
+      {/*
+        **The three numbers that decide each other**, under the sheet they are
+        about (Paul, 2026-09-11). Only with a stack and a feature: a clearance
+        is room between something and something else, and a cutter drawn on its
+        own has neither.
+      */}
+      {drawnAsStack && curve !== null ? (
+        <ClearanceEntry
+          boxes={boxes}
+          unit={unit}
+          edit={edit}
+          onEdit={(next) => setStated({ key: stackKey, edit: next })}
+        />
+      ) : null}
 
       {/* The numbers it is chosen on, at the bottom: two columns, big enough
           to read across the desk, each saying what it is rather than only its

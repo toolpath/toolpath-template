@@ -1201,6 +1201,46 @@ test('opens a group, with the assembly it was ordered with, from its row', async
 })
 
 /**
+ * **A press on a line opens the stack that line came from** (Paul, 2026-09-11:
+ * "when I click on a specific tool assembly row in the order list, focus should
+ * go to the top line component of the specific assembly I clicked").
+ *
+ * The tree opened on `firstNode` whichever line was pressed — the first
+ * *unanswered* slot of the row — so on a feature answered by two stacks the one
+ * somebody pressed was not the one on screen, and the second assembly could
+ * only be reached by hunting for it in the tree. `orderedAs` is the rule that
+ * turns a line back into its stack, and the tool slot is that stack's top line.
+ */
+test('opens the stack a pressed line of the order list came from', async ({ page }) => {
+  const tree = page.locator('[data-assembly-tree]')
+  const list = await orderList(page)
+
+  // One feature answered by two stacks, the second named so its line says which
+  // stack it is — `assemblyOf` is what puts that name on the line.
+  await ready(page)
+  await keepFeature(page)
+  await buildStack(page)
+  await tree.getByRole('button', { name: 'Add assembly' }).click()
+  await tree.getByRole('button', { name: 'TOOL for assembly-2' }).click()
+  const tools = page.getByRole('grid').first()
+  await expect(tools.getByRole('row').nth(1)).toBeVisible()
+  await tools.getByRole('row').nth(1).click()
+  await tree.getByRole('button', { name: 'Assembly 2', exact: true }).click()
+  await tree.getByRole('textbox').fill('Finisher')
+  await tree.getByRole('textbox').press('Enter')
+  // One press covers every stack in the box, and closes it behind them.
+  await orderPress(page).click()
+
+  await list.getByText('Finisher').click()
+
+  await expect(tree).toBeVisible()
+  await expect(tree.getByRole('button', { name: 'TOOL for assembly-2' })).toHaveAttribute(
+    'aria-current',
+    'true',
+  )
+})
+
+/**
  * **The + Tool Assembly tree has no second stack** (Paul, 2026-09-08: "we can
  * also remove the add assembly button from + Tool Assembly"). It answers no
  * feature, so another stack the part needs is another row with a name of its
@@ -2626,6 +2666,35 @@ test.describe('the tool assembly tree', () => {
     const again = await openRow(page)
     await expect(again.getByRole('button', { name: 'Remove from order list' })).toBeVisible()
     await expect(again.getByRole('button', { name: 'Add to order list' })).toHaveCount(0)
+  })
+
+  /**
+   * **An emptied box is not a dead end** (Paul, 2026-09-11: "if I have removed
+   * all the tools from an assembly on a feature, it should give me the option
+   * to remove the feature as the button. This is a spot you can get stuck
+   * currently"). Clearing the last tool left the greyed *Add to order list* and
+   * nothing else: the thing somebody had just said — nothing goes here after
+   * all — had no press in the box to finish it, and the row went on being
+   * ordered by lines the tree no longer showed.
+   */
+  test('offers the feature off the list once the last tool is cleared', async ({ page }) => {
+    await ready(page)
+    await keepFeature(page)
+    const tree = await buildStack(page)
+    await tree.getByRole('button', { name: 'Add to order list' }).click()
+
+    const again = await openRow(page)
+    await again.getByRole('button', { name: 'Clear the tool' }).click()
+
+    // The press that orders stays where it is, greyed — it is what says the
+    // tree is what fills it in — and the way out stands under it.
+    await expect(again.getByRole('button', { name: 'Add to order list' })).toBeDisabled()
+    await again.getByRole('button', { name: 'Remove feature from list' }).click()
+
+    // The row goes, and the box goes with it: an editor for a row that is no
+    // longer on the list is a form about nothing.
+    await expect(tree).toBeHidden()
+    await expect(await orderList(page)).toBeHidden()
   })
 
   /**

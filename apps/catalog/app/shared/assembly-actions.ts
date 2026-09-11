@@ -33,6 +33,8 @@ import { ROLE_LABEL, isEmpty, type TreeAssembly } from './assembly-tree'
  * | --------------------------------------------- | ---------------------------- |
  * | nothing in it, and not a row yet              | **Add feature to list**      |
  * | nothing in it, on the list already            | **Add to order list**, greyed |
+ * |                                               | and **Remove feature from    |
+ * |                                               | list** under it              |
  * | no tool yet — a holder or collet on its own   | the same two                 |
  * | a tool, and not a row on the list yet         | **Add to order list**, and   |
  * |                                               | it makes the row as well     |
@@ -92,6 +94,23 @@ export type AssemblyActionKind =
    * the only way to keep one used to be picking a tool for it.
    */
   | 'list'
+  /**
+   * The row itself off the list, where there is nothing in it left to order
+   * (Paul, 2026-09-11: "if I have removed all the tools from an assembly on a
+   * feature, it should give me the option to remove the feature as the button.
+   * This is a spot you can get stuck currently").
+   *
+   * A row on the list with an emptied tree offered one greyed press and nothing
+   * else: taking the last tool out of a stack is how somebody says *this face is
+   * not worth machining after all*, and the only way to finish that thought was
+   * to close the box, find the row and right-click it. The greyed press stays —
+   * it is what says the tree is what fills it in — and this stands under it, so
+   * both endings of an emptied box are in the box.
+   *
+   * It takes the row and everything it put on the order list, which is the same
+   * thing right-click → *Remove* has always done.
+   */
+  | 'drop'
 
 /** What one press would put on the list, where it is not on it yet. */
 export type Subject = 'feature' | 'group' | 'assembly'
@@ -139,6 +158,19 @@ const LISTING: Readonly<Record<Subject, string | null>> = {
 }
 
 /**
+ * What an emptied row's press takes off the list, named for the row it is.
+ *
+ * Every row kind can be emptied and every one of them can be dropped, so unlike
+ * {@link LISTING} there is no silence here: a part-level assembly with nothing
+ * in it is the clearest case of the three, since the row *is* its order.
+ */
+const DROPPING: Readonly<Record<Subject, string>> = {
+  feature: 'Remove feature from list',
+  group: 'Remove group from list',
+  assembly: 'Remove tool assembly from list',
+}
+
+/**
  * The press under a stack with nothing in it to order.
  *
  * **A feature is worth keeping before it is answered** (Paul, 2026-09-10: "I
@@ -159,10 +191,21 @@ const LISTING: Readonly<Record<Subject, string | null>> = {
  * changes the button rather than moving it. `nothingToConfirm` is what says why
  * an ordering press cannot be made yet, beside the component being read.
  */
-const nothingYet = (onList: boolean, subject: Subject): AssemblyAction => {
-  const listing = onList ? null : LISTING[subject]
+const nothingYet = (onList: boolean, subject: Subject): Array<AssemblyAction> => {
+  if (onList) {
+    /*
+      **And a way out of the empty box** (Paul, 2026-09-11). The greyed press is
+      the first line — see `drop` — and the second is what an emptied row can
+      actually do, so the box is never a dead end.
+    */
+    return [
+      { kind: 'add', label: 'Add to order list', disabled: true },
+      { kind: 'drop', label: DROPPING[subject], danger: true },
+    ]
+  }
+  const listing = LISTING[subject]
   return listing === null
-    ? { kind: onList ? 'add' : 'confirm', label: 'Add to order list', disabled: true }
+    ? [{ kind: 'confirm', label: 'Add to order list', disabled: true }]
     : /*
       **The button is the whole of it** (Paul, 2026-09-11). It carried a note
       saying the row would go on the list marked incomplete, which is what the
@@ -171,7 +214,7 @@ const nothingYet = (onList: boolean, subject: Subject): AssemblyAction => {
       sentences of amber under the press said it before there was anything to
       say it about.
     */
-      { kind: 'list', label: listing }
+      [{ kind: 'list', label: listing }]
 }
 
 /** The line this stack would write, or null while it has no tool to write one for. */
@@ -406,7 +449,7 @@ export const assemblyActions = (
 ): Array<AssemblyAction> => {
   const line = lineOf(assembly)
   if (line === null) {
-    return [nothingYet(onList, subject)]
+    return nothingYet(onList, subject)
   }
   /*
     Not a row yet, so there is nothing to add *to*: one press makes the feature
@@ -493,6 +536,7 @@ const groupSaid = (
  * | The group                                    | Offered                     |
  * | -------------------------------------------- | --------------------------- |
  * | no tool anywhere in it                       | **Add to order list**, greyed|
+ * |                                              | and the row's own removal   |
  * | not a row on the list yet                    | **Add to order list**       |
  * | no stack of it on the bill                   | **Add to order list**       |
  * | every stack on the bill, unchanged           | **Remove from order list**  |
@@ -523,7 +567,7 @@ export const groupActions = (
     return line === null ? [] : [{ stack, line, had: savedFor(stack, onSheet) }]
   })
   if (parts.length === 0) {
-    return [nothingYet(onList, subject)]
+    return nothingYet(onList, subject)
   }
   if (!onList) {
     return [
@@ -560,8 +604,8 @@ export const groupActions = (
 /**
  * The presses that put an assembly on the order list, or change what is on it.
  *
- * `remove` and `revert` are the two that take something *off* or put it back,
- * and the difference matters twice over: the box closes on an order being
+ * `remove`, `drop` and `revert` are the ones that take something *off* or put
+ * it back, and the difference matters twice over: the box closes on an order being
  * placed (Paul, 2026-09-10: "clicking 'Add to Order List' should close the
  * feature, group, or tool assembly dialog"), and Enter presses one of these and
  * never one of those — a key that could silently remove an order is a key
