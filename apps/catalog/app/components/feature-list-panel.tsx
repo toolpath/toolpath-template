@@ -213,9 +213,18 @@ const Answer = ({
       className={cn(
         STACKS,
         'text-2xs flex w-full min-w-0 flex-col gap-0.5 rounded border px-1.5 py-0.5 text-left transition',
+        /*
+          **A stack stands on the part, not in a chip** (Paul, 2026-09-11: "make
+          the grey background from the tool assembly rows transparent"). The
+          kit's muted button fills its inner box with `dark:bg-zinc-800`, and
+          `cn` cannot merge that away with an unprefixed `bg-*` — the two are
+          different variants, so both survive and the dark one wins. Each
+          branch therefore says what it wants in the dark as well, which is the
+          row's own plate showing through rather than a grey tile on it.
+        */
         here
-          ? 'border-info/60 bg-info/15 text-info'
-          : 'border-transparent text-zinc-400 hover:border-zinc-800 hover:bg-zinc-900/60 hover:text-zinc-200',
+          ? 'border-info/60 bg-info/15 text-info dark:bg-info/15'
+          : 'border-transparent bg-transparent text-zinc-400 hover:border-zinc-800 hover:bg-zinc-900/60 hover:text-zinc-200 dark:bg-transparent dark:group-hover:bg-zinc-900/60',
       )}
     >
       {/*

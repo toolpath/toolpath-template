@@ -149,6 +149,21 @@ export interface PartViewerProps {
    */
   readonly overlay?: ReactNode
   /**
+   * A bar drawn along the bottom of the viewer, above the panel below it.
+   *
+   * **The list's chrome floats over the part** (Paul, 2026-09-11: "they should
+   * float in the 3d viewer above the table"). It is a slot rather than
+   * something the page lays over the top, because the viewer already owns this
+   * edge — the shelf of view controls stands on it, and the two have to be
+   * stacked by whoever knows about both.
+   *
+   * It starts where the questions end, for the reason the feature record does:
+   * the column over the left of the canvas takes the pointer for its whole
+   * height, so a bar running under it is a bar whose left end cannot be
+   * pressed.
+   */
+  readonly bottomChrome?: ReactNode
+  /**
    * Whether the overlay may grow past the bottom of the viewer.
    *
    * **A form has to be finishable** (Paul, 2026-09-02: "make the selection
@@ -187,6 +202,7 @@ export const PartViewer = ({
   details,
   modal,
   overlay,
+  bottomChrome,
   overlaySpills = false,
   tooled = [],
   onCloseDetails,
@@ -229,6 +245,32 @@ export const PartViewer = ({
     observer.observe(box)
     return () => observer.disconnect()
   }, [overlay])
+
+  /**
+   * How much of the bottom edge the shelf and the bar under it have taken.
+   *
+   * **The questions stop above it** (Paul, 2026-09-11: "it should be under the
+   * top left hand panel, not to the right of it"). The bar runs the full width
+   * of the viewer, and the column over the left of the canvas is full height
+   * and takes the pointer for all of it — so without this the bar's left end
+   * would be drawn under the list and could not be pressed at all. Measured
+   * rather than reserved: the bar wraps to two lines on a narrow window, and a
+   * guessed height is a gap on one screen and an overlap on the next.
+   */
+  const bottom = useRef<HTMLDivElement>(null)
+  const [bottomRoom, setBottomRoom] = useState(0)
+
+  useEffect(() => {
+    const box = bottom.current
+    if (box === null || typeof ResizeObserver === 'undefined') {
+      return
+    }
+    const measure = () => setBottomRoom(box.getBoundingClientRect().height)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(box)
+    return () => observer.disconnect()
+  }, [bottomChrome])
 
   const [showAids, setShowAids] = useState(false)
   // Off by default (Paul, 2026-08-30): the stack in the scene is a check, not the view.
@@ -329,51 +371,72 @@ export const PartViewer = ({
            * stay transparent to the part underneath.
            */
           className="pointer-events-none absolute top-3 bottom-3 left-3 z-40 flex gap-2"
+          /* Above the bar along the bottom, measured — see `bottomRoom`. */
+          style={bottomRoom === 0 ? undefined : { bottom: bottomRoom + 20 }}
         >
           {overlay}
         </div>
       ) : null}
 
-      {/* Along the bottom, centred: the corners belong to the view cube and to
-          what the part is waiting for, and a shelf in the middle of the bottom
-          edge is out of the way of the geometry above it. */}
-      <div className="absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5">
-        <span
-          className="flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950/90 p-1 backdrop-blur"
-          role="group"
-          aria-label="Viewer controls"
+      {/*
+        **Under the view cube, in a column** (Paul, 2026-09-11: "can we move the
+        viewer controls to a vertical orientation under the viewcube?"). They
+        were a shelf along the bottom edge, which is where the list's chrome
+        floats now — two things over one strip. The cube already owns this
+        corner and the gizmo is drawn 80px in from it, so the column starts
+        below what the cube can reach.
+      */}
+      <span
+        className="pointer-events-auto absolute top-40 right-3 z-30 flex flex-col items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950/90 p-1 backdrop-blur"
+        role="group"
+        aria-label="Viewer controls"
+      >
+        <ToolButton
+          label={zoomTo === 'cursor' ? 'Zoom to cursor (on)' : 'Zoom to cursor'}
+          pressed={zoomTo === 'cursor'}
+          onClick={() => setZoomTo(zoomTo === 'cursor' ? 'centre' : 'cursor')}
         >
-          <ToolButton
-            label={zoomTo === 'cursor' ? 'Zoom to cursor (on)' : 'Zoom to cursor'}
-            pressed={zoomTo === 'cursor'}
-            onClick={() => setZoomTo(zoomTo === 'cursor' ? 'centre' : 'cursor')}
-          >
-            <MagnifyingGlassPlusIcon />
-          </ToolButton>
-          <ToolButton
-            label={showAids ? 'Grid and axes (on)' : 'Grid and axes'}
-            pressed={showAids}
-            onClick={() => setShowAids(!showAids)}
-          >
-            <GridFourIcon />
-          </ToolButton>
-          {/*
+          <MagnifyingGlassPlusIcon />
+        </ToolButton>
+        <ToolButton
+          label={showAids ? 'Grid and axes (on)' : 'Grid and axes'}
+          pressed={showAids}
+          onClick={() => setShowAids(!showAids)}
+        >
+          <GridFourIcon />
+        </ToolButton>
+        {/*
             **No wrench for now** (Paul, 2026-09-01: "remove the wrench icon in
             the viewer for now"). It put the drawn stack at the clicked feature;
             the drawing in the panel is where a stack is read today. The button
             is what has gone — `assembly` still draws one when a page asks.
           */}
-          <ToolButton
-            label={sectioning ? 'Section view (on)' : 'Section view'}
-            pressed={sectioning}
-            onClick={() => {
-              setSectioning(!sectioning)
-              setPlane(null)
-            }}
-          >
-            <SquareHalfIcon />
-          </ToolButton>
-        </span>
+        <ToolButton
+          label={sectioning ? 'Section view (on)' : 'Section view'}
+          pressed={sectioning}
+          onClick={() => {
+            setSectioning(!sectioning)
+            setPlane(null)
+          }}
+        >
+          <SquareHalfIcon />
+        </ToolButton>
+      </span>
+
+      {/* Along the bottom, whatever chrome the page floats here.
+
+          **The sheet takes no click**, and each thing on it says for itself
+          that it does — the rule the overlay column follows, and the defect
+          `tests/on-the-part.spec.ts` § "at a laptop width" exists for: an
+          invisible full-width box carrying the pointer is a curtain over the
+          part. */}
+      <div
+        ref={bottom}
+        /* Close to the table under it (Paul, 2026-09-11: "reduce the vertical
+           spacing between the buttons and the table"). */
+        className="pointer-events-none absolute inset-x-3 bottom-1 z-30 flex flex-col gap-2"
+      >
+        {bottomChrome}
       </div>
 
       {details ? (

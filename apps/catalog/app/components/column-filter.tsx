@@ -1134,7 +1134,11 @@ export const ColumnPicker = ({
         aria-expanded={open}
         title="Which columns to show"
         onClick={() => setOpen(!open)}
-        className="rounded p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+        /* **A press keeps its own ground** (Paul, 2026-09-11: "the buttons
+           shouldn't be transparent"). The chrome this stands in floats over the
+           part now, so the pencil wears the same chip the buttons beside it
+           wear rather than sitting bare on the geometry. */
+        className="rounded border border-zinc-800 bg-zinc-900 p-1 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
       >
         <PencilSimpleIcon />
       </IconButton>

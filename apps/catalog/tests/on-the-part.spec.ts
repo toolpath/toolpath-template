@@ -635,17 +635,31 @@ test('a number column is typed into without the filter shutting', async ({ page 
   await expect(page).toHaveURL(/min\.DC=12/)
 })
 
-test('filters open inline from the tool table, below the viewer', async ({ page }) => {
+/**
+ * **The bar floats over the bottom of the part** (Paul, 2026-09-11: "they
+ * should float in the 3d viewer above the table"). It was the table card's
+ * header, and this checked it was under the viewer; the same controls now stand
+ * over the last strip of the canvas, above the rows they narrow. What has not
+ * changed is which of them is there: the questions no column asks are on the
+ * bar, and everything a column can ask is asked on that column.
+ */
+test('filters open from the bar floating over the bottom of the part', async ({ page }) => {
   const viewer = page.locator('canvas')
   const toolbar = page.locator('[data-part-tool-table-toolbar]')
+  const rows = page.locator('[data-part-tool-table]').first()
 
   await expect(toolbar).toBeVisible()
   await expect(async () => {
     const viewerBox = await viewer.boundingBox()
     const toolbarBox = await toolbar.boundingBox()
+    const rowsBox = await rows.boundingBox()
     expect(viewerBox).not.toBeNull()
     expect(toolbarBox).not.toBeNull()
-    expect(toolbarBox!.y).toBeGreaterThan(viewerBox!.y + viewerBox!.height)
+    expect(rowsBox).not.toBeNull()
+    // Over the canvas, in its bottom half, and above the rows.
+    expect(toolbarBox!.y).toBeGreaterThan(viewerBox!.y + viewerBox!.height / 2)
+    expect(toolbarBox!.y + toolbarBox!.height).toBeLessThanOrEqual(viewerBox!.y + viewerBox!.height)
+    expect(toolbarBox!.y + toolbarBox!.height).toBeLessThanOrEqual(rowsBox!.y)
   }).toPass()
 
   const tableScroll = page.locator('[data-part-tool-table] .hide-scrollbar').first()

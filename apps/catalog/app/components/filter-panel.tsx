@@ -18,7 +18,7 @@ import { toggleTerm, type ToolQuery } from 'shared/filter'
 import { AXES_IN_TOOL_COLUMNS, AXES_PARKED } from 'shared/column-filters'
 import { useEscape } from 'shared/use-escape'
 import { Chip, ChipGroup } from './chip'
-import { RangeFilter, type Bound, type Kind } from './column-filter'
+import { menuRoom, RangeFilter, type Bound, type Kind } from './column-filter'
 import { DrillDeviationFields } from './drill-deviation'
 import {
   ColletIcon,
@@ -430,7 +430,21 @@ const ToolbarFilterBody = ({
   children: ReactNode
 }) => {
   const menu = useRef<HTMLDivElement>(null)
+  const press = useRef<HTMLDivElement>(null)
   const [menuOffset, setMenuOffset] = useState(0)
+  /**
+   * Which way it opens, and the most it may be.
+   *
+   * **These buttons stand at the bottom of the viewer now** (Paul, 2026-09-11),
+   * so a box opening downwards opens past the edge of a viewer that clips, and
+   * what is under the button is a strip. `menuRoom` is the same rule the column
+   * funnels and the column picker follow: take the room the screen leaves, and
+   * turn over where there is none.
+   */
+  const [room, setRoom] = useState<{ readonly upwards: boolean; readonly height: number }>({
+    upwards: false,
+    height: 0,
+  })
 
   useLayoutEffect(() => {
     if (!open || menu.current === null) {
@@ -454,6 +468,10 @@ const ToolbarFilterBody = ({
             ? right - menuRect.right
             : 0
       setMenuOffset(correction)
+      const button = press.current?.getBoundingClientRect()
+      if (button !== undefined) {
+        setRoom(menuRoom(button, window.innerHeight))
+      }
     }
 
     place()
@@ -462,7 +480,7 @@ const ToolbarFilterBody = ({
   }, [open])
 
   return (
-    <div className="relative min-w-0">
+    <div ref={press} className="relative min-w-0">
       <Button
         type="button"
         variant="muted"
@@ -486,8 +504,14 @@ const ToolbarFilterBody = ({
         <div
           data-tool-filter-menu
           ref={menu}
-          style={{ transform: `translateX(${String(menuOffset)}px)` }}
-          className="absolute top-full right-0 z-30 mt-1 w-[min(30rem,calc(100vw-2rem))] rounded-md border border-zinc-800 bg-zinc-950 p-2 shadow-xl"
+          style={{
+            transform: `translateX(${String(menuOffset)}px)`,
+            ...(room.height === 0 ? {} : { maxHeight: room.height }),
+          }}
+          className={cn(
+            'absolute right-0 z-30 w-[min(30rem,calc(100vw-2rem))] overflow-y-auto rounded-md border border-zinc-800 bg-zinc-950 p-2 shadow-xl',
+            room.upwards ? 'bottom-full mb-1' : 'top-full mt-1',
+          )}
         >
           {children}
         </div>

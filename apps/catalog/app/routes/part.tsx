@@ -6,6 +6,7 @@ import {
   useReducer,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
@@ -5254,6 +5255,595 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           : 'Every collet in the crib'
         : listTitle
 
+  /**
+   * How tall the bar over the bottom of the part is.
+   *
+   * **The handle that resizes the table stays above it** (Paul, 2026-09-11:
+   * "the control point to resize that panel should still be at the top above
+   * the buttons"). The bar is drawn inside the viewer, so the seam between the
+   * two panels is now *under* it — and a drag handle under the thing it looks
+   * like it should be over is a handle nobody finds. It is lifted by what the
+   * bar measures, which is a transform rather than a margin: the seam is still
+   * where the layout says it is, and only the grab moves.
+   */
+  const chromeBar = useRef<HTMLDivElement>(null)
+  const [chromeRoom, setChromeRoom] = useState(0)
+
+  useEffect(() => {
+    const box = chromeBar.current
+    if (box === null || typeof ResizeObserver === 'undefined') {
+      return
+    }
+    const measure = () => setChromeRoom(box.getBoundingClientRect().height)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(box)
+    return () => observer.disconnect()
+  }, [])
+
+  /**
+   * The bar over the bottom of the part: which list is on screen, what it is,
+   * what it is not showing, and the presses that narrow it.
+   *
+   * **It floats in the viewer above the table** (Paul, 2026-09-11: "they
+   * should float in the 3d viewer above the table … the text shown in
+   * different situations can also just overlay the viewer with a transparent
+   * background"). It was the table card's header bar, which is a strip of
+   * chrome the list pays for in rows: the same controls over the part cost
+   * the table nothing and stand where the part is being read.
+   *
+   * Held here rather than inline so the viewer is handed one node — it is
+   * five hundred lines of chrome, and threading it through the props of the
+   * component it is drawn over is where a JSX tree stops being readable.
+   */
+  /*
+    A `div`, not a `p`: this is the list's header bar, and it holds two tab
+    buttons and the column picker. A `p` may hold phrasing content only, so the
+    picker's own `div` inside it was invalid nesting — which the browser
+    corrects by closing the paragraph early, and which React reports as a
+    hydration error because the tree it built is not the tree that came back
+    (2026-09-02).
+  */
+  const listChrome = (
+    <div
+      ref={chromeBar}
+      data-list-chrome
+      /*
+        **No bar, no card, no chips** (Paul, 2026-09-11: "the text shown in
+        different situations can also just overlay the viewer with a
+        transparent background"). Standing on the part rather than at the top
+        of the table, it carries no ground of its own and no rule under it —
+        each press says for itself that it is one, and everything else is words
+        over the geometry. `pointer-events-auto` is the rule the other overlays
+        follow: the controls take a click and the strip between them does not,
+        so a drag that starts on the sky still turns the part.
+      */
+      className="pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 gap-y-1 rounded-lg bg-zinc-950/75 px-2 py-1 text-sm"
+    >
+      {/*
+        **One row, always** (Paul, 2026-09-11: "all information we show there
+        should be viewable in one row"). Wrapping, it grew a second line over
+        the part the moment two notes were true at once — and the bar is
+        measured to keep the questions above it, so a bar that grows is a
+        column that shortens under the mouse. Each note takes the ellipsis
+        instead; every one of them carries its full text as a hover.
+      */}
+      <div className="flex min-h-8 min-w-0 flex-nowrap items-center gap-2 overflow-hidden text-sm">
+        {/*
+          **Which of the three lists this is, as three buttons**
+          (Paul, 2026-09-07: "I want the table tabs for tools,
+          holders, and collets back, just as buttons like the
+          filters button. The one that is active should be
+          highlighted"). They were a full-width tab row for an
+          afternoon and then nothing at all; what was wanted is the
+          switch the *table* needs — small, in its chrome, beside
+          the Filters button they are dressed as — and an indicator
+          of which list is on screen.
+
+          They are the tree's slots, not a control beside it:
+          pressing one opens that slot on the open stack, so the
+          buttons and the tree cannot disagree about what the rows
+          below are for. Drawn only while there is a stack, because
+          with no feature there is no assembly for a holder to be
+          offered against and the table is the catalog.
+        */}
+        {!perFeature
+          ? SLOTS.map((slot) => {
+              const open = listKind === slot
+              return (
+                <Button
+                  key={slot}
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  aria-pressed={open}
+                  onClick={() => chooseList(slot)}
+                  className={cn(
+                    /* The presses keep their size; the notes beside them are
+                       what gives way — see the row's own note above. */
+                    'flex shrink-0 items-center gap-1.5 rounded border px-2 py-1 text-xs',
+                    /*
+                      **A press keeps its own ground** (Paul, 2026-09-11: "the
+                      buttons shouldn't be transparent"). The bar is words over
+                      the part; a button on it is a thing to press, and over
+                      geometry that reads only if it is solid.
+                    */
+                    open
+                      ? 'border-primary/60 bg-primary/15 text-zinc-100'
+                      : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
+                  )}
+                >
+                  {SLOT_TABLE_LABEL[slot]}
+                  {/*
+                    **Each button counts its own list** (Paul,
+                    2026-09-07: "the count is always showing the
+                    tool count. This should be unique to the
+                    component … and it should be shown in the
+                    buttons"). One number beside the heading
+                    counted tools whichever of the three was on
+                    screen, so a rack of three holders was headed
+                    by a nine.
+
+                    Derived, so they move with everything that
+                    narrows a list: the feature being asked about,
+                    the filters, and the components already in the
+                    stack — pick a holder and the collets left are
+                    the ones that close on it.
+                  */}
+                  <span className={cn('text-2xs', open ? 'text-zinc-400' : 'text-zinc-500')}>
+                    {/*
+                      A dash while the matching is still running:
+                      all three lists are empty until it answers,
+                      and three zeroes beside a spinner is a count
+                      somebody reads as "nothing fits".
+                    */}
+                    {tablePending ? '—' : listCounts[slot]}
+                  </span>
+                </Button>
+              )
+            })
+          : null}
+        {/*
+          **The words wrap; the presses do not** (Paul, 2026-09-11: "use two
+          rows for the text if you need to — just try to fit it into the height
+          of the buttons"). Ellipsising every note to keep one line turned the
+          heading into "Cuts the bl…" and each note into three words and a dot,
+          which is a bar that says nothing. So the text takes a box of its own
+          beside the buttons and wraps inside it, two lines of `text-2xs` being
+          about the height of the presses it stands beside.
+        */}
+        <div className="flex max-h-8 min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 overflow-hidden leading-tight">
+          {/*
+          The heading of whichever list is on screen. A threaded
+          hole used to put two tabs here — taps, then drills —
+          and the pair of stacks in the tree is that pair of tabs
+          now, so there is one title and the stack says which
+          list it is over.
+        */}
+          <span className="text-zinc-200">{tableTitle}</span>
+          {/*
+          **How the thread is made lives over the lists it
+          decides** (Paul, 2026-09-07: "we should no longer show
+          the 'cut tap' and 'form tap' rows in the feature dialog
+          when applying threads to a hole — it should just return
+          the right tap drills"). Saying what thread the hole is
+          for and saying whether it will be cut or rolled are two
+          decisions, and only the second one is about these lists:
+          the two predrills are half a millimetre apart on an M6,
+          and the drills are judged against whichever is chosen.
+          So it sits beside the list rather than on the dialog
+          somebody opens to name the thread.
+
+          **Over the taps as well as the drills** (Paul,
+          2026-09-09). It decides both — which taps the list holds
+          and which hole the drills are measured against — and one
+          control written to one mode is what keeps the pair of
+          stacks agreeing about the same thread. Not over a holder
+          or collet list, which it decides nothing about.
+        */}
+          {threadSpec === null ||
+          perFeature ||
+          componentSlot !== null ||
+          holeDiameter === null ? null : (
+            <PredrillChoice
+              spec={threadSpec}
+              mode={holeChoice.mode}
+              /*
+              **The same scope as the thread it refines** (Paul,
+              2026-09-09). Cut tap or form tap is a decision about
+              the hole the thread is on, and this wrote it to the
+              focused hole alone — so a group's predrill moved one
+              hole of thirty-nine and left the rest on the tap
+              drill they were chosen with.
+            */
+              onChange={(mode) =>
+                writeThread({ mode, spec: threadSpec }, threadScope, holeDiameter)
+              }
+              holeDiameter={holeDiameter}
+              deviation={drillDeviation}
+              unit={unit}
+            />
+          )}
+          {/* Nothing to count where nothing has been asked of this
+          panel: a number beside "nothing selected" reads as a
+          count of tools that are not there. */}
+          {/* One number beside the heading counted tools whichever
+          list was on screen; each button counts its own now. */}
+          {/*
+          **What the list is not showing is said where the list
+          is** — the rule this page follows for a rack the drawable
+          filter thinned and for the rules' own removals. The
+          button beside it counts what matched; this says how much
+          of that is on screen.
+        */}
+          {rowsHidden > 0 && componentSlot === null ? (
+            <span
+              className="text-2xs text-zinc-500"
+              title="The table sorts every row it is given, so it is handed the first two thousand. Narrow the list with the filters, the search box, or a feature on the part."
+            >
+              showing the first {String(tableRows.length)} — narrow the list to reach the other{' '}
+              {String(rowsHidden)}
+            </span>
+          ) : null}
+          {tablePending ? (
+            <span
+              role="status"
+              title="Updating compatible tools"
+              className="flex items-center text-info"
+            >
+              <span
+                aria-hidden="true"
+                className="size-3 animate-spin rounded-full border-2 border-info/30 border-t-info"
+              />
+              <span className="sr-only">Updating compatible tools...</span>
+            </span>
+          ) : null}
+          {tableError !== null && detailed !== null ? (
+            <span role="alert" className="text-2xs text-danger">
+              {tableError}
+            </span>
+          ) : null}
+          {/*
+        **The notes are about the list on show** (Paul,
+        2026-09-02). What the rules took off the drill list is
+        true of the drills and says nothing about the taps, and
+        it was printed over both. The tap tab says what its own
+        list was matched on, and what is wrong with it.
+      */}
+          {/* None of them are about a panel that is waiting to be
+          asked: they describe a list that is not on screen. */}
+          {/*
+          **What the drawable rule hid** (Paul, 2026-09-07). The
+          table is only the holders with a shape, so the ones that
+          fit and have no model have to be counted somewhere or an
+          empty list reads as "nothing in the rack fits this".
+        */}
+          {componentSlot === 'holder' ? (
+            undrawableHolders > 0 ? (
+              <span
+                className="text-2xs text-zinc-500"
+                title="A holder is drawn from its measured CAD model, or from a published nose diameter. These have neither, so there is no shape to put under the tool."
+              >
+                {undrawableHolders} more fit but have no model to draw
+              </span>
+            ) : null
+          ) : perFeature ? null : tapping && threadSpec !== null ? (
+            <>
+              {/*
+              **Each list says what it was swept on, and they are
+              two different numbers** (Paul, 2026-09-09: "in
+              drills, the highlighted message should show the tap
+              or form drill size (the predrill size) it is looking
+              for"). The taps were matched on the thread's nominal
+              size; the drills on the predrill the chosen tap
+              starts from — ⌀0.089 in against ⌀0.0995 in on a
+              #4-40. Printing the tap's number over the drills
+              named a diameter no row in that list is near, on a
+              list whose whole sweep is the other one.
+            */}
+              <span className="text-2xs text-zinc-500">
+                {holeChoice.mode === 'thread mill'
+                  ? `inside the ⌀${formatLength(minorOf(threadSpec), unit)} minor diameter`
+                  : tappingNow
+                    ? threadNote(threadSpec, unit)
+                    : shortOfDrills
+                      ? millStandInNote(threadSpec, holeChoice.mode, unit, millsListed)
+                      : predrillNote(threadSpec, holeChoice.mode, unit)}
+              </span>
+              {/* Both are about the tap list: how far the taps reach
+              and whether the crib holds one. */}
+              {makers.short && tappingNow ? (
+                <span className="text-2xs text-amber-300">
+                  none reach the bottom — the closest are shown
+                </span>
+              ) : null}
+              {makers.unheld && tappingNow ? (
+                <span className="text-2xs text-amber-300">
+                  nothing in the crib holds one at the stickout this needs
+                </span>
+              ) : null}
+            </>
+          ) : (
+            <>
+              {/*
+            **A corner no mill can leave** (Paul, 2026-09-01): the
+            model draws it sharp, and every cutter leaves its own
+            radius. Said once, plainly, rather than left for somebody
+            to work out from a list of tools that all miss it.
+          */}
+              {reading !== null && hasSharpCorner(reading) ? (
+                <span className="text-2xs text-amber-300">
+                  this feature has a sharp corner, and no milling tool can cut the geometry
+                </span>
+              ) : null}
+              {closest.length > 0 ? (
+                <span className="text-2xs text-amber-300">
+                  nothing in the crib fits — the closest are shown, with what stops each
+                </span>
+              ) : null}
+              {(detailed?.excludedCount ?? 0) > 0 && reading !== null ? (
+                <span className="text-2xs text-zinc-500" title={tightest ?? undefined}>
+                  {detailed?.excludedCount ?? 0} removed by the rules
+                  {tightest ? ` — most by ${tightest}` : ''}
+                </span>
+              ) : null}
+              {fitting.length > narrowed.length ? (
+                <span className="text-2xs text-amber-300/80">
+                  {fitting.length - narrowed.length} that fit are hidden by the filters
+                </span>
+              ) : null}
+              {/*
+              **A live override is said where the list is, and
+              changed where it was made** (Paul, 2026-09-08: "the
+              override the rules button should be in the filter
+              dialog rather than always shown"). This is the note,
+              not the control: the tick that confirms one is in
+              the column's own dialog, because that is the rule it
+              overrules.
+            */}
+              {overriding.length > 0 && overrideTools.length > 0 ? (
+                <span
+                  className="text-2xs text-zinc-400"
+                  title="Confirmed in that column's filter. Clearing the filter, or backing it out to what the geometry asked for, puts the rule back."
+                >
+                  {overrideTools.length} the {overridden} rules turn down are listed
+                  {/*
+                  **No silent caps.** The list cannot draw more
+                  rows than this whether they are overridden or
+                  not, and a truncated answer that reads as the
+                  whole one is what sent somebody looking for
+                  half-inch cutters that were never on it.
+                */}
+                  {(detailed?.overridableCount ?? 0) > overrideTools.length
+                    ? ` of ${String(detailed?.overridableCount ?? 0)} — narrow the filters to reach the rest`
+                    : ''}
+                </span>
+              ) : null}
+              {unheld > 0 ? (
+                <span
+                  className="text-2xs text-zinc-500"
+                  title="A tool with no holder in the crib that grips it, clears the part and keeps hold is not offered"
+                >
+                  {unheld} with no holder that clears
+                </span>
+              ) : null}
+            </>
+          )}
+        </div>
+        {/*
+        **The picker edits the list that is open** (Paul,
+        2026-09-02: "allow me to use those columns if I edit the
+        tap table"). A tap offers the seven numbers it states and
+        the tool list offers its own, so which set is on offer —
+        and which hidden set a tick lands in — follows the tab.
+      */}
+      </div>
+      <ToolTableToolbar
+        /*
+          **Left of the clear press, and left of the pencil when
+          there is nothing to clear** (Paul, 2026-09-10). It is
+          the holder rack's press alone: a collet has no collet to
+          be missing, and a tool is not a stack.
+        */
+        before={
+          componentSlot === 'holder' ? (
+            <NoColletToggle
+              count={gappedHolders}
+              shown={noCollet}
+              onToggle={() => setNoCollet((current) => !current)}
+            />
+          ) : undefined
+        }
+        onClear={() => {
+          if (componentSlot === 'holder') {
+            setHolderQuery(NO_QUERY)
+            return
+          }
+          if (componentSlot === 'collet') {
+            setColletQuery(NO_QUERY)
+            return
+          }
+          if (tappingNow) {
+            clearTapFilters()
+            return
+          }
+          setNumberSearch('')
+          apply(EMPTY_QUERY)
+        }}
+        /*
+          **What is narrowing the list, named where it can be
+          cleared** (Paul, 2026-09-08, and 2026-09-09: "in Tap, it
+          shows 'Clear 4 filters' but I only see tool type. What
+          are the 4 filters active? It needs to be visible.").
+          Most of the filters are column headers now, and a header
+          on a column somebody has since hidden is a filter with
+          nothing on screen pointing at it — so the count includes
+          them and the press names every one of them.
+
+          **Per list, because a filter is only a filter over the
+          rows it reaches.** The tap list is swept out of the
+          catalog by the thread, so the drill half of the form
+          filter and every range the rules put on a drill narrow
+          nothing on it: counting them there named three filters
+          that table does not have and cannot show. It counts the
+          two `askOfTapColumn` asks.
+        */
+        set={
+          componentSlot === 'holder'
+            ? narrowingNames(holderQuery, HOLDER_COLUMNS)
+            : componentSlot === 'collet'
+              ? narrowingNames(colletQuery, COLLET_COLUMNS)
+              : tappingNow
+                ? narrowingNames(
+                    {
+                      text: numberSearch,
+                      terms: { type: shownTapTypes },
+                      /*
+                        **The bounds the part set count too**
+                        (Paul, 2026-09-09: "button should show to
+                        clear 3 filters not 1 in this situation").
+                        They narrow the list and they are drawn on
+                        it, so leaving them out made the figure
+                        disagree with the funnels a second time —
+                        the same defect from the other end. Grey
+                        rather than lit is what says a number is
+                        not yours to type; it was never a reason
+                        to stop counting it.
+                      */
+                      bounds: tapRanges,
+                    },
+                    TAP_COLUMNS,
+                  )
+                : narrowingNames(
+                    {
+                      text: numberSearch || query.text,
+                      terms: query.terms,
+                      bounds: query.ranges,
+                    },
+                    TOOL_COLUMNS,
+                  )
+        }
+        filters={
+          /*
+            **A holder list has no filter buttons at all.** Every
+            question about a holder or a collet is a question
+            about one of its columns, so all of them are asked in
+            the headings; the tool list keeps the few no column
+            shows.
+          */
+          componentSlot !== null ? undefined : (
+            <FilterPanel
+              facets={facets}
+              query={query}
+              onQuery={apply}
+              counts={countsOn}
+              unit={unit}
+              holding={{ tapers, series: colletSeries }}
+              materialGroup={materialGroup}
+              onMaterial={chooseMaterial}
+              only={BUTTON_FILTERS}
+              /*
+                **The floor allowance and the clamping length
+                are off the page** (Paul, 2026-09-08), with the
+                rule behind each still running: the sheet's
+                values are what the matching reads, and nothing
+                on screen asks to change them for now.
+              */
+              matching={{
+                ...(holeDiameter === null
+                  ? {}
+                  : {
+                      drill: {
+                        over: drillDeviation.over,
+                        under: drillDeviation.under,
+                        onChange: setDrillDeviation,
+                        sheet: sheetDrillDeviation,
+                      },
+                    }),
+              }}
+              toolbar
+            />
+          )
+        }
+        actions={
+          /*
+            **The picker edits the list that is open**, and under
+            the tree a list can be holders or collets as well as
+            tools. The three sets are kept apart for the reason the
+            tap set is: a code hidden in one means nothing in
+            another, and a nose diameter is not a column a tap has.
+          */
+          componentSlot !== null ? (
+            <ColumnPicker
+              columns={orderedCodes(
+                (componentSlot === 'holder' ? HOLDER_COLUMNS : COLLET_COLUMNS).map(
+                  (column) => column.code,
+                ),
+                componentSlot === 'holder' ? holderColumnOrder : colletColumnOrder,
+              ).flatMap((code) =>
+                (componentSlot === 'holder' ? HOLDER_COLUMNS : COLLET_COLUMNS)
+                  .filter((column) => column.code === code)
+                  .map((column) => ({ code: column.code, label: column.label })),
+              )}
+              shown={(componentSlot === 'holder' ? HOLDER_COLUMNS : COLLET_COLUMNS)
+                .filter(
+                  (column) =>
+                    !(
+                      componentSlot === 'holder' ? hiddenHolderColumns : hiddenColletColumns
+                    ).includes(column.code),
+                )
+                .map((column) => column.code)}
+              onToggle={(code) => {
+                const set =
+                  componentSlot === 'holder' ? setHiddenHolderColumns : setHiddenColletColumns
+                set((current) =>
+                  current.includes(code)
+                    ? current.filter((each) => each !== code)
+                    : [...current, code],
+                )
+              }}
+              onReorder={componentSlot === 'holder' ? setHolderColumnOrder : setColletColumnOrder}
+            />
+          ) : (
+            <ColumnPicker
+              columns={orderedCodes(
+                (tappingNow ? TAP_COLUMNS : TOOL_COLUMNS).map((column) => column.code),
+                tappingNow ? tapColumnOrder : columnOrder,
+              ).flatMap((code) =>
+                (tappingNow ? TAP_COLUMNS : TOOL_COLUMNS)
+                  .filter((column) => column.code === code)
+                  .map((column) => ({ code: column.code, label: column.label })),
+              )}
+              shown={(tappingNow ? TAP_COLUMNS : TOOL_COLUMNS)
+                .filter(
+                  (column) =>
+                    !(tappingNow ? hiddenTapColumns : hiddenColumns).includes(column.code),
+                )
+                .map((column) => column.code)}
+              onToggle={(code) => {
+                if (tappingNow) {
+                  setHiddenTapColumns((current) =>
+                    current.includes(code)
+                      ? current.filter((each) => each !== code)
+                      : [...current, code],
+                  )
+                  return
+                }
+                touchedColumns.current.add(code)
+                setHiddenColumns((current) =>
+                  current.includes(code)
+                    ? current.filter((each) => each !== code)
+                    : [...current, code],
+                )
+              }}
+              onReorder={tappingNow ? setTapColumnOrder : setColumnOrder}
+            />
+          )
+        }
+      />
+    </div>
+  )
+
   return (
     <main className="flex h-screen flex-col overflow-hidden">
       <AppHeader
@@ -5353,6 +5943,13 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               <PartViewer
                 report={report}
                 jobId={jobId}
+                /*
+                  **The list's chrome floats over the part** (Paul, 2026-09-11).
+                  The viewer owns its own bottom edge — the view cube, the
+                  shelf of view controls — so it takes the bar as a slot rather
+                  than having it laid over the top of them by the page.
+                */
+                bottomChrome={listChrome}
                 /*
                   Also once there is a list: it stacks into columns rather than
                   scrolling, and a column of it is taller than the viewer long
@@ -6079,7 +6676,27 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               nobody had asked anything about yet — and the catalog, narrowed by
               the filters, is a list worth reading on its own.
             */}
-            <Panels.Separator className={separator} />
+            <Panels.Separator
+              /*
+                **Two places drag it** (Paul, 2026-09-11: "the control point to
+                resize that panel should still be at the top above the buttons",
+                and "clicking the top of the table should also resize this
+                section"). The seam itself is where the layout puts it — the top
+                edge of the table — and `::before` gives it a second strip up
+                above the bar, where the seam used to be before the bar floated
+                into the viewer. A pseudo-element takes the pointer for the
+                element it belongs to, so both are the one handle rather than
+                two things that can disagree.
+
+                Above the bar and not over it: the strip stops at the bar's top
+                edge, or the presses under it could not be pressed.
+              */
+              className={cn(
+                separator,
+                "relative before:absolute before:inset-x-0 before:h-2 before:content-[''] before:[top:calc(-1*var(--bar,0px))]",
+              )}
+              style={{ '--bar': `${String(chromeRoom + 10)}px` } as CSSProperties}
+            />
 
             {/*
               **Eight tools tall to begin with** (Paul, 2026-09-10: "the default
@@ -6098,537 +6715,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               <Card className="relative flex size-full min-h-0 flex-col overflow-hidden">
                 {/* The panel measures itself here: `Card` takes no ref. */}
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                  {/*
-                    A `div`, not a `p`: this is the list's header bar, and it
-                    holds two tab buttons and the column picker. A `p` may hold
-                    phrasing content only, so the picker's own `div` inside it
-                    was invalid nesting — which the browser corrects by closing
-                    the paragraph early, and which React reports as a hydration
-                    error because the tree it built is not the tree that came
-                    back (2026-09-02).
-                  */}
-                  <div
-                    data-list-chrome
-                    className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 gap-y-1 border-b border-zinc-900 px-3 py-2 text-sm"
-                  >
-                    <div className="flex min-w-0 min-h-8 flex-wrap items-center gap-2">
-                      {/*
-                        **Which of the three lists this is, as three buttons**
-                        (Paul, 2026-09-07: "I want the table tabs for tools,
-                        holders, and collets back, just as buttons like the
-                        filters button. The one that is active should be
-                        highlighted"). They were a full-width tab row for an
-                        afternoon and then nothing at all; what was wanted is the
-                        switch the *table* needs — small, in its chrome, beside
-                        the Filters button they are dressed as — and an indicator
-                        of which list is on screen.
-
-                        They are the tree's slots, not a control beside it:
-                        pressing one opens that slot on the open stack, so the
-                        buttons and the tree cannot disagree about what the rows
-                        below are for. Drawn only while there is a stack, because
-                        with no feature there is no assembly for a holder to be
-                        offered against and the table is the catalog.
-                      */}
-                      {!perFeature
-                        ? SLOTS.map((slot) => {
-                            const open = listKind === slot
-                            return (
-                              <Button
-                                key={slot}
-                                type="button"
-                                size="sm"
-                                variant="secondary"
-                                aria-pressed={open}
-                                onClick={() => chooseList(slot)}
-                                className={cn(
-                                  'flex items-center gap-1.5 rounded border px-2 py-1 text-xs',
-                                  open
-                                    ? 'border-primary/60 bg-primary/15 text-zinc-100'
-                                    : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
-                                )}
-                              >
-                                {SLOT_TABLE_LABEL[slot]}
-                                {/*
-                                  **Each button counts its own list** (Paul,
-                                  2026-09-07: "the count is always showing the
-                                  tool count. This should be unique to the
-                                  component … and it should be shown in the
-                                  buttons"). One number beside the heading
-                                  counted tools whichever of the three was on
-                                  screen, so a rack of three holders was headed
-                                  by a nine.
-
-                                  Derived, so they move with everything that
-                                  narrows a list: the feature being asked about,
-                                  the filters, and the components already in the
-                                  stack — pick a holder and the collets left are
-                                  the ones that close on it.
-                                */}
-                                <span
-                                  className={cn(
-                                    'text-2xs',
-                                    open ? 'text-zinc-400' : 'text-zinc-500',
-                                  )}
-                                >
-                                  {/*
-                                    A dash while the matching is still running:
-                                    all three lists are empty until it answers,
-                                    and three zeroes beside a spinner is a count
-                                    somebody reads as "nothing fits".
-                                  */}
-                                  {tablePending ? '—' : listCounts[slot]}
-                                </span>
-                              </Button>
-                            )
-                          })
-                        : null}
-                      {/*
-                        The heading of whichever list is on screen. A threaded
-                        hole used to put two tabs here — taps, then drills —
-                        and the pair of stacks in the tree is that pair of tabs
-                        now, so there is one title and the stack says which
-                        list it is over.
-                      */}
-                      <span className="text-zinc-200">{tableTitle}</span>
-                      {/*
-                        **How the thread is made lives over the lists it
-                        decides** (Paul, 2026-09-07: "we should no longer show
-                        the 'cut tap' and 'form tap' rows in the feature dialog
-                        when applying threads to a hole — it should just return
-                        the right tap drills"). Saying what thread the hole is
-                        for and saying whether it will be cut or rolled are two
-                        decisions, and only the second one is about these lists:
-                        the two predrills are half a millimetre apart on an M6,
-                        and the drills are judged against whichever is chosen.
-                        So it sits beside the list rather than on the dialog
-                        somebody opens to name the thread.
-
-                        **Over the taps as well as the drills** (Paul,
-                        2026-09-09). It decides both — which taps the list holds
-                        and which hole the drills are measured against — and one
-                        control written to one mode is what keeps the pair of
-                        stacks agreeing about the same thread. Not over a holder
-                        or collet list, which it decides nothing about.
-                      */}
-                      {threadSpec === null ||
-                      perFeature ||
-                      componentSlot !== null ||
-                      holeDiameter === null ? null : (
-                        <PredrillChoice
-                          spec={threadSpec}
-                          mode={holeChoice.mode}
-                          /*
-                            **The same scope as the thread it refines** (Paul,
-                            2026-09-09). Cut tap or form tap is a decision about
-                            the hole the thread is on, and this wrote it to the
-                            focused hole alone — so a group's predrill moved one
-                            hole of thirty-nine and left the rest on the tap
-                            drill they were chosen with.
-                          */
-                          onChange={(mode) =>
-                            writeThread({ mode, spec: threadSpec }, threadScope, holeDiameter)
-                          }
-                          holeDiameter={holeDiameter}
-                          deviation={drillDeviation}
-                          unit={unit}
-                        />
-                      )}
-                      {/* Nothing to count where nothing has been asked of this
-                        panel: a number beside "nothing selected" reads as a
-                        count of tools that are not there. */}
-                      {/* One number beside the heading counted tools whichever
-                        list was on screen; each button counts its own now. */}
-                      {/*
-                        **What the list is not showing is said where the list
-                        is** — the rule this page follows for a rack the drawable
-                        filter thinned and for the rules' own removals. The
-                        button beside it counts what matched; this says how much
-                        of that is on screen.
-                      */}
-                      {rowsHidden > 0 && componentSlot === null ? (
-                        <span
-                          className="text-2xs text-zinc-500"
-                          title="The table sorts every row it is given, so it is handed the first two thousand. Narrow the list with the filters, the search box, or a feature on the part."
-                        >
-                          showing the first {String(tableRows.length)} — narrow the list to reach
-                          the other {String(rowsHidden)}
-                        </span>
-                      ) : null}
-                      {tablePending ? (
-                        <span
-                          role="status"
-                          title="Updating compatible tools"
-                          className="flex items-center text-info"
-                        >
-                          <span
-                            aria-hidden="true"
-                            className="size-3 animate-spin rounded-full border-2 border-info/30 border-t-info"
-                          />
-                          <span className="sr-only">Updating compatible tools...</span>
-                        </span>
-                      ) : null}
-                      {tableError !== null && detailed !== null ? (
-                        <span role="alert" className="text-2xs text-danger">
-                          {tableError}
-                        </span>
-                      ) : null}
-                      {/*
-                      **The notes are about the list on show** (Paul,
-                      2026-09-02). What the rules took off the drill list is
-                      true of the drills and says nothing about the taps, and
-                      it was printed over both. The tap tab says what its own
-                      list was matched on, and what is wrong with it.
-                    */}
-                      {/* None of them are about a panel that is waiting to be
-                        asked: they describe a list that is not on screen. */}
-                      {/*
-                        **What the drawable rule hid** (Paul, 2026-09-07). The
-                        table is only the holders with a shape, so the ones that
-                        fit and have no model have to be counted somewhere or an
-                        empty list reads as "nothing in the rack fits this".
-                      */}
-                      {componentSlot === 'holder' ? (
-                        undrawableHolders > 0 ? (
-                          <span
-                            className="text-2xs text-zinc-500"
-                            title="A holder is drawn from its measured CAD model, or from a published nose diameter. These have neither, so there is no shape to put under the tool."
-                          >
-                            {undrawableHolders} more fit but have no model to draw
-                          </span>
-                        ) : null
-                      ) : perFeature ? null : tapping && threadSpec !== null ? (
-                        <>
-                          {/*
-                            **Each list says what it was swept on, and they are
-                            two different numbers** (Paul, 2026-09-09: "in
-                            drills, the highlighted message should show the tap
-                            or form drill size (the predrill size) it is looking
-                            for"). The taps were matched on the thread's nominal
-                            size; the drills on the predrill the chosen tap
-                            starts from — ⌀0.089 in against ⌀0.0995 in on a
-                            #4-40. Printing the tap's number over the drills
-                            named a diameter no row in that list is near, on a
-                            list whose whole sweep is the other one.
-                          */}
-                          <span className="text-2xs text-zinc-500">
-                            {holeChoice.mode === 'thread mill'
-                              ? `inside the ⌀${formatLength(minorOf(threadSpec), unit)} minor diameter`
-                              : tappingNow
-                                ? threadNote(threadSpec, unit)
-                                : shortOfDrills
-                                  ? millStandInNote(threadSpec, holeChoice.mode, unit, millsListed)
-                                  : predrillNote(threadSpec, holeChoice.mode, unit)}
-                          </span>
-                          {/* Both are about the tap list: how far the taps reach
-                            and whether the crib holds one. */}
-                          {makers.short && tappingNow ? (
-                            <span className="text-2xs text-amber-300">
-                              none reach the bottom — the closest are shown
-                            </span>
-                          ) : null}
-                          {makers.unheld && tappingNow ? (
-                            <span className="text-2xs text-amber-300">
-                              nothing in the crib holds one at the stickout this needs
-                            </span>
-                          ) : null}
-                        </>
-                      ) : (
-                        <>
-                          {reading === null ? (
-                            <span className="text-2xs text-zinc-500">
-                              click a feature on the part for the ones that cut it
-                            </span>
-                          ) : null}
-                          {/*
-                          **A corner no mill can leave** (Paul, 2026-09-01): the
-                          model draws it sharp, and every cutter leaves its own
-                          radius. Said once, plainly, rather than left for somebody
-                          to work out from a list of tools that all miss it.
-                        */}
-                          {reading !== null && hasSharpCorner(reading) ? (
-                            <span className="text-2xs text-amber-300">
-                              this feature has a sharp corner, and no milling tool can cut the
-                              geometry
-                            </span>
-                          ) : null}
-                          {closest.length > 0 ? (
-                            <span className="text-2xs text-amber-300">
-                              nothing in the crib fits — the closest are shown, with what stops each
-                            </span>
-                          ) : null}
-                          {(detailed?.excludedCount ?? 0) > 0 && reading !== null ? (
-                            <span className="text-2xs text-zinc-500" title={tightest ?? undefined}>
-                              {detailed?.excludedCount ?? 0} removed by the rules
-                              {tightest ? ` — most by ${tightest}` : ''}
-                            </span>
-                          ) : null}
-                          {fitting.length > narrowed.length ? (
-                            <span className="text-2xs text-amber-300/80">
-                              {fitting.length - narrowed.length} that fit are hidden by the filters
-                            </span>
-                          ) : null}
-                          {/*
-                            **A live override is said where the list is, and
-                            changed where it was made** (Paul, 2026-09-08: "the
-                            override the rules button should be in the filter
-                            dialog rather than always shown"). This is the note,
-                            not the control: the tick that confirms one is in
-                            the column's own dialog, because that is the rule it
-                            overrules.
-                          */}
-                          {overriding.length > 0 && overrideTools.length > 0 ? (
-                            <span
-                              className="text-2xs text-zinc-400"
-                              title="Confirmed in that column's filter. Clearing the filter, or backing it out to what the geometry asked for, puts the rule back."
-                            >
-                              {overrideTools.length} the {overridden} rules turn down are listed
-                              {/*
-                                **No silent caps.** The list cannot draw more
-                                rows than this whether they are overridden or
-                                not, and a truncated answer that reads as the
-                                whole one is what sent somebody looking for
-                                half-inch cutters that were never on it.
-                              */}
-                              {(detailed?.overridableCount ?? 0) > overrideTools.length
-                                ? ` of ${String(detailed?.overridableCount ?? 0)} — narrow the filters to reach the rest`
-                                : ''}
-                            </span>
-                          ) : null}
-                          {unheld > 0 ? (
-                            <span
-                              className="text-2xs text-zinc-500"
-                              title="A tool with no holder in the crib that grips it, clears the part and keeps hold is not offered"
-                            >
-                              {unheld} with no holder that clears
-                            </span>
-                          ) : null}
-                        </>
-                      )}
-                      {/*
-                      **The picker edits the list that is open** (Paul,
-                      2026-09-02: "allow me to use those columns if I edit the
-                      tap table"). A tap offers the seven numbers it states and
-                      the tool list offers its own, so which set is on offer —
-                      and which hidden set a tick lands in — follows the tab.
-                    */}
-                    </div>
-                    <ToolTableToolbar
-                      /*
-                        **Left of the clear press, and left of the pencil when
-                        there is nothing to clear** (Paul, 2026-09-10). It is
-                        the holder rack's press alone: a collet has no collet to
-                        be missing, and a tool is not a stack.
-                      */
-                      before={
-                        componentSlot === 'holder' ? (
-                          <NoColletToggle
-                            count={gappedHolders}
-                            shown={noCollet}
-                            onToggle={() => setNoCollet((current) => !current)}
-                          />
-                        ) : undefined
-                      }
-                      onClear={() => {
-                        if (componentSlot === 'holder') {
-                          setHolderQuery(NO_QUERY)
-                          return
-                        }
-                        if (componentSlot === 'collet') {
-                          setColletQuery(NO_QUERY)
-                          return
-                        }
-                        if (tappingNow) {
-                          clearTapFilters()
-                          return
-                        }
-                        setNumberSearch('')
-                        apply(EMPTY_QUERY)
-                      }}
-                      /*
-                        **What is narrowing the list, named where it can be
-                        cleared** (Paul, 2026-09-08, and 2026-09-09: "in Tap, it
-                        shows 'Clear 4 filters' but I only see tool type. What
-                        are the 4 filters active? It needs to be visible.").
-                        Most of the filters are column headers now, and a header
-                        on a column somebody has since hidden is a filter with
-                        nothing on screen pointing at it — so the count includes
-                        them and the press names every one of them.
-
-                        **Per list, because a filter is only a filter over the
-                        rows it reaches.** The tap list is swept out of the
-                        catalog by the thread, so the drill half of the form
-                        filter and every range the rules put on a drill narrow
-                        nothing on it: counting them there named three filters
-                        that table does not have and cannot show. It counts the
-                        two `askOfTapColumn` asks.
-                      */
-                      set={
-                        componentSlot === 'holder'
-                          ? narrowingNames(holderQuery, HOLDER_COLUMNS)
-                          : componentSlot === 'collet'
-                            ? narrowingNames(colletQuery, COLLET_COLUMNS)
-                            : tappingNow
-                              ? narrowingNames(
-                                  {
-                                    text: numberSearch,
-                                    terms: { type: shownTapTypes },
-                                    /*
-                                      **The bounds the part set count too**
-                                      (Paul, 2026-09-09: "button should show to
-                                      clear 3 filters not 1 in this situation").
-                                      They narrow the list and they are drawn on
-                                      it, so leaving them out made the figure
-                                      disagree with the funnels a second time —
-                                      the same defect from the other end. Grey
-                                      rather than lit is what says a number is
-                                      not yours to type; it was never a reason
-                                      to stop counting it.
-                                    */
-                                    bounds: tapRanges,
-                                  },
-                                  TAP_COLUMNS,
-                                )
-                              : narrowingNames(
-                                  {
-                                    text: numberSearch || query.text,
-                                    terms: query.terms,
-                                    bounds: query.ranges,
-                                  },
-                                  TOOL_COLUMNS,
-                                )
-                      }
-                      filters={
-                        /*
-                          **A holder list has no filter buttons at all.** Every
-                          question about a holder or a collet is a question
-                          about one of its columns, so all of them are asked in
-                          the headings; the tool list keeps the few no column
-                          shows.
-                        */
-                        componentSlot !== null ? undefined : (
-                          <FilterPanel
-                            facets={facets}
-                            query={query}
-                            onQuery={apply}
-                            counts={countsOn}
-                            unit={unit}
-                            holding={{ tapers, series: colletSeries }}
-                            materialGroup={materialGroup}
-                            onMaterial={chooseMaterial}
-                            only={BUTTON_FILTERS}
-                            /*
-                              **The floor allowance and the clamping length
-                              are off the page** (Paul, 2026-09-08), with the
-                              rule behind each still running: the sheet's
-                              values are what the matching reads, and nothing
-                              on screen asks to change them for now.
-                            */
-                            matching={{
-                              ...(holeDiameter === null
-                                ? {}
-                                : {
-                                    drill: {
-                                      over: drillDeviation.over,
-                                      under: drillDeviation.under,
-                                      onChange: setDrillDeviation,
-                                      sheet: sheetDrillDeviation,
-                                    },
-                                  }),
-                            }}
-                            toolbar
-                          />
-                        )
-                      }
-                      actions={
-                        /*
-                          **The picker edits the list that is open**, and under
-                          the tree a list can be holders or collets as well as
-                          tools. The three sets are kept apart for the reason the
-                          tap set is: a code hidden in one means nothing in
-                          another, and a nose diameter is not a column a tap has.
-                        */
-                        componentSlot !== null ? (
-                          <ColumnPicker
-                            columns={orderedCodes(
-                              (componentSlot === 'holder' ? HOLDER_COLUMNS : COLLET_COLUMNS).map(
-                                (column) => column.code,
-                              ),
-                              componentSlot === 'holder' ? holderColumnOrder : colletColumnOrder,
-                            ).flatMap((code) =>
-                              (componentSlot === 'holder' ? HOLDER_COLUMNS : COLLET_COLUMNS)
-                                .filter((column) => column.code === code)
-                                .map((column) => ({ code: column.code, label: column.label })),
-                            )}
-                            shown={(componentSlot === 'holder' ? HOLDER_COLUMNS : COLLET_COLUMNS)
-                              .filter(
-                                (column) =>
-                                  !(
-                                    componentSlot === 'holder'
-                                      ? hiddenHolderColumns
-                                      : hiddenColletColumns
-                                  ).includes(column.code),
-                              )
-                              .map((column) => column.code)}
-                            onToggle={(code) => {
-                              const set =
-                                componentSlot === 'holder'
-                                  ? setHiddenHolderColumns
-                                  : setHiddenColletColumns
-                              set((current) =>
-                                current.includes(code)
-                                  ? current.filter((each) => each !== code)
-                                  : [...current, code],
-                              )
-                            }}
-                            onReorder={
-                              componentSlot === 'holder'
-                                ? setHolderColumnOrder
-                                : setColletColumnOrder
-                            }
-                          />
-                        ) : (
-                          <ColumnPicker
-                            columns={orderedCodes(
-                              (tappingNow ? TAP_COLUMNS : TOOL_COLUMNS).map(
-                                (column) => column.code,
-                              ),
-                              tappingNow ? tapColumnOrder : columnOrder,
-                            ).flatMap((code) =>
-                              (tappingNow ? TAP_COLUMNS : TOOL_COLUMNS)
-                                .filter((column) => column.code === code)
-                                .map((column) => ({ code: column.code, label: column.label })),
-                            )}
-                            shown={(tappingNow ? TAP_COLUMNS : TOOL_COLUMNS)
-                              .filter(
-                                (column) =>
-                                  !(tappingNow ? hiddenTapColumns : hiddenColumns).includes(
-                                    column.code,
-                                  ),
-                              )
-                              .map((column) => column.code)}
-                            onToggle={(code) => {
-                              if (tappingNow) {
-                                setHiddenTapColumns((current) =>
-                                  current.includes(code)
-                                    ? current.filter((each) => each !== code)
-                                    : [...current, code],
-                                )
-                                return
-                              }
-                              touchedColumns.current.add(code)
-                              setHiddenColumns((current) =>
-                                current.includes(code)
-                                  ? current.filter((each) => each !== code)
-                                  : [...current, code],
-                              )
-                            }}
-                            onReorder={tappingNow ? setTapColumnOrder : setColumnOrder}
-                          />
-                        )
-                      }
-                    />
-                  </div>
                   <div
                     // The UI table owns the panel's virtualized scroll area.
                     className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"

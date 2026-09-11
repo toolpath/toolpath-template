@@ -113,15 +113,18 @@ export const flexibleColumnWidth = (width: string): string => `minmax(${width}, 
 const ROW = 33
 
 /**
- * Everything the rows share the panel with: the toolbar carrying the three list
- * buttons and the filters, the column headings under it, and the hairline
- * border of the card around the lot.
+ * Everything the rows share the panel with: the column headings, and the
+ * hairline border of the card around them.
  *
  * The border is two pixels and it is the difference between eight rows and
  * seven-and-a-bit — the panel's size is its outer box, and the rows get what is
  * inside it.
+ *
+ * **The toolbar is no longer one of them** (Paul, 2026-09-11): the three list
+ * buttons, the filters and the notes float over the bottom of the viewer now,
+ * so the 49 pixels they took out of the panel would open the list a row short.
  */
-const OVER_THE_ROWS = 49 + ROW + 2
+const OVER_THE_ROWS = ROW + 2
 
 /** How many tools the list opens showing (Paul, 2026-09-10). */
 export const TOOLS_ON_OPENING = 8
