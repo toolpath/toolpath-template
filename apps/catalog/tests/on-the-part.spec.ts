@@ -2288,17 +2288,12 @@ test.describe('the tool assembly tree', () => {
   })
 
   /**
-   * **The number and the forgiveness are one decision** (Paul, 2026-09-08: "if
-   * override rules is off, it should go back to the filter defined by the
-   * geometry — right now it is keeping the override"). Dropping only the
-   * forgiveness left the widened bound standing over a list the rules then
-   * emptied: the dead end the control exists to remove, reached by pressing the
-   * control.
-   *
-   * So there is no press that turns one off (Paul, 2026-09-09) — the way back
-   * is the number, and the × beside the tick is how it goes.
+   * **A cleared geometry bound means unbounded** (Paul, 2026-09-11). A shop
+   * that removes the feature's minimum asks to see the whole catalog on that
+   * axis, so its rule must be released too. Typing the geometry's value back is
+   * still how the ordinary, rule-bound answer comes back.
    */
-  test('drops the override when the number that raised it is cleared', async ({ page }) => {
+  test('releases the matching rule when a geometry bound is cleared', async ({ page }) => {
     await ready(page)
     await page
       .locator('[data-assembly-tree]')
@@ -2325,12 +2320,17 @@ test.describe('the tool assembly tree', () => {
     await page.getByRole('button', { name: 'Filter by Flute length', exact: true }).click()
     await dialog.getByRole('button', { name: 'Clear the Flute length filter' }).click()
 
-    // The number is gone, and the forgiveness went with it.
+    // The number is gone, so this axis is deliberately unbounded. Its matching
+    // rule is therefore released as well.
     await expect(page).not.toHaveURL(/min\.LCF=/)
     await expect(bound).not.toHaveValue('10')
-    await expect(page.getByText(/rules turn down are listed/)).toBeHidden()
-    // And with nothing overruled, the dialog has nothing to warn about.
-    await expect(dialog.getByRole('note')).toBeHidden()
+    await expect(page.getByText(/rules turn down are listed/)).toHaveAttribute(
+      'title',
+      /Clearing a geometry bound releases its rule/,
+    )
+    // The open dialog confirms that the now-unbounded axis has released its
+    // matching rule; the list carries the same explanation after it closes.
+    await expect(dialog.getByRole('note')).toContainText('rules are set aside')
   })
 
   /**

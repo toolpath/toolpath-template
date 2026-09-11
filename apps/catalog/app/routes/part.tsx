@@ -5740,7 +5740,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               {forgiven.length > 0 && overrideTools.length > 0 ? (
                 <span
                   className="text-2xs text-zinc-400"
-                  title="Confirmed in that column's filter. Clearing the filter, or backing it out to what the geometry asked for, puts the rule back."
+                  title="Confirmed in that column's filter. Clearing a geometry bound releases its rule; putting the geometry's bound back restores it."
                 >
                   {overrideTools.length} the {overridden} rules turn down are listed
                   {/*
