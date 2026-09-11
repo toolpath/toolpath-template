@@ -281,6 +281,7 @@ application unless that application says otherwise.
 | the two columns the list turns on for itself          | `app/shared/auto-columns.ts`                         |
 | how wide a column is, as a share of the panel         | `app/shared/column-width.ts`                         |
 | refitting the tracks a drag froze onto the table      | `app/shared/use-fitted-columns.ts`                   |
+| which columns a list shows, in what order, remembered | `app/shared/column-layout.ts`                        |
 | a row's answer, and what it opens to                  | `app/shared/recommendations.ts`                      |
 | what a press on a row of the order list opens         | `pressRow`, `app/routes/part.tsx`                    |
 | whose stacks the tree beside an open box shows        | `editedItem` / `treeKey`, same file                  |
