@@ -872,6 +872,14 @@ test('the columns divide the panel, at every width and column set', async ({ pag
     the columns that were there when the mouse went down.
   */
   const handle = page.locator('[data-part-tool-table] .resizer-area').first()
+  /*
+    Waited for, not sampled. The viewport change above re-lays out the table,
+    and on this branch the panel beside it is resizable — so the table is laid
+    out twice and `boundingBox()` can be asked in the gap between, where the
+    handle exists but has no box yet. The resizers are there either way; this
+    waits for the one being dragged to have settled.
+  */
+  await expect(handle).toBeVisible()
   const grip = await handle.boundingBox()
   expect(grip).not.toBeNull()
   await page.mouse.move(grip!.x + grip!.width / 2, grip!.y + grip!.height / 2)
@@ -1047,6 +1055,14 @@ test('keeps a dragged column width, and drops every one when the columns change'
   const shownAtDrag = await columnCount()
 
   const handle = page.locator('[data-part-tool-table] .resizer-area').first()
+  /*
+    Waited for, not sampled. The viewport change above re-lays out the table,
+    and on this branch the panel beside it is resizable — so the table is laid
+    out twice and `boundingBox()` can be asked in the gap between, where the
+    handle exists but has no box yet. The resizers are there either way; this
+    waits for the one being dragged to have settled.
+  */
+  await expect(handle).toBeVisible()
   const grip = await handle.boundingBox()
   expect(grip).not.toBeNull()
   await page.mouse.move(grip!.x + grip!.width / 2, grip!.y + grip!.height / 2)

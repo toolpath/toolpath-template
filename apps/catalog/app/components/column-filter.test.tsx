@@ -380,7 +380,15 @@ describe('the column picker', () => {
 
     const list = screen.getByRole('group', { name: 'Columns' })
     expect(container.contains(list)).toBe(false)
-    expect(list).toHaveClass('fixed')
+    /*
+      The bound, rather than `fixed`. The placing is `Menu.Popover`'s as of
+      brad/table — a portal against its trigger, bounded by the window — so the
+      positioning class this used to read is the kit's business now. What is
+      still this application's, and still the thing Paul asked for, is that the
+      list scrolls inside the room the screen left rather than running off the
+      bottom with its last columns out of reach.
+    */
+    expect(list).toHaveClass('max-h-[var(--available-height)]', 'overflow-y-auto')
   })
 })
 

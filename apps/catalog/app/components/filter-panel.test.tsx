@@ -325,9 +325,26 @@ describe('the table filter toolbar', () => {
 
     const menu = document.querySelector('[data-tool-filter-menu]')
     expect(menu).not.toBeNull()
-    expect(menu).toHaveClass('fixed', 'z-50')
+    /*
+      See the twin in `column-filter.test.tsx`: `Menu.Popover` places the box
+      now, so the bound it is held to is what this application still owns. The
+      two assertions either side of this one are the invariant — the menu is
+      outside the bar that would clip it, and the options are inside the menu.
+    */
+    expect(menu).toHaveClass('max-h-[var(--available-height)]', 'overflow-y-auto')
     expect(document.querySelector('[data-filter-toolbar]')?.contains(menu ?? null)).toBe(false)
-    expect(within(menu as HTMLElement).getByRole('group', { name: 'Part material' })).toBeVisible()
+    /*
+      Present and populated, rather than `toBeVisible`. jsdom performs no
+      layout, so `getClientRects()` is empty for every element it renders and
+      the kit's popover has no box for jest-dom to call visible — while the
+      options themselves render in full. Whether the menu is actually on screen
+      is a question only a browser can answer, and `tests/on-the-part.spec.ts`
+      is where it is asked; what this pins is the half that clipping broke —
+      the menu is outside the bar, and the options are inside the menu.
+    */
+    const options = within(menu as HTMLElement).getByRole('group', { name: 'Part material' })
+    expect(options).toBeInTheDocument()
+    expect(within(options).getAllByRole('button').length).toBeGreaterThan(1)
   })
 
   /**
