@@ -442,6 +442,43 @@ test('Escape closes the filters and leaves the reading alone', async ({ page }) 
   await expect(field(page)).toBeVisible()
 })
 
+/**
+ * **"The part material filters go behind the table! They need to go up
+ * front!"** (Paul, 2026-09-11).
+ *
+ * The button row floats along the bottom of the viewer, and the viewer clips
+ * what it holds — so the menu it opened downwards was cut off at the seam and
+ * what showed of it sat under the tool list. Nothing about that is visible to
+ * `toBeVisible`: a clipped box still has a box. What is asked here is what the
+ * eye asks — is the menu the thing on top where it is drawn — which is why the
+ * point is read back out of the document rather than measured.
+ */
+test('an open filter menu stands over the tool list, not under it', async ({ page }) => {
+  await page.getByRole('button', { name: 'Part material' }).click()
+  const menu = page.locator('[data-tool-filter-menu]')
+  await expect(menu).toBeVisible()
+
+  const box = await menu.boundingBox()
+  expect(box).not.toBeNull()
+  const { x, y, width, height } = box ?? { x: 0, y: 0, width: 0, height: 0 }
+
+  // The whole of it is inside the window, rather than running off the bottom.
+  const viewport = page.viewportSize()
+  expect(y).toBeGreaterThanOrEqual(0)
+  expect(y + height).toBeLessThanOrEqual((viewport?.height ?? 0) + 1)
+
+  // And the lowest part of it — the part that overlaps the list — takes the
+  // pointer, which is the thing a clip and a z-index both take away.
+  const owned = await page.evaluate(
+    ([px, py]) => {
+      const at = document.elementFromPoint(px as number, py as number)
+      return at !== null && at.closest('[data-tool-filter-menu]') !== null
+    },
+    [x + width / 2, y + height - 2],
+  )
+  expect(owned).toBe(true)
+})
+
 test('part material narrows the tool table', async ({ page }) => {
   const before = await page.locator('[data-row-index]').count()
   await page.getByRole('button', { name: 'Part material' }).click()

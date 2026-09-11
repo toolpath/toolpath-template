@@ -40,7 +40,7 @@ export const AppHeader = ({ unit, onUnit, toolCount, onUploadPart }: AppHeaderPr
     <header className="border-b border-zinc-800 bg-zinc-950">
       <div className="flex items-center gap-3 px-6 pt-4 pb-2">
         <ToolpathLogo className="size-6 shrink-0" />
-        <h1 className={HEADING}>Toolpath Tool Catalog</h1>
+        <h1 className={HEADING}>Toolpath Catalog</h1>
         <Badge variant="secondary">{toolCount} tools</Badge>
         {/* A new part is always one press away. When another part is already
           loaded, return to its viewer and open the uploader there rather than

@@ -293,6 +293,74 @@ describe('the table filter toolbar', () => {
     ).toHaveClass('w-32')
     expect(document.querySelector('[data-filter-toolbar]')).toHaveClass('flex', 'flex-wrap')
   })
+
+  /**
+   * **"The part material filters go behind the table! They need to go up
+   * front!"** (Paul, 2026-09-11).
+   *
+   * The bar these buttons stand in floats along the bottom of the viewer, and
+   * the viewer clips what it holds. An absolutely positioned box inside it was
+   * cut off at that seam the moment it opened downwards — no `z-index` reaches
+   * past a clip — so the menu read as a thing hiding behind the tool list. It
+   * is drawn on the `body` now, fixed against the button, which is the answer
+   * the column funnels already reached.
+   */
+  it('draws an open filter over the page rather than inside the clipped bar', () => {
+    render(
+      <FilterPanel
+        facets={{ terms: [], ranges: [] }}
+        query={EMPTY_QUERY}
+        onQuery={vi.fn()}
+        counts={() => new Map()}
+        unit="millimeters"
+        materialGroup={null}
+        onMaterial={vi.fn()}
+        holding={{ tapers: [], series: [] }}
+        only={['materialGroups']}
+        toolbar
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Part material' }))
+
+    const menu = document.querySelector('[data-tool-filter-menu]')
+    expect(menu).not.toBeNull()
+    expect(menu).toHaveClass('fixed', 'z-50')
+    expect(document.querySelector('[data-filter-toolbar]')?.contains(menu ?? null)).toBe(false)
+    expect(within(menu as HTMLElement).getByRole('group', { name: 'Part material' })).toBeVisible()
+  })
+
+  /**
+   * A tick inside a portalled menu is a pointer down outside the element the
+   * close-on-outside rule watches. Without the exemption the filter shut on the
+   * one press it exists for.
+   */
+  it('stays open when a material inside the portalled menu is pressed', () => {
+    const onMaterial = vi.fn()
+    render(
+      <FilterPanel
+        facets={{ terms: [], ranges: [] }}
+        query={EMPTY_QUERY}
+        onQuery={vi.fn()}
+        counts={() => new Map()}
+        unit="millimeters"
+        materialGroup={null}
+        onMaterial={onMaterial}
+        holding={{ tapers: [], series: [] }}
+        only={['materialGroups']}
+        toolbar
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Part material' }))
+    const menu = document.querySelector('[data-tool-filter-menu]') as HTMLElement
+    const steel = within(menu).getByRole('button', { name: /P · Steel/ })
+    fireEvent.pointerDown(steel)
+    fireEvent.click(steel)
+
+    expect(onMaterial).toHaveBeenCalledWith('P')
+    expect(document.querySelector('[data-tool-filter-menu]')).not.toBeNull()
+  })
 })
 
 /**

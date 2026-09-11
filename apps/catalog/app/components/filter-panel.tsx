@@ -1,5 +1,6 @@
 import { Button, cn, Input } from '@toolpath/ui'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import {
   BookmarksSimpleIcon,
   CaretDownIcon,
@@ -432,52 +433,84 @@ const ToolbarFilterBody = ({
 }) => {
   const menu = useRef<HTMLDivElement>(null)
   const press = useRef<HTMLDivElement>(null)
-  const [menuOffset, setMenuOffset] = useState(0)
   /**
-   * Which way it opens, and the most it may be.
+   * Where the box stands, in the window's own coordinates.
    *
-   * **These buttons stand at the bottom of the viewer now** (Paul, 2026-09-11),
-   * so a box opening downwards opens past the edge of a viewer that clips, and
-   * what is under the button is a strip. `menuRoom` is the same rule the column
-   * funnels and the column picker follow: take the room the screen leaves, and
-   * turn over where there is none.
+   * **It is drawn over the page, not inside the bar** (Paul, 2026-09-11: "the
+   * part material filters go behind the table! They need to go up front!").
+   * These buttons float along the bottom of the viewer, and the viewer clips
+   * what it holds — so an `absolute` box opening downwards was cut off at the
+   * seam and what was left of it read as a menu hiding behind the tool list.
+   * Raising `z-index` cannot fix a clip. This is the same answer the column
+   * funnels reached (`column-filter.tsx` § `FilterMenu`): a portal, placed
+   * against the button it opened from and kept inside the window.
+   *
+   * `null` until it has been measured, and hidden while it is: the width is
+   * read off the box itself to line its right edge up with the button's.
    */
-  const [room, setRoom] = useState<{ readonly upwards: boolean; readonly height: number }>({
-    upwards: false,
-    height: 0,
-  })
+  const [at, setAt] = useState<{
+    readonly top: number | null
+    readonly bottom: number | null
+    readonly left: number
+    readonly height: number
+  } | null>(null)
 
   useLayoutEffect(() => {
-    if (!open || menu.current === null) {
-      setMenuOffset(0)
+    if (!open) {
+      setAt(null)
       return
     }
 
     const place = () => {
-      const element = menu.current
-      if (element === null) {
+      const anchor = press.current
+      if (anchor === null) {
         return
       }
-      const menuRect = element.getBoundingClientRect()
-      const chrome = element.closest('[data-list-chrome]')?.getBoundingClientRect()
-      const left = Math.max(chrome?.left ?? 0, 8) + 8
-      const right = Math.min(chrome?.right ?? window.innerWidth, window.innerWidth) - 8
-      const correction =
-        menuRect.left < left
-          ? left - menuRect.left
-          : menuRect.right > right
-            ? right - menuRect.right
-            : 0
-      setMenuOffset(correction)
-      const button = press.current?.getBoundingClientRect()
-      if (button !== undefined) {
-        setRoom(menuRoom(button, window.innerHeight))
-      }
+      const button = anchor.getBoundingClientRect()
+      const width = menu.current?.getBoundingClientRect().width ?? 0
+      /*
+        The chrome is the bar these buttons stand in, and the list under it:
+        a menu is kept inside the width of the thing it is narrowing rather
+        than only inside the window, so a filter at the right-hand end opens
+        over the table instead of off the side of it.
+      */
+      const chrome = anchor.closest('[data-list-chrome]')?.getBoundingClientRect()
+      const edgeLeft = Math.max(chrome?.left ?? 0, 8) + 8
+      const edgeRight = Math.min(chrome?.right ?? window.innerWidth, window.innerWidth) - 8
+      const left = Math.max(edgeLeft, Math.min(button.right - width, edgeRight - width))
+      /*
+        `menuRoom` is the rule the column funnels and the column picker follow —
+        take the room the screen leaves, and turn over where there is none. The
+        room below is the window's, not the viewer's: the box stands over the
+        table now rather than being cut off at its edge.
+      */
+      const room = menuRoom(button, window.innerHeight)
+      setAt({
+        top: room.upwards ? null : button.bottom + 4,
+        bottom: room.upwards ? window.innerHeight - button.top + 4 : null,
+        left,
+        height: room.height,
+      })
     }
 
     place()
     window.addEventListener('resize', place)
-    return () => window.removeEventListener('resize', place)
+    /*
+      Capturing, so a scroll under an open menu — the tool list, or the column
+      of questions beside the part — moves it with the button it belongs to
+      rather than leaving it behind over the rows.
+    */
+    const onScroll = (event: Event) => {
+      if (event.target instanceof Node && menu.current?.contains(event.target) === true) {
+        return
+      }
+      place()
+    }
+    window.addEventListener('scroll', onScroll, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', onScroll, true)
+    }
   }, [open])
 
   return (
@@ -501,22 +534,27 @@ const ToolbarFilterBody = ({
         </span>
         <CaretDownIcon className={cn('shrink-0 text-zinc-600 transition', open && 'rotate-180')} />
       </Button>
-      {open ? (
-        <div
-          data-tool-filter-menu
-          ref={menu}
-          style={{
-            transform: `translateX(${String(menuOffset)}px)`,
-            ...(room.height === 0 ? {} : { maxHeight: room.height }),
-          }}
-          className={cn(
-            'absolute right-0 z-30 w-[min(30rem,calc(100vw-2rem))] overflow-y-auto rounded-md border border-zinc-800 bg-zinc-950 p-2 shadow-xl',
-            room.upwards ? 'bottom-full mb-1' : 'top-full mt-1',
-          )}
-        >
-          {children}
-        </div>
-      ) : null}
+      {open
+        ? createPortal(
+            <div
+              data-tool-filter-menu
+              ref={menu}
+              style={{
+                ...(at === null
+                  ? { top: 0, left: 0, visibility: 'hidden' }
+                  : {
+                      ...(at.top === null ? { bottom: at.bottom ?? 0 } : { top: at.top }),
+                      left: at.left,
+                      maxHeight: at.height,
+                    }),
+              }}
+              className="fixed z-50 w-[min(30rem,calc(100vw-2rem))] overflow-y-auto rounded-md border border-zinc-800 bg-zinc-950 p-2 shadow-xl"
+            >
+              {children}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }
@@ -626,9 +664,20 @@ const useCloseOnOutside = (open: boolean, close: () => void) => {
       return
     }
     const onDown = (event: PointerEvent) => {
-      if (!box.current?.contains(event.target as Node)) {
-        close()
+      const target = event.target instanceof Element ? event.target : null
+      if (box.current?.contains(target) === true) {
+        return
       }
+      /*
+        **A menu drawn in a portal is still inside the thing that opened it.**
+        `ToolbarFilterBody` puts its box on the `body` so the viewer cannot clip
+        it, which makes every tick in it a press outside this element — and the
+        filter shut on the one press it exists for.
+      */
+      if (target !== null && target.closest('[data-tool-filter-menu]') !== null) {
+        return
+      }
+      close()
     }
     document.addEventListener('pointerdown', onDown)
     return () => document.removeEventListener('pointerdown', onDown)
