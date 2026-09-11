@@ -179,10 +179,10 @@ export const AssemblyPanel = ({
 
       {/*
         **The same sheet, whichever component is being read.** `<ToolDetails>`
-        owns the drawing and its Tool / Tool + holder switch; what changes with
-        the tree's selection is the column under it. A second drawing for the
+        owns the drawing and the press that frames it; what changes with the
+        tree's selection is the column under it. A second drawing for the
         holder is what this replaces — it came out lying on its side, and it
-        took the switch away the moment somebody looked at a holder.
+        took the press away the moment somebody looked at a holder.
       */}
       {tool !== null && toolDetails !== undefined ? (
         <div className="min-h-0 flex-1">{toolDetails(facts)}</div>

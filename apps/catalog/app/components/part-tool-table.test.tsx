@@ -119,22 +119,18 @@ describe('PartToolTable', () => {
     expect(choices).toHaveBeenCalledTimes(1)
   })
 
-  it('does not select a row while changing its holder', async () => {
-    const onChoose = show({
-      holding: {
-        holdersFor: () => [{ guid: 'holder', label: 'BT30', trouble: null, holder: {} as never }],
-        colletsFor: () => [],
-        chosen: () => ({ holderGuid: null, colletGuid: null }),
-        requiredStickout: () => null,
-        stickoutFor: () => null,
-        onChoose: vi.fn(),
-      },
-    })
+  /**
+   * The row's Holder and Collet dropdowns came off on 2026-09-11, and with
+   * them the reason this file used to check that opening one did not select
+   * the row under it. Nothing in a cell swallows a click any more, so the
+   * standing rule is the simpler one: a list of tools offers no way to
+   * assemble one — that is the tool assembly tree's slot, and its table.
+   */
+  it('offers no control inside a cell to assemble a tool', () => {
+    show({})
 
-    fireEvent.click(screen.getAllByRole('combobox', { name: 'Holder for T-20' })[0]!)
-    fireEvent.click(screen.getByRole('option', { name: 'BT30' }))
-
-    expect(onChoose).not.toHaveBeenCalled()
+    expect(screen.queryByRole('combobox', { name: /Holder for/ })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: /Collet for/ })).toBeNull()
   })
 
   /**

@@ -195,11 +195,19 @@ this assembly`, because a rack is narrowed to what fits a stack only while
   "I need to see the context aware changes I'm making, or I just need one button
   to confirm what is selected in the tool assembly."
 - **One drawing, whichever slot is open.** `<ToolDetails>` owns the sheet and
-  its Tool / Tool + holder switch; selecting a holder or a collet changes only
-  the column underneath it, through that panel's `details` prop. A second
-  drawing for the holder is what this replaces — it came out lying on its side,
-  because `orientationFor` reads the box it is given, and it took the switch
-  away the moment somebody looked at a holder.
+  the press that frames it — _Zoom to tool_ / _Zoom out_, which cuts the sheet
+  just above the holder nose rather than dropping the holder out of the
+  picture. Selecting a holder or a collet changes only the column underneath
+  it, through that panel's `details` prop. A second drawing for the holder is
+  what this replaces — it came out lying on its side, because `orientationFor`
+  reads the box it is given, and it took the press away the moment somebody
+  looked at a holder.
+
+  **It used to be a Tool / Tool + holder switch** (replaced 2026-09-11). That
+  let the one picture on the page disagree with the tree about what was on the
+  tool — the tree with a holder in its slot, the sheet with a bare cutter. What
+  a reader wanted from the _Tool_ half was the working end drawn bigger, which
+  `@toolpath/tool-drawing`'s `zoom` prop now frames itself.
 
 **And an assembly need not answer a feature at all** (Paul, 2026-09-08). _+
 Tool Assembly_, over the top-left of the part, makes a row of its own that holds
@@ -878,6 +886,40 @@ the press under the stack makes the row and orders the assembly in one go, and
 an **X** in the top right of the box is the way out of all three. See
 `docs/FEATURE-LIST.md` § _The X in the corner_.
 
+### The last two dropdowns, 2026-09-11
+
+The flag's removal took the dropdowns off a **tool row**. It did not take them
+off the **panel**, and nobody noticed for three days, because the tree covers
+every state the panel is drawn in but one: a tool read with no feature selected.
+`treeKey` is `null` when nothing is asked (`routes/part.tsx`, _"Nothing asked is
+nothing to assemble"_), so `assemblies` is empty, `node` is `null`, and the
+right-hand panel falls through to `<ToolDetails holding={holding}>` — a Holder
+combobox, a Collet combobox, and the "_n_ more fit but have no model to draw"
+note under them (Paul, 2026-09-11: _"I think the two dropdowns are not there any
+more"_ — they were, in that one state, on `main` as well as on the branch).
+
+Two ways to fill one slot, and no rule saying which won: the dropdowns wrote a
+`picked` map on the route, the tree writes the assembly, and nothing reconciled
+them. Both dropdowns are gone, and with them:
+
+- `ToolDetails`'s `holding` prop. `stack` — what the tree put in the slots — is
+  now the panel's only source for a holder or a collet, so the picture cannot
+  disagree with the tree.
+- The `holding` memo on the route, its `optionsFor` cache and `hasPicture`.
+- The `picked` map, and the `pick` and `saveAssembly` callbacks that read it.
+  The dropdowns were its only writer, so it could only ever have been empty —
+  and an empty map still read like an unsaved answer at three call sites.
+- `panelActions`'s `assemblyChanged`, which compared the dropdowns against the
+  ordered line to offer _Update_. The panel holds nothing to differ with now,
+  so it is `false`; reading the empty pick as a change would have offered
+  _Update_ on every tool ordered with a holder.
+- `Holding`, `HoldingCell`, `isHolding` and the Holder and Collet columns on
+  `PartToolTable` — dead since 2026-09-08, drawing an em-dash per row.
+
+`OrderDialog` still carries a pair of its own and was **left standing**: it has
+been unreachable since before any of this — `setAdding` is only ever called with
+`null` — so removing it is a separate decision about a separate dialog.
+
 What went with it that had no home under the tree: the **Show compatible end
 mills** press, which lived inside the drill tab and so had already been
 unreachable whenever the flag was on. The filter it pressed —
@@ -956,12 +998,13 @@ crib, which is the claim.
   a bill, where `treeFromLines` puts the tap first however the lines are ordered,
   because a drill labelled `TAP` opens the tap list on a drill.
 - **`ComponentTable` is a sibling of `PartToolTable`, not a generalisation.**
-  That table carries the rules' marks, the holding comboboxes and the bill's
-  badge, all of which are about a _tool_; threading a row type through them would
-  have put every one behind a conditional to gain a shared shell. If a third
-  kind of component ever wants a table, extract then.
-- **The tool table is handed no `holding`**, deliberately: the holder is a slot
-  of the stack with a table of its own, and a second way to set it from a
-  dropdown on the tool row is the defect the tree exists to remove. The prop is
-  still on `PartToolTable` — the component's own tests cover it — and the part
-  page passes it from nowhere.
+  That table carries the rules' marks and the bill's badge, both of which are
+  about a _tool_; threading a row type through them would have put every one
+  behind a conditional to gain a shared shell. If a third kind of component ever
+  wants a table, extract then.
+- **Nothing but a slot fills a slot**, and as of 2026-09-11 there is no second
+  way left to try. `Holding`, `HoldingCell` and the `holding` prop are gone from
+  `PartToolTable`, and the Holder and Collet columns with them — the part page
+  had passed that prop from nowhere since the flag came out, so both columns
+  drew an em-dash on every row. `ToolDetails` lost its own pair the same day;
+  see § 6.

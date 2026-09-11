@@ -8,8 +8,8 @@ import {
   type ReactNode,
 } from 'react'
 import { ArrowSquareOutIcon, CheckIcon, InfoIcon, XCircleIcon } from '@phosphor-icons/react'
-import { Button, Combobox, Table, cn } from '@toolpath/ui'
-import type { CatalogTool, Holder } from '@toolpath/catalog-data'
+import { Button, Table, cn } from '@toolpath/ui'
+import type { CatalogTool } from '@toolpath/catalog-data'
 import type { UnitSystem } from '@toolpath/tool-support'
 import { formatGeometry } from 'shared/geometry'
 import { askOfToolColumn, type ColumnAsk } from 'shared/column-filters'
@@ -27,7 +27,6 @@ import {
   type ColumnHeadingProps,
 } from './column-heading'
 import type { Bound, ColumnOverride } from './column-filter'
-import { CatalogComboboxButton } from './catalog-combobox-button'
 
 export interface PartToolColumn {
   readonly code: string
@@ -83,15 +82,11 @@ export const TOOL_COLUMNS: ReadonlyArray<PartToolColumn> = [
   { code: 'RE', label: 'Corner radius', default: false },
   { code: 'SFDM', label: 'Shank', default: false },
   { code: 'SIG', label: 'Tip angle', default: false },
-  { code: 'holder', label: 'Holder', default: false },
-  { code: 'collet', label: 'Collet', default: false },
 ]
 
 export const TAP_COLUMNS: ReadonlyArray<PartToolColumn> = [
   ...IDENTITY,
   { code: 'DC', label: 'Thread diameter', default: true },
-  { code: 'holder', label: 'Holder', default: false },
-  { code: 'collet', label: 'Collet', default: false },
   { code: 'LCF', label: 'Thread length', default: true },
   { code: 'LBH', label: 'Below holder', default: true },
   { code: 'LD', label: 'L/D', default: true },
@@ -141,42 +136,6 @@ export const TOOLS_ON_OPENING = 8
  */
 export const TABLE_OPENS_AT = OVER_THE_ROWS + TOOLS_ON_OPENING * ROW
 
-export interface Holding {
-  readonly holdersFor: (tool: CatalogTool) => ReadonlyArray<{
-    readonly guid: string
-    readonly label: string
-    readonly trouble: string | null
-    readonly holder: Holder
-  }>
-  readonly colletsFor: (
-    tool: CatalogTool,
-    holderGuid: string | null,
-  ) => ReadonlyArray<{ readonly guid: string; readonly label: string }>
-  readonly chosen: (tool: CatalogTool) => {
-    readonly holderGuid: string | null
-    readonly colletGuid: string | null
-  }
-  readonly requiredStickout: (tool: CatalogTool) => number | null
-  readonly stickoutFor: (tool: CatalogTool) => number | null
-  readonly reachNote?: (tool: CatalogTool) => string | null
-  /**
-   * How many holders that would otherwise fit were left off for having no
-   * picture, so the panel can say so.
-   *
-   * **An empty dropdown that fits is indistinguishable from one that was
-   * filtered** (Paul, 2026-09-07: "I just asked you to hide holders that do
-   * not have profiles, and now I see no holders"). `drawable` hid every holder
-   * in the rack, and the panel showed the same "No holder" it shows for a tool
-   * nothing holds — so a missing measuring run read as a broken page. This is
-   * the count behind that silence, and zero where nothing was hidden.
-   */
-  readonly undrawable?: (tool: CatalogTool) => number
-  readonly onChoose: (
-    tool: CatalogTool,
-    choice: { readonly holderGuid: string | null; readonly colletGuid: string | null },
-  ) => void
-}
-
 /**
  * A tool as the table sorts it.
  *
@@ -197,7 +156,6 @@ interface Selection {
   readonly ids: Array<string>
 }
 
-export const isHolding = (code: string): boolean => code === 'holder' || code === 'collet'
 export const isStack = (code: string): boolean => code === 'LBH'
 
 /** The four that say which tool this is, rather than a number about it. */
@@ -209,8 +167,6 @@ const WIDTH: Readonly<Record<string, string>> = {
   brand: '7rem',
   type: '12rem',
   family: '9rem',
-  holder: '10rem',
-  collet: '10rem',
 }
 
 /** What a column sorts on: the words on the row, or the number behind it. */
@@ -234,102 +190,6 @@ const columnsShown = (
     kept.map((column) => column.code),
     order,
   ).flatMap((code) => kept.filter((column) => column.code === code))
-}
-
-const HoldingCell = ({
-  tool,
-  code,
-  holding,
-}: {
-  tool: CatalogTool
-  code: string
-  holding: Holding
-}) => {
-  const { holderGuid, colletGuid } = holding.chosen(tool)
-  if (code === 'holder') {
-    const holders = holding.holdersFor(tool)
-    const items = ['', ...holders.map((each) => each.guid)]
-    return (
-      <div className="w-36 max-w-full" onClick={(event) => event.stopPropagation()}>
-        <Combobox
-          items={items}
-          value={holderGuid ?? ''}
-          aria-label={`Holder for ${tool.catalogNumber}`}
-          onValueChange={(next) => {
-            const nextHolder = typeof next === 'string' && next !== '' ? next : null
-            holding.onChoose(tool, { holderGuid: nextHolder, colletGuid: null })
-          }}
-          itemToStringLabel={(guid) => {
-            if (guid === '') {
-              return 'No holder'
-            }
-            const holder = holders.find((each) => each.guid === guid)
-            return holder === undefined
-              ? ''
-              : `${holder.label}${holder.trouble === null ? '' : ` · ${holder.trouble}`}`
-          }}
-          size="sm"
-          variant="ghost"
-        >
-          <CatalogComboboxButton
-            label={`Holder for ${tool.catalogNumber}`}
-            placeholder="No holder"
-          />
-          <Combobox.Popover>
-            <Combobox.List>
-              {items.map((guid) => {
-                const holder = holders.find((each) => each.guid === guid)
-                return (
-                  <Combobox.Item key={guid || 'none'} value={guid}>
-                    {guid === '' ? 'No holder' : holder?.label}
-                    {holder?.trouble === null || holder === undefined
-                      ? null
-                      : ` · ${holder.trouble}`}
-                    <Combobox.ItemIndicator />
-                  </Combobox.Item>
-                )
-              })}
-            </Combobox.List>
-          </Combobox.Popover>
-        </Combobox>
-      </div>
-    )
-  }
-  const collets = holding.colletsFor(tool, holderGuid)
-  const items = ['', ...collets.map((each) => each.guid)]
-  return (
-    <div className="w-36 max-w-full" onClick={(event) => event.stopPropagation()}>
-      <Combobox
-        items={items}
-        value={colletGuid ?? ''}
-        disabled={collets.length === 0}
-        aria-label={`Collet for ${tool.catalogNumber}`}
-        onValueChange={(next) =>
-          holding.onChoose(tool, {
-            holderGuid,
-            colletGuid: typeof next === 'string' && next !== '' ? next : null,
-          })
-        }
-        itemToStringLabel={(guid) =>
-          guid === '' ? 'No collet' : (collets.find((each) => each.guid === guid)?.label ?? '')
-        }
-        size="sm"
-        variant="ghost"
-      >
-        <CatalogComboboxButton label={`Collet for ${tool.catalogNumber}`} placeholder="No collet" />
-        <Combobox.Popover>
-          <Combobox.List>
-            {items.map((guid) => (
-              <Combobox.Item key={guid || 'none'} value={guid}>
-                {guid === '' ? 'No collet' : collets.find((each) => each.guid === guid)?.label}
-                <Combobox.ItemIndicator />
-              </Combobox.Item>
-            ))}
-          </Combobox.List>
-        </Combobox.Popover>
-      </Combobox>
-    </div>
-  )
 }
 
 /**
@@ -367,24 +227,15 @@ const GeometryCell = ({
   tool,
   code,
   mark,
-  holding,
   below,
   unit,
 }: {
   tool: CatalogTool
   code: string
   mark: Mark | undefined
-  holding: Holding | undefined
   below: BelowHolder | null
   unit: UnitSystem
 }) => {
-  if (isHolding(code)) {
-    return holding === undefined ? (
-      <span className="text-zinc-600">—</span>
-    ) : (
-      <HoldingCell tool={tool} code={code} holding={holding} />
-    )
-  }
   if (isStack(code) && (mark === undefined || mark.ok)) {
     const own = tool.geometry.LBH
     const needed = below?.length ?? null
@@ -524,7 +375,6 @@ export interface PartToolTableProps {
   readonly hiddenColumns: ReadonlyArray<string>
   readonly columnOrder: ReadonlyArray<string>
   readonly marks?: (tool: CatalogTool) => Record<string, Mark>
-  readonly holding?: Holding
   /**
    * The length below the holder each candidate would stand at, in the stack
    * that is open — `shared/drawn-assembly`'s {@link BelowHolder}.
@@ -571,7 +421,6 @@ export const PartToolTable = ({
   hiddenColumns,
   columnOrder,
   marks,
-  holding,
   below,
   inBom,
   keptElsewhere,
@@ -763,11 +612,7 @@ export const PartToolTable = ({
                 {shown.map((column) => (
                   <Table.Cell
                     key={column.code}
-                    className={
-                      isIdentity(column.code) || isHolding(column.code)
-                        ? 'justify-start'
-                        : 'justify-end'
-                    }
+                    className={isIdentity(column.code) ? 'justify-start' : 'justify-end'}
                   >
                     {column.code === 'catalogNumber' ? (
                       <>
@@ -830,7 +675,6 @@ export const PartToolTable = ({
                         tool={tool}
                         code={column.code}
                         mark={rowMarks[column.code]}
-                        holding={holding}
                         below={rowBelow}
                         unit={unit}
                       />

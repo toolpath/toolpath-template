@@ -42,6 +42,17 @@ if (document.version !== CATALOG_VERSION) {
 }
 
 export const allTools: ReadonlyArray<CatalogTool> = document.tools
+
+/**
+ * When the loaded dataset was built.
+ *
+ * **Which document this page is reading, in one value.** `vite.config.ts`
+ * picks the gitignored scrape or the committed sample, and a stale scrape
+ * silently falls back to the sample — three holders and nine tools, which
+ * looks exactly like a crib that holds nothing for the feature in front of
+ * somebody. `holder-debug.ts` prints this so a report says which.
+ */
+export const builtAt: string = document.builtAt
 export const facets: Facets = document.facets
 
 /**

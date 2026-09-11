@@ -127,6 +127,27 @@ describe('the catalog drawing', () => {
   })
 
   /**
+   * **The zoom is the package's, handed straight on.**
+   *
+   * This is a sensor on the wire rather than on the framing: what the cut is,
+   * how much holder stays above it and when a zoom is refused are all
+   * `@toolpath/tool-drawing`'s rules, and it marks the sheet `data-zoom="tool"`
+   * only where the zoom actually took. So a prop that never reached it would
+   * leave that attribute off — which is exactly what the panel's press would
+   * look like if it were doing nothing.
+   */
+  it('frames the sheet on the working end when asked, and on the stack by default', () => {
+    const whole = drawn(<CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" />)
+    expect(whole.querySelector('figure svg')?.getAttribute('data-zoom')).toBeNull()
+
+    StubResizeObserver.all = []
+    const working = drawn(
+      <CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" zoom="tool" />,
+    )
+    expect(working.querySelector('figure svg')?.getAttribute('data-zoom')).toBe('tool')
+  })
+
+  /**
    * The drawing stopped writing its own figures in `@toolpath/tool-drawing`
    * 0.2.0 — it draws the lines and the panel's table carries the numbers — so
    * the unit no longer reaches it through a dimension. It still reaches the

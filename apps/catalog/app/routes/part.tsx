@@ -97,7 +97,6 @@ import {
   TABLE_OPENS_AT,
   ToolTableToolbar,
   hiddenByDefault,
-  type Holding,
 } from 'components/part-tool-table'
 import { ColumnPicker, sameBound } from 'components/column-filter'
 import { BUTTON_FILTERS, FACET_AXES } from 'components/filter-panel'
@@ -106,6 +105,7 @@ import { hiddenAfterAuto } from 'shared/auto-columns'
 import { capRows, firstBy, keptFirst, oneEach } from 'shared/tool-order'
 import {
   allTools as catalogTools,
+  builtAt,
   collets as allCollets,
   facets,
   familyName,
@@ -163,6 +163,7 @@ import {
   narrowTools,
   whyEmpty,
 } from 'shared/assembly-narrowing'
+import { holderReport } from 'shared/holder-debug'
 import {
   COLLET_COLUMNS,
   HOLDER_COLUMNS,
@@ -202,14 +203,7 @@ import {
 } from 'shared/holding'
 import { sectionOf } from 'shared/section-of'
 import { belowHolder, type BelowHolder } from 'shared/drawn-assembly'
-import {
-  drawable,
-  holdable,
-  holderOptions,
-  policyOf,
-  thresholdsFrom,
-  type HolderOption,
-} from 'shared/holder-choice'
+import { drawable, holdable, holderOptions, policyOf, thresholdsFrom } from 'shared/holder-choice'
 import { closestMisses, closestPerForm, type Format } from 'shared/judge'
 import {
   cautionedTypes,
@@ -422,22 +416,6 @@ const typingInto = (event: KeyboardEvent): boolean => {
 const busyTyping = (event: KeyboardEvent): boolean =>
   typingInto(event) ||
   (event.target as HTMLElement | null)?.closest('[data-part-tool-table]') != null
-
-/**
- * Whether a holder option has a silhouette to draw.
- *
- * **Only the holders that can be drawn are offered** (Paul, 2026-09-07:
- * "exclude any holders without models"). A record with no measured profile and
- * no published nose has no shape at all, so picking it draws a blank panel.
- * `drawable` is the rule and `holder-choice.ts` documents it; this is the one
- * place the catalog's own profile document is what answers it.
- *
- * The dropdown only. Whether a tool can be *held* is a different question from
- * whether its holder has a picture, and narrowing the tool list by this would
- * take tools off a shop's list because a vendor publishes no CAD.
- */
-const hasPicture = (option: HolderOption): boolean =>
-  drawable(option.holder, (guid: string) => getProfile(guid) !== null)
 
 const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: string }) => {
   const [unit, setUnit] = useUnit()
@@ -2513,208 +2491,26 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const shownRows = useMemo(() => keptFirst(searched, keptHere), [searched, keptHere])
 
   /**
-   * Holder, collet and stickout picked on a row, per tool, for the feature
-   * being read — the person's, until Save writes them to the sheet. Cleared
-   * when the reading changes: a holder picked for a pocket is not a holder
-   * picked for a hole.
+   * A tool a press asked for, kept across the reading it also asked for.
+   *
+   * **The holder beside it is gone** (2026-09-11). A `picked` map sat here
+   * holding a holder, a collet and a stickout per tool, written by the panel's
+   * own dropdowns and read back by whatever wrote the sheet. The dropdowns
+   * were its only writer, so with them the map could only ever be empty — and
+   * an empty map still read like a person's unsaved answer at three call
+   * sites. What holds a tool is the tree's slots, and `shared/assembly-tree`
+   * keeps those.
    */
-  const [picked, setPicked] = useState<
-    Readonly<
-      Record<
-        string,
-        { holderGuid?: string | null; colletGuid?: string | null; stickout?: number | null }
-      >
-    >
-  >({})
-  /** A tool a press asked for, kept across the reading it also asked for. */
   const wantedTool = useRef<string | null>(null)
   useEffect(() => {
-    setPicked({})
     setChosenTool(wantedTool.current)
     wantedTool.current = null
   }, [focused])
 
   /**
-   * The holder and collet for a tool: the columns, the stickout column, and
-   * the panel beside the part all ask the same question.
-   *
-   * Grading every holder in the crib against a tool is real work, so it is
-   * done **per tool that asks**, cached for as long as the crib and the
-   * clearances hold still. Nothing is graded until something calls for it, so
-   * the panel's one tool costs one tool, and a list of two hundred pays only
-   * for the columns that are actually ticked.
-   */
-  const optionsFor = useMemo(() => {
-    const cache = new Map<string, Array<HolderOption>>()
-    return (each: CatalogTool): Array<HolderOption> => {
-      const had = cache.get(each.guid)
-      if (had) {
-        return had
-      }
-      const made = holderOptions(
-        each,
-        allHolders,
-        allCollets,
-        holderFilters,
-        curve,
-        margins,
-        thresholds,
-      )
-      cache.set(each.guid, made)
-      return made
-    }
-  }, [holderFilters, curve, margins, thresholds])
-  const holding = useMemo<Holding>(() => {
-    return {
-      /**
-       * **A collet chosen first puts its own chucks at the top** (Paul,
-       * 2026-09-01: "then all holders are shown but we show the ones that work
-       * with that collet at the top"). Every holder is still offered — the
-       * collet is a preference, not a filter — and the ones of its series lead.
-       */
-      holdersFor: (each) => {
-        const chosenCollet = picked[each.guid]?.colletGuid
-        const series =
-          chosenCollet == null ? undefined : (getCollet(chosenCollet)?.series ?? undefined)
-        // Only the holders that can be drawn — `hasPicture` above says why, and
-        // `undrawable` below reports what that hid.
-        const options = optionsFor(each).filter(hasPicture)
-        const ordered =
-          series === undefined
-            ? options
-            : [
-                ...options.filter((option) => option.holder.colletSeries === series),
-                ...options.filter((option) => option.holder.colletSeries !== series),
-              ]
-        return ordered.map((option) => ({
-          guid: option.holder.guid,
-          label:
-            option.holder.colletSeries === series
-              ? `${option.holder.catalogNumber} · takes this collet`
-              : option.holder.catalogNumber,
-          holder: option.holder,
-          trouble: option.unstocked
-            ? `no ${option.holder.colletSeries ?? 'matching'} collet stocked`
-            : option.clears === false
-              ? 'collision with geometry'
-              : option.band === 'bad'
-                ? 'too little grip'
-                : null,
-        }))
-      },
-      /**
-       * How many holders were left off for having no picture, so the panel can
-       * say so rather than showing an empty dropdown (Paul, 2026-09-07).
-       */
-      undrawable: (each) => optionsFor(each).filter((option) => !hasPicture(option)).length,
-      /**
-       * With a holder: the collets of its series that close on the shank.
-       * **Without one: every collet that closes on the shank**, whatever series
-       * it belongs to, each saying which series that is — the dropdown used to
-       * be empty until a holder was picked, which read as broken (Paul,
-       * 2026-09-01).
-       */
-      colletsFor: (each, holderGuid) => {
-        const holder = optionsFor(each).find((option) => option.holder.guid === holderGuid)?.holder
-        if (holder === undefined) {
-          return colletsForShank(each, allCollets).map((collet) => ({
-            guid: collet.guid,
-            label: `${collet.catalogNumber} · ${collet.series}`,
-          }))
-        }
-        return colletsFor(each, holder, allCollets).map((collet) => ({
-          guid: collet.guid,
-          label: collet.catalogNumber,
-        }))
-      },
-      chosen: (each) => ({
-        holderGuid: picked[each.guid]?.holderGuid ?? null,
-        colletGuid: picked[each.guid]?.colletGuid ?? null,
-      }),
-      /** What the chosen stack stands out at: the person's, or the option's own. */
-      stickoutFor: (each) => {
-        const holderGuid = picked[each.guid]?.holderGuid ?? null
-        return (
-          picked[each.guid]?.stickout ??
-          optionsFor(each).find((option) => option.holder.guid === holderGuid)?.stickout ??
-          null
-        )
-      },
-      requiredStickout: (each) => {
-        const holderGuid = picked[each.guid]?.holderGuid ?? null
-        if (holderGuid === null) {
-          return null
-        }
-        return (
-          optionsFor(each).find((option) => option.holder.guid === holderGuid)?.required ?? null
-        )
-      },
-      /**
-       * Why nothing in the crib can hold it, in one line.
-       *
-       * The holder stage drops a tool for one of two reasons and said neither:
-       * every stack fouls the part at the stickout this feature needs, or the
-       * tool is too short to stand out that far and keep hold. Both are about
-       * a length, and a length is what somebody can go and change.
-       */
-      reachNote: (each) => {
-        const options = optionsFor(each)
-        /**
-         * **Never "no holder grips this shank"** (Paul, 2026-09-01: "means
-         * nothing, never show it"). It said the crib holds nothing that takes
-         * this shank, which is a fact about the crib rather than about the
-         * length the cell is for — and it stood in that cell against every
-         * tool of a size nobody has a collet for, which is most of a
-         * seventeen-thousand-tool catalog.
-         */
-        if (options.length === 0) {
-          return null
-        }
-        if (options.some((option) => option.grade !== 'bad')) {
-          return null
-        }
-        /**
-         * **One stack's story, not two halves of two.**
-         *
-         * Taking the least required stickout from one holder and the longest
-         * grip from another read as "needs 53 mm out; holds at 55" — which
-         * says it fits (Paul, 2026-08-31). The stack that comes closest is the
-         * one worth quoting, and closest means the smallest gap between what
-         * it needs and what it can hold.
-         */
-        const gaps = options.flatMap((option) => {
-          const needs = option.required
-          const most = option.range?.max ?? null
-          return needs === null || most === null || needs <= most
-            ? []
-            : [{ needs, most, by: needs - most }]
-        })
-        const closestStack = gaps.sort((a, b) => a.by - b.by)[0]
-        return closestStack === undefined
-          ? 'no holder clears the part here'
-          : `needs ${format(closestStack.needs, 'mm')} out, holds ${format(closestStack.most, 'mm')}`
-      },
-      onChoose: (each, choice) =>
-        setPicked((current) => ({
-          ...current,
-          [each.guid]: { ...current[each.guid], ...choice },
-        })),
-    }
-  }, [optionsFor, picked])
-
-  /**
    * The list: the ten best, each as the assembly the rules recommend — and,
    * when fewer than ten fit, the nearest misses after them, marked
    * incompatible and saying by how much.
-   */
-  /**
-   * The tool being read, and the holders for it.
-   *
-   * This was a ten-row table with a superlative badge on each, computed on
-   * every render — and nothing has drawn that table since the list took its
-   * place. What survives is the one thing the page still asks: which tool is
-   * being read, and what can hold it (Paul, 2026-08-31, on a page running
-   * slowly: ten `holderOptions` sweeps per render, thrown away).
    */
   /**
    * The row being drawn: the one clicked, or the first — the drawing is never
@@ -2808,49 +2604,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     const panes = threadPanes(shownRows, tapRows, chosenTool)
     return panes.tap ?? tool ?? shownRows[0] ?? null
   }, [chosenTool, threadSpec, tool, shownRows, tapRows])
-
-  const pick = useCallback(
-    (
-      guid: string,
-      change: { holderGuid?: string | null; colletGuid?: string | null; stickout?: number | null },
-    ) => setPicked((current) => ({ ...current, [guid]: { ...current[guid], ...change } })),
-    [],
-  )
-
-  /** Save writes the drawn assembly to the sheet for this feature, and opens the strip. */
-  const saveAssembly = useCallback(
-    (saved: CatalogTool) => {
-      const mine = picked[saved.guid]
-      const options = holderOptions(
-        saved,
-        allHolders,
-        allCollets,
-        holderFilters,
-        curve,
-        margins,
-        thresholds,
-      )
-      const option =
-        options.find((each) => each.holder.guid === mine?.holderGuid) ??
-        options.find((each) => each.recommended) ??
-        options[0] ??
-        null
-      const stickout = mine?.stickout ?? option?.stickout ?? null
-      commit(
-        addChoice(sheet, choiceKey, {
-          toolGuid: saved.guid,
-          ...(option ? { holderGuid: option.holder.guid } : {}),
-          ...(mine?.colletGuid
-            ? { colletGuid: mine.colletGuid }
-            : option?.collet
-              ? { colletGuid: option.collet.guid }
-              : {}),
-          ...(stickout === null ? {} : { stickout }),
-        }),
-      )
-    },
-    [picked, holderFilters, curve, margins, thresholds, commit, sheet, choiceKey],
-  )
 
   /** Identical holes are one decision — `shared/part-interaction` says why. */
   const groupOf = useCallback(
@@ -4441,6 +4194,66 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     return filterComponents('holder', offered.shown, holderQuery).length - holderRows.length
   }, [noCollet, holderRows, offered, holderQuery])
 
+  /**
+   * The whole holder funnel, on demand, for somebody looking at an empty rack.
+   *
+   * **A row that is not there says nothing about which rule removed it.** Five
+   * gates stand between the crib and the table and every one of them fails
+   * identically on screen, so "why are there no hydraulic or shrink-fit holders
+   * for this feature" cannot be answered by looking. `holderReport` re-asks the
+   * same rules over the same lists and counts the answers.
+   *
+   * Dev only, and reached from the console rather than from the page:
+   * `__holderDebug()` prints it and returns it, so it can be copied out. There
+   * is no UI for it because it is a question asked while something is already
+   * wrong, not a thing the page offers.
+   */
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return
+    }
+    const report = (): string => {
+      const text = holderReport({
+        about: [
+          `job ${jobId}`,
+          askedNow.tags.length === 0
+            ? 'no feature asked'
+            : `feature tags [${askedNow.tags.join(', ')}]`,
+          assembly === null ? 'no assembly' : `assembly ${assembly.id} (role ${assembly.role})`,
+          `slot ${componentSlot ?? 'tool'}`,
+        ].join(' · '),
+        dataset: builtAt,
+        holders: allHolders,
+        collets: allCollets,
+        tools: asking ? stackShanks : null,
+        chosenTool: treeTool,
+        chosenCollet: treeCollet,
+        filters: holderFilters,
+        canDraw: (holder) => drawable(holder, (guid) => getProfile(guid) !== null),
+        inQuery: (holder) => filterComponents('holder', [holder], holderQuery).length > 0,
+        noCollet,
+      })
+      console.log(text)
+      return text
+    }
+    ;(window as unknown as { __holderDebug?: () => string }).__holderDebug = report
+    return () => {
+      delete (window as unknown as { __holderDebug?: () => string }).__holderDebug
+    }
+  }, [
+    jobId,
+    askedNow,
+    assembly,
+    componentSlot,
+    asking,
+    stackShanks,
+    treeTool,
+    treeCollet,
+    holderFilters,
+    holderQuery,
+    noCollet,
+  ])
+
   const colletPool = useMemo(
     // The same rule the holder slot follows, for the same reason: a collet
     // closing on nothing this feature can be cut with is not a row to click.
@@ -5010,24 +4823,22 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     if (panelTool === null) {
       return []
     }
-    const held = holding.chosen(panelTool)
-    const first = distinctIn(askedNow.tags)[0]?.[0]
-    const line = first === undefined ? null : chosenFor(sheet, first, panelTool.guid)
     const wanted = toolActions({
       active: asking && !askedNow.summary,
       mapped: mappedHere.length,
       here: mappedHere.includes(panelTool.guid),
-      assemblyChanged:
-        line !== null &&
-        ((line.holderGuid ?? null) !== held.holderGuid ||
-          (line.colletGuid ?? null) !== held.colletGuid),
+      /*
+        **The panel cannot change an assembly any more** (2026-09-11). It
+        compared its own holder and collet dropdowns against the ordered line,
+        and offered *Update* where the two differed. The dropdowns are gone —
+        a holder is a slot of the tree — so the panel holds nothing to differ
+        *with*, and reading the empty pick as a change would offer *Update* on
+        every tool ordered with a holder.
+      */
+      assemblyChanged: false,
     })
-    /** This tool, with whatever the panel has it held in. */
-    const asLine = {
-      toolGuid: panelTool.guid,
-      ...(held.holderGuid === null ? {} : { holderGuid: held.holderGuid }),
-      ...(held.colletGuid === null ? {} : { colletGuid: held.colletGuid }),
-    }
+    /** This tool alone: what holds it is the tree's answer, not this panel's. */
+    const asLine = { toolGuid: panelTool.guid }
     /*
       **Every tag being asked about, not the first of each distinct feature.**
       The tree writes a line under all of a row's keys and this wrote it under
@@ -5084,8 +4895,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     }))
   }, [
     panelTool,
-    holding,
-    distinctIn,
     askedNow,
     asking,
     sheet,
@@ -5313,19 +5122,15 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           )}
           feature={reading ? listTitle.replace(/^Cuts the /, '') : null}
           unit={unit}
-          // What the row already had chosen in its Holder and Collet columns,
-          // so the box opens on it rather than asking twice.
-          // What the row had chosen, or what the bill already holds for it —
-          // the pencil reopens the box on the decision it is editing.
+          // What the bill already holds for it — the pencil reopens the box on
+          // the decision it is editing. It read an unsaved pick off the row's
+          // Holder and Collet dropdowns first; those came off on 2026-09-11,
+          // so the sheet is the whole answer.
           holderGuid={
-            picked[adding.tool.guid]?.holderGuid ??
-            chosenFor(sheet, adding.featureTag ?? choiceKey, adding.tool.guid)?.holderGuid ??
-            null
+            chosenFor(sheet, adding.featureTag ?? choiceKey, adding.tool.guid)?.holderGuid ?? null
           }
           colletGuid={
-            picked[adding.tool.guid]?.colletGuid ??
-            chosenFor(sheet, adding.featureTag ?? choiceKey, adding.tool.guid)?.colletGuid ??
-            null
+            chosenFor(sheet, adding.featureTag ?? choiceKey, adding.tool.guid)?.colletGuid ?? null
           }
           onCancel={() => setAdding(null)}
           onConfirm={({ holderGuid, colletGuid }) => {
@@ -6916,8 +6721,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                   One sheet for every slot: the panel decides what goes under
                   the drawing, this decides what the drawing is of. No
                   `holding` — the holder and the collet are slots of the tree
-                  with tables of their own, so the panel offers no dropdowns;
-                  `stack` is what still draws them.
+                  with tables of their own, so the panel offers no dropdowns
+                  anywhere; `stack` is what draws them.
                 */
                 toolDetails={
                   treeTool === null
@@ -6956,13 +6761,13 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               <ToolDetails
                 tool={panelTool}
                 unit={unit}
-                holding={holding}
                 /*
-                  **Nothing is added from here any more** (Paul, 2026-09-02:
-                  "Add to list button can go away — we are now adding tools to
-                  the BOM by confirming the feature/tool mapping"). What the
-                  panel still owns is the *assembly*: a holder, a collet and, in
-                  time, a stickout, changed on a decision already made.
+                  **Nothing is assembled from here either** (2026-09-11). The
+                  panel offered a holder and a collet of its own until this
+                  branch was the last place they survived — the tree covers
+                  every state but this one, a tool read with no feature
+                  selected — so the page had two ways to fill one slot and no
+                  rule saying which won. What the panel does now is read.
                 */
                 mappedTo={mappedTo}
                 /*

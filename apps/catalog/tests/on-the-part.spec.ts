@@ -540,6 +540,19 @@ test('draws the material around the feature beside the tool being read', async (
   await page.keyboard.press('Escape')
   await expect(field(page)).toBeHidden()
   await expect(page.locator('[data-part="material"]')).toHaveCount(0)
+
+  /*
+    **And it offers no way to assemble the tool it is reading** (Paul,
+    2026-09-11). This is the one state the tool assembly tree does not cover —
+    nothing asked is nothing to assemble, so `treeKey` is null and the panel
+    falls through to `<ToolDetails>` on its own — and a Holder dropdown and a
+    Collet dropdown survived here for three days after the flag took them off
+    every other surface. Two ways to fill one slot, and no rule saying which
+    won. The panel reads a tool; the tree assembles one.
+  */
+  await expect(page.getByRole('img', { name: /drawn from its stated dimensions/ })).toBeVisible()
+  await expect(page.getByRole('combobox', { name: 'Holder' })).toHaveCount(0)
+  await expect(page.getByRole('combobox', { name: 'Collet' })).toHaveCount(0)
 })
 
 /**
@@ -3284,7 +3297,7 @@ test.describe('the tool assembly tree', () => {
   /**
    * **One sheet, whichever component is open.** Selecting a holder used to swap
    * the panel for a second drawing in a box of its own — which came out lying on
-   * its side, and took the Tool / Tool + holder switch away with it (Paul,
+   * its side, and took the zoom over the sheet away with it (Paul,
    * 2026-09-07). Only the column under the drawing changes now.
    */
   test('keeps one drawing, standing up, when a holder is selected', async ({ page }) => {
@@ -3298,12 +3311,52 @@ test.describe('the tool assembly tree', () => {
     await expect(page.getByRole('img', { name: /drawn from its stated dimensions/ })).toHaveCount(1)
     await upright(page)
 
-    // The switch that chooses what the sheet shows survives reading a holder.
-    await expect(page.getByRole('button', { name: 'Tool + holder' })).toBeVisible()
+    // The press that frames the sheet survives reading a holder.
+    await expect(page.getByRole('button', { name: 'Zoom to tool' })).toBeVisible()
     // And the column under it is the holder's, not the cutter's numbers.
     // Scoped to the definition list: the table's column header says this too.
     await expect(page.locator('dt').filter({ hasText: 'Collet series' })).toBeVisible()
     await expect(page.locator('dt').filter({ hasText: 'Corner radius' })).toHaveCount(0)
+  })
+
+  /**
+   * **The sheet takes the room, not 16 rem of it** (Paul, 2026-09-11: "be more
+   * aggressive about adjusting the viewer panel to match the available space").
+   *
+   * The drawing's scale is the smaller of the two ratios that fit its box, so
+   * on a panel taller than it is wide the width is what binds — and the box was
+   * capped at a flat 16 rem while the panel was half as wide again. The stack
+   * came out a third of the height it had room for, with empty sheet above and
+   * below it.
+   *
+   * The rule now is a ratio rather than a number, so the assertion is the same
+   * ratio: the sheet is as wide as the room, or three quarters of the room's
+   * height, whichever is less. Both halves matter — the first is the width it
+   * gained, the second is what keeps it upright on a panel dragged wide.
+   */
+  test('draws the sheet as wide as the room it is given', async ({ page }) => {
+    await ready(page)
+    await keepFeature(page)
+    await buildStack(page)
+    await upright(page)
+
+    const sheet = page.getByRole('img', { name: /drawn from its stated dimensions/ })
+    const room = page.locator('[data-sheet-room]')
+
+    await expect
+      .poll(
+        async () => {
+          const drawn = await sheet.boundingBox()
+          const given = await room.boundingBox()
+          if (drawn === null || given === null || drawn.width === 0) {
+            return null
+          }
+          // A pixel of slack: a derived width lands on a fraction.
+          return Math.abs(drawn.width - Math.min(given.width, given.height * 0.75)) <= 1
+        },
+        { timeout: 15_000 },
+      )
+      .toBe(true)
   })
 
   /**
