@@ -57,16 +57,22 @@ import { useTheme } from 'shared/use-theme'
  * Room reserved on the `+r` flank for the material, in pixels.
  *
  * A number, because `<ToolDrawing>` is told its padding before it has measured
- * anything. The drawing this replaces gave the material whatever the panel had
- * spare, which it could do only because it did its own framing; the package
- * clamps an over-large request back to `MOST_OF_A_PANEL` — 0.6 of the axis —
- * and scales the dimension bands back with it.
+ * anything — the caller has to guess, and the guess is the same on every sheet
+ * this application draws.
  *
- * That clamp is a guard, not a layout: on the part page's tool panel, 240 px
- * of a 400 px-tall sheet *is* the whole 0.6, so the assembly was crushed into
- * the top third and the dimension bands with it (2026-09-03). So the room is a
- * prop, and this is the wide card's default rather than everybody's — see
- * {@link CatalogDrawingProps.materialRoom}.
+ * **One figure, asked generously** (2026-09-11). It used to be a prop, because
+ * `padding` was priced as a *margin*: the package clamped an over-large request
+ * to 0.6 of the axis and paid for it out of the scale, so 240 px on the part
+ * page's ~400 px panel was the whole allowance and the assembly came out
+ * crushed into the top third (2026-09-03). The wide card asked for 240 and the
+ * panel had to ask for 130 to dodge that.
+ *
+ * `@toolpath/tool-drawing` 1.0.0 retired those semantics: `padding` is now a
+ * *reservation*, granted out of room the drawing itself cannot use, so asking
+ * for more than the panel has costs the drawing nothing and a narrow sheet
+ * simply grants what it has. The package's own guidance is to ask for as much
+ * as the widest sheet could use — which is one number, not a per-caller one, so
+ * the prop and the panel's smaller figure both came off.
  */
 export const MATERIAL_ROOM = 240
 
@@ -168,15 +174,6 @@ export interface CatalogDrawingProps {
    * beside a list has no button and takes the whole stack.
    */
   readonly zoom?: Zoom
-  /**
-   * Room reserved on the `+r` flank for the material, in pixels.
-   *
-   * The caller's, because only the caller knows how much sheet there is: the
-   * package measures its panel *after* it has been told its padding, so it
-   * cannot ask for a share of an axis it has not seen yet. A narrow panel
-   * passes less; {@link MATERIAL_ROOM} is what a full-width card wants.
-   */
-  readonly materialRoom?: number
 }
 
 /**
@@ -305,7 +302,6 @@ export const CatalogDrawing = ({
   onDimensionHover,
   measured = true,
   zoom = 'assembly',
-  materialRoom = MATERIAL_ROOM,
 }: CatalogDrawingProps) => {
   const [theme] = useTheme()
   const format = (millimetres: number) => formatLength(millimetres, unit)
@@ -339,7 +335,7 @@ export const CatalogDrawing = ({
       : null
 
   const overlaid = profile !== null && gaps !== null && outline !== null
-  const padding: Partial<Padding> = overlaid ? { plus: materialRoom } : {}
+  const padding: Partial<Padding> = overlaid ? { plus: MATERIAL_ROOM } : {}
 
   return (
     <ToolDrawing

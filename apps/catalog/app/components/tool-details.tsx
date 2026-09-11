@@ -86,19 +86,6 @@ const KEY_LABELS: Record<(typeof KEY_CODES)[number], string> = {
  */
 const UNLETTERED: ReadonlySet<string> = new Set(['LD', 'NOF'])
 
-/**
- * Room for the material on this panel's sheet, in pixels.
- *
- * The drawing card's own figure is `MATERIAL_ROOM`, 240, which is right on a
- * full-width `h-96` card and wrong here: this panel is a column beside the
- * part, `minSize={280}` wide and around 400 tall, and the package caps every
- * flank at 0.6 of the axis — so 240 was the whole allowance, taken from the
- * assembly and from the dimension bands that share it (2026-09-03). About a
- * third of the short axis leaves the tool the sheet and the material a band
- * wide enough to read.
- */
-const PANEL_MATERIAL_ROOM = 130
-
 export interface ToolDetailsProps {
   readonly tool: CatalogTool
   readonly unit: UnitSystem
@@ -441,7 +428,6 @@ export const ToolDetails = ({
               unit={unit}
               curve={curve}
               margins={margins}
-              materialRoom={PANEL_MATERIAL_ROOM}
               dimensions
               dimensionSides="both"
               highlight={pointed}
