@@ -1,19 +1,19 @@
 import { useRef, useState } from 'react'
 import { cn } from '@toolpath/ui'
-import { clampColumn, widestColumn, NARROWEST } from 'shared/column-width'
+import { clampPanel, widestPanel, NARROWEST } from 'shared/panel-width'
 
 /**
- * The right edge of the column over the part, as something to drag.
+ * The right edge of the panel over the part, as something to drag.
  *
  * **Widen it by pulling the edge** (Paul, 2026-09-11: "I should have the ability
  * to make the order list (and feature/group/tool assembly) wider by clicking the
- * edge and expanding to the right"). One column carries all of them, so this is
- * one handle, and `shared/column-width.ts` holds every number it clamps to.
+ * edge and expanding to the right"). One panel carries all of them, so this is
+ * one handle, and `shared/panel-width.ts` holds every number it clamps to.
  *
- * **It measures the viewer itself.** The clamp needs the room the column stands
+ * **It measures the viewer itself.** The clamp needs the room the panel stands
  * in, and the one place that room is known without threading a measurement
  * through the route is here, at the pointer: the handle walks up to the overlay
- * the column lives in and takes its offset parent, which is the viewer's own
+ * the panel lives in and takes its offset parent, which is the viewer's own
  * box. Measured at the press rather than held in state, so a window resized
  * between two drags is a different clamp rather than a stale one.
  *
@@ -22,10 +22,10 @@ import { clampColumn, widestColumn, NARROWEST } from 'shared/column-width'
  * canvas is the curtain `tests/on-the-part.spec.ts` § "at a laptop width"
  * exists for — six pixels centred on the edge is a handle; forty is a wall.
  */
-export interface ColumnResizerProps {
-  /** What the column is drawn at now, which is where a drag starts from. */
+export interface PanelResizerProps {
+  /** What the panel is drawn at now, which is where a drag starts from. */
   readonly width: number
-  /** A width dragged to, already the column's own — this clamps before calling. */
+  /** A width dragged to, already the panel's own — this clamps before calling. */
   readonly onResize: (width: number) => void
   /** Double-click: forget the stated width and put the defaults back. */
   readonly onReset: () => void
@@ -35,7 +35,7 @@ export interface ColumnResizerProps {
 const STEP = 16
 
 /**
- * The room the column has: the viewer it is drawn over.
+ * The room the panel has: the viewer it is drawn over.
  *
  * The overlay is `absolute` inside the viewer's `relative` section, so that
  * section is its offset parent and its width is the whole canvas — which is what
@@ -49,8 +49,8 @@ const roomFor = (handle: HTMLElement | null): number => {
   return overlay.offsetParent instanceof HTMLElement ? overlay.offsetParent.clientWidth : 0
 }
 
-export const ColumnResizer = ({ width, onResize, onReset }: ColumnResizerProps) => {
-  /** Where the drag started, and how wide the column was then. */
+export const PanelResizer = ({ width, onResize, onReset }: PanelResizerProps) => {
+  /** Where the drag started, and how wide the panel was then. */
   const from = useRef<{ readonly x: number; readonly width: number; readonly room: number } | null>(
     null,
   )
@@ -58,23 +58,23 @@ export const ColumnResizer = ({ width, onResize, onReset }: ColumnResizerProps) 
   const [room, setRoom] = useState(0)
 
   const moveTo = (wanted: number, against: number) => {
-    onResize(clampColumn(wanted, against))
+    onResize(clampPanel(wanted, against))
   }
 
   return (
     <div
       /*
         Not `data-over-part`: `spokenFor` measures what is in front of the part
-        to frame it beside, and the handle is the column's own edge. Measuring it
+        to frame it beside, and the handle is the panel's own edge. Measuring it
         would inset the part by the six pixels this hangs over, for nothing.
       */
       role="separator"
       aria-orientation="vertical"
-      aria-label="Drag to widen the column"
+      aria-label="Drag to widen the panel"
       title="Drag to widen — double-click to put it back"
       aria-valuenow={Math.round(width)}
       aria-valuemin={NARROWEST}
-      aria-valuemax={Math.round(widestColumn(room))}
+      aria-valuemax={Math.round(widestPanel(room))}
       tabIndex={0}
       onPointerDown={(event) => {
         const handle = event.currentTarget
@@ -116,7 +116,7 @@ export const ColumnResizer = ({ width, onResize, onReset }: ColumnResizerProps) 
       }}
       className={cn(
         /*
-          Centred on the edge — half over the column, half over the part — so the
+          Centred on the edge — half over the panel, half over the part — so the
           width the pointer aims at is the width it lands on. `cursor-col-resize`
           is the whole affordance until it is hovered, which is what keeps a
           permanent line off the geometry.

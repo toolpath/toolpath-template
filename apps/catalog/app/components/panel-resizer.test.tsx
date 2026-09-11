@@ -1,12 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { ColumnResizer } from './column-resizer'
-import { NARROWEST, OPENS_AT, OPENS_AT_FOR_A_GROUP } from 'shared/column-width'
+import { PanelResizer } from './panel-resizer'
+import { NARROWEST, OPENS_AT, OPENS_AT_FOR_A_GROUP } from 'shared/panel-width'
 
 /**
- * The handle on the right edge of the column over the part (Paul, 2026-09-11).
+ * The handle on the right edge of the panel over the part (Paul, 2026-09-11).
  *
- * What a width may *be* is `shared/column-width.ts` and pinned there. What is
+ * What a width may *be* is `shared/panel-width.ts` and pinned there. What is
  * pinned here is that the edge can be moved without a mouse at all, that a
  * double-click gives the defaults back, and that the handle is reported as a
  * separator with its two ends on it — a drag target nothing announces is a drag
@@ -18,11 +18,11 @@ import { NARROWEST, OPENS_AT, OPENS_AT_FOR_A_GROUP } from 'shared/column-width'
 const show = (width = OPENS_AT) => {
   const onResize = vi.fn()
   const onReset = vi.fn()
-  render(<ColumnResizer width={width} onResize={onResize} onReset={onReset} />)
+  render(<PanelResizer width={width} onResize={onResize} onReset={onReset} />)
   return { handle: screen.getByRole('separator'), onResize, onReset }
 }
 
-describe('the column handle', () => {
+describe('the panel handle', () => {
   it('says what it is and where its two ends are', () => {
     const { handle } = show(360)
 
@@ -31,7 +31,7 @@ describe('the column handle', () => {
     expect(handle).toHaveAttribute('aria-valuemin', String(NARROWEST))
   })
 
-  /** The arrows move the edge, so widening the column is not a mouse-only act. */
+  /** The arrows move the edge, so widening the panel is not a mouse-only act. */
   it('widens and narrows on the arrow keys', () => {
     const { handle, onResize } = show(320)
 
@@ -44,8 +44,8 @@ describe('the column handle', () => {
 
   /**
    * Rendered outside the viewer it measures, the clamp still has two ends —
-   * `widestColumn` answers a width rather than nothing for a room it cannot
-   * measure, which is what stops an arrow press snapping the column shut.
+   * `widestPanel` answers a width rather than nothing for a room it cannot
+   * measure, which is what stops an arrow press snapping the panel shut.
    */
   it('holds the narrowest against a press that would go under it', () => {
     const { handle, onResize } = show(NARROWEST)
@@ -63,7 +63,7 @@ describe('the column handle', () => {
     expect(onResize).not.toHaveBeenCalled()
   })
 
-  /** Double-click is the way back to what the box in the column opens at. */
+  /** Double-click is the way back to what the box in the panel opens at. */
   it('puts the defaults back on a double-click', () => {
     const { handle, onReset } = show(OPENS_AT_FOR_A_GROUP)
 

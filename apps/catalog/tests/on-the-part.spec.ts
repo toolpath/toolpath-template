@@ -1957,24 +1957,24 @@ test.describe('at a laptop width', () => {
 })
 
 /**
- * **The edge of the column is a handle** (Paul, 2026-09-11: "I should have the
+ * **The edge of the panel is a handle** (Paul, 2026-09-11: "I should have the
  * ability to make the order list (and feature/group/tool assembly) wider by
  * clicking the edge and expanding to the right").
  *
- * What a width may be is `shared/column-width.test.ts` and what the handle
- * announces is `components/column-resizer.test.tsx`; both are cheap. What only
+ * What a width may be is `shared/panel-width.test.ts` and what the handle
+ * announces is `components/panel-resizer.test.tsx`; both are cheap. What only
  * this file can reach is the drag itself — a pointer capture over the canvas,
  * against a viewer measured at the press — and the thing that drag must not do,
  * which is start an orbit of the part underneath it.
  */
-test.describe('widening the column over the part', () => {
-  const edge = (page: Page) => page.getByRole('separator', { name: 'Drag to widen the column' })
+test.describe('widening the panel over the part', () => {
+  const edge = (page: Page) => page.getByRole('separator', { name: 'Drag to widen the panel' })
 
-  /** The column, measured through the overlay it is the only child of. */
+  /** The panel, measured through the overlay it is the only child of. */
   const wide = async (page: Page) => {
     const box = await page.locator('[data-questions]').boundingBox()
     if (box === null) {
-      throw new Error('the column over the part is on screen')
+      throw new Error('the panel over the part is on screen')
     }
     return box.width
   }

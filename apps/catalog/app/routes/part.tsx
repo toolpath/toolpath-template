@@ -50,7 +50,7 @@ import { SelectionPanel } from 'components/selection-panel'
 import { PredrillChoice } from 'components/predrill-choice'
 import { FeatureListPanel } from 'components/feature-list-panel'
 import { AddBar } from 'components/add-bar'
-import { ColumnResizer } from 'components/column-resizer'
+import { PanelResizer } from 'components/panel-resizer'
 import { ComponentTally, KIND_LABEL, type ComponentTallyRow } from 'components/component-tally'
 import { NoColletToggle } from 'components/no-collet-toggle'
 import { ColletIcon, HolderIcon, ToolTypeIcon } from 'components/tool-icons'
@@ -115,7 +115,7 @@ import {
 } from 'shared/catalog'
 import { columnFilterOpen, useEscape } from 'shared/use-escape'
 import { assemblyPressEnabled, pressesShown, rowsShown } from 'shared/part-chrome'
-import { columnWidth, useColumnWidth } from 'shared/column-width'
+import { panelWidth, usePanelWidth } from 'shared/panel-width'
 import {
   COMPONENT_LIST,
   TOOL_LIST,
@@ -4489,18 +4489,18 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const addBarShown = pressesShown(box)
 
   /**
-   * How wide the one column over the part is (Paul, 2026-09-11: "I should have
+   * How wide the one panel over the part is (Paul, 2026-09-11: "I should have
    * the ability to make the order list (and feature/group/tool assembly) wider
    * by clicking the edge and expanding to the right").
    *
-   * The presses, the box, the fold and the rows are one column, so there is one
-   * width and its right edge is the handle — `components/column-resizer.tsx`.
-   * `shared/column-width.ts` is every rule about it: the two ends it clamps to,
+   * The presses, the box, the fold and the rows are one panel, so there is one
+   * width and its right edge is the handle — `components/panel-resizer.tsx`.
+   * `shared/panel-width.ts` is every rule about it: the two ends it clamps to,
    * the defaults a shop that has never dragged it gets, and why a stated width
    * outlives the group editor's wider default.
    */
-  const { stated: statedColumn, state: stateColumn } = useColumnWidth()
-  const columnWide = columnWidth(statedColumn, draft?.kind === 'group')
+  const { stated: statedPanel, state: statePanel } = usePanelWidth()
+  const panelWide = panelWidth(statedPanel, draft?.kind === 'group')
 
   /**
    * The holders on show: what can hold what is already in the stack, narrowed
@@ -6395,21 +6395,21 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         className="relative flex h-full min-h-0 shrink-0 flex-col items-start gap-2"
                         /*
                           A runtime value, so a style rather than a class: the
-                          column opens at what the box in it asks for and is
+                          panel opens at what the box in it asks for and is
                           whatever a shop has dragged it to after that —
-                          `columnWidth` in `shared/column-width.ts`.
+                          `panelWidth` in `shared/panel-width.ts`.
 
                           **A width and nothing else.** The ceiling belongs to
                           the drag, which measures the viewer at the press; a
                           `max-width` in *percent* here is not the same rule
                           written twice, it is a circle — the overlay this stands
                           in is shrink-to-fit, so the percentage resolves against
-                          the column's own width and squeezes it to a share of
+                          the panel's own width and squeezes it to a share of
                           itself. It cost the part a hundred pixels of inset
                           before `frames the part beside the boxes drawn over it`
                           caught it (2026-09-11).
                         */
-                        style={{ width: columnWide }}
+                        style={{ width: panelWide }}
                       >
                         {/*
                         **The three ways to add sit over the part, above
@@ -6979,15 +6979,15 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           **The right edge is a handle** (Paul, 2026-09-11: "I
                           should have the ability to make the order list (and
                           feature/group/tool assembly) wider by clicking the edge
-                          and expanding to the right"). One column carries all of
+                          and expanding to the right"). One panel carries all of
                           them, so one handle widens all of them at once, and
-                          `shared/column-width.ts` holds every number it clamps
+                          `shared/panel-width.ts` holds every number it clamps
                           to. Double-click puts the defaults back.
                         */}
-                        <ColumnResizer
-                          width={columnWide}
-                          onResize={stateColumn}
-                          onReset={() => stateColumn(null)}
+                        <PanelResizer
+                          width={panelWide}
+                          onResize={statePanel}
+                          onReset={() => statePanel(null)}
                         />
                       </div>
                     </div>

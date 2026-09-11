@@ -766,9 +766,9 @@ differently:
   press — past two fifths the camera stops moving the part aside
   (`frame-inset.ts` § `MOST_OF_IT`) and the rows sit over the geometry, which is
   a fair thing to ask for while reading a long list and not a reason to let the
-  part be dragged off screen. `app/shared/column-width.ts` is every number,
-  `app/components/column-resizer.tsx` the handle, and
-  `tests/on-the-part.spec.ts` § "widening the column over the part" the drag
+  part be dragged off screen. `app/shared/panel-width.ts` is every number,
+  `app/components/panel-resizer.tsx` the handle, and
+  `tests/on-the-part.spec.ts` § "widening the panel over the part" the drag
   itself — including that the edge takes the press so it never orbits the part
   underneath, and that a dozen pixels off it the canvas still does.
 - **An open editor folds the rows away**, and one button under it brings them
@@ -1024,8 +1024,8 @@ true of the work the worker does:
 | whether the rows are folded under the box    | `rowsShown`, `app/shared/part-chrome.ts`              |
 | whether the three presses are on screen      | `pressesShown`, same file                             |
 | where the part is framed, beside the column  | `app/shared/frame-inset.ts`                           |
-| how wide that column is, and its two ends    | `app/shared/column-width.ts`                          |
-| the handle on its right edge                 | `app/components/column-resizer.tsx`                   |
+| how wide that panel is, and its two ends     | `app/shared/panel-width.ts`                           |
+| the handle on its right edge                 | `app/components/panel-resizer.tsx`                    |
 | how tall the tool list opens                 | `TABLE_OPENS_AT`, `components/part-tool-table.tsx`    |
 | whether _+ Tool Assembly_ can be pressed     | `assemblyPressEnabled`, same file                     |
 | the row a reading already has, if any        | `rowFor`, `app/shared/feature-list.ts`                |
