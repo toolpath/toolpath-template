@@ -619,6 +619,25 @@ export const PartToolTable = ({
                     {column.code === 'catalogNumber' ? (
                       <>
                         <span className="font-mono text-zinc-100">{tool.catalogNumber}</span>
+                        {/*
+                          **The vendor's page is on the number** (Paul,
+                          2026-09-11), as it already is on the order list: the
+                          catalogue number is what a shop orders by and looks
+                          up, so the link belongs beside it rather than a cell
+                          away in Vendor.
+                        */}
+                        {tool.productLink === null ? null : (
+                          <a
+                            href={tool.productLink}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            aria-label={`Open ${tool.catalogNumber} at the vendor`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="text-info ml-1 shrink-0"
+                          >
+                            <ArrowSquareOutIcon />
+                          </a>
+                        )}
                         {here || elsewhere ? (
                           <span
                             className={cn(
@@ -641,22 +660,8 @@ export const PartToolTable = ({
                         )}
                       </>
                     ) : column.code === 'brand' ? (
-                      <span className="flex min-w-0 items-center gap-1">
-                        <span className="truncate text-zinc-400" title={tool.brand}>
-                          {tool.brand}
-                        </span>
-                        {tool.productLink === null ? null : (
-                          <a
-                            href={tool.productLink}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                            aria-label={`Open ${tool.catalogNumber} at the vendor`}
-                            onClick={(event) => event.stopPropagation()}
-                            className="shrink-0 text-info"
-                          >
-                            <ArrowSquareOutIcon />
-                          </a>
-                        )}
+                      <span className="truncate text-zinc-400" title={tool.brand}>
+                        {tool.brand}
                       </span>
                     ) : column.code === 'type' ? (
                       <span

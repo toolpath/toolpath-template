@@ -412,3 +412,46 @@ describe('the filters a heading asks', () => {
     expect(within(menu).queryByRole('textbox')).not.toBeInTheDocument()
   })
 })
+
+/**
+ * **The vendor's page is on the number** (Paul, 2026-09-11: move the vendor
+ * links from the vendor cells to the catalog number cells). The order list has
+ * read that way since 2026-09-01, and a link a cell away from the number it
+ * opens is the thing a shop reaches for by the number.
+ */
+describe('where a tool row carries the vendor link', () => {
+  const linked: CatalogTool = { ...first, productLink: 'https://example.com/T-20' }
+
+  it('hangs it off the catalog number', () => {
+    show({ tools: [linked] })
+
+    const link = screen.getByRole('link', { name: 'Open T-20 at the vendor' })
+    expect(link).toHaveAttribute('href', 'https://example.com/T-20')
+    expect(screen.getByText('T-20').parentElement).toContainElement(link)
+  })
+
+  it('leaves the vendor cell with nothing but the vendor', () => {
+    show({ tools: [linked] })
+
+    const brand = screen.getByTitle('Acme')
+    expect(brand.parentElement?.querySelector('a')).toBeNull()
+  })
+
+  /**
+   * And the press on it is not a press on the row: the number is where a row
+   * is clicked to select the tool, so the link has to stop there.
+   */
+  it('does not choose the tool when the link is pressed', () => {
+    const onChoose = show({ tools: [linked] })
+
+    fireEvent.click(screen.getByRole('link', { name: 'Open T-20 at the vendor' }))
+
+    expect(onChoose).not.toHaveBeenCalled()
+  })
+
+  it('draws no link where the vendor published none', () => {
+    show()
+
+    expect(screen.queryByRole('link', { name: /at the vendor/ })).toBeNull()
+  })
+})

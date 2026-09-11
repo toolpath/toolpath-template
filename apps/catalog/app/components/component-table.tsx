@@ -386,6 +386,25 @@ export const ComponentTable = ({
                       <>
                         <span className="font-mono text-zinc-100">{record.catalogNumber}</span>
                         {/*
+                          **The vendor's page is on the number** (Paul,
+                          2026-09-11), as it already is on the order list: the
+                          catalogue number is what a shop orders by and looks
+                          up, so the link belongs beside it rather than a cell
+                          away in Vendor.
+                        */}
+                        {record.productLink === null ? null : (
+                          <a
+                            href={record.productLink}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            aria-label={`Open ${record.catalogNumber} at the vendor`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="text-info ml-1 shrink-0"
+                          >
+                            <ArrowSquareOutIcon />
+                          </a>
+                        )}
+                        {/*
                           What is on the feature already, so a swap can be
                           backed out of by eye as well as by the Cancel beside
                           the drawing.
@@ -432,22 +451,8 @@ export const ComponentTable = ({
                         )}
                       </>
                     ) : column.code === 'brand' ? (
-                      <span className="flex min-w-0 items-center gap-1">
-                        <span className="truncate text-zinc-400" title={record.brand}>
-                          {record.brand}
-                        </span>
-                        {record.productLink === null ? null : (
-                          <a
-                            href={record.productLink}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                            aria-label={`Open ${record.catalogNumber} at the vendor`}
-                            onClick={(event) => event.stopPropagation()}
-                            className="shrink-0 text-info"
-                          >
-                            <ArrowSquareOutIcon />
-                          </a>
-                        )}
+                      <span className="truncate text-zinc-400" title={record.brand}>
+                        {record.brand}
                       </span>
                     ) : (
                       <ValueCell kind={kind} record={record} column={column} unit={unit} />

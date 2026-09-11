@@ -30,12 +30,16 @@ const holder: Holder = {
   provenance: {},
 }
 
-const show = (onQuery = vi.fn(), gap?: (guid: string) => string | null) => {
+const show = (
+  onQuery = vi.fn(),
+  gap?: (guid: string) => string | null,
+  records: Array<Holder> = [holder],
+) => {
   render(
     <div className="h-96">
       <ComponentTable
         kind="holder"
-        records={[holder]}
+        records={records}
         unit="millimeters"
         columns={HOLDER_COLUMNS}
         hiddenColumns={[]}
@@ -151,5 +155,36 @@ describe('a holder the crib has no collet for', () => {
     show(vi.fn(), () => null)
 
     expect(screen.queryByText('no collet')).toBeNull()
+  })
+})
+
+/**
+ * **The vendor's page is on the number** (Paul, 2026-09-11: move the vendor
+ * links from the vendor cells to the catalog number cells). The order list has
+ * read that way since 2026-09-01, and a link a cell away from the number it
+ * opens is the thing a shop reaches for by the number.
+ */
+describe('where a holder row carries the vendor link', () => {
+  const linked: Holder = { ...holder, productLink: 'https://example.com/BT30ER11060M' }
+
+  it('hangs it off the catalog number', () => {
+    show(vi.fn(), undefined, [linked])
+
+    const link = screen.getByRole('link', { name: 'Open BT30ER11060M at the vendor' })
+    expect(link).toHaveAttribute('href', 'https://example.com/BT30ER11060M')
+    expect(screen.getByText('BT30ER11060M').parentElement).toContainElement(link)
+  })
+
+  it('leaves the vendor cell with nothing but the vendor', () => {
+    show(vi.fn(), undefined, [linked])
+
+    const brand = screen.getByTitle('Kennametal')
+    expect(brand.parentElement?.querySelector('a')).toBeNull()
+  })
+
+  it('draws no link where the vendor published none', () => {
+    show()
+
+    expect(screen.queryByRole('link', { name: /at the vendor/ })).toBeNull()
   })
 })
