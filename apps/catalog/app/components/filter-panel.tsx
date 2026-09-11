@@ -1,6 +1,5 @@
-import { Button, cn, Input } from '@toolpath/ui'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { Button, cn, Input, Menu } from '@toolpath/ui'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   BookmarksSimpleIcon,
   CaretDownIcon,
@@ -17,9 +16,10 @@ import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { brandsOfFamily, brandsOfProductLine, getFamily } from 'shared/catalog'
 import { toggleTerm, type ToolQuery } from 'shared/filter'
 import { AXES_IN_TOOL_COLUMNS, AXES_PARKED } from 'shared/column-filters'
+import { MENU_GAP } from 'shared/menu-place'
 import { useEscape } from 'shared/use-escape'
 import { Chip, ChipGroup } from './chip'
-import { menuRoom, RangeFilter, type Bound, type Kind } from './column-filter'
+import { RangeFilter, type Bound, type Kind } from './column-filter'
 import { DrillDeviationFields } from './drill-deviation'
 import {
   ColletIcon,
@@ -431,131 +431,78 @@ const ToolbarFilterBody = ({
   onOpen: () => void
   children: ReactNode
 }) => {
-  const menu = useRef<HTMLDivElement>(null)
-  const press = useRef<HTMLDivElement>(null)
-  /**
-   * Where the box stands, in the window's own coordinates.
-   *
-   * **It is drawn over the page, not inside the bar** (Paul, 2026-09-11: "the
-   * part material filters go behind the table! They need to go up front!").
-   * These buttons float along the bottom of the viewer, and the viewer clips
-   * what it holds — so an `absolute` box opening downwards was cut off at the
-   * seam and what was left of it read as a menu hiding behind the tool list.
-   * Raising `z-index` cannot fix a clip. This is the same answer the column
-   * funnels reached (`column-filter.tsx` § `FilterMenu`): a portal, placed
-   * against the button it opened from and kept inside the window.
-   *
-   * `null` until it has been measured, and hidden while it is: the width is
-   * read off the box itself to line its right edge up with the button's.
-   */
-  const [at, setAt] = useState<{
-    readonly top: number | null
-    readonly bottom: number | null
-    readonly left: number
-    readonly height: number
-  } | null>(null)
+  /*
+    **The kit's `Menu`, rather than a box drawn under the button** (Paul,
+    2026-09-11: "the 'part material' menu", then "why aren't these menus just
+    using the menu component from @toolpath/ui?"). These buttons stand on the
+    strip that floats over the bottom of the viewer, and the viewer is a card
+    that clips — so the box was cut off at the card's edge whichever way it
+    opened, with the tool list showing through the rest of it. `Menu.Popover`
+    is a portal placed against its trigger and bounded by the window, which is
+    every part of the answer.
 
-  useLayoutEffect(() => {
-    if (!open) {
-      setAt(null)
-      return
-    }
-
-    const place = () => {
-      const anchor = press.current
-      if (anchor === null) {
-        return
-      }
-      const button = anchor.getBoundingClientRect()
-      const width = menu.current?.getBoundingClientRect().width ?? 0
-      /*
-        The chrome is the bar these buttons stand in, and the list under it:
-        a menu is kept inside the width of the thing it is narrowing rather
-        than only inside the window, so a filter at the right-hand end opens
-        over the table instead of off the side of it.
-      */
-      const chrome = anchor.closest('[data-list-chrome]')?.getBoundingClientRect()
-      const edgeLeft = Math.max(chrome?.left ?? 0, 8) + 8
-      const edgeRight = Math.min(chrome?.right ?? window.innerWidth, window.innerWidth) - 8
-      const left = Math.max(edgeLeft, Math.min(button.right - width, edgeRight - width))
-      /*
-        `menuRoom` is the rule the column funnels and the column picker follow —
-        take the room the screen leaves, and turn over where there is none. The
-        room below is the window's, not the viewer's: the box stands over the
-        table now rather than being cut off at its edge.
-      */
-      const room = menuRoom(button, window.innerHeight)
-      setAt({
-        top: room.upwards ? null : button.bottom + 4,
-        bottom: room.upwards ? window.innerHeight - button.top + 4 : null,
-        left,
-        height: room.height,
-      })
-    }
-
-    place()
-    window.addEventListener('resize', place)
-    /*
-      Capturing, so a scroll under an open menu — the tool list, or the column
-      of questions beside the part — moves it with the button it belongs to
-      rather than leaving it behind over the rows.
-    */
-    const onScroll = (event: Event) => {
-      if (event.target instanceof Node && menu.current?.contains(event.target) === true) {
-        return
-      }
-      place()
-    }
-    window.addEventListener('scroll', onScroll, true)
-    return () => {
-      window.removeEventListener('resize', place)
-      window.removeEventListener('scroll', onScroll, true)
-    }
-  }, [open])
-
+    Controlled, because which filter is open is the toolbar's business: opening
+    one closes the last.
+  */
   return (
-    <div ref={press} className="relative min-w-0">
-      <Button
-        type="button"
-        variant="muted"
-        size="sm"
-        aria-expanded={open}
-        onClick={onOpen}
-        className={cn(
-          'focus-visible:ring-info/60 flex w-full min-w-0 items-center gap-1.5 rounded border px-2 py-1 text-left text-xs transition focus-visible:ring-1 focus-visible:outline-none',
-          open || summary !== 'Any'
-            ? 'border-info/50 bg-info/10 text-zinc-100'
-            : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
-        )}
+    <Menu
+      open={open}
+      onOpenChange={(next) => {
+        if (next !== open) {
+          onOpen()
+        }
+      }}
+    >
+      {/*
+        **The kit's `Button` *is* the trigger**, rather than one wrapped in the
+        trigger's own element: `Menu.Trigger` renders a `role="button"` div by
+        default, and a button inside that is two controls with one name — which
+        is what a screen reader and `getByRole` both saw.
+      */}
+      <Menu.Trigger
+        nativeButton
+        render={
+          <Button
+            type="button"
+            variant="muted"
+            size="sm"
+            className={cn(
+              'focus-visible:ring-info/60 flex w-full min-w-0 items-center gap-1.5 rounded border px-2 py-1 text-left text-xs transition focus-visible:ring-1 focus-visible:outline-none',
+              open || summary !== 'Any'
+                ? 'border-info/50 bg-info/10 text-zinc-100'
+                : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
+            )}
+          >
+            <span className="shrink-0 text-zinc-600">{icon}</span>
+            <span className="min-w-0 flex-1 truncate">
+              {summary === 'Any' ? label : `${label}: ${summary}`}
+            </span>
+            <CaretDownIcon
+              className={cn('shrink-0 text-zinc-600 transition', open && 'rotate-180')}
+            />
+          </Button>
+        }
+      />
+      {/*
+        **Under its button, not flipped above it** (Paul, 2026-09-11: "don't
+        just show the menus above, that's a lazy solution"). This strip sits two
+        thirds of the way down the page, so a menu free to pick the roomier side
+        picks *above* every time and hangs over the part rather than over the
+        list it narrows. Pinned to the bottom, it opens where a menu belongs and
+        scrolls inside `--available-height`, which is the positioner's own
+        measurement of what is left there — and a hair off the button, so the
+        two read as a control and its answer.
+      */}
+      <Menu.Popover
+        data-tool-filter-menu
+        sideOffset={MENU_GAP}
+        side="bottom"
+        collisionAvoidance={{ side: 'none' }}
+        className="max-h-[var(--available-height)] w-[min(30rem,calc(100vw-2rem))] overflow-y-auto rounded-md border-zinc-800 bg-zinc-950 p-2 shadow-xl"
       >
-        <span className="shrink-0 text-zinc-600">{icon}</span>
-        <span className="min-w-0 flex-1 truncate">
-          {summary === 'Any' ? label : `${label}: ${summary}`}
-        </span>
-        <CaretDownIcon className={cn('shrink-0 text-zinc-600 transition', open && 'rotate-180')} />
-      </Button>
-      {open
-        ? createPortal(
-            <div
-              data-tool-filter-menu
-              ref={menu}
-              style={{
-                ...(at === null
-                  ? { top: 0, left: 0, visibility: 'hidden' }
-                  : {
-                      ...(at.top === null ? { bottom: at.bottom ?? 0 } : { top: at.top }),
-                      left: at.left,
-                      maxHeight: at.height,
-                    }),
-              }}
-              className="fixed z-50 w-[min(30rem,calc(100vw-2rem))] overflow-y-auto rounded-md border border-zinc-800 bg-zinc-950 p-2 shadow-xl"
-            >
-              {children}
-            </div>,
-            document.body,
-          )
-        : null}
-    </div>
+        {children}
+      </Menu.Popover>
+    </Menu>
   )
 }
 
@@ -665,8 +612,21 @@ const useCloseOnOutside = (open: boolean, close: () => void) => {
     }
     const onDown = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null
-      if (box.current?.contains(target) === true) {
+      if (target === null) {
+        close()
         return
+      }
+      /*
+        **A menu drawn on the page is still inside the strip that opened it.**
+        `ToolbarFilterBody` puts its box in a portal so the viewer card cannot
+        clip it, which takes it out of this element — and a press on the thing
+        somebody just opened read as a press outside and shut it again.
+      */
+      if (target.closest('[data-tool-filter-menu]') !== null) {
+        return
+      }
+      if (!box.current?.contains(target)) {
+        close()
       }
       /*
         **A menu drawn in a portal is still inside the thing that opened it.**

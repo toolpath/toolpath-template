@@ -769,10 +769,12 @@ test('filters open from the bar floating over the bottom of the part', async ({ 
     expect(toolbarBox!.y + toolbarBox!.height).toBeLessThanOrEqual(rowsBox!.y)
   }).toPass()
 
+  // And the rows under it end where the panel ends — see "the columns divide
+  // the panel" below, which is where that rule is pinned.
   const tableScroll = page.locator('[data-part-tool-table] .hide-scrollbar').first()
   await expect(tableScroll).toBeVisible()
   expect(await tableScroll.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(
-    true,
+    false,
   )
 
   // What no column shows is on the toolbar, answerable without a press first.
@@ -796,6 +798,443 @@ test('filters open from the bar floating over the bottom of the part', async ({ 
   await expect(types.getByRole('checkbox', { name: 'Tap right hand' })).toBeVisible()
   await expect(types.getByRole('checkbox', { name: /Reduced shank/ })).toHaveCount(0)
   await expect(types.getByRole('checkbox', { name: 'Circle segment taper' })).toHaveCount(0)
+})
+
+/**
+ * The tracks the list is laid out on, and whether they fit the box it is in.
+ *
+ * Read off the scroll container rather than off the header cells, because what
+ * went wrong was the *sum*: every column came out at 192px whatever it asked
+ * for, and the thirteen of them added up to 2120px inside an 1169px panel.
+ */
+const tableFit = (page: Page) =>
+  page.evaluate(() => {
+    const holder = document.querySelector('[data-part-tool-table]')
+    const scroller = holder?.querySelector('.hide-scrollbar')
+    const table = holder?.querySelector('[data-table-library_table]')
+    if (
+      !(scroller instanceof HTMLElement) ||
+      !(table instanceof HTMLElement) ||
+      !(holder instanceof HTMLElement)
+    ) {
+      throw new Error('the tool list is on screen')
+    }
+    return {
+      // What the columns add up to, against the room they have.
+      table: table.offsetWidth,
+      room: scroller.clientWidth,
+      // The gutter a scrollbar reserves, which should be none of it.
+      gutter: scroller.offsetWidth - scroller.clientWidth,
+      columns: holder.querySelectorAll('[role="columnheader"]').length,
+    }
+  })
+
+/**
+ * **The columns divide the panel; they do not overflow it** (Paul, 2026-09-11:
+ * "on load, the table extends outside of the bounds of the container. On
+ * clicking to resize a column all of the columns then snap to fit").
+ *
+ * Both halves of that were true and neither was a coincidence. The list asked
+ * for `minmax(10rem, 1fr)` tracks under a table pinned to `min-width:
+ * max-content`, and under max-content sizing every `1fr` track resolves to the
+ * *widest* floor it was handed — so thirteen columns opened at 192px each,
+ * 2120px of them inside an 1169px panel, with only the largest entry in the
+ * width map doing anything at all. Touching a resize handle then rewrote the
+ * tracks as percentages of the box, which is the layout it should have opened
+ * at: the fix is to open at it. `app/shared/column-width.ts` is the rule.
+ *
+ * Three moments, because the layout is settled in three different ways: by CSS
+ * on load, by CSS again when the window changes, and by
+ * `shared/use-fitted-columns` after a drag has frozen a layout onto the table
+ * that the column set has since outgrown. A list that fits on load and breaks
+ * on the first column somebody hides is the defect this is here for.
+ */
+test('the columns divide the panel, at every width and column set', async ({ page }) => {
+  await ready(page)
+  await keepFeature(page)
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+
+  const opened = await tableFit(page)
+  expect(opened.table).toBe(opened.room)
+  // No scrollbar, and so no strip of dead ground reserved for one.
+  expect(opened.gutter).toBe(0)
+
+  await page.setViewportSize({ width: 1200, height: 1000 })
+  await expect(async () => {
+    const resized = await tableFit(page)
+    expect(resized.room).toBeLessThan(opened.room)
+    expect(resized.table).toBe(resized.room)
+  }).toPass()
+
+  /*
+    A drag first, because dragging is what freezes a layout onto the table:
+    the kit's resizer writes the tracks inline, outside React, and they name
+    the columns that were there when the mouse went down.
+  */
+  const handle = page.locator('[data-part-tool-table] .resizer-area').first()
+  const grip = await handle.boundingBox()
+  expect(grip).not.toBeNull()
+  await page.mouse.move(grip!.x + grip!.width / 2, grip!.y + grip!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(grip!.x + grip!.width / 2 + 40, grip!.y + grip!.height / 2, { steps: 5 })
+  await page.mouse.up()
+
+  // Retried: a drag is five synthetic mouse moves, and a loaded machine can
+  // read the box between the last of them and the layout that follows it.
+  let dragged = await tableFit(page)
+  await expect(async () => {
+    dragged = await tableFit(page)
+    expect(dragged.table).toBe(dragged.room)
+  }).toPass()
+
+  await page.getByRole('button', { name: 'Which columns to show' }).first().click()
+  const columns = page.getByRole('group', { name: 'Columns' }).first()
+  await expect(columns).toBeVisible()
+  await columns.getByRole('checkbox', { name: 'Flutes' }).click()
+  await page.keyboard.press('Escape')
+
+  await expect(async () => {
+    const fewer = await tableFit(page)
+    expect(fewer.columns).toBe(dragged.columns - 1)
+    expect(fewer.table).toBe(fewer.room)
+  }).toPass()
+})
+
+/**
+ * **A column the list would have turned on stays off once somebody turns it
+ * off** (Paul, 2026-09-11: "I hide corner radius and tip angle … I hit refresh.
+ * They come back. Local storage also changes to add them back in.").
+ *
+ * Corner radius and tip angle are the two the list decides for itself —
+ * `shared/auto-columns.ts` — until somebody decides instead, and that decision
+ * is stored with the rest of the layout. What broke it was the rule reading its
+ * two inputs out of two different states: on the frame where the stored layout
+ * is restored, the hidden set was already the restored one and the record of
+ * what somebody had decided was still the empty default, so the rule concluded
+ * nobody had decided and turned the column back on — over the top of the answer
+ * in storage. `shared/column-layout.ts` § `setHidden` is the fix.
+ *
+ * **The feature has to be on the order list for this to bite**, and that is the
+ * whole reason it is here rather than in a component test: the race needs the
+ * tool list to be populated on the first render, and a part page with nothing
+ * ordered has no tools until they arrive a tick later. A reload with the
+ * feature kept is the shop's ordinary case and the one that reproduces.
+ */
+test('keeps a column the shop turned off, even one the list decides for itself', async ({
+  page,
+}) => {
+  await ready(page)
+  /*
+    **Ordered, not merely read.** The race needs the tool list populated on the
+    *first* render after a reload, and that only happens when the page comes
+    back with something on the order list — a part page with nothing ordered has
+    no tools until they arrive a tick later, which is late enough for the
+    restored layout to have landed first. So this is the press under the card
+    that `ready` opened rather than `keepFeature`, which opens a row without
+    ordering it.
+  */
+  await page.getByRole('button', { name: /Add feature to list/ }).click()
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+
+  const headings = () =>
+    page.locator('[data-part-tool-table]').first().getByRole('columnheader').allInnerTexts()
+  const shows = async (label: string) =>
+    (await headings()).some((heading) => heading.includes(label))
+
+  // The list turned it on for the end mills it is holding, which is the rule
+  // this is about: there is something to undo.
+  expect(await shows('Corner radius')).toBe(true)
+
+  await page.getByRole('button', { name: 'Which columns to show' }).first().click()
+  const columns = page.getByRole('group', { name: 'Columns' }).first()
+  await expect(columns).toBeVisible()
+  await columns.getByRole('checkbox', { name: 'Corner radius' }).click()
+  await page.keyboard.press('Escape')
+  await expect(async () => {
+    expect(await shows('Corner radius')).toBe(false)
+  }).toPass()
+
+  await page.reload()
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+
+  /*
+    **Waited out rather than polled for.** This is an assertion that something
+    does *not* happen, and the thing that used to happen took a beat: the rule
+    runs when the tool list is populated, which is after the first row is on
+    screen. A `toPass` succeeds on its first look — before the defect has had
+    its say — and passed against the broken code when this was written.
+
+    Asserted twice over, because the defect wrote as well as drew: the column
+    came back *and* the answer in storage was replaced with one that had it
+    showing, so a shop could not fix it by reloading again either.
+  */
+  await page.waitForTimeout(2000)
+  expect(await shows('Corner radius')).toBe(false)
+  expect(
+    await page.evaluate(
+      () =>
+        (
+          JSON.parse(localStorage.getItem('tool-catalog.columns.tools')!) as {
+            hidden: Array<string>
+          }
+        ).hidden,
+    ),
+  ).toContain('RE')
+})
+
+/**
+ * **A dragged width is kept, and kept only for the columns it was about**
+ * (Paul, 2026-09-11: "the column widths should be stored in local storage but
+ * invalidate the old stores/ids every time a column is added or hidden. The
+ * table id controls the local storage so the id needs to be changed to be the
+ * cache breaker").
+ *
+ * What `@toolpath/ui` writes is a grid track list — percentages in the order
+ * the columns were in when the handle was let go. It is positional and silent
+ * about which column each track was for, and the kit only guards a change in
+ * the *count*. So the column set is the id, and the rules are in
+ * `app/shared/column-width.ts`.
+ *
+ * Only a real browser can answer this one: the write happens on `mouseup`
+ * inside the kit, and nothing in jsdom can drag.
+ */
+test('keeps a dragged column width, and drops every one when the columns change', async ({
+  page,
+}) => {
+  await ready(page)
+  await keepFeature(page)
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+
+  /**
+   * How much of the list the first column takes, in hundredths.
+   *
+   * A **share**, not a width in pixels: what the kit stores is percentages of
+   * the box, and the box is not the same size on the next visit — the column of
+   * questions over the part is a different width once a feature is on the order
+   * list, and the list gets what is left. Comparing pixels across the reload
+   * compares two panels.
+   *
+   * Named, not `.first()`: the kit draws an 8px selection column ahead of them.
+   */
+  const firstShare = async () => {
+    const heading = page
+      .locator('[data-part-tool-table]')
+      .first()
+      .getByRole('columnheader', { name: /Catalog number/ })
+    /*
+      Waited for, not read: a heading that has mounted but not been laid out is
+      visible and has no box, and this runs right after a reload and again
+      after the columns change. Six of six repeats failed on a loaded machine
+      with `Cannot read properties of null` before this — the same trap
+      `cube-fixture.ts` documents for the canvas.
+    */
+    let box = await heading.boundingBox()
+    await expect(async () => {
+      box = await heading.boundingBox()
+      expect(box).not.toBeNull()
+    }).toPass({ timeout: 15_000 })
+    const { room } = await tableFit(page)
+    return Math.round((box!.width / room) * 100)
+  }
+
+  const stores = () =>
+    page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('table-')))
+
+  const columnCount = () =>
+    page.locator('[data-part-tool-table]').first().getByRole('columnheader').count()
+
+  const opened = await firstShare()
+  const shownAtDrag = await columnCount()
+
+  const handle = page.locator('[data-part-tool-table] .resizer-area').first()
+  const grip = await handle.boundingBox()
+  expect(grip).not.toBeNull()
+  await page.mouse.move(grip!.x + grip!.width / 2, grip!.y + grip!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(grip!.x + grip!.width / 2 + 60, grip!.y + grip!.height / 2, { steps: 5 })
+  await page.mouse.up()
+
+  const dragged = await firstShare()
+  expect(dragged).toBeGreaterThan(opened + 3)
+  /*
+    Stored under the columns it was dragged on: the kit writes under
+    `table-<id>`, and the id is this list and the whole set it is drawing, in
+    order — `app/shared/column-width.ts` names it.
+
+    Asserted as "one of these keys is the tool list's" rather than as the only
+    key there, because the kit writes a layout of its own accord as the list
+    settles; what this test is about is whether the *width* survives, which the
+    reload below is what answers.
+  */
+  const stored = (await stores()).filter((each) => each.startsWith('table-part-tools.'))
+  expect(stored.length).toBeGreaterThan(0)
+
+  /*
+    And it is still there on the next visit. Asserted on the store rather than
+    on the pixels: the kit restores by id, and which id this list settles on
+    depends on what is on it — `shared/auto-columns.ts` brings corner radius and
+    tip angle on for the forms the list happens to be holding, so the column set
+    after a reload is not reliably the one a drag was stored under. That the
+    drag *survives* is this half; that it is only ever applied to its own column
+    set is `shared/column-width.test.ts`.
+  */
+  await page.reload()
+  await ready(page)
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+  expect(await stores()).toEqual(expect.arrayContaining(stored))
+
+  /*
+    And now the invalidation (Paul, 2026-09-11: "I don't want columns to change
+    size as I show and hide columns. Go back to the default sizes."). Hiding one
+    column drops **every** stored width, so the list is back on the tracks it
+    computes rather than on eleven percentages meant for twelve columns.
+  */
+  await page.getByRole('button', { name: 'Which columns to show' }).first().click()
+  const columns = page.getByRole('group', { name: 'Columns' }).first()
+  await expect(columns).toBeVisible()
+  await columns.getByRole('checkbox', { name: 'Flutes' }).click()
+  await page.keyboard.press('Escape')
+
+  await expect(async () => {
+    expect(await columnCount()).toBe(shownAtDrag - 1)
+    expect(await stores()).toEqual([])
+  }).toPass()
+
+  /*
+    Back on the share the tracks give it — `minmax(0, 10fr)` against the weights
+    beside it — rather than on the one that was dragged.
+
+    Not equal to the share it opened at, and correctly so: a column has gone, so
+    the ten weights left divide the box between fewer of them and every share
+    rises a little. What it must not be is the dragged one, and the panel
+    filling exactly is what says the list is back on its own tracks.
+  */
+  expect(await firstShare()).toBeLessThan(dragged - 2)
+  const fit = await tableFit(page)
+  expect(fit.table).toBe(fit.room)
+
+  /*
+    And it does not come back on the next visit — the drag is genuinely gone
+    rather than merely not applied this time.
+
+    Asserted on the share and not on an empty store, because the store does not
+    stay empty: the kit writes its current layout on any mouse-up once it has
+    one in hand, so a key for the columns now on screen reappears within a click
+    or two. What it holds is the tracks the list computed, which is the point.
+  */
+  await page.reload()
+  await ready(page)
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+  expect(await firstShare()).toBeLessThan(dragged - 2)
+})
+
+/**
+ * **A shop sets its columns once** (Paul, 2026-09-11: "save column order and
+ * visibility in local storage").
+ *
+ * Cutting a thirteen-column list down to what somebody compares on, and
+ * dragging those into the order they read them in, is a decision about how the
+ * shop works rather than about this part — and it was thrown away on every
+ * reload. `app/shared/column-layout.ts` is the rule, and its own tests cover
+ * what a stored answer means once the catalog's columns have moved under it;
+ * this is the half only a real browser can answer: that the write happens, that
+ * the read happens, and that the table drawn afterwards is the stored one.
+ *
+ * **Deliberately not what happens to a column's *width*.** That is not stored,
+ * because the kit stores widths positionally and hiding one column re-applies
+ * every width to the wrong column — see "the columns divide the panel" above.
+ */
+test('remembers which columns are shown, and their order, across a reload', async ({ page }) => {
+  await ready(page)
+  await keepFeature(page)
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+
+  const headings = () =>
+    page.locator('[data-part-tool-table]').first().getByRole('columnheader').allInnerTexts()
+
+  const opened = await headings()
+  expect(opened.some((heading) => heading.includes('Flutes'))).toBe(true)
+  expect(opened.some((heading) => heading.includes('Shank'))).toBe(false)
+
+  await page.getByRole('button', { name: 'Which columns to show' }).first().click()
+  const columns = page.getByRole('group', { name: 'Columns' }).first()
+  await expect(columns).toBeVisible()
+  // One off and one on, so both halves of "which columns" are being asked.
+  await columns.getByRole('checkbox', { name: 'Flutes' }).click()
+  await columns.getByRole('checkbox', { name: 'Shank' }).click()
+  // Up two places, by the keyboard: the drag is the same rule and nothing a
+  // test can do honestly — `movedBy` in `shared/column-order.ts`.
+  await columns.getByRole('button', { name: 'Move shank' }).click()
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('Escape')
+
+  const chosen = await headings()
+  expect(chosen.some((heading) => heading.includes('Flutes'))).toBe(false)
+  expect(chosen.some((heading) => heading.includes('Shank'))).toBe(true)
+
+  await page.reload()
+  await ready(page)
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+
+  // The same columns, in the same order, and still filling the panel.
+  await expect(async () => {
+    expect(await headings()).toEqual(chosen)
+  }).toPass()
+  const fit = await tableFit(page)
+  expect(fit.table).toBe(fit.room)
+})
+
+/**
+ * **A menu belongs to the page, not to the card it was opened from** (Paul,
+ * 2026-09-11: "the 'which columns to show' menu is now hidden behind the table
+ * when opened. Same with the 'part material' menu").
+ *
+ * The strip carrying both of these buttons floats over the bottom of the
+ * viewer, and the viewer is a card with `overflow: hidden` — so each box was
+ * cut off at the card's bottom edge, with the tool list showing through where
+ * the rest of it should have been. Opening them upwards would have hidden that
+ * rather than fixed it: a menu with half the window under it belongs under its
+ * button. Both are portals placed by `shared/menu-place` now, the arrangement
+ * the column funnels already needed.
+ *
+ * Asked by hit-testing rather than by reading a `z-index`, because what was
+ * wrong was a clip and not a stacking order, and neither is visible in a style.
+ */
+test('the menus over the part are drawn over the table, not clipped by the card', async ({
+  page,
+}) => {
+  await ready(page)
+  await keepFeature(page)
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+
+  /** What is actually painted at the middle of the box, and at its bottom edge. */
+  const reaches = (menu: Locator) =>
+    menu.evaluate((box) => {
+      const rect = box.getBoundingClientRect()
+      const hits = (y: number) => document.elementFromPoint(rect.x + rect.width / 2, y)
+      return {
+        middle: box.contains(hits(rect.y + rect.height / 2)),
+        // One pixel inside the bottom edge — where a clip takes the box away.
+        bottom: box.contains(hits(rect.bottom - 1)),
+        height: rect.height,
+      }
+    })
+
+  await page.getByRole('button', { name: 'Which columns to show' }).first().click()
+  const columns = page.getByRole('group', { name: 'Columns' }).first()
+  await expect(columns).toBeVisible()
+  expect(await reaches(columns)).toMatchObject({ middle: true, bottom: true })
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('button', { name: 'Part material' }).first().click()
+  const material = page.locator('[data-tool-filter-menu]').first()
+  await expect(material).toBeVisible()
+  expect(await reaches(material)).toMatchObject({ middle: true, bottom: true })
+
+  // And it is still a menu: a press inside it answers rather than closing it.
+  await material.getByRole('button', { name: /Steel/ }).click()
+  await expect(material).toBeVisible()
 })
 
 /**

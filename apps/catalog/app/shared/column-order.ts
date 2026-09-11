@@ -50,3 +50,41 @@ export const movedBy = (order: ReadonlyArray<string>, code: string, by: number):
   const from = order.indexOf(code)
   return from === -1 ? [...order] : movedTo(order, code, from + by)
 }
+
+/** Which side of a row a dragged column would land on, or nothing over its own row. */
+export type DropEdge = 'above' | 'below'
+
+/**
+ * Where the line goes while a column is being dragged over a row.
+ *
+ * **A drag with no line is a guess** (Paul, 2026-09-11: "the list should show a
+ * blue line (2px horizontal) where the item will be dropped to help the user
+ * see where it will go"). The picker moved a column on drop and said nothing
+ * before it, so the only way to find out where a row would land was to drop it
+ * and look.
+ *
+ * The edge is decided by {@link movedTo} rather than chosen to look right: that
+ * function lifts the code out *before* reading the index, so dropping on a row
+ * below where the drag started lands **after** that row, and dropping on one
+ * above lands **before** it. Say [A, B, C, D] and drag A onto C — without A the
+ * list is [B, C, D] and inserting at 2 gives [B, C, A, D], which is under C.
+ * Drag D onto B and the same arithmetic puts it over B. A line drawn any other
+ * way is a line that lies about the drop.
+ *
+ * @param order the codes as the list is drawing them.
+ * @param held the code being dragged.
+ * @param over the index of the row the pointer is on.
+ */
+export const dropEdge = (
+  order: ReadonlyArray<string>,
+  held: string,
+  over: number,
+): DropEdge | null => {
+  const from = order.indexOf(held)
+  // Nothing over the row being dragged, and nothing for a code this list has
+  // never heard of: neither is a drop that would move anything.
+  if (from === -1 || from === over || over < 0 || over >= order.length) {
+    return null
+  }
+  return from < over ? 'below' : 'above'
+}

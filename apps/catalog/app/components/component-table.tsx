@@ -12,6 +12,8 @@ import { Table, cn } from '@toolpath/ui'
 import type { Collet, Holder } from '@toolpath/catalog-data'
 import type { UnitSystem } from '@toolpath/tool-support'
 import { orderedCodes } from 'shared/column-order'
+import { DEFAULT_COLUMN_WIDTH, fillingWidth, widthId } from 'shared/column-width'
+import { useFittedColumns } from 'shared/use-fitted-columns'
 import {
   colletTypeLabel,
   familyLabel,
@@ -146,7 +148,8 @@ interface Selection {
   readonly ids: Array<string>
 }
 
-const flexible = (width: string): string => `minmax(${width}, 1fr)`
+/** The grid track a column asks for — `shared/column-width` owns the rule. */
+const flexible = fillingWidth
 
 const columnsShown = (
   columns: ReadonlyArray<ComponentColumn>,
@@ -239,6 +242,11 @@ export const ComponentTable = ({
   /** The open column, or nothing where it has since been hidden. */
   const openColumn = shown.find((column) => column.code === openFilter) ?? null
   const inside = useRef<HTMLDivElement>(null)
+  const codes = useMemo(() => shown.map((column) => column.code), [shown])
+  /** Where the kit keeps what somebody dragged — `PartToolTable` says why. */
+  const widths = widthId(`part-${kind}s`, codes)
+  // The columns divide the panel, the same rule the tool list keeps.
+  useFittedColumns(inside, codes.join(' '))
   /**
    * Whose move the selection was — the same guard `PartToolTable` keeps, and
    * for the same reason: without it the row the tree already holds is reported
@@ -339,7 +347,7 @@ export const ComponentTable = ({
               return String(a).localeCompare(String(b), 'en', { numeric: true })
             })
           }
-          width={flexible(WIDTH[column.code] ?? '6rem')}
+          width={flexible(WIDTH[column.code] ?? DEFAULT_COLUMN_WIDTH)}
         >
           {heading(column.code, column.label)}
         </Table.HeaderCell>
@@ -354,8 +362,9 @@ export const ComponentTable = ({
       className={cn(TABLE_FACE, TABLE_INK, 'flex min-h-0 min-w-0 flex-1 flex-col')}
     >
       <div className="min-h-0 flex-1">
+        {/* An id named after the columns, and no `min-w-max`: `PartToolTable` says why. */}
         <Table
-          id={`part-${kind}s`}
+          id={widths}
           data={data}
           header={header}
           select
@@ -363,7 +372,6 @@ export const ComponentTable = ({
           setSelectedRows={setSelection}
           scrollable
           virtualized={virtualized}
-          className="min-w-max"
           empty={
             <Table.Empty
               emptyButtonLabel={
