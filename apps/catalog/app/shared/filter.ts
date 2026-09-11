@@ -211,6 +211,39 @@ export const ownBounds = (
   return own
 }
 
+/**
+ * The columns whose number the geometry set and somebody took away.
+ *
+ * **An empty box means unbounded, and unbounded includes the rules** (Paul,
+ * 2026-09-11: "when I remove a value for min or max, it is not showing tools
+ * down to the smallest or largest tool in the library with a feature or group
+ * active"). Clearing a bound took the *filter* off and left the `must` rows
+ * that wrote it judging every tool exactly as before — and the one way to set
+ * those aside, the tick in that column's dialog, was offered only while a
+ * number stood in the box. So the list could not be widened by clearing it and
+ * could not be widened by the control either: each half of "show me
+ * everything" was behind the other.
+ *
+ * The number and the forgiveness stay one decision, which is what
+ * {@link ownBounds} above and `part.tsx` § `overrideFor` have said since
+ * 2026-09-09 — it is the *number* that is different here. No bound at all is
+ * the loosest thing a column can say, so the rules go with it; typing the
+ * geometry's own number back in puts them back, which is still the whole way
+ * out of an override.
+ *
+ * Only a column the geometry actually bounded. Everywhere else the rules are
+ * the only thing narrowing that number, which is the ordinary state of the
+ * page, and an empty box there is not an answer about anything.
+ */
+export const releasedBounds = (
+  ranges: ToolQuery['ranges'],
+  suggested: ToolQuery['ranges'],
+): ReadonlyArray<string> =>
+  Object.keys(suggested).filter((key) => {
+    const held = ranges[key]
+    return held === undefined || (held.min === undefined && held.max === undefined)
+  })
+
 /** Pure, and the whole of the search: the same function the tests run on literals. */
 export const filterTools = (
   tools: ReadonlyArray<CatalogTool>,

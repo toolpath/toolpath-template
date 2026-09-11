@@ -27,6 +27,7 @@ import {
   ReducedShankIcon,
   ToolTypeIcon,
 } from './tool-icons'
+import { SECTION_LABEL } from 'shared/type'
 
 /**
  * What each ISO 513 letter means at the machine.
@@ -153,7 +154,7 @@ const monogram = (brand: string): string => {
 }
 
 const Monogram = ({ brand }: { brand: string }) => (
-  <span className="grid size-6 place-items-center rounded-sm bg-zinc-800 text-2xs font-bold text-current">
+  <span className="grid size-6 place-items-center rounded-sm bg-zinc-800 text-2xs font-semibold text-current">
     {monogram(brand)}
   </span>
 )
@@ -386,7 +387,7 @@ const Field = ({
   children: ReactNode
 }) => (
   <section className={cn('min-w-0', span === 2 && 'col-span-full')}>
-    <h4 className="text-2xs mb-1 flex items-center gap-1.5 font-semibold tracking-wide text-zinc-500 uppercase">
+    <h4 className={cn(SECTION_LABEL, 'mb-1 flex items-center gap-1.5')}>
       <span className="text-zinc-600">{icon}</span>
       {label}
     </h4>
@@ -990,9 +991,7 @@ const TilePicker = ({
             {groups.map(([group, members]) => (
               <section key={group}>
                 {group ? (
-                  <h5 className="text-2xs mb-1 px-0.5 tracking-wide text-zinc-600 uppercase">
-                    {group}
-                  </h5>
+                  <h5 className={cn(SECTION_LABEL, 'mb-1 px-0.5 text-zinc-600')}>{group}</h5>
                 ) : null}
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(5.75rem,1fr))] gap-1">
                   {members.map(tile)}

@@ -336,6 +336,9 @@ export const ColumnFilterMenu = ({
             onBound={what.onBound}
             unit={what.unit}
             kind={what.kind}
+            /* This filter *is* the dialog somebody just opened, so the caret
+               belongs in it rather than behind one more press. */
+            opened
           />
           {props.override === undefined ? null : (
             <OverrideNotice label={props.label} bound={what.bound} override={props.override} />

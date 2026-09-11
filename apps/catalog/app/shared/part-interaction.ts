@@ -5,7 +5,6 @@ import {
   focusWithin,
   pickFace,
   scopeToDirection,
-  stepThrough,
   type SelectionState,
 } from '@toolpath/part-contracts/selection'
 import { sameDirection, type PartPick } from '@toolpath/viewer'
@@ -23,9 +22,14 @@ import { dropAll, escapeStep, keepAll, preferLargest } from './part-selection'
  * three assertions each.
  *
  * The vocabulary is the DFM application's: `pickFace` decides what a face
- * click resolves to, `focusWithin` what naming a reading from a list does, and
- * `stepThrough` how the keyboard walks. This module only says what happens
- * *around* them — arming, guessing, keeping, escaping.
+ * click resolves to and `focusWithin` what naming a reading from a list does.
+ * This module only says what happens *around* them — arming, guessing,
+ * keeping, escaping.
+ *
+ * **Not `stepThrough`, which this application does not use.** A reading is
+ * chosen by clicking an arrow on the part or by naming one in the list, never
+ * walked with the keyboard (Paul, 2026-09-11) — the arrows belong to the tool
+ * list, and `shared/arrow-target.ts` is that rule.
  */
 export interface Interaction {
   /** What the viewport was asked about, and the readings that answer it. */
@@ -111,8 +115,6 @@ export type InteractionAction =
   | { readonly type: 'miss' }
   /** A reading named from a list. */
   | { readonly type: 'read'; readonly featureTag: string }
-  /** The keyboard walking a list, in the order it is drawn. */
-  | { readonly type: 'step'; readonly order: ReadonlyArray<string>; readonly by: 1 | -1 }
   /** A reading ticked or unticked by hand. */
   | { readonly type: 'toggle'; readonly featureTag: string }
   /** Escape, outward one press at a time. */
@@ -459,11 +461,6 @@ export const interactionFor = (part: InteractionPart) => {
 
       case 'read':
         return read(state, action.featureTag)
-
-      case 'step': {
-        const next = stepThrough(action.order, state.focused, action.by)
-        return next === null ? state : read(state, next)
-      }
 
       case 'toggle': {
         /*

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { PublicInspectionReport } from '@toolpath/part-contracts'
+import { layerCount } from 'shared/use-escape'
 
 /**
  * What the viewer hands the viewer package, pinned.
@@ -280,5 +281,36 @@ describe('an overlay taller than the viewer', () => {
 
     expect(section()?.className).not.toContain('overflow-hidden')
     expect(section()?.className).toContain('z-50')
+  })
+})
+
+/**
+ * **Escape puts the record away, and leaves the box it came from alone** (Paul,
+ * 2026-09-11: "hitting escape should close feature details but keep the feature
+ * dialog open and as is"). The record opens *over* the questions with no layer
+ * of its own, so the press walked the page's own step instead — the reading
+ * behind it was dropped and the record stayed open on a feature nothing was
+ * reading. It is the newest thing on the screen, so `use-escape.ts` gives it
+ * the press.
+ */
+describe('the feature record and Escape', () => {
+  it('answers the press while it is open', () => {
+    const onCloseDetails = vi.fn()
+    show({ details: <p>the record</p>, onCloseDetails })
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(onCloseDetails).toHaveBeenCalled()
+  })
+
+  /** Nothing open, nothing to take the press — the page keeps it. */
+  it('takes no press while it is closed', () => {
+    const onCloseDetails = vi.fn()
+    show({ details: null, onCloseDetails })
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(onCloseDetails).not.toHaveBeenCalled()
+    expect(layerCount()).toBe(0)
   })
 })

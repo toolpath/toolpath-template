@@ -27,6 +27,7 @@ import {
   type ColumnHeadingProps,
 } from './column-heading'
 import type { Bound, ColumnOverride } from './column-filter'
+import { TABLE_FACE, TABLE_INK } from 'shared/type'
 
 export interface PartToolColumn {
   readonly code: string
@@ -166,7 +167,16 @@ export const isStack = (code: string): boolean => code === 'LBH'
 /** The four that say which tool this is, rather than a number about it. */
 export const isIdentity = (code: string): boolean => IDENTITY.some((column) => column.code === code)
 
-/** How wide a column starts, by what it holds rather than by its numbers. */
+/**
+ * How wide a column starts, by what it holds rather than by its numbers.
+ *
+ * **Only the largest of these is doing anything.** `@toolpath/ui`'s table gives
+ * every column the width of the widest `minmax()` floor it is handed, so
+ * raising one entry here raises all thirteen — measured on 2026-09-11 by
+ * setting `type` to `20rem` and watching each column become 320px. The map
+ * reads as a per-column decision and is not one. Left as it was rather than
+ * tuned around, because the column sizing is the kit's to fix.
+ */
 const WIDTH: Readonly<Record<string, string>> = {
   catalogNumber: '10rem',
   brand: '7rem',
@@ -257,7 +267,7 @@ const GeometryCell = ({
         : null
     const changed = own !== undefined && needed !== null && Math.abs(needed - own) > 0.005
     return (
-      <span className="flex min-w-0 flex-col items-end font-mono text-zinc-300">
+      <span className="flex min-w-0 flex-col items-end">
         <span>
           {needed === null
             ? own === undefined
@@ -266,9 +276,9 @@ const GeometryCell = ({
             : formatGeometry('LBH', needed, unit)}
         </span>
         {cannot !== null ? (
-          <span className="text-2xs font-sans text-amber-300">{cannot}</span>
+          <span className="text-2xs text-amber-300">{cannot}</span>
         ) : changed ? (
-          <span className="text-2xs font-sans text-amber-300">holder needs</span>
+          <span className="text-2xs text-amber-300">holder needs</span>
         ) : null}
       </span>
     )
@@ -277,9 +287,9 @@ const GeometryCell = ({
   return (
     <span
       className={cn(
-        'flex items-baseline justify-end gap-1.5 font-mono whitespace-nowrap',
+        'flex items-baseline justify-end gap-1.5 whitespace-nowrap',
         mark === undefined || (mark.ok && mark.caution === undefined)
-          ? 'text-zinc-300'
+          ? null
           : mark.ok
             ? 'text-amber-300'
             : mark.level === 'must'
@@ -582,7 +592,11 @@ export const PartToolTable = ({
   )
 
   return (
-    <div ref={inside} data-part-tool-table className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div
+      ref={inside}
+      data-part-tool-table
+      className={cn(TABLE_FACE, TABLE_INK, 'flex min-h-0 min-w-0 flex-1 flex-col')}
+    >
       <div className="min-h-0 flex-1">
         <Table
           id="part-tools"
@@ -621,7 +635,7 @@ export const PartToolTable = ({
                   >
                     {column.code === 'catalogNumber' ? (
                       <>
-                        <span className="font-mono text-zinc-100">{tool.catalogNumber}</span>
+                        <span>{tool.catalogNumber}</span>
                         {/*
                           **The vendor's page is on the number** (Paul,
                           2026-09-11), as it already is on the order list: the
@@ -663,21 +677,18 @@ export const PartToolTable = ({
                         )}
                       </>
                     ) : column.code === 'brand' ? (
-                      <span className="truncate text-zinc-400" title={tool.brand}>
+                      <span className="truncate" title={tool.brand}>
                         {tool.brand}
                       </span>
                     ) : column.code === 'type' ? (
-                      <span
-                        className="flex min-w-0 items-center gap-1.5 text-zinc-300"
-                        title={tool.type}
-                      >
+                      <span className="flex min-w-0 items-center gap-1.5" title={tool.type}>
                         <span className="shrink-0 text-zinc-500">
                           <ToolTypeIcon toolType={tool.form} />
                         </span>
                         <span className="truncate">{tool.type}</span>
                       </span>
                     ) : column.code === 'family' ? (
-                      <span className="truncate text-zinc-400" title={tool.family}>
+                      <span className="truncate" title={tool.family}>
                         {tool.family}
                       </span>
                     ) : (

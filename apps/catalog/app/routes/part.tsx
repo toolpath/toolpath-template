@@ -37,10 +37,12 @@ import {
   addChoice,
   clearChoice,
   chosenFor,
+  lineId,
   removeChoice,
-  setTotal,
+  removeTool,
   totalOf,
   useSetupSheet,
+  type Choice,
   type SetupSheet,
 } from 'shared/setup-sheet'
 import { PartViewer } from 'components/part-viewer'
@@ -68,6 +70,7 @@ import {
   type Results,
 } from 'shared/feature-list'
 import { recommendationRows, type RecommendationAnswer } from 'shared/recommendations'
+import { SECTION_LABEL } from 'shared/type'
 import {
   clearKeys,
   componentTotals,
@@ -110,6 +113,15 @@ import {
 } from 'shared/catalog'
 import { columnFilterOpen, useEscape } from 'shared/use-escape'
 import { assemblyPressEnabled, pressesShown, rowsShown } from 'shared/part-chrome'
+import {
+  COMPONENT_LIST,
+  TOOL_LIST,
+  arrowTarget,
+  focusList,
+  handToList,
+  insideList,
+  type ArrowTarget,
+} from 'shared/arrow-target'
 import {
   DRAFT_TREE,
   assemblyName,
@@ -174,6 +186,7 @@ import {
   countBy,
   countsByAxis,
   ownBounds,
+  releasedBounds,
   stillOffered,
   filterTools,
   queryFromSearch,
@@ -563,9 +576,15 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * filter panel opened over the part takes the press instead. Both used to
    * fire on one press, which put the panel away *and* dropped the reading
    * behind it.
+   *
+   * **A field keeps it; the tool list does not** (2026-09-11). The list used to
+   * be exempt along with them, on the grounds that it answers Escape for itself
+   * by dropping its selected row — and that was harmless only while nothing put
+   * the focus there. The focus goes to the list the moment anything is selected
+   * now, so exempting it meant Escape no longer backed out of the box at all.
    */
   useEscape(true, (event) => {
-    if (busyTyping(event)) {
+    if (typingInto(event)) {
       return
     }
     escapeRef.current()
@@ -627,13 +646,28 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           return
         }
       }
-      if (busyTyping(event)) {
+      /*
+        **The arrows are the list's, and never the features'** (Paul,
+        2026-09-11). The focus is already in the list by the time one is
+        pressed — selecting anything puts it there — so this is what repairs a
+        press that arrived anywhere else, and a list reading no row yet.
+        `shared/arrow-target.ts` is the rule.
+
+        Ahead of `busyTyping`, because that gate is the tool list's half of this
+        same question and `arrowTarget` now owns both halves.
+      */
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        if (typingInto(event)) {
+          return
+        }
+        if (arrowsRef.current(insideList(event.target)) === null) {
+          return
+        }
+        event.preventDefault()
+        handListRef.current()
         return
       }
-
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        event.preventDefault()
-        stepRef.current(event.key === 'ArrowDown' ? 1 : -1)
+      if (busyTyping(event)) {
         return
       }
       // Space puts the row being read on the list, or takes it off — the same
@@ -1545,6 +1579,16 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     () => ownBounds(query.ranges, suggestions.ranges),
     [query.ranges, suggestions],
   )
+  /**
+   * The columns whose number somebody took away, which releases their rules —
+   * `releasedBounds` in `shared/filter.ts` is the rule, and says why.
+   */
+  const released = useMemo(
+    () => releasedBounds(query.ranges, suggestions.ranges),
+    [query.ranges, suggestions],
+  )
+  /** Every column whose rules are set aside: the ticked ones and the emptied ones. */
+  const forgiven = useMemo(() => [...new Set([...overriding, ...released])], [overriding, released])
   /*
     The tree, the row it belongs to and the key it is stored under stand ahead
     of the matcher because the matcher is told about them (2026-09-10): the
@@ -1844,7 +1888,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       holderFilters,
       margins,
       thresholds,
-      overrides: overriding,
+      overrides: forgiven,
       ownRanges: own,
     }),
     [
@@ -1856,7 +1900,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       holderFilters,
       margins,
       thresholds,
-      overriding,
+      forgiven,
       own,
     ],
   )
@@ -1966,11 +2010,11 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   /** The overridden columns in the words their headers use, for the note above the list. */
   const overridden = useMemo(
     () =>
-      overriding
+      forgiven
         .map((code) => TOOL_COLUMNS.find((column) => column.code === code)?.label.toLowerCase())
         .filter((label): label is string => label !== undefined)
         .join(' and '),
-    [overriding],
+    [forgiven],
   )
 
   /** What makes the thread: taps for either tapping mode, mills for milling. */
@@ -2370,7 +2414,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       return {
         suggested,
         available: detailed?.overridableByCode[code] ?? 0,
-        on: overriding.includes(code),
+        on: forgiven.includes(code),
         /**
          * **The number and the forgiveness are one decision** (Paul,
          * 2026-09-08: "if override rules is off, it should go back to the
@@ -2390,7 +2434,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           sayBound(ask?.shape === 'range' ? ask.kind : 'length', bound, unit),
       }
     },
-    [asking, suggestions, detailed, overriding, overrideOn, unit],
+    [asking, suggestions, detailed, forgiven, overrideOn, unit],
   )
 
   /**
@@ -3555,6 +3599,43 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   }, [focused, selectedItem, draft, list, sheet, groupOf, aloneFor, startAddGroup, changeToGroup])
 
   /**
+   * The same offer, inside the group being built.
+   *
+   * **A group asks it too** (Paul, 2026-09-11: "the group dialog should ask if
+   * I want to add identical holes if I select one, just like the feature
+   * dialog"). Clicking a hole while a group is open used to take every
+   * identical hole with it; that expansion came out on 2026-09-11 so a group
+   * could be corrected a hole at a time — and with it went the only way to pick
+   * up a bolt circle without thirty-nine clicks. `groupOffer` is deliberately
+   * silent here, because the offer it answers *opens* a group; this one grows
+   * the one already open, which is a different press with the same sentence.
+   *
+   * Withheld once every sibling is already in: an offer to add what is there
+   * reads as a press that does nothing.
+   */
+  const offerSiblings = useMemo(() => {
+    if (draft?.kind !== 'group' || focused === null || aloneFor === focused) {
+      return null
+    }
+    const siblings = groupOf(focused)
+    const missing = siblings.filter((each) => !kept.includes(each))
+    if (siblings.length < 2 || missing.length === 0) {
+      return null
+    }
+    return {
+      count: siblings.length,
+      // One `toggle` each, which is the same press as clicking each of them on
+      // the part — so a hole taken out afterwards comes out on its own.
+      onGroup: () => {
+        for (const tag of missing) {
+          dispatch({ type: 'toggle', featureTag: tag })
+        }
+      },
+      onDismiss: () => setAloneFor(focused),
+    }
+  }, [draft, focused, aloneFor, groupOf, kept, dispatch])
+
+  /**
    * A tool assembly of the part's own, begun.
    *
    * **Not tied to a feature or a group** (Paul, 2026-09-08: "the tool assembly
@@ -4210,6 +4291,22 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     looking && componentSlot === 'collet' ? (lookedUp === null ? null : getCollet(lookedUp)) : null
 
   /**
+   * The row that list is reading, whichever list it is.
+   *
+   * Read twice: by the table, for the row it marks, and by the arrows, which
+   * land on a list's first row rather than on nothing where it is reading
+   * nothing — `shared/arrow-target.ts` says why the kit needs that.
+   */
+  const rowRead =
+    componentSlot === null
+      ? (assembly?.toolGuid ?? null)
+      : looking
+        ? lookedUp
+        : componentSlot === 'holder'
+          ? (assembly?.holderGuid ?? null)
+          : (assembly?.colletGuid ?? null)
+
+  /**
    * Whether the tree is drawn at all.
    *
    * **It belongs to the feature, not to the table** (Paul, 2026-09-07: "moving
@@ -4598,64 +4695,42 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         }
       }
       /**
-       * How many stacks of this row stand on the bill as one cutter.
+       * **Every stack writes its own line, named after itself** (Paul,
+       * 2026-09-11: "when I have two (or more) tool assemblies on a feature or
+       * group, both need to be shown in the order list. Only the first is being
+       * shown right now").
        *
-       * **Two stacks of one cutter are two of it to buy** (Paul, 2026-09-10:
-       * "duplicates are now showing up as separate line items … that should show
-       * 2 assemblies and a count of two of each component"). The sheet keys a
-       * line by its tool, so a row cannot hold the same cutter on two lines —
-       * what it holds instead is `total`, how many of that assembly — and
-       * `componentTotals` already multiplies every component by it. Nothing was
-       * writing it, so a second identical assembly wrote the same line again and
-       * the bill said one.
+       * The sheet used to key a line by its tool, so a row could hold one line
+       * per cutter and no more: a second assembly given the first's cutter wrote
+       * over it — its holder along with it — and what stood in for the two of
+       * them was `total`, a count on one line saying "twice" about a stack the
+       * bill had only one description of. Two stacks with different holders were
+       * the same defect without the count: the second one's holder simply
+       * replaced the first's.
        *
-       * Counted off the tree once it is marked, because the tree is the row's
-       * answer: every stack of it standing as that cutter is one of it to set up.
+       * `assemblyId` on the line is the fix and this is where it is written:
+       * `lineId` in `shared/setup-sheet.ts` is the whole of the new rule, and
+       * `addChoice` replaces a line with the same id rather than the same tool.
        */
-      const ordered = (toolGuid: string): number =>
-        marked.filter((each) => each.orderedTool === toolGuid).length
       let next = sheet
-      for (const { line, had } of written) {
+      for (const { stack, line, had } of written) {
+        const mine: Choice = { ...line, assemblyId: stack.id }
         /*
-          **A replacement takes the old line off before the new one goes on.**
-          The sheet keys a line by its tool, so a stack that swapped cutters
-          would otherwise leave the tool it was ordered as sitting on the
-          feature beside the one that replaced it (Paul, 2026-09-07).
+          **A replacement takes the old line off before the new one goes on** —
+          for a line written before a line carried the stack's id, which is
+          keyed by its tool and so is a different line from this one (Paul,
+          2026-09-07). A line this stack already wrote is replaced where it
+          stands, so there is nothing to take off.
         */
         const off =
           kind === 'remove'
-            ? (had?.toolGuid ?? line.toolGuid)
-            : had !== null && had.toolGuid !== line.toolGuid
-              ? had.toolGuid
+            ? lineId(had ?? mine)
+            : had !== null && had.assemblyId !== stack.id
+              ? lineId(had)
               : null
-        /*
-          Unless another stack of this row is still standing as it: taking one of
-          two identical assemblies off leaves one, not none, and the line is
-          where that one lives.
-        */
-        const kept = off !== null && ordered(off) > 0
         for (const tag of tags) {
-          next = off === null || kept ? next : removeChoice(next, tag, off)
-          next = kind === 'remove' ? next : addChoice(next, tag, line)
-        }
-      }
-      /*
-        And then how many of each, over every cutter this press touched — the
-        one it wrote and the one it took off, which are different on a swap.
-      */
-      const touched = new Set(
-        written.flatMap(({ line, had }) => [
-          line.toolGuid,
-          ...(had === null ? [] : [had.toolGuid]),
-        ]),
-      )
-      for (const toolGuid of touched) {
-        const many = ordered(toolGuid)
-        if (many === 0) {
-          continue
-        }
-        for (const tag of tags) {
-          next = setTotal(next, tag, toolGuid, many)
+          next = off === null ? next : removeChoice(next, tag, off)
+          next = kind === 'remove' ? next : addChoice(next, tag, mine)
         }
       }
       commit(next)
@@ -4887,6 +4962,59 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const tappingNow = assembly !== null ? assembly.role === 'tap' : tapping
 
   /**
+   * Whether the tool list is drawn, rather than a notice or the skeleton.
+   *
+   * One derivation read twice — by the table area, for which of the four things
+   * it draws, and by the focus and the arrows, which have nothing to reach
+   * while it is false. Two of them would be two chances to disagree about what
+   * is on screen.
+   */
+  const toolListDrawn = !perFeature && !(asking && detailed === null && !tappingNow)
+
+  /**
+   * Which list the arrows and the focus are for, and `null` while there is none.
+   *
+   * The rack or the drawer where a slot has one open, the tools otherwise — and
+   * nothing at all unless a box is open over the part, because the arrows
+   * belong to a question being asked rather than to the catalog at rest.
+   */
+  const listOnScreen =
+    !dialogOpen || (componentSlot === null && !toolListDrawn)
+      ? null
+      : componentSlot === null
+        ? TOOL_LIST
+        : COMPONENT_LIST
+
+  /**
+   * **The focus follows the question** (Paul, 2026-09-11: "the focus should go
+   * to the table as soon as a feature is selected"). Selecting anything is what
+   * puts somebody in front of a list of tools, so it is what hands them the
+   * keys to it — an arrow press of their own is one press too late, and this
+   * application walks no features with the arrows for it to compete with.
+   *
+   * Keyed on what is being asked rather than on what the list holds: a filter
+   * typed into, a row picked, an answer arriving late — none of those are a new
+   * question, and taking the focus back on each of them would be taking it away
+   * from whatever somebody was doing.
+   */
+  const askingNow =
+    listOnScreen === null
+      ? null
+      : [
+          listOnScreen,
+          selectedId ?? '',
+          draft?.kind ?? '',
+          focused ?? '',
+          node?.assemblyId ?? '',
+          node?.slot ?? '',
+        ].join('|')
+  useEffect(() => {
+    if (askingNow !== null && listOnScreen !== null) {
+      focusList(listOnScreen)
+    }
+  }, [askingNow, listOnScreen])
+
+  /**
    * Which of this row's other stacks a component is standing in, by name.
    *
    * Named rather than counted, and never the stack being filled: the table's
@@ -5042,7 +5170,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
        */
       remove: () => {
         commit(
-          askedNow.tags.reduce((current, tag) => removeChoice(current, tag, panelTool.guid), sheet),
+          askedNow.tags.reduce((current, tag) => removeTool(current, tag, panelTool.guid), sheet),
         )
       },
     }
@@ -5141,8 +5269,18 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   }, [showTree, node, assemblies, treeActionsFor, applyStacks])
 
   const escapeRef = useRef(() => {})
-  const stepRef = useRef((_step: number) => {})
   const keepRef = useRef(() => {})
+  /** `arrowTarget`, asked with everything but where the press landed. */
+  const arrowsRef = useRef<(inList: boolean) => ArrowTarget>(() => null)
+  arrowsRef.current = (inList: boolean) =>
+    arrowTarget({ boxOpen: listOnScreen !== null, inList, readingARow: rowRead !== null })
+  /** And the press it asks for, once the rule has said there is one to make. */
+  const handListRef = useRef(() => {})
+  handListRef.current = () => {
+    if (listOnScreen !== null) {
+      handToList(listOnScreen, rowRead !== null)
+    }
+  }
   /** Enter's answer: whether there was a press to make, having made it. */
   const orderRef = useRef<() => boolean>(() => false)
   orderRef.current = () => {
@@ -5166,8 +5304,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     }
     dispatch({ type: 'escape' })
   }
-  stepRef.current = (step: number) =>
-    dispatch({ type: 'step', order: rows.map((each) => each.featureTag), by: step > 0 ? 1 : -1 })
   keepRef.current = () => {
     // Nothing being read yet: the first press takes the first row, so a fresh
     // list is one key rather than a click and a key.
@@ -5601,7 +5737,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               the column's own dialog, because that is the rule it
               overrules.
             */}
-              {overriding.length > 0 && overrideTools.length > 0 ? (
+              {forgiven.length > 0 && overrideTools.length > 0 ? (
                 <span
                   className="text-2xs text-zinc-400"
                   title="Confirmed in that column's filter. Clearing the filter, or backing it out to what the geometry asked for, puts the rule back."
@@ -6183,6 +6319,11 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                     readings={draftReadings}
                                     unit={unit}
                                     mixed={draftMixedBores}
+                                    /* The identical holes the last pick stands
+                                       with — `offerSiblings` says when. */
+                                    {...(offerSiblings === null
+                                      ? {}
+                                      : { identical: offerSiblings })}
                                     /*
                                       **The thread is the whole group's** (Paul,
                                       2026-09-09). `writeThread` writes it across
@@ -6222,7 +6363,16 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                     regions={report.regions}
                                     unit={unit}
                                     siblings={focused === null ? 1 : groupOf(focused).length}
-                                    onInfo={() => setInfo(focused)}
+                                    /*
+                                      **The same press closes it again** (Paul,
+                                      2026-09-11). The `i` opened the details
+                                      panel and then did nothing at all, so the
+                                      only ways out were the X and a press of
+                                      Escape the page was taking for itself.
+                                    */
+                                    onInfo={() =>
+                                      setInfo((current) => (current === focused ? null : focused))
+                                    }
                                     candidates={candidates}
                                     onRead={(featureTag) => dispatch({ type: 'read', featureTag })}
                                     directionOf={(feature) => directionOf(feature)}
@@ -6327,8 +6477,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                     onRename={(id, name) =>
                                       writeTree(renameAssembly(assemblies, id, name))
                                     }
-                                    title={listTitle}
-                                    confirmed={activeItem !== null}
                                   />
                                 ) : null}
 
@@ -6455,7 +6603,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                             */}
                               <h4
                                 data-over-part
-                                className="text-2xs flex shrink-0 items-center gap-1.5 font-semibold tracking-wide text-zinc-500 uppercase [text-shadow:0_1px_2px_var(--color-zinc-950)]"
+                                className={cn(
+                                  SECTION_LABEL,
+                                  'flex shrink-0 items-center gap-1.5 [text-shadow:0_1px_2px_var(--color-zinc-950)]',
+                                )}
                               >
                                 <span className="text-zinc-600">
                                   <CursorClickIcon />
@@ -6740,7 +6891,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           Tools will automatically be selected for each feature. After creating the
                           group, click on a feature in the list to see all compatible tools.
                         </p>
-                      ) : asking && detailed === null && !tappingNow ? (
+                      ) : !toolListDrawn ? (
                         <TablePlaceholder error={tableError} />
                       ) : tappingNow ? (
                         /*
@@ -6841,13 +6992,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           columnOrder={
                             componentSlot === 'holder' ? holderColumnOrder : colletColumnOrder
                           }
-                          chosen={
-                            looking
-                              ? lookedUp
-                              : componentSlot === 'holder'
-                                ? (assembly?.holderGuid ?? null)
-                                : (assembly?.colletGuid ?? null)
-                          }
+                          chosen={rowRead}
                           /*
                           A row fills the slot the tree has open; with no stack
                           open there is no slot, and the click is a look-up the

@@ -35,6 +35,8 @@ test.use({ viewport: { width: 1680, height: 1000 } })
 
 /** The face under the default camera's centre, scanned in `on-the-part.spec.ts`. */
 const FACE = { x: 0.5, y: 0.5 }
+/** Off the part, and clear of everything over it — the same corner that file uses. */
+const NOTHING = { x: 0.86, y: 0.86 }
 
 const at = async (page: Page, spot: { x: number; y: number }): Promise<void> => {
   const box = await page.locator('canvas').boundingBox()
@@ -308,4 +310,61 @@ test('takes one hole out of a group of identical holes at a time', async ({ page
   // And so does the X beside one, which is the same rule from the other side.
   await chips.first().click()
   await expect(chips).toHaveCount(all - 2)
+})
+
+/**
+ * **A group asks about identical holes too** (Paul, 2026-09-11: "the group
+ * dialog should ask if I want to add identical holes if I select one, just like
+ * the feature dialog").
+ *
+ * Clicking a hole while a group is open used to take every identical hole with
+ * it. That expansion came out on 2026-09-11 so a group could be corrected a
+ * hole at a time — and with it went the only way to pick up a bolt circle
+ * without one click per hole. The offer is the way back to one press;
+ * `offerSiblings` in `routes/part.tsx` is the rule, and it is a different press
+ * from the reading panel's, which *opens* a group rather than growing one.
+ *
+ * Here rather than in `on-the-part.spec.ts` for the usual reason: the plain
+ * cube has no two identical holes, so the offer never appears there.
+ */
+test('offers the identical holes inside the group being built', async ({ page }) => {
+  // How many there are, read off the reading panel's own offer before the
+  // group is opened — the same set, counted the same way.
+  const named = page.getByRole('button', { name: /^Add all \d+ as a group$/ })
+  await expect(named).toBeVisible()
+  const all = Number(/\d+/.exec((await named.innerText()) ?? '')?.[0] ?? '0')
+  expect(all).toBeGreaterThan(2)
+
+  /*
+    The reading is put down first. `+ Group` over a held hole opens the group on
+    every hole like it — the reading panel's offer, taken through the press —
+    and what is under test here is the group that starts empty.
+  */
+  await at(page, NOTHING)
+  await page.getByRole('button', { name: '+ Group', exact: true }).click()
+  await at(page, FACE)
+  const chips = page.getByRole('button', { name: /^Take .+ out of the group$/ })
+  await expect(chips).toHaveCount(1)
+
+  const offer = page.getByRole('button', { name: `Add all ${String(all)} to the group` })
+  await expect(offer).toBeVisible()
+  await offer.click()
+
+  await expect(chips).toHaveCount(all)
+  // Nothing left to add, so nothing left to offer.
+  await expect(offer).toHaveCount(0)
+})
+
+/** And the other answer stands the group down without adding anything. */
+test('leaves the group at one hole when the offer is turned down', async ({ page }) => {
+  await at(page, NOTHING)
+  await page.getByRole('button', { name: '+ Group', exact: true }).click()
+  await at(page, FACE)
+  const chips = page.getByRole('button', { name: /^Take .+ out of the group$/ })
+  await expect(chips).toHaveCount(1)
+
+  await page.getByRole('button', { name: 'Just this hole' }).click()
+
+  await expect(chips).toHaveCount(1)
+  await expect(page.getByRole('button', { name: /^Add all \d+ to the group$/ })).toHaveCount(0)
 })

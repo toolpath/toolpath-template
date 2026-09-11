@@ -192,11 +192,14 @@ application unless that application says otherwise.
   chosen first and narrows the rest. The table is whichever list the open
   slot asks for — three buttons in its chrome switch it, each counting its own
   list, and with no feature they read the three catalogs — and picking a row
-  there fills that slot without walking on to the next one. **Each assembly carries one context-aware button** — _Add to order list_, _Change holder from
-  A to B_, _Remove from order list_ — covering every stack of it, so a threaded
-  hole's tap and the drill under it are one press — and that press is the only way a component
+  there fills that slot without walking on to the next one. **One context-aware
+  button sits under the whole box** (Paul, 2026-09-11) — _Add to order list_,
+  _Change holder from A to B_, _Remove from order list_ — covering every stack
+  in it, so a threaded hole's tap and the drill under it, and a pocket's rougher
+  and finisher, are one press — and that press is the only way a component
   reaches the bill: picking a row in a table selects it into the stack and
-  nothing more. `docs/TOOL-ASSEMBLY-TREE.md` is the spec, including
+  nothing more. _Add assembly_ is a row of the tree above that press, on the
+  last card only. `docs/TOOL-ASSEMBLY-TREE.md` is the spec, including
   _Where the rules live_ and _Not built_, and § 6 for what the flag's removal
   took with it. `openCube` in the Playwright fixture takes no flags — there is
   one shape, so a spec says nothing and gets it.
@@ -265,12 +268,14 @@ application unless that application says otherwise.
 | ---------------------------------------------------- | ---------------------------------------------------- |
 | what the list holds, its names, ids, storage         | `app/shared/feature-list.ts`                         |
 | which key a row's lines reach the bill under         | `sheetKeysOf`, same file                             |
+| which of a row's lines one stack of it wrote         | `lineId`, `app/shared/setup-sheet.ts`                |
 | what is on the order list, for both pages            | `app/shared/order-list.ts`                           |
 | whether a row has anything ordered, and what to buy  | `isIncomplete` / `componentTotals`, same file        |
 | which of four things the page is being asked         | `asked()`, same file                                 |
 | the three presses over the part that add a row       | `app/components/add-bar.tsx`                         |
 | whether the presses and the rows are drawn at all    | `app/shared/part-chrome.ts`                          |
 | where the part is framed, beside the questions       | `app/shared/frame-inset.ts`                          |
+| the heading face and the small-capitals label        | `app/shared/type.ts`                                 |
 | how tall the tool list opens                         | `TABLE_OPENS_AT`, `components/part-tool-table.tsx`   |
 | the columns a list opens with, and their order       | `TOOL_COLUMNS`, `components/part-tool-table.tsx`     |
 | the two columns the list turns on for itself         | `app/shared/auto-columns.ts`                         |
@@ -283,11 +288,14 @@ application unless that application says otherwise.
 | what overruling the rules offers, per column         | `overridableTools`, `app/shared/tool-fit.ts`         |
 | the note and press a changed filter raises           | `OverrideNotice`, `app/components/column-filter.tsx` |
 | whether a value is inside a filter's bound           | `withinRange`, `app/shared/filter.ts`                |
+| what a number box takes besides a number             | `app/shared/range-entry.ts`                          |
 | which bounds are somebody's own, not the geometry's  | `ownBounds`, `app/shared/filter.ts`                  |
+| which columns' rules an emptied box releases         | `releasedBounds`, `app/shared/filter.ts`             |
 | what a narrowed axis says an unticked value brings   | `facetCounts`, `app/shared/catalog-matcher.ts`       |
 | the same work, off the UI thread                     | `app/client/catalog-matcher.worker.ts`               |
 | what a click on the part means                       | `app/shared/part-interaction.ts`                     |
 | which layer one press of Escape or Enter reaches     | `app/shared/use-escape.ts`                           |
+| which list the arrows move through, and the focus    | `app/shared/arrow-target.ts`                         |
 | how tall a menu or the column picker is, which way   | `menuRoom`, `app/components/column-filter.tsx`       |
 | whether an open filter survives the list under it    | `FilterMenu`, `app/components/column-filter.tsx`     |
 | a feature's assemblies, its slots, its storage       | `app/shared/assembly-tree.ts`                        |

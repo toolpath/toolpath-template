@@ -13,6 +13,7 @@ import {
   type ThreadSpec,
 } from 'shared/threads'
 import { CatalogComboboxButton } from './catalog-combobox-button'
+import { SECTION_LABEL } from 'shared/type'
 
 /**
  * How this hole is made, and for what thread.
@@ -65,7 +66,16 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
   const plain = matchesThreadSearch(query, PLAIN)
 
   return (
-    <div className="mt-1.5 flex flex-col gap-1 border-t border-zinc-900 pt-1.5">
+    /*
+      **A bubble, not a footnote** (Paul, 2026-09-11: "the option to add a
+      thread should be more prominent — put it directly underneath the group
+      bubble in a similar bubble with grey background"). A hairline rule at the
+      bottom of the panel is what the page does with a detail, and whether a
+      hole is tapped is the decision that picks the tool. Same shape as the
+      identical-holes offer above it, in grey rather than the offer's blue: it
+      is a standing question about the hole rather than something to answer now.
+    */
+    <div className="flex flex-col gap-1 rounded border border-zinc-700 bg-zinc-800/60 px-2 py-1.5">
       {/*
         **Every number on this panel says what it is** (Paul, 2026-09-01: "it's
         not really clear what the boxes are showing — tap drill diameter,
@@ -82,7 +92,7 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
         hole", and one way to say a thing is enough (Paul, same day).
       */}
       <div className="flex flex-wrap items-baseline gap-x-2">
-        <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
+        <span className={SECTION_LABEL}>
           {spec === null ? 'Thread' : `${spec.name} threaded hole`}
         </span>
       </div>

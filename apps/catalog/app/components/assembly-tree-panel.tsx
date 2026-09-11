@@ -19,6 +19,7 @@ import {
   type TreeNode,
 } from 'shared/assembly-tree'
 import { NameField } from './name-field'
+import { SECTION_LABEL } from 'shared/type'
 
 /**
  * The stacks a feature is answered with, as a tree beside the tool table.
@@ -122,17 +123,6 @@ export interface AssemblyTreePanelProps {
    * which is every tree drawn before this existed.
    */
   readonly onRename?: (assemblyId: string, name: string) => void
-  /** What the tree is for, drawn above it. */
-  readonly title: string
-  /**
-   * Whether the feature this answers is a row on the list yet.
-   *
-   * **A stack built for a feature that does not exist has to say so** (Paul,
-   * 2026-09-07). Everything here is being tried and nothing is on a feature
-   * until a tick says so, and a tree that looks identical either way is one
-   * somebody reads as already done.
-   */
-  readonly confirmed?: boolean
 }
 
 const SlotRow = ({
@@ -364,8 +354,6 @@ export const AssemblyTreePanel = ({
   onAdd,
   onRemove,
   onRename,
-  title,
-  confirmed = true,
 }: AssemblyTreePanelProps) => {
   /**
    * The stack being named, where one is.
@@ -386,6 +374,12 @@ export const AssemblyTreePanel = ({
    */
   const [naming, setNaming] = useState<string | null>(null)
 
+  /* Read once: the card asks how many there are as well as drawing each of
+     them, and the press for another one goes on the last of them. */
+  const groups = treeGroups(assemblies)
+  /* Every stack in the box, for the one press under all of them. */
+  const everyStack = groups.flatMap((group) => stacksOf(group))
+
   return (
     <div
       data-assembly-tree
@@ -399,17 +393,19 @@ export const AssemblyTreePanel = ({
     */
       className="flex w-full min-w-0 flex-col gap-2 border-t border-zinc-800 pt-2"
     >
+      {/*
+        **The label, and nothing under it** (Paul, 2026-09-11). A line reading
+        "Cuts the pocket" stood here, which is what the card above it already
+        says — the reading is named at the top of the same box — and what the
+        list under the part is headed by. `data-list-chrome` still carries it,
+        which is the one place it is over something that would otherwise be
+        unlabelled.
+      */}
       <div className="pb-1">
-        <p className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
-          Tool assemblies
-        </p>
-        <p className="truncate text-xs text-zinc-300" title={title}>
-          {title}
-        </p>
-        {confirmed ? null : <p className="text-2xs text-amber-300">not on the list yet</p>}
+        <p className={SECTION_LABEL}>Tool assemblies</p>
       </div>
 
-      {treeGroups(assemblies).map((group) => {
+      {groups.map((group, position) => {
         const stacks = stacksOf(group)
         const index = assemblies.indexOf(group.root)
         return (
@@ -470,7 +466,7 @@ export const AssemblyTreePanel = ({
               next read makes a stack of its own: a hole drilled for a thread
               nobody is cutting.
             */}
-              {treeGroups(assemblies).length > 1 || !stacks.every(isEmpty) ? (
+              {groups.length > 1 || !stacks.every(isEmpty) ? (
                 <IconButton
                   variant="muted"
                   size="sm"
@@ -525,76 +521,105 @@ export const AssemblyTreePanel = ({
               ))}
 
               {/*
-              **One press for the whole assembly** (Paul, 2026-09-08: "there
-              should only be one 'add to order list' button for the full
-              assembly"). Every component of it — the tap, its holding, the
-              drill under it and its holding — is one thing a shop orders, and
-              a tap orderable without the hole it threads is half a decision.
+              **Another stack is always one press away** (Paul, 2026-09-07, on
+              the "multiple tools for one feature" question). A pocket is a
+              rougher and a finisher, and the page had no way to say so at all.
 
-              Under the components rather than in the header: it is a sentence
-              about all of them, and it is as wide as the sentence needs.
+              **It is a row of the tree, not a button under it** (Paul,
+              2026-09-11: "add assembly should be above the add feature to list
+              or add to order list buttons — like another row with a plus button
+              in the list of components"). It stood outside the card, below the
+              press that orders, so the last thing on the box was a second
+              full-width button competing with the one that finishes the job.
+              Here it reads as what it does: one more line in the list of
+              components, which opens the rows for another tool.
+
+              On the last card only. It makes a card rather than a row *in* this
+              one, so one per card would be the same press drawn as many times
+              as there are stacks.
             */}
-              {actionsFor(stacks).map((action) => (
-                <div key={action.key} className="flex flex-col gap-0.5">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={
-                      action.danger === true || action.quiet === true ? 'secondary' : 'primary'
-                    }
-                    disabled={action.disabled === true}
-                    onClick={action.onClick}
-                    className={cn(
-                      'w-full justify-center text-xs',
-                      action.danger === true ? 'text-danger' : '',
-                    )}
+              {onAdd === undefined || position !== groups.length - 1 ? null : (
+                <Button
+                  type="button"
+                  variant="muted"
+                  size="sm"
+                  aria-label="Add assembly"
+                  title="Another tool for this feature — a rougher and a finisher are two assemblies"
+                  onClick={() => {
+                    /*
+                      **The new stack opens on its tool** (Paul, 2026-09-10). The
+                      press is for another cutter, so the slot it is about is the
+                      one the table under it should be listing — and the id is
+                      arithmetic off the tree (`nextAssemblyId` is what
+                      `addAssembly` mints it with), so the slot can be opened on
+                      the stack this press is about before the tree carrying it
+                      comes back.
+                    */
+                    onAdd()
+                    onSelect({ assemblyId: nextAssemblyId(assemblies), slot: 'tool' })
+                  }}
+                  /* Drawn as a slot row is drawn — same height, same padding,
+                     same hover — so it sits in the list rather than on it. */
+                  className="flex w-full items-center gap-2 rounded border-0 bg-transparent px-2 py-1 text-left text-xs text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300"
+                  full
+                >
+                  {/* Centred where the slot rows wear their dot, and a size up
+                      from it (Paul, 2026-09-11: "the plus needs to be slightly
+                      bigger") — it is the row's verb rather than its bullet. */}
+                  <span
+                    aria-hidden="true"
+                    className="flex size-1.5 shrink-0 items-center justify-center"
                   >
-                    {action.label}
-                  </Button>
-                  {/*
-                  **What else the press moves is said before it is pressed.** A
-                  holder change takes the collet with it, and a button that drops
-                  one somebody chose without a word is the defect this line
-                  exists to prevent.
-                */}
-                  {action.note === undefined ? null : (
-                    <p className="text-2xs text-amber-300">{action.note}</p>
-                  )}
-                </div>
-              ))}
+                    <PlusIcon className="size-4" />
+                  </span>
+                  <span className="font-semibold tracking-wide">Add assembly</span>
+                </Button>
+              )}
             </div>
           </div>
         )
       })}
 
       {/*
-      **Another stack is always one press away** (Paul, 2026-09-07, on the
-      "multiple tools for one feature" question). A pocket is a rougher and a
-      finisher, and the page had no way to say so at all.
-    */}
-      {onAdd === undefined ? null : (
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          onClick={() => {
-            /*
-              **The new stack opens on its tool** (Paul, 2026-09-10). The press
-              is for another cutter, so the slot it is about is the one the table
-              under it should be listing — and the id is arithmetic off the tree
-              (`nextAssemblyId` is what `addAssembly` mints it with), so the slot
-              can be opened on the stack this press is about before the tree
-              carrying it comes back.
-            */
-            onAdd()
-            onSelect({ assemblyId: nextAssemblyId(assemblies), slot: 'tool' })
-          }}
-          className="justify-center gap-1 text-xs"
-        >
-          <PlusIcon className="size-3" />
-          Add assembly
-        </Button>
-      )}
+        **One press for everything in the box** (Paul, 2026-09-08: "there should
+        only be one 'add to order list' button for the full assembly", and
+        2026-09-11: "the button should be below BOTH of them, and add both
+        assemblies to the order list — we only need one button and it just adds
+        everything on the list").
+
+        It was drawn inside each card, so a rougher and a finisher were two
+        presses and ordering the pair meant pressing both — while Enter on the
+        same box had written all of them since 2026-09-10. The two disagreed
+        about what finishing the box means, and the button was the one that was
+        wrong. `groupActions` already reads a list of stacks; this hands it every
+        stack in the tree rather than one card's.
+      */}
+      {actionsFor(everyStack).map((action) => (
+        <div key={action.key} className="flex flex-col gap-0.5">
+          <Button
+            type="button"
+            size="sm"
+            variant={action.danger === true || action.quiet === true ? 'secondary' : 'primary'}
+            disabled={action.disabled === true}
+            onClick={action.onClick}
+            className={cn(
+              'w-full justify-center text-xs',
+              action.danger === true ? 'text-danger' : '',
+            )}
+            full
+          >
+            {action.label}
+          </Button>
+          {/*
+            **What else the press moves is said before it is pressed.** A holder
+            change takes the collet with it, and a button that drops one somebody
+            chose without a word is the defect this line exists to prevent.
+          */}
+          {action.note === undefined ? null : (
+            <p className="text-2xs text-amber-300">{action.note}</p>
+          )}
+        </div>
+      ))}
     </div>
   )
 }

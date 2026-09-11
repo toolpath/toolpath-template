@@ -164,6 +164,15 @@ Hole` sat under a heading reading `Blind Hole`. `SelectionPanel` and
   `holesAt` in `shared/hole-mode.ts`, because a choice written across everything
   selected named a group's pocket `M6×1 Pocket`. `PredrillChoice` writes through
   the same rule, having written to the focused hole alone until then.
+- **The thread is asked in a bubble of its own, high on the box** (Paul,
+  2026-09-11: "the option to add a thread should be more prominent — put it
+  directly underneath the group bubble in a similar bubble with grey
+  background"). It sat at the foot of both boxes under a hairline rule, below
+  every measurement, which is where this page puts a detail — and whether a hole
+  is tapped decides which catalog the table below is even showing. The reading
+  panel puts it directly under the grouping offer; the group editor puts it
+  directly under the chips. `thread-picker.tsx` owns the bubble, so both get it
+  from one place.
 - **A group is threaded in the group editor.** The editor stands where the
   reading panel would be, so a bolt circle picked out there had to be taken
   apart again to say it was tapped. It carries a `ThreadPicker` of its own where
@@ -261,6 +270,17 @@ to be applied on every path while `collecting` was on — `click`, `read`, `arm`
 correct: the X beside one hole, and a press on one hole, each took all
 thirty-nine. A group of all-but-one could not be asked for at all.
 
+**And the group asks the same question the reading panel does** (Paul,
+2026-09-11: "the group dialog should ask if I want to add identical holes if I
+select one, just like the feature dialog"). Editing a hole at a time left a bolt
+circle costing one click per hole when the group had been opened on something
+else, so the group editor carries the offer too — the same sentence doing a
+different thing, since here it grows the group already open rather than opening
+one. `offerSiblings` in `routes/part.tsx` is that rule, and `groupOffer` is
+deliberately silent while a group is being built for exactly this reason: it
+answers the press that _opens_ a group. It stands down once every sibling is in,
+because a press that adds what is there says nothing.
+
 A click itself is a **toggle** of one feature, and nothing else:
 
 - a face not in the group goes in;
@@ -285,6 +305,40 @@ Unchanged and outward, one thing per press: the reading first, then the kept
 set. `reset` puts everything down at once and is what confirming a draft uses —
 what was being picked has become a row, and leaving it selected as well would
 have the page answering the same question twice.
+
+### The keyboard, and which list it is for
+
+**The focus goes to the tool list the moment anything is selected** (Paul,
+2026-09-11: "the focus should go to the table as soon as a feature is selected —
+we should disable the arrow navigation for features in this app; it only happens
+by clicking the arrow or through the drop down list, never browsed through the
+keyboard arrows"). Selecting a feature, a group or a stack is what puts somebody
+in front of a list of tools, so it is what hands them the keys to it.
+
+- **The readings are never walked with the arrows.** A reading is chosen by
+  clicking an arrow on the part or by naming one in the list. The `step` action
+  the keyboard used to dispatch is gone from `shared/part-interaction.ts`
+  entirely, so there is no second way back in.
+- **The arrows are the list's**, and mostly the kit's: `@toolpath/ui`'s table
+  navigates off the focus inside it. `shared/arrow-target.ts` is what the page
+  keeps of them — one press repairing a list that has not got the focus, or has
+  it and is reading no row yet.
+- **A list reading no row is the half the kit cannot do for itself.** It moves a
+  cursor it only has once a row is selected, so a list that took the focus would
+  otherwise ignore every press after it. The press lands on the first row for
+  that reason — clicked through the DOM rather than chosen out of the data the
+  page handed over, since the order on screen is the table's own once somebody
+  has sorted it.
+- **Escape is the page's wherever the focus is**, short of a field being typed
+  into. The tool list used to be exempt along with the fields, on the grounds
+  that it answers Escape for itself by dropping its selected row; that was
+  harmless only while nothing put the focus there, and now something does.
+
+The focus is taken on a new **question** — a row selected, a draft opened, a
+different slot in the tree, the list swapping between the tools and a rack. Not
+on what the list holds: a filter typed into, a row picked, an answer arriving
+late are none of them a new question, and taking the focus back on each would
+take it away from whatever somebody was doing.
 
 ---
 
@@ -943,9 +997,13 @@ true of the work the worker does:
 | the row a reading already has, if any        | `rowFor`, `app/shared/feature-list.ts`                |
 | what _+ Feature_ does over a reading         | `keepReading`, `app/routes/part.tsx`                  |
 | which press closes the box, and Enter's      | `isOrdering` / `orderingPress`, `assembly-actions.ts` |
+| which list one press of an arrow reaches     | `arrowTarget`, `app/shared/arrow-target.ts`           |
+| handing that press to the list on screen     | `handToList`, same file                               |
+| which list the focus follows a question to   | `listOnScreen` / `askingNow`, `app/routes/part.tsx`   |
 | what Enter presses, over the whole box       | `orderPress` / `applyStacks`, `routes/part.tsx`       |
 | a component standing in two stacks at once   | `sharedWith` / `sharedPhrase`, `assembly-tree.ts`     |
 | how many of one assembly a row ordered       | `Choice.total`, `app/shared/setup-sheet.ts`           |
+| which line on a feature a stack's line is    | `lineId`, same file                                   |
 | a row's answer, and what opens               | `app/shared/recommendations.ts`                       |
 | what a click means                           | `app/shared/part-interaction.ts`                      |
 | the list on screen                           | `app/components/feature-list-panel.tsx`               |
@@ -956,6 +1014,8 @@ true of the work the worker does:
 | where identical holes are grouped, once      | `{ type: 'group' }`, `part-interaction.ts`            |
 | whether the offer to group them is made      | `app/shared/group-offer.ts`                           |
 | the offer on screen, and both answers        | `identical`, `components/selection-panel.tsx`         |
+| the same offer inside the group being built  | `offerSiblings`, `app/routes/part.tsx`                |
+| the bubble the thread is asked in            | `app/components/thread-picker.tsx`                    |
 | a feature row turned into a group            | `changeToGroup`, `app/routes/part.tsx`                |
 | what a press on a row of the list opens      | `pressRow`, same file                                 |
 | the row a draft is changing, where it is one | `editedItem`, same file                               |
@@ -967,6 +1027,8 @@ true of the work the worker does:
 | what the panel and the ⓘ dialog call it      | `nameOf`, handed down by `part.tsx`                   |
 | the tool table and its marks                 | `app/components/part-tool-table.tsx`                  |
 | what overruling the rules offers             | `overridableTools`, `shared/tool-fit.ts`              |
+| what a number box takes besides a number     | `app/shared/range-entry.ts`                           |
+| which columns' rules an emptied box releases | `releasedBounds`, `app/shared/filter.ts`              |
 | the warning and its confirm                  | `OverrideNotice`, `components/column-filter.tsx`      |
 | what a filter is not showing, and the `…`    | `TermFilter`, `components/column-filter.tsx`          |
 | what a tick on Type asks of the forms        | `formsAsking`, `app/shared/tool-type.ts`              |

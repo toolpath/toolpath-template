@@ -9,6 +9,7 @@ import {
   ownBounds,
   prioritise,
   queryFromSearch,
+  releasedBounds,
   searchFromQuery,
   searchWithQuery,
   stillOffered,
@@ -651,5 +652,38 @@ describe('the bounds somebody set themselves', () => {
   /** A bound holding neither end narrows nothing, so it is nobody's answer. */
   it('leaves out a bound with no ends', () => {
     expect(ownBounds({ DC: {} }, {})).toEqual({})
+  })
+})
+
+/**
+ * **An empty box means unbounded, and unbounded includes the rules** (Paul,
+ * 2026-09-11: "when I remove a value for min or max, it is not showing tools
+ * down to the smallest or largest tool in the library with a feature or group
+ * active").
+ */
+describe('the numbers the geometry set and somebody took away', () => {
+  it('names a column whose bound has been cleared outright', () => {
+    expect(releasedBounds({}, { DC: { max: 8 } })).toEqual(['DC'])
+  })
+
+  it('names one left holding neither end, which narrows nothing', () => {
+    expect(releasedBounds({ DC: {} }, { DC: { max: 8 } })).toEqual(['DC'])
+  })
+
+  it('leaves a column still holding a number alone, the geometry’s or not', () => {
+    expect(releasedBounds({ DC: { max: 8 } }, { DC: { max: 8 } })).toEqual([])
+    expect(releasedBounds({ DC: { max: 20 } }, { DC: { max: 8 } })).toEqual([])
+    // One end taken away is still an answer with a number in it.
+    expect(releasedBounds({ DC: { min: 3 } }, { DC: { min: 3, max: 8 } })).toEqual([])
+  })
+
+  /**
+   * Elsewhere the rules are the only thing narrowing that number, which is the
+   * ordinary state of the page: an empty box there is not an answer about
+   * anything, and releasing on it would set every column's rules aside at once.
+   */
+  it('says nothing about a column the geometry never bounded', () => {
+    expect(releasedBounds({}, {})).toEqual([])
+    expect(releasedBounds({ LCF: { min: 5 } }, {})).toEqual([])
   })
 })

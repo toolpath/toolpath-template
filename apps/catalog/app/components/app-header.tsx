@@ -1,10 +1,12 @@
 import { NavLink, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Badge, IconButton, cn } from '@toolpath/ui'
 import { Chip, ChipGroup } from 'components/chip'
+import { ToolpathLogo } from 'components/toolpath-logo'
 import { UNIT_ABBREVIATION, UNIT_SYSTEMS, type UnitSystem } from '@toolpath/tool-support'
 import { MoonIcon, SunIcon, UploadSimpleIcon } from '@phosphor-icons/react'
 import { forgetPart, openPart, orderListHref, partHref, usePartSession } from 'shared/part-session'
 import { useTheme } from 'shared/use-theme'
+import { HEADING } from 'shared/type'
 
 const tabClass = ({ isActive }: { isActive: boolean }) =>
   cn(
@@ -37,7 +39,8 @@ export const AppHeader = ({ unit, onUnit, toolCount, onUploadPart }: AppHeaderPr
   return (
     <header className="border-b border-zinc-800 bg-zinc-950">
       <div className="flex items-center gap-3 px-6 pt-4 pb-2">
-        <h1 className="font-heading text-lg font-bold text-zinc-100">Tool catalog</h1>
+        <ToolpathLogo className="size-6 shrink-0" />
+        <h1 className={HEADING}>Toolpath Tool Catalog</h1>
         <Badge variant="secondary">{toolCount} tools</Badge>
         {/* A new part is always one press away. When another part is already
           loaded, return to its viewer and open the uploader there rather than

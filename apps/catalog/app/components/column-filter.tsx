@@ -1,4 +1,4 @@
-import { Button, Checkbox, Combobox, IconButton, Input, cn } from '@toolpath/ui'
+import { Button, Checkbox, IconButton, Input, cn } from '@toolpath/ui'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -17,23 +17,36 @@ import {
 } from '@toolpath/tool-support'
 import { movedBy, movedTo } from 'shared/column-order'
 import { sameBound } from 'shared/filter'
+import { readEntry, readRange, type Side } from 'shared/range-entry'
 import { LAYER_COLUMN_FILTER, useEscape, useKeyLayer } from 'shared/use-escape'
-import { CatalogComboboxButton } from './catalog-combobox-button'
+import { SECTION_LABEL } from 'shared/type'
 
 /**
- * Asking about one number: an operator and a number, or two for a range.
+ * Asking about one number: its two ends, and no operator to choose first.
  *
- * **The operator is what somebody chose, not what the bound implies.** The
- * first version derived it from `{ min, max }`, so pressing ≤ with nothing
- * typed yet wrote `{ max: undefined }`, which is `{}`, which read back as
- * "Any" — and the box to type into never appeared. The operator is held here
- * and the bound is written from it, never the other way round.
+ * **The operator is typed, not picked off a list** (Paul, 2026-09-11: "it's
+ * weird showing the drop down then having to enter text"). Narrowing Diameter
+ * to "at least 6" cost four presses before the first keystroke — the funnel,
+ * the operator list, the operator, and the box that only then existed, because
+ * the menu opened on "Any" and "Any" draws no box. Both ends are now on screen
+ * from the start and the caret is already in the lower one, so the whole of the
+ * gesture is: open it, type.
  *
- * **The box holds what was typed, not what was stored.** A controlled input
- * that re-formats through millimetres on every keystroke turns "1." into
- * "1.000" under the cursor. So each box keeps its own text and commits when
- * the text is a number; the stored value only writes back into a box when it
- * has actually changed — a suggestion, a saved filter, Clear.
+ * Everything that list offered is still sayable, in the shorthand a shop
+ * already writes: `6-12`, `>6`, `<12`, `=6`. `shared/range-entry.ts` is the
+ * rule, and it reads a box that states the *other* box's end — `<12` typed
+ * into the lower one — so the cursor never has to be in the right place first.
+ * That list was also the one popover inside `FilterMenu`, and the reason both
+ * its press-outside and its Enter handler carry a `[data-base-ui-portal]`
+ * exception. Nothing a filter draws opens a kit popover any more; the two
+ * exceptions stay because the next filter to need one would need them again.
+ *
+ * **A box holds what was typed, not what was stored.** A controlled input that
+ * re-formats through millimetres on every keystroke turns "1." into "1.000"
+ * under the cursor. So each box keeps its own text and commits when the text
+ * says a number; the stored value only writes back into a box when it has
+ * actually changed — a suggestion, a saved filter, Clear — or when the box is
+ * left, which is where shorthand is written back out in longhand.
  */
 
 export interface Bound {
@@ -46,7 +59,13 @@ export type Compare = 'any' | 'equals' | 'over' | 'range' | 'under'
 /** Counts, angles and ratios are not lengths, and are never converted. */
 export type Kind = 'length' | 'count' | 'deg' | 'ratio'
 
-/** The shape a stored bound has, which is where the operator starts from. */
+/**
+ * The shape a stored bound has.
+ *
+ * No longer what any control is set to — nothing on screen has a shape any
+ * more — but still what a column is *asking*, which is what fills its funnel
+ * and what decides whether there is a rule left to overrule.
+ */
 export const compareOf = (bound: Bound | undefined): Compare => {
   if (!bound || (bound.min === undefined && bound.max === undefined)) {
     return 'any'
@@ -56,14 +75,6 @@ export const compareOf = (bound: Bound | undefined): Compare => {
   }
   return bound.max === undefined ? 'over' : 'under'
 }
-
-const COMPARES: ReadonlyArray<{ value: Compare; label: string }> = [
-  { value: 'any', label: 'Any' },
-  { value: 'under', label: '≤ at most' },
-  { value: 'over', label: '≥ at least' },
-  { value: 'equals', label: '= exactly' },
-  { value: 'range', label: 'between' },
-]
 
 /** A stored value as text in the unit being read in, for a box that has none yet. */
 const toDraft = (value: number | undefined, unit: UnitSystem, kind: Kind): string => {
@@ -76,46 +87,25 @@ const toDraft = (value: number | undefined, unit: UnitSystem, kind: Kind): strin
   return String(value)
 }
 
-/** What a box's text means in the dataset's own unit, or nothing while it is not a number. */
-const parse = (raw: string, unit: UnitSystem, kind: Kind): number | undefined => {
-  if (raw.trim() === '') {
-    return undefined
-  }
-  const parsed = Number(raw)
-  if (!Number.isFinite(parsed)) {
-    return undefined
-  }
-  return kind === 'length' ? convertLength(parsed, unit, 'millimeters') : parsed
-}
-
-/** Whether a box already says this value, so its text is left alone. */
-const says = (draft: string, value: number | undefined, unit: UnitSystem, kind: Kind): boolean => {
-  const meant = parse(draft, unit, kind)
+/** Whether a box already states this end, so its text is left alone. */
+const says = (
+  draft: string,
+  side: Side,
+  value: number | undefined,
+  unit: UnitSystem,
+  kind: Kind,
+): boolean => {
+  const entry = readEntry(draft, side, unit, kind)
+  const meant = side === 'min' ? entry.min : entry.max
   if (meant === undefined || value === undefined) {
     return meant === value
   }
   return Math.abs(meant - value) < 1e-9
 }
 
-/** The bound an operator and one or two numbers add up to. */
-export const boundFor = (
-  compare: Compare,
-  one: number | undefined,
-  other: number | undefined,
-): Bound | undefined => {
-  switch (compare) {
-    case 'any':
-      return undefined
-    case 'under':
-      return one === undefined ? undefined : { max: one }
-    case 'over':
-      return one === undefined ? undefined : { min: one }
-    case 'equals':
-      return one === undefined ? undefined : { min: one, max: one }
-    case 'range':
-      return one === undefined && other === undefined ? undefined : { min: one, max: other }
-  }
-}
+/** What the boxes take besides a number, said in the characters a keyboard has. */
+const howToType = (kind: Kind): string =>
+  kind === 'length' ? 'A number — or 6-12, >6, <12, =6, 1/4"' : 'A number — or 6-12, >6, <12, =6'
 
 export interface RangeFilterProps {
   readonly label: string
@@ -123,79 +113,135 @@ export interface RangeFilterProps {
   readonly onBound: (bound: Bound | undefined) => void
   readonly unit: UnitSystem
   readonly kind: Kind
+  /**
+   * Whether the lower box takes the caret as it is drawn.
+   *
+   * True where this filter *is* the dialog somebody just opened, and false in
+   * the filter panel, where a dozen of these are mounted at once and one of
+   * them stealing the focus would be a page that scrolls itself on load.
+   */
+  readonly opened?: boolean
 }
 
-export const RangeFilter = ({ label, bound, onBound, unit, kind }: RangeFilterProps) => {
-  const [compare, setCompare] = useState<Compare>(() => compareOf(bound))
-  /** The one box, or the lower of two. */
-  const [one, setOne] = useState(() =>
-    toDraft(compareOf(bound) === 'under' ? bound?.max : bound?.min, unit, kind),
-  )
-  /** The upper box of a range. */
-  const [other, setOther] = useState(() =>
-    toDraft(compareOf(bound) === 'range' ? bound?.max : undefined, unit, kind),
-  )
+export const RangeFilter = ({
+  label,
+  bound,
+  onBound,
+  unit,
+  kind,
+  opened = false,
+}: RangeFilterProps) => {
+  const [lower, setLower] = useState(() => toDraft(bound?.min, unit, kind))
+  const [upper, setUpper] = useState(() => toDraft(bound?.max, unit, kind))
+  /** Whether the caret is in either box, which is when the shorthand is worth saying. */
+  const [typing, setTyping] = useState(false)
+  const first = useRef<HTMLInputElement>(null)
 
   const min = bound?.min
   const max = bound?.max
+
+  useEffect(() => {
+    if (!opened) {
+      return
+    }
+    /*
+      Opened *by* a press somebody has just made, so the caret belongs in it —
+      the rule `name-field.tsx` states for the same reason. Selected rather than
+      appended to, because the press after "not 6" is usually "8".
+
+      **On the next frame, because that press is still in flight.** The funnel
+      opens this menu on `pointerdown` (see `FilterFunnel` for why), and the
+      browser focuses the funnel itself as the default action of the `mousedown`
+      that follows — after this effect has run. Focusing straight away put the
+      caret in the box and the press took it back out, so the dialog opened on a
+      box nobody could type into.
+    */
+    const frame = requestAnimationFrame(() => {
+      first.current?.focus()
+      first.current?.select()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [opened])
 
   /**
    * The stored bound changed under us — a suggestion, a saved filter, Clear.
    *
    * **A bound this component wrote is left exactly as it is.** The test is
-   * whether the operator and boxes on screen add up to what is stored; if they
-   * do, the store is only echoing them and nothing moves. That is what keeps a
-   * half-typed range as a range — `{ min: 3 }` on its own *reads* as ≥, and
-   * adopting that shape took the second box away mid-entry — and what keeps the
-   * operator when a box is emptied on the way to the next number.
+   * whether the two boxes on screen add up to what is stored; if they do, the
+   * store is only echoing them and nothing moves. That is what keeps a
+   * half-typed `6-` where it was typed, and what keeps the other box's text
+   * while one of them is emptied on the way to the next number.
    *
-   * Only a bound that could not have come from this screen is adopted: its
-   * shape becomes the operator, and its values write into the boxes that do not
-   * already say them.
+   * Only a bound that could not have come from this screen is adopted, and
+   * then only into the boxes that do not already say it.
    */
   useEffect(() => {
     const stored = min === undefined && max === undefined ? undefined : { min, max }
-    const mine = boundFor(compare, parse(one, unit, kind), parse(other, unit, kind))
-    if (sameBound(mine, stored)) {
+    if (sameBound(readRange(lower, upper, unit, kind), stored)) {
       return
     }
-
-    const shape = compareOf(stored)
-    setCompare(shape)
-    if (shape === 'any') {
-      setOne('')
-      setOther('')
-      return
+    if (!says(lower, 'min', min, unit, kind)) {
+      setLower(toDraft(min, unit, kind))
     }
-    const lead = shape === 'under' ? max : min
-    if (!says(one, lead, unit, kind)) {
-      setOne(toDraft(lead, unit, kind))
+    if (!says(upper, 'max', max, unit, kind)) {
+      setUpper(toDraft(max, unit, kind))
     }
-    const trail = shape === 'range' ? max : undefined
-    if (!says(other, trail, unit, kind)) {
-      setOther(toDraft(trail, unit, kind))
-    }
-    // The operator and drafts are read, not depended on: this runs when the
-    // *stored* bound moves, and re-running it on every keystroke is the bug it
-    // exists to fix.
+    // The drafts are read, not depended on: this runs when the *stored* bound
+    // moves, and re-running it on every keystroke is the bug it exists to fix.
   }, [min, max])
 
-  const commit = (nextCompare: Compare, nextOne: string, nextOther: string) => {
-    setCompare(nextCompare)
-    setOne(nextOne)
-    setOther(nextOther)
-    onBound(boundFor(nextCompare, parse(nextOne, unit, kind), parse(nextOther, unit, kind)))
+  const commit = (nextLower: string, nextUpper: string) => {
+    setLower(nextLower)
+    setUpper(nextUpper)
+    onBound(readRange(nextLower, nextUpper, unit, kind))
   }
 
-  const box = (name: string, value: string, onValue: (raw: string) => void) => (
+  /**
+   * What a box settles on once it is finished with.
+   *
+   * The bound is already right — every keystroke commits one — so this is only
+   * the text: `6-12` written back out as a 6 in one box and a 12 in the other,
+   * and `1.` as `1.00`. **Only the box being left is rewritten**, unless what
+   * it said belongs somewhere else, because canonicalising the far box while
+   * the caret is arriving in it is the "1." to "1.000" defect wearing a hat.
+   */
+  const settle = (side: Side) => {
+    const entry = readEntry(side === 'min' ? lower : upper, side, unit, kind)
+    const displaced = side === 'min' ? entry.max !== undefined : entry.min !== undefined
+    const read = readRange(lower, upper, unit, kind)
+    if (displaced || side === 'min') {
+      setLower(toDraft(read?.min, unit, kind))
+    }
+    if (displaced || side === 'max') {
+      setUpper(toDraft(read?.max, unit, kind))
+    }
+  }
+
+  const box = (side: Side, value: string, onValue: (raw: string) => void) => (
     <Input
-      id={`${label}-${name}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}
-      name={`range-${name}`}
+      id={`${label}-${side}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}
+      name={`range-${side}`}
       type="text"
       inputMode="decimal"
-      aria-label={`${label} — ${name}`}
+      aria-label={`${label} — ${side}`}
+      placeholder={side}
+      title={howToType(kind)}
       value={value}
+      {...(side === 'min' ? { ref: first } : {})}
       onValueChange={(next) => onValue(next ?? '')}
+      onBlur={() => settle(side)}
+      onKeyDown={(event) => {
+        /*
+          Inside a `FilterMenu` this never fires: that dialog answers Enter on
+          the document, on the way down, and takes the press for itself. Here
+          for the panel, where these boxes stand on the page with no dialog
+          over them and Enter is the only way to finish without moving the
+          mouse.
+        */
+        if (event.key === 'Enter') {
+          settle(side)
+        }
+      }}
       variant="ghost"
       size="md"
       textEnd
@@ -204,46 +250,27 @@ export const RangeFilter = ({ label, bound, onBound, unit, kind }: RangeFilterPr
   )
 
   return (
-    <div className="flex flex-wrap items-center gap-1">
-      <Combobox
-        items={COMPARES.map((each) => each.value)}
-        value={compare}
-        onValueChange={(next) => {
-          if (typeof next === 'string') {
-            commit(next as Compare, one, other)
-          }
-        }}
-        itemToStringLabel={(value) => COMPARES.find((each) => each.value === value)?.label ?? ''}
-        size="md"
-        variant="ghost"
-      >
-        <CatalogComboboxButton label={`How to compare ${label}`} placeholder="Any" />
-        <Combobox.Popover>
-          <Combobox.List>
-            {COMPARES.map((each) => (
-              <Combobox.Item key={each.value} value={each.value}>
-                {each.label}
-                <Combobox.ItemIndicator />
-              </Combobox.Item>
-            ))}
-          </Combobox.List>
-        </Combobox.Popover>
-      </Combobox>
-
-      {compare === 'any' ? null : (
-        <>
-          {box(compare === 'range' ? 'from' : 'value', one, (raw) => commit(compare, raw, other))}
-          {compare === 'range' ? (
-            <>
-              <span className="text-2xs text-zinc-600">–</span>
-              {box('to', other, (raw) => commit(compare, one, raw))}
-            </>
-          ) : null}
-          {kind === 'length' ? (
-            <span className="text-2xs text-zinc-600">{UNIT_ABBREVIATION[unit]}</span>
-          ) : null}
-        </>
-      )}
+    <div
+      className="flex flex-col gap-1"
+      onFocus={() => setTyping(true)}
+      onBlur={(event) => {
+        // Moving between the two boxes is not leaving the filter, and the hint
+        // blinking out and back in between them would be the only thing on the
+        // screen that moved.
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          setTyping(false)
+        }
+      }}
+    >
+      <div className="flex flex-wrap items-center gap-1">
+        {box('min', lower, (raw) => commit(raw, upper))}
+        <span className="text-2xs text-zinc-600">–</span>
+        {box('max', upper, (raw) => commit(lower, raw))}
+        {kind === 'length' ? (
+          <span className="text-2xs text-zinc-600">{UNIT_ABBREVIATION[unit]}</span>
+        ) : null}
+      </div>
+      {typing ? <p className="text-2xs text-zinc-500">{howToType(kind)}</p> : null}
     </div>
   )
 }
@@ -285,7 +312,7 @@ export interface ColumnOverride {
 }
 
 /**
- * Whether this column has a number of somebody's own in it.
+ * Whether this column has an answer of somebody's own in it.
  *
  * **A filter is somebody's answer the moment it is not the geometry's.** Typing
  * a bound where the geometry suggested one is the case this started from; typing
@@ -293,17 +320,24 @@ export interface ColumnOverride {
  * meant a column the sheet happens not to bound could never be overruled at all
  * even while its rules were holding tools off the list.
  *
- * So: a bound is set, and it is not simply the suggestion left untouched. With
- * no bound at all there is nothing to overrule — the rules are the only thing
- * narrowing that number, which is the ordinary state of the page.
+ * **And an empty box is an answer too, where the geometry put a number there**
+ * (Paul, 2026-09-11: "when I remove a value for min or max, it is not showing
+ * tools down to the smallest or largest tool in the library"). Clearing is the
+ * loosest thing a column can say, so `part.tsx` § `released` sets that column's
+ * rules aside on the spot — and this is what puts the sentence saying so on
+ * screen. Gated on `compareOf` alone, the dialog said nothing at all in the one
+ * state where the list had just widened underneath it.
+ *
+ * With no bound and no suggestion there is nothing to overrule: the rules are
+ * the only thing narrowing that number, which is the ordinary state of the page.
  */
 export const overrideOffered = (
   bound: Bound | undefined,
   override: ColumnOverride | undefined,
 ): override is ColumnOverride =>
   override !== undefined &&
-  compareOf(bound) !== 'any' &&
-  !(override.suggested !== undefined && sameBound(bound, override.suggested))
+  (compareOf(bound) !== 'any' || override.suggested !== undefined) &&
+  !sameBound(bound, override.suggested)
 
 /**
  * The sentence under the boxes: what the geometry asked for, what changing it
@@ -342,9 +376,17 @@ export const OverrideNotice = ({
       data-column-override
       className="text-2xs mt-2 max-w-64 border-l border-zinc-700 pl-2 leading-snug text-zinc-400"
     >
+      {/*
+        "Changing it does not change the rules" is true only while they still
+        hold: once they are set aside the sentence below says so, and saying
+        both was the dialog contradicting itself in the one state where the
+        list had just widened underneath it.
+      */}
       {suggested === undefined
         ? `The rules still judge the ${named} whatever this says.`
-        : `The geometry asked for ${say(suggested)}. Changing it does not change the rules.`}{' '}
+        : on
+          ? `The geometry asked for ${say(suggested)}.`
+          : `The geometry asked for ${say(suggested)}. Changing it does not change the rules.`}{' '}
       {available === 0 ? (
         <>Nothing is being held back by the {named} rules alone.</>
       ) : on ? (
@@ -581,9 +623,10 @@ export const FilterMenu = ({
       }
       /*
         **A dropdown opened from inside this menu is inside it.** The kit draws
-        a `Combobox` popover in a portal of its own, so choosing "≥ at least"
-        for a range read as a press on the page and shut the filter before the
-        box to type in had been drawn.
+        a popover in a portal of its own, so choosing an operator for a range
+        read as a press on the page and shut the filter before the box to type
+        in had been drawn. That operator list is gone — `RangeFilter` says why
+        — and this stays for the next filter that opens one.
       */
       if (target.closest('[data-base-ui-portal]') !== null) {
         return
@@ -626,10 +669,10 @@ export const FilterMenu = ({
    * default runs after the press has finished propagating, so a listener on the
    * document is still in time to cancel it.
    *
-   * The one press left alone is one inside a popover the kit drew: choosing
-   * "≥ at least" from the operator list is that list's Enter, and the popover
-   * is a portal of its own rather than anything inside this box — the same
-   * escape hatch the press-outside rule above needs, for the same reason.
+   * The one press left alone is one inside a popover the kit drew, which is a
+   * portal of its own rather than anything inside this box — the same escape
+   * hatch the press-outside rule above needs, and left standing for the same
+   * reason: no filter draws such a popover today, and the next one would.
    */
   useKeyLayer(true, {
     name: LAYER_COLUMN_FILTER,
@@ -676,7 +719,7 @@ export const FilterMenu = ({
         that is indistinguishable from a misclick.
       */}
       <div className="mb-1.5 flex shrink-0 items-center gap-2">
-        <p className="text-2xs flex-1 tracking-wide text-zinc-500 uppercase">{label}</p>
+        <p className={cn(SECTION_LABEL, 'flex-1')}>{label}</p>
         {/*
           **And a way back out that is not a guess either** (Paul, 2026-09-09:
           "can I get an X next to the check mark to clear all filters"). It

@@ -8,6 +8,7 @@ import {
   type SortableComponent,
 } from 'shared/order-list'
 import type { Component } from 'shared/setup-sheet'
+import { SECTION_LABEL, TABLE_FACE, TABLE_INK } from 'shared/type'
 
 /**
  * The order list added up by component: what to buy, and how many.
@@ -120,7 +121,8 @@ const Heading = ({
         title={column.title}
         onClick={() => onSort(column.by)}
         className={cn(
-          'text-2xs inline-flex items-center gap-0.5 rounded px-0.5 tracking-wide uppercase transition',
+          SECTION_LABEL,
+          'inline-flex items-center gap-0.5 rounded px-0.5 transition',
           here ? 'text-info' : 'text-zinc-500 hover:text-zinc-200',
         )}
       >
@@ -153,7 +155,10 @@ export const ComponentTally = ({ rows, empty, sort, descending, onSort }: Compon
       `tests/on-the-part.spec.ts` § "at a laptop width" exists for.
     */
     <div className="pointer-events-auto min-h-0 flex-1 overflow-y-auto rounded bg-zinc-950/75">
-      <table data-over-part className="w-full border-collapse text-left">
+      <table
+        data-over-part
+        className={cn(TABLE_FACE, TABLE_INK, 'w-full border-collapse text-left')}
+      >
         <caption className="sr-only">Components to order</caption>
         <thead className="sticky top-0 bg-zinc-950/95">
           <tr className="border-b border-zinc-800">
@@ -185,19 +190,17 @@ export const ComponentTally = ({ rows, empty, sort, descending, onSort }: Compon
                   {row.icon}
                 </span>
               </th>
-              <td className="text-2xs max-w-20 truncate px-1 py-1 text-zinc-400">{row.brand}</td>
+              <td className="text-2xs max-w-20 truncate px-1 py-1">{row.brand}</td>
               <td className="text-2xs min-w-0 px-1 py-1">
                 {row.productLink === null ? (
-                  <span className="block truncate font-mono text-zinc-300">
-                    {row.catalogNumber}
-                  </span>
+                  <span className="block truncate">{row.catalogNumber}</span>
                 ) : (
                   <a
                     href={row.productLink}
                     target="_blank"
                     rel="noreferrer noopener"
                     title={`${row.catalogNumber} on the vendor's site`}
-                    className="text-info/90 hover:text-info focus-visible:ring-info/60 flex min-w-0 items-center gap-1 rounded font-mono underline-offset-2 hover:underline focus-visible:ring-1 focus-visible:outline-none"
+                    className="text-info/90 hover:text-info focus-visible:ring-info/60 flex min-w-0 items-center gap-1 rounded underline-offset-2 hover:underline focus-visible:ring-1 focus-visible:outline-none"
                   >
                     <span className="min-w-0 truncate">{row.catalogNumber}</span>
                     <ArrowSquareOutIcon aria-hidden="true" className="shrink-0" />
@@ -208,9 +211,7 @@ export const ComponentTally = ({ rows, empty, sort, descending, onSort }: Compon
                 <span className="block truncate text-zinc-500">{row.detail}</span>
               </td>
               <td className="px-1 py-1 text-right">
-                <span className="text-2xs rounded bg-zinc-800 px-1 py-0.5 font-mono font-semibold text-zinc-200">
-                  ×{row.count}
-                </span>
+                <span className="text-2xs rounded bg-zinc-800 px-1 py-0.5">×{row.count}</span>
               </td>
             </tr>
           ))}

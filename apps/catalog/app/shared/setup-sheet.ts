@@ -16,6 +16,27 @@ import { useCallback, useEffect, useState } from 'react'
  */
 export interface Choice {
   readonly toolGuid: string
+  /**
+   * Which stack of the tree this line is, where a stack wrote it.
+   *
+   * **A line is an assembly, not a tool** (Paul, 2026-09-11: "when I have two
+   * (or more) tool assemblies on a feature or group, both need to be shown in
+   * the order list. Only the first is being shown right now"). The sheet keyed
+   * a line by its tool, so one feature could hold exactly one line per cutter —
+   * and a second assembly given that cutter was written *over* the first,
+   * taking its holder with it. What reached the order list was one row where a
+   * shop had built two, and the count on it (`total`) was the sheet saying
+   * "twice" about a thing it had only one description of.
+   *
+   * The stack's id is the identity instead: two stacks are two lines whatever
+   * is in them, and the holder each was given survives. {@link lineId} is the
+   * one reading of it.
+   *
+   * Absent where nothing built the line out of a tree — the tool panel writes
+   * one, and every sheet saved before 2026-09-11 is written that way — and the
+   * tool is its identity then, exactly as it was.
+   */
+  readonly assemblyId?: string
   readonly holderGuid?: string
   readonly colletGuid?: string
   /** In millimetres; absent is the application's default. */
@@ -41,6 +62,15 @@ export interface Choice {
    */
   readonly total?: number
 }
+
+/**
+ * What a line *is*, on the feature it is kept under.
+ *
+ * The stack that wrote it, or the tool where nothing did — so a line the tool
+ * panel wrote is found by its tool the way it always was, and two stacks are
+ * two lines even when they hold the same cutter.
+ */
+export const lineId = (choice: Choice): string => choice.assemblyId ?? choice.toolGuid
 
 /** The three things a line can hold, each bought on its own. */
 export type Component = 'tool' | 'holder' | 'collet'
@@ -73,33 +103,44 @@ export const emptySheet = (partId: string): SetupSheet => ({ partId, choices: {}
 export const choicesFor = (sheet: SetupSheet, featureTag: string): ReadonlyArray<Choice> =>
   sheet.choices[featureTag] ?? []
 
-/** The line for one tool under one feature, if there is one. */
+/**
+ * The line for one tool under one feature, if there is one.
+ *
+ * By the *tool*, which is what the tool panel asks — it knows a catalog number
+ * and nothing about the tree. Where a row holds two stacks of one cutter this
+ * finds the first of them; {@link lineUnder} is the reading that names one.
+ */
 export const chosenFor = (sheet: SetupSheet, featureTag: string, toolGuid: string): Choice | null =>
   choicesFor(sheet, featureTag).find((each) => each.toolGuid === toolGuid) ?? null
+
+/** One line named by what it is: {@link lineId}, so two stacks are two lines. */
+export const lineUnder = (sheet: SetupSheet, featureTag: string, id: string): Choice | null =>
+  choicesFor(sheet, featureTag).find((each) => lineId(each) === id) ?? null
 
 /**
  * Keep an assembly for a feature.
  *
- * A tool already kept for that feature is replaced where it stands rather than
- * added twice: choosing a different holder for the same cutter is a correction,
- * not a second line.
+ * A line already kept under the same {@link lineId} is replaced where it stands
+ * rather than added twice: choosing a different holder for the same stack is a
+ * correction, not a second line. Two *stacks* holding one cutter have two ids,
+ * so they are two lines — which is the whole of Paul's 2026-09-11 defect.
  */
 export const addChoice = (sheet: SetupSheet, featureTag: string, choice: Choice): SetupSheet => {
   const kept = choicesFor(sheet, featureTag)
-  const at = kept.findIndex((each) => each.toolGuid === choice.toolGuid)
+  const at = kept.findIndex((each) => lineId(each) === lineId(choice))
   const next =
     at === -1 ? [...kept, choice] : kept.map((each, index) => (index === at ? choice : each))
   return { ...sheet, choices: { ...sheet.choices, [featureTag]: next } }
 }
 
-/** One line changed in place, by the tool it is for. */
+/** One line changed in place, by what it is — {@link lineId}. */
 const withChoice = (
   sheet: SetupSheet,
   featureTag: string,
-  toolGuid: string,
+  id: string,
   change: (choice: Choice) => Choice,
 ): SetupSheet => {
-  const had = chosenFor(sheet, featureTag, toolGuid)
+  const had = lineUnder(sheet, featureTag, id)
   return had === null ? sheet : addChoice(sheet, featureTag, change(had))
 }
 
@@ -111,10 +152,10 @@ const withChoice = (
 export const setTotal = (
   sheet: SetupSheet,
   featureTag: string,
-  toolGuid: string,
+  id: string,
   total: number,
 ): SetupSheet =>
-  withChoice(sheet, featureTag, toolGuid, (choice) => {
+  withChoice(sheet, featureTag, id, (choice) => {
     const wanted = Math.max(1, Math.floor(total))
     const { total: _was, ...rest } = choice
     return wanted === 1 ? rest : { ...rest, total: wanted }
@@ -129,11 +170,11 @@ export const setTotal = (
 export const setQuantity = (
   sheet: SetupSheet,
   featureTag: string,
-  toolGuid: string,
+  id: string,
   component: Component,
   quantity: number,
 ): SetupSheet =>
-  withChoice(sheet, featureTag, toolGuid, (choice) => {
+  withChoice(sheet, featureTag, id, (choice) => {
     const wanted = Math.max(1, Math.floor(quantity))
     const quantities = { ...choice.quantities }
     if (wanted === 1) {
@@ -167,12 +208,31 @@ export const clearChoice = (sheet: SetupSheet, featureTag: string): SetupSheet =
  * the one to copy: they are all the same tool, and the earliest is the one
  * whose holder was thought about first.
  */
-/** Un-choose one tool, leaving the others kept for that feature. */
-export const removeChoice = (
-  sheet: SetupSheet,
-  featureTag: string,
-  toolGuid: string,
-): SetupSheet => {
+/**
+ * Un-choose one line, leaving the others kept for that feature.
+ *
+ * By {@link lineId}, so taking one of two stacks of a cutter off leaves the
+ * other standing. {@link removeTool} is the other question — *this tool, off
+ * this feature* — which is what the tool panel asks.
+ */
+export const removeChoice = (sheet: SetupSheet, featureTag: string, id: string): SetupSheet => {
+  const kept = choicesFor(sheet, featureTag).filter((each) => lineId(each) !== id)
+  if (kept.length === choicesFor(sheet, featureTag).length) {
+    return sheet
+  }
+  return kept.length === 0
+    ? clearChoice(sheet, featureTag)
+    : { ...sheet, choices: { ...sheet.choices, [featureTag]: kept } }
+}
+
+/**
+ * Un-choose a tool, however many stacks of this feature were holding it.
+ *
+ * What the tool panel's *Remove* means: it knows a catalog number and nothing
+ * about the tree, so leaving one of two stacks of that cutter behind would be
+ * the press doing half of what it says.
+ */
+export const removeTool = (sheet: SetupSheet, featureTag: string, toolGuid: string): SetupSheet => {
   const kept = choicesFor(sheet, featureTag).filter((each) => each.toolGuid !== toolGuid)
   if (kept.length === choicesFor(sheet, featureTag).length) {
     return sheet

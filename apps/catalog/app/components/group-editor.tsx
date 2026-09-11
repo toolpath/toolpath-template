@@ -8,6 +8,7 @@ import type { HoleMode, ThreadSpec } from 'shared/threads'
 import { useEscape } from 'shared/use-escape'
 import { MeasurementIcon } from './feature-icons'
 import { ThreadPicker } from './thread-picker'
+import { SECTION_LABEL } from 'shared/type'
 
 /**
  * Building a group: which features are in it.
@@ -101,6 +102,22 @@ export interface GroupEditorProps {
    * group worth knowing before it is quoted.
    */
   readonly mixed?: boolean
+  /**
+   * The identical holes the one just picked stands with, offered as a press.
+   *
+   * **A group asks it too** (Paul, 2026-09-11: "the group dialog should ask if
+   * I want to add identical holes if I select one, just like the feature
+   * dialog"). The same sentence the reading panel shows, doing a different
+   * thing: there it opens a group, here it grows the one already open. Absent
+   * where there is nothing to add — a hole with no twin, or a bolt circle
+   * already in.
+   */
+  readonly identical?: {
+    /** Every identical hole, the one picked included — the number the press names. */
+    readonly count: number
+    readonly onGroup: () => void
+    readonly onDismiss: () => void
+  }
 }
 
 /**
@@ -137,6 +154,7 @@ export const GroupEditor = ({
   unit,
   thread,
   mixed = false,
+  identical,
 }: GroupEditorProps) => {
   /*
     Escape puts the draft down, the same as Cancel.
@@ -152,9 +170,7 @@ export const GroupEditor = ({
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
-        {editing ? 'Edit group' : 'New group'}
-      </span>
+      <span className={SECTION_LABEL}>{editing ? 'Edit group' : 'New group'}</span>
 
       {/*
       **The note is what the box used to say with a control** (Paul,
@@ -205,6 +221,64 @@ export const GroupEditor = ({
       )}
 
       {/*
+        **The same offer the reading panel makes** (Paul, 2026-09-11: "the group
+        dialog should ask if I want to add identical holes if I select one, just
+        like the feature dialog"). A click in here takes one hole since
+        2026-09-11, so a group can be corrected a hole at a time — which left a
+        bolt circle costing thirty-nine clicks. This is the way back to one
+        press, and it grows the group rather than opening one: `offerSiblings`
+        in `routes/part.tsx` is the rule, `groupOffer` the reading panel's.
+      */}
+      {identical ? (
+        <div className="border-info/40 bg-info/10 flex flex-col gap-1.5 rounded border px-2 py-1.5">
+          <p className="text-2xs text-zinc-300">
+            {identical.count - 1 === 1
+              ? 'One other hole on this part is identical'
+              : `${String(identical.count - 1)} other holes on this part are identical`}{' '}
+            — same diameter, depth and way up.
+          </p>
+          <div className="flex items-center gap-1.5">
+            <Button size="sm" variant="secondary" onClick={identical.onGroup}>
+              Add all {identical.count} to the group
+            </Button>
+            <Button size="sm" variant="muted" onClick={identical.onDismiss}>
+              Just this hole
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {/*
+        **A group of holes is threaded as a group** (Paul, 2026-09-09). The
+        thread is named on the reading panel, and this box stands in its place
+        while a group is being built; without it a bolt circle picked out here
+        had to be taken apart again to say it was tapped. It applies to every
+        hole in the group — `writeThread` in the route is the scope.
+
+        **Directly under the chips, in a bubble of its own** (Paul, 2026-09-11:
+        "the option to add a thread should be more prominent"). It sat at the
+        foot of the box under a hairline rule, below the worst-case readings, so
+        the decision that picks which catalog the table is even showing was the
+        last thing on a form somebody had to scroll. `thread-picker.tsx` draws
+        the bubble; the mixed-bore note takes the same shape so the box does not
+        change height when a group stops being threadable.
+      */}
+      {thread ? (
+        <ThreadPicker
+          holeDiameter={thread.holeDiameter}
+          mode={thread.mode}
+          spec={thread.spec}
+          onChange={thread.onChange}
+          unit={unit}
+        />
+      ) : mixed ? (
+        <p className="text-2xs rounded border border-zinc-700 bg-zinc-800/60 px-2 py-1.5 text-zinc-400">
+          The holes in this group are different sizes, so they cannot share one thread. Thread them
+          one at a time.
+        </p>
+      ) : null}
+
+      {/*
         **The hardest of them** (Paul, 2026-09-08). A group is one tool for all of
         them, so the number a tool is chosen against is the worst of the group's
         — the deepest reach, the tightest corner — rather than any one feature's.
@@ -220,9 +294,7 @@ export const GroupEditor = ({
       */}
       {readings.length > 0 ? (
         <div className="flex flex-col gap-1">
-          <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
-            Worst case in the group
-          </span>
+          <span className={SECTION_LABEL}>Worst case in the group</span>
           <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1">
             {readings.map((reading) => (
               <div
@@ -245,28 +317,6 @@ export const GroupEditor = ({
             ))}
           </dl>
         </div>
-      ) : null}
-
-      {/*
-        **A group of holes is threaded as a group** (Paul, 2026-09-09). The
-        thread is named on the reading panel, and this box stands in its place
-        while a group is being built; without it a bolt circle picked out here
-        had to be taken apart again to say it was tapped. It applies to every
-        hole in the group — `writeThread` in the route is the scope.
-      */}
-      {thread ? (
-        <ThreadPicker
-          holeDiameter={thread.holeDiameter}
-          mode={thread.mode}
-          spec={thread.spec}
-          onChange={thread.onChange}
-          unit={unit}
-        />
-      ) : mixed ? (
-        <p className="text-2xs border-t border-zinc-900 pt-1.5 text-zinc-500">
-          The holes in this group are different sizes, so they cannot share one thread. Thread them
-          one at a time.
-        </p>
       ) : null}
 
       {/*

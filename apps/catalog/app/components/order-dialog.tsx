@@ -7,6 +7,7 @@ import { describeGrade, type HolderOption } from 'shared/holder-choice'
 import { useEscape } from 'shared/use-escape'
 import { ToolTypeIcon, formLabel } from './tool-icons'
 import { CatalogComboboxButton } from './catalog-combobox-button'
+import { SECTION_LABEL } from 'shared/type'
 
 /**
  * Keeping a tool for a feature: what holds it, and what it is held in.
@@ -115,16 +116,12 @@ export const OrderDialog = ({
       >
         <Card className="overflow-hidden shadow-xl">
           <div className="border-b border-zinc-900 px-3 py-2">
-            <p className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
-              Add to order list
-            </p>
+            <p className={SECTION_LABEL}>Add to order list</p>
             <p className="mt-0.5 flex items-center gap-1.5 text-sm">
               <span className="shrink-0 text-zinc-400">
                 <ToolTypeIcon toolType={tool.form} />
               </span>
-              <span className="truncate font-mono font-semibold text-zinc-100">
-                {tool.catalogNumber}
-              </span>
+              <span className="truncate font-mono text-zinc-100">{tool.catalogNumber}</span>
             </p>
             <p className="text-2xs mt-0.5 truncate text-zinc-500">
               {formLabel(tool)}
@@ -134,9 +131,7 @@ export const OrderDialog = ({
 
           <div className="flex flex-col gap-2 p-3">
             <label className="flex flex-col gap-1">
-              <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
-                Holder
-              </span>
+              <span className={SECTION_LABEL}>Holder</span>
               <Combobox
                 items={['', ...options.map((option) => option.holder.guid)]}
                 value={holderGuid ?? ''}
@@ -195,9 +190,7 @@ export const OrderDialog = ({
 
             {chosen && collets.length > 0 ? (
               <label className="flex flex-col gap-1">
-                <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
-                  Collet
-                </span>
+                <span className={SECTION_LABEL}>Collet</span>
                 <Combobox
                   items={['', ...collets.map((each) => each.guid)]}
                   value={collet?.guid ?? ''}

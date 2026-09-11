@@ -275,10 +275,44 @@ test('a click on a face names its reading, and lists the tools that cut it', asy
   await ready(page)
 
   await expect(field(page)).toBeVisible()
-  // Named twice, and both are the reading's own: the stack it opened says what
-  // it is for, and the list under it is headed by it.
-  await expect(page.locator('[data-assembly-tree]').getByText(/^Cuts the /)).toBeVisible()
+  // Named where it is over something otherwise unlabelled: the list under the
+  // part. The tree's own copy came out on 2026-09-11 — the card carrying it
+  // already names the reading at the top of the same box.
+  await expect(page.locator('[data-assembly-tree]').getByText(/^Cuts the /)).toHaveCount(0)
   await expect(page.locator('[data-list-chrome]').getByText(/^Cuts the /)).toBeVisible()
+})
+
+/**
+ * **Three ways out, and none of them costs the box** (Paul, 2026-09-11:
+ * "clicking on the i icon again, hitting the x, or hitting escape should close
+ * feature details — but keep the feature dialog open and as is").
+ *
+ * The `i` opened the record and then did nothing at all, and Escape belonged to
+ * the page: one press put the record away *and* dropped the reading behind it,
+ * so what somebody came back to was an empty corner. The record is the newest
+ * thing on the screen, so it takes the press — `use-escape.ts` is the stack and
+ * `part-viewer.tsx` pushes the layer.
+ */
+test('the feature record closes three ways, and the box behind it stays', async ({ page }) => {
+  await ready(page)
+
+  const open = page.getByRole('button', { name: /^What Toolpath measured about / })
+  const record = page.getByText('Feature details')
+
+  for (const close of [
+    async () => open.click(),
+    async () => page.getByRole('button', { name: 'Back to the part' }).click(),
+    async () => page.keyboard.press('Escape'),
+  ]) {
+    await open.click()
+    await expect(record).toBeVisible()
+
+    await close()
+    await expect(record).toHaveCount(0)
+    // The box it was opened from is untouched: same reading, same stack.
+    await expect(field(page)).toBeVisible()
+    await expect(page.locator('[data-assembly-tree]')).toBeVisible()
+  }
 })
 
 /**
@@ -616,23 +650,46 @@ test('keeps a column filter open for a second value, and closes it on a press ou
 })
 
 /**
- * **A dropdown opened from inside the filter is inside it.** The kit draws a
- * `Combobox` popover in a portal of its own, so choosing an operator read as a
- * press on the page and shut the filter before the box to type in was drawn —
- * and every keystroke after it rebuilt the header under the box. A number
- * column could not be narrowed at all.
+ * **Open it and type: that is the whole gesture** (Paul, 2026-09-11: "it's
+ * weird showing the drop down then having to enter text").
+ *
+ * Narrowing a number column used to cost four presses before the first
+ * keystroke — the funnel, an operator list, an operator, then the box that only
+ * then existed — and each of those presses was a defect waiting: the operator
+ * list was drawn in a portal of the kit's own, so choosing from it read as a
+ * press on the page and shut the filter before the box appeared, and every
+ * keystroke after it rebuilt the header under the box. Both ends are on screen
+ * from the start now, and the caret is in the lower one.
  */
 test('a number column is typed into without the filter shutting', async ({ page }) => {
   await page.getByRole('button', { name: 'Filter by Diameter', exact: true }).click()
-  await page.getByRole('combobox', { name: 'How to compare Diameter' }).click()
-  await page.getByRole('option', { name: '≥ at least' }).click()
 
-  const box = page.getByRole('textbox', { name: 'Diameter — value' })
-  await box.click()
+  const box = page.getByRole('textbox', { name: 'Diameter — min' })
+  await expect(box).toBeFocused()
   await page.keyboard.type('12')
 
   await expect(box).toHaveValue('12')
   await expect(page).toHaveURL(/min\.DC=12/)
+})
+
+/**
+ * **An end stated is an end meant, whichever box stated it.** `<12` belongs in
+ * the upper box and gets typed wherever the caret happens to be, so the lower
+ * box reads it and `shared/range-entry.ts` puts it where it goes — which is
+ * what replaced choosing "≤ at most" off a list. The boxes are written back out
+ * in longhand once the entry is finished, so what was asked stays legible.
+ */
+test('an upper bound typed into the lower box lands on the upper one', async ({ page }) => {
+  await page.getByRole('button', { name: 'Filter by Diameter', exact: true }).click()
+
+  await page.getByRole('textbox', { name: 'Diameter — min' }).click()
+  await page.keyboard.type('<12')
+  await expect(page).toHaveURL(/max\.DC=12/)
+
+  await page.getByRole('textbox', { name: 'Diameter — max' }).click()
+
+  await expect(page.getByRole('textbox', { name: 'Diameter — min' })).toHaveValue('')
+  await expect(page.getByRole('textbox', { name: 'Diameter — max' })).toHaveValue('12.00')
 })
 
 /**
@@ -829,7 +886,6 @@ test('a click previews and asks, and the list answers for itself', async ({ page
   // a second toolbar row above the table.
   await page.getByRole('button', { name: 'Filter by Catalog number', exact: true }).click()
   await expect(page.getByRole('searchbox', { name: 'Search by catalog number' })).toBeVisible()
-  await expect(page.getByText(/^Cuts the /)).toBeVisible()
 })
 
 /**
@@ -896,8 +952,6 @@ test('adds a tool assembly with no feature behind it', async ({ page }) => {
   // and nothing has been ordered.
   const tree = page.locator('[data-assembly-tree]')
   await expect(tree).toBeVisible()
-  await expect(tree.getByText('New tool assembly — no feature')).toBeVisible()
-  await expect(tree.getByText('not on the list yet')).toBeVisible()
   const list = await orderList(page)
   await expect(list).toBeHidden()
 
@@ -1640,7 +1694,12 @@ test('presses the tool under a row for everything that fits it', async ({ page }
 
   await list.getByRole('button', { name: / for / }).click()
 
-  await expect(page.getByText('Cuts every feature in the group')).toBeVisible()
+  /*
+    The box is open on the group again. It used to be read off the tree's own
+    heading, which came out on 2026-09-11 — the card above it names what is
+    being asked, and the bar under the part heads the list.
+  */
+  await expect(page.locator('[data-assembly-tree]')).toBeVisible()
   await page.getByRole('button', { name: 'Filter by Catalog number', exact: true }).click()
   await expect(page.getByRole('searchbox', { name: 'Search by catalog number' })).toBeVisible()
 })
@@ -2087,9 +2146,7 @@ test.describe('the tool assembly tree', () => {
       .click()
 
     await page.getByRole('button', { name: 'Filter by Diameter', exact: true }).click()
-    await page.getByRole('combobox', { name: 'How to compare Diameter' }).click()
-    await page.getByRole('option', { name: '≥ at least' }).click()
-    const box = page.getByRole('textbox', { name: 'Diameter — value' })
+    const box = page.getByRole('textbox', { name: 'Diameter — min' })
     await box.click()
     await page.keyboard.type('1')
 
@@ -2116,9 +2173,7 @@ test.describe('the tool assembly tree', () => {
       .click()
 
     await page.getByRole('button', { name: 'Filter by Diameter', exact: true }).click()
-    await page.getByRole('combobox', { name: 'How to compare Diameter' }).click()
-    await page.getByRole('option', { name: '≥ at least' }).click()
-    await page.getByRole('textbox', { name: 'Diameter — value' }).click()
+    await page.getByRole('textbox', { name: 'Diameter — min' }).click()
     await page.keyboard.type('4')
     await expect(page).toHaveURL(/min\.DC=4/)
 
@@ -2147,6 +2202,49 @@ test.describe('the tool assembly tree', () => {
    * so widening one asked for precisely the tools the rules then removed — and
    * the table answered a deliberate question with nothing.
    */
+  /**
+   * **An empty box means unbounded, and unbounded includes the rules** (Paul,
+   * 2026-09-11: "when I remove a value for min or max, it is not showing tools
+   * down to the smallest or largest tool in the library with a feature or group
+   * active").
+   *
+   * Clearing took the *filter* off and left the `must` rows that wrote it
+   * judging every tool exactly as before — and the tick that sets those aside
+   * was offered only while a number stood in the box, so each half of "show me
+   * everything" was behind the other. `releasedBounds` in `shared/filter.ts` is
+   * the rule; this is both halves of it on screen at once, since the dialog
+   * saying so and the list widening are the same act.
+   */
+  test('sets a column of rules aside when its number is taken away', async ({ page }) => {
+    await ready(page)
+    await page
+      .locator('[data-assembly-tree]')
+      .getByRole('button', { name: /^TOOL for / })
+      .click()
+
+    // What the geometry asked for, before anything is changed.
+    await expect(page).toHaveURL(/min\.LCF=50\.9/)
+
+    await page.getByRole('button', { name: 'Filter by Flute length', exact: true }).click()
+    const dialog = page.getByRole('group', { name: 'Flute length' })
+    await expect(dialog.getByRole('note')).toBeHidden()
+
+    await page.getByRole('textbox', { name: 'Flute length — min' }).fill('')
+
+    // The filter is gone from the question...
+    await expect(page).not.toHaveURL(/min\.LCF=/)
+    // ...and so are the rules that wrote it, with no second press: the dialog
+    // says so, and it does not also say that changing it changes nothing.
+    const note = dialog.getByRole('note')
+    await expect(note).toContainText('flute length rules are set aside')
+    await expect(note).not.toContainText('does not change the rules')
+    // There is nothing left to confirm, so the tick is only a way out.
+    await expect(
+      dialog.getByRole('button', { name: 'Keep this flute length and override its rules' }),
+    ).toBeHidden()
+    await expect(page.getByText(/rules turn down are listed/)).toBeVisible()
+  })
+
   test('warns in the column that overrules the rules, and marks the stack', async ({ page }) => {
     await ready(page)
     const tree = page.locator('[data-assembly-tree]')
@@ -2158,7 +2256,7 @@ test.describe('the tool assembly tree', () => {
     const dialog = page.getByRole('group', { name: 'Flute length' })
     await expect(dialog.getByRole('note')).toBeHidden()
 
-    await page.getByRole('textbox', { name: 'Flute length — value' }).click()
+    await page.getByRole('textbox', { name: 'Flute length — min' }).click()
     await page.keyboard.press('ControlOrMeta+a')
     await page.keyboard.type('10')
 
@@ -2212,7 +2310,7 @@ test.describe('the tool assembly tree', () => {
 
     await page.getByRole('button', { name: 'Filter by Flute length', exact: true }).click()
     const dialog = page.getByRole('group', { name: 'Flute length' })
-    const bound = page.getByRole('textbox', { name: 'Flute length — value' })
+    const bound = page.getByRole('textbox', { name: 'Flute length — min' })
     await bound.click()
     await page.keyboard.press('ControlOrMeta+a')
     await page.keyboard.type('10')
@@ -2475,7 +2573,6 @@ test.describe('the tool assembly tree', () => {
     await expect(list).toBeHidden()
 
     const tree = page.locator('[data-assembly-tree]')
-    await expect(tree.getByText(/not on the list yet/)).toBeVisible()
     /*
       Nothing built, and the press is on screen anyway (Paul, 2026-09-09: "Add
       to order list should be shown by default … Right now it is hidden by
@@ -2510,7 +2607,6 @@ test.describe('the tool assembly tree', () => {
     // Opened again from the row: on the list now, so the press that is left is
     // the way back off it.
     const again = await openRow(page)
-    await expect(again.getByText(/not on the list yet/)).toBeHidden()
     await expect(again.getByRole('button', { name: 'Remove from order list' })).toBeVisible()
   })
 
@@ -3300,26 +3396,43 @@ test.describe('the tool assembly tree', () => {
     await expect(holders.nth(1)).toHaveText('HOLDER—')
     await expect(tree.getByRole('button', { name: /^COLLET for / }).nth(1)).toHaveText('COLLET—')
 
-    // And what it offers is what a new stack offers: the way on, not an edit of
-    // the other one's line.
-    await expect(tree.getByRole('button', { name: 'Add to order list' })).toBeVisible()
+    /*
+      And what it offers is what a new stack offers: the way on, not an edit of
+      the other one's line.
+
+      **One press for the box, not one per card** (Paul, 2026-09-11), so what it
+      says is the difference between the box and the bill — the second stack's
+      cutter being added. `Cancel` stands beside it because that difference is
+      an unsaved edit; what must not be here is an offer to take the *first*
+      stack's holder off, which is the adopted line this test exists for.
+    */
+    await expect(tree.getByRole('button', { name: /^Add tool / })).toBeVisible()
     await expect(tree.getByRole('button', { name: /^Take holder / })).toHaveCount(0)
-    await expect(tree.getByRole('button', { name: /^Cancel/ })).toHaveCount(0)
   })
 
   /**
    * **Two identical stacks are two things to set up** (Paul, 2026-09-10:
    * "duplicates are now showing up as separate line items — in either order list
    * view … that should show 2 assemblies and a count of two of each component",
-   * and "show a (×2, used in Assembly 1) in the feature dialog").
+   * and "show a (×2, used in Assembly 1) in the feature dialog"), and **both of
+   * them are shown** (Paul, 2026-09-11: "when I have two (or more) tool
+   * assemblies on a feature or group, both need to be shown in the order list.
+   * Only the first is being shown right now").
    *
-   * The sheet keys a line by its tool, so a row holding one cutter in two stacks
-   * cannot hold two lines — what it holds is `total`, how many of that assembly,
-   * which `componentTotals` already multiplies every component by. Nothing was
-   * writing it, so a second identical assembly wrote the same line again and the
-   * bill said one of each.
+   * The sheet keyed a line by its tool, so a row holding one cutter in two
+   * stacks could not hold two lines — what it held instead was `total`, a count
+   * on one line, and the order list drew the one line. That was the count Paul
+   * asked for standing in for the assemblies he asked for, and it hid the worse
+   * half of the same defect: two stacks of one cutter given *different holders*
+   * were one line too, so the second one's holder wrote over the first's.
+   *
+   * A line now carries the id of the stack that wrote it — `lineId`,
+   * `shared/setup-sheet.ts` — so this is two lines, two rows, and two of each
+   * component to buy.
    */
-  test('counts a cutter a row ordered twice, and says so while it is picked', async ({ page }) => {
+  test('lists a cutter a row ordered twice twice over, and says so while it is picked', async ({
+    page,
+  }) => {
     await ready(page)
     const tree = await buildStack(page)
     const slot = tree.getByRole('button', { name: /^TOOL for / })
@@ -3358,16 +3471,89 @@ test.describe('the tool assembly tree', () => {
       .first()
       .click()
 
-    await tree.getByRole('button', { name: 'Add to order list' }).last().click()
+    // One press over both stacks since 2026-09-11, and it names what it writes.
+    await tree.getByRole('button', { name: /^Add tool / }).click()
 
-    // One line on the list, and it says there are two of it to set up.
+    // Both stacks on the list, and two lines on the sheet under them.
     const list = await orderList(page)
-    await expect(list.getByRole('button', { name: /, ×2, for / })).toBeVisible()
+    await expect(list.getByRole('button', { name: / for / })).toHaveCount(2)
     const kept = await page.evaluate(() => {
       const key = Object.keys(localStorage).find((each) => each.startsWith('tool-catalog.setup.'))
       return key === undefined ? null : localStorage.getItem(key)
     })
-    expect(kept).toContain('"total":2')
+    expect(kept).toContain('"assemblyId":"assembly-1"')
+    expect(kept).toContain('"assemblyId":"assembly-2"')
+
+    // And what to buy says two of the cutter, counted over the two of them.
+    await page.getByRole('link', { name: 'Order list' }).click()
+    await expect(page.getByRole('table')).toBeVisible()
+    await page.getByRole('button', { name: 'Components', exact: true }).click()
+    const counted = page
+      .getByRole('row')
+      .filter({ has: page.getByRole('rowheader', { name: 'Tool' }) })
+      .getByRole('spinbutton')
+    await expect(counted).toHaveValue('2')
+  })
+
+  /**
+   * The half of the same defect a count could never have covered: two stacks of
+   * one cutter, held differently. The second used to write over the first, so
+   * the holder somebody had chosen for it simply went (Paul, 2026-09-11).
+   */
+  test('keeps the holder each stack of one cutter was given', async ({ page }) => {
+    await ready(page)
+    const tree = await buildStack(page)
+    const slot = tree.getByRole('button', { name: /^TOOL for / })
+    await expect(slot).not.toContainText('—')
+    const number = ((await slot.textContent()) ?? '').replace(/^TOOL/, '').trim()
+    await tree.getByRole('button', { name: 'Add to order list' }).click()
+    await openRow(page)
+
+    await tree.getByRole('button', { name: 'Add assembly' }).click()
+    const tools = tree.getByRole('button', { name: /^TOOL for / })
+    await expect(tools).toHaveCount(2)
+    const rows = page.getByRole('grid').first().getByRole('row')
+    await expect(rows.first()).toContainText(number)
+    await expect(async () => {
+      await rows.first().evaluate((element) => {
+        element.click()
+      })
+      await expect(tools.nth(1)).toContainText(number, { timeout: 2_000 })
+    }).toPass({ timeout: 20_000 })
+
+    // A different holder from the one the first stack is on the list with.
+    await tree.getByRole('button', { name: 'HOLDER for assembly-2' }).click()
+    await showNoCollet(page)
+    const holders = page.locator('[data-component-table="holder"]').getByRole('grid')
+    await expect(holders.getByRole('row').nth(1)).toBeVisible()
+    const held = tree.getByRole('button', { name: /^HOLDER for / })
+    /*
+      Retried until the slot says it took, the way {@link pickTool} is: the rack
+      is answered asynchronously, so a row that was there when the click was
+      scheduled can be gone by the time it lands — and the em dash the slot
+      keeps meanwhile is what the assertions below would read as a holder.
+    */
+    await expect(async () => {
+      await holders
+        .getByRole('row')
+        .nth(1)
+        .evaluate((element) => {
+          element.click()
+        })
+      await expect(held.nth(1)).not.toContainText('—', { timeout: 2_000 })
+    }).toPass({ timeout: 20_000 })
+
+    const first = ((await held.first().textContent()) ?? '').replace(/^HOLDER/, '').trim()
+    const second = ((await held.nth(1).textContent()) ?? '').replace(/^HOLDER/, '').trim()
+    expect(second).not.toBe(first)
+
+    await tree.getByRole('button', { name: /^Add tool / }).click()
+
+    // Two rows, each still holding the holder its stack was given.
+    const list = await orderList(page)
+    await expect(list.getByRole('button', { name: / for / })).toHaveCount(2)
+    await expect(list.getByText(first, { exact: false })).toBeVisible()
+    await expect(list.getByText(second, { exact: false })).toBeVisible()
   })
 
   test('another assembly is one press away', async ({ page }) => {
@@ -3698,9 +3884,7 @@ test('the flute filter binds the list that stands in when nothing fits', async (
     .click()
 
   await page.getByRole('button', { name: 'Filter by Flutes', exact: true }).click()
-  await page.getByRole('combobox', { name: 'How to compare Flutes' }).click()
-  await page.getByRole('option', { name: '≤ at most' }).click()
-  const box = page.getByRole('textbox', { name: 'Flutes — value' })
+  const box = page.getByRole('textbox', { name: 'Flutes — max' })
   await box.fill('5')
 
   // Nothing fits this face, so the list is the closest misses standing in —
@@ -3715,4 +3899,63 @@ test('the flute filter binds the list that stands in when nothing fits', async (
   await expect(
     page.getByText('No tool in the catalog matches every part of this selection.'),
   ).toBeVisible()
+})
+
+/**
+ * **The focus is in the tool list the moment something is selected** (Paul,
+ * 2026-09-11: "the focus should go to the table as soon as a feature is
+ * selected — we should disable the arrow navigation for features in this app").
+ *
+ * Three things, and the first is what the other two are for. Selecting a
+ * feature hands the keys to the list; the press after it moves in the list
+ * rather than through the readings behind the box; and a list reading no row
+ * yet still moves, because `@toolpath/ui`'s table navigates off a cursor it
+ * only has once a row is selected — a list that took the focus and then ignored
+ * every press is the dead end this half exists to prevent.
+ *
+ * `shared/arrow-target.ts` is the rule and is unit-tested; what cannot be
+ * tested there is whether the kit picks the press up at all.
+ */
+test('puts the focus in the tool list as soon as a feature is selected', async ({ page }) => {
+  await ready(page)
+  const tree = await keepFeature(page)
+  const slot = tree.getByRole('button', { name: /^TOOL for / })
+  const named = async () => (await slot.textContent()) ?? ''
+  await expect(slot).toContainText('—')
+
+  await expect(page.locator('[data-part-tool-table] [tabindex="0"]')).toBeFocused()
+
+  // Nothing is read yet, so this press lands on a row rather than moving from
+  // one — the half the kit cannot do for itself.
+  await page.keyboard.press('ArrowDown')
+
+  await expect(orderPress(page)).toBeEnabled()
+  const first = await named()
+
+  await page.keyboard.press('ArrowDown')
+
+  await expect.poll(named).not.toBe(first)
+})
+
+/**
+ * **And the readings are never walked with them** (Paul, 2026-09-11: "we should
+ * disable the arrow navigation for features in this app — it only happens by
+ * clicking the arrow or through the drop down list, never browsed through the
+ * keyboard arrows").
+ *
+ * The press that used to change which reading the page was on is the same press
+ * that now belongs to the list, so this is the other side of the test above:
+ * the box goes on naming the reading it was opened on, however many times it is
+ * pressed.
+ */
+test('never walks the readings with the arrow keys', async ({ page }) => {
+  await ready(page)
+  const named = (await field(page).textContent()) ?? ''
+  expect(named).not.toBe('')
+
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowUp')
+
+  await expect(field(page)).toHaveText(named)
 })

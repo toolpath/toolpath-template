@@ -508,15 +508,6 @@ describe('naming a reading from a list', () => {
     // Reading is not arming.
     expect(state.activeDirection).toBeNull()
   })
-
-  it('walks the order the list is drawn in', () => {
-    const state = run(
-      { type: 'click', pick: face() },
-      { type: 'step', order: ['pocket', 'wall'], by: 1 },
-    )
-
-    expect(state.focused).toBe('wall')
-  })
 })
 
 describe('naming a reading', () => {

@@ -98,23 +98,24 @@ describe('the filters a holder heading asks', () => {
   })
 
   /**
-   * **A dropdown opened from inside the filter is inside it.** The kit draws a
-   * `Combobox` popover in a portal of its own, outside the menu's own box, so
-   * the press that chose an operator read as a press on the page and shut the
-   * filter before the box to type in had been drawn. The press is dispatched
-   * rather than clicked because that rule is written against `pointerdown`.
+   * **The filter opens on somewhere to type, and stays open while it is typed
+   * in** (Paul, 2026-09-11). It used to open on an operator list reading "Any",
+   * which drew no box at all, and the press that chose an operator landed in a
+   * portal outside the menu's own box and read as a press on the page — so the
+   * filter shut before the box to type in had been drawn. Both ends are now on
+   * screen from the start and there is no popover in the way of them.
    */
-  it('stays open while the compare dropdown is used', () => {
+  it('opens on both ends of the number, and stays open while one is typed', () => {
     show()
 
     fireEvent.click(screen.getByRole('button', { name: 'Filter by Gauge length' }))
-    fireEvent.click(screen.getByRole('combobox', { name: 'How to compare Gauge length' }))
-    const option = screen.getByRole('option', { name: '≥ at least' })
-    fireEvent.pointerDown(option)
-    fireEvent.click(option)
+    const box = screen.getByRole('textbox', { name: 'Gauge length — min' })
+    expect(screen.getByRole('textbox', { name: 'Gauge length — max' })).toBeInTheDocument()
+
+    fireEvent.change(box, { target: { value: '60' } })
 
     expect(screen.getByRole('group', { name: 'Gauge length' })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Gauge length — value' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Gauge length — min' })).toHaveValue('60')
   })
 
   /**

@@ -23,6 +23,7 @@ import {
 } from 'shared/component-columns'
 import { askOfComponentColumn } from 'shared/column-filters'
 import { setBound, setTerm, setText, type ComponentQuery } from 'shared/component-query'
+import { TABLE_FACE, TABLE_INK } from 'shared/type'
 import {
   ColumnFilterMenu,
   ColumnHeading,
@@ -185,11 +186,7 @@ const ValueCell = ({
   const value = valueOf(kind, record, column.code)
   return (
     <span
-      className={cn(
-        'truncate',
-        column.kind === 'length' ? 'font-mono text-zinc-300' : 'text-zinc-300',
-        value === null ? 'text-zinc-600' : '',
-      )}
+      className={cn('truncate', value === null ? 'text-zinc-600' : '')}
       title={typeof value === 'string' ? value : undefined}
     >
       {formatValue(value, column.kind, unit)}
@@ -351,7 +348,11 @@ export const ComponentTable = ({
   )
 
   return (
-    <div ref={inside} data-component-table={kind} className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div
+      ref={inside}
+      data-component-table={kind}
+      className={cn(TABLE_FACE, TABLE_INK, 'flex min-h-0 min-w-0 flex-1 flex-col')}
+    >
       <div className="min-h-0 flex-1">
         <Table
           id={`part-${kind}s`}
@@ -386,7 +387,7 @@ export const ComponentTable = ({
                   >
                     {column.code === 'catalogNumber' ? (
                       <>
-                        <span className="font-mono text-zinc-100">{record.catalogNumber}</span>
+                        <span>{record.catalogNumber}</span>
                         {/*
                           **The vendor's page is on the number** (Paul,
                           2026-09-11), as it already is on the order list: the

@@ -233,7 +233,7 @@ const Answer = ({
         troubled to call a stack something is a shop that will look for it here.
       */}
       {assembly === null ? null : (
-        <span className="w-full truncate font-medium text-zinc-300">{assembly}</span>
+        <span className="w-full truncate font-semibold text-zinc-300">{assembly}</span>
       )}
       <span className="flex w-full min-w-0 items-center gap-1.5">
         <span className="shrink-0">

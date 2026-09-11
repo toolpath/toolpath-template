@@ -3,6 +3,7 @@ import { Button, Card, Input } from '@toolpath/ui'
 import { PRETOOL_MATERIALS, type PretoolMaterial } from 'shared/pretool-presets'
 import type { FusionExportDiagnostic, FusionExportSettings } from 'shared/fusion-library'
 import { useEscape } from 'shared/use-escape'
+import { SECTION_LABEL } from 'shared/type'
 
 export interface FusionExportDialogProps {
   readonly initialMaterial: PretoolMaterial | null
@@ -80,9 +81,7 @@ export const FusionExportDialog = ({
         </div>
         <div className="space-y-4 p-4">
           <fieldset>
-            <legend className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
-              Workpiece material
-            </legend>
+            <legend className={SECTION_LABEL}>Workpiece material</legend>
             <div className="mt-2 flex flex-wrap gap-2">
               {PRETOOL_MATERIALS.map((each) => (
                 <Button
@@ -99,9 +98,7 @@ export const FusionExportDialog = ({
             </div>
           </fieldset>
           <label className="flex flex-col gap-1">
-            <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
-              Library name
-            </span>
+            <span className={SECTION_LABEL}>Library name</span>
             <Input
               id="fusion-export-name"
               name="fusion-export-name"
@@ -114,9 +111,7 @@ export const FusionExportDialog = ({
             </span>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
-              Maximum spindle RPM
-            </span>
+            <span className={SECTION_LABEL}>Maximum spindle RPM</span>
             <Input
               id="fusion-export-max-rpm"
               name="fusion-export-max-rpm"

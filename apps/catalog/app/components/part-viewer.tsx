@@ -15,6 +15,8 @@ import { GridFourIcon, MagnifyingGlassPlusIcon, SquareHalfIcon, XIcon } from '@p
 import type { PartReport, PublicInspectionReport } from '@toolpath/part-contracts'
 import { readingTheme } from 'shared/reading-colors'
 import { FrameInset } from 'components/frame-inset'
+import { SECTION_LABEL } from 'shared/type'
+import { useEscape } from 'shared/use-escape'
 
 /**
  * The part, and the directions it can be cut from.
@@ -221,6 +223,21 @@ export const PartViewer = ({
    */
   const questions = useRef<HTMLDivElement>(null)
   const [questionsWidth, setQuestionsWidth] = useState<number | null>(null)
+
+  /**
+   * Escape puts the record away, and leaves the box it was opened from alone.
+   *
+   * **The press belonged to the page** (Paul, 2026-09-11: "hitting escape
+   * should close feature details but keep the feature dialog open and as is").
+   * The record is opened *over* the questions with no layer of its own, so one
+   * press walked the page's own step — dropping the reading behind it — and the
+   * record stayed open on a feature nothing was reading any more. It is the
+   * newest thing on the screen, so it takes the press: `use-escape.ts` is the
+   * stack, and this layer is pushed only while the record is up.
+   */
+  useEscape(Boolean(details) && onCloseDetails !== undefined, () => {
+    onCloseDetails?.()
+  })
   /**
    * How far in the boxes over the part reach — what the camera was told.
    *
@@ -461,9 +478,7 @@ export const PartViewer = ({
           style={questionsWidth === null ? undefined : { left: questionsWidth + 20 }}
         >
           <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2">
-            <span className="text-2xs font-semibold tracking-wide text-zinc-500 uppercase">
-              Feature details
-            </span>
+            <span className={SECTION_LABEL}>Feature details</span>
             <IconButton
               size="lg"
               variant="muted"

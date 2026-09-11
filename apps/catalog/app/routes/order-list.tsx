@@ -18,6 +18,7 @@ import { ColletIcon, HolderIcon, ToolTypeIcon, formLabel } from './../components
 import { allTools, getCollet, getHolder, getTool } from 'shared/catalog'
 import {
   addChoice,
+  lineUnder,
   quantityOf,
   removeChoice,
   setQuantity,
@@ -44,6 +45,7 @@ import { recallPart } from 'shared/part-session'
 import { useUnit } from 'shared/use-unit'
 import { usePartMaterial } from 'shared/use-preferences'
 import type { PretoolMaterial } from 'shared/pretool-presets'
+import { SECTION_LABEL, TABLE_FACE, TABLE_INK } from 'shared/type'
 
 /**
  * The order list: what has been decided for this part, in one list.
@@ -249,7 +251,8 @@ const SortHeading = ({
         title={column.title}
         onClick={() => onSort(column.by)}
         className={cn(
-          'text-2xs inline-flex items-center gap-0.5 rounded tracking-wide uppercase transition',
+          SECTION_LABEL,
+          'inline-flex items-center gap-0.5 rounded transition',
           here ? 'text-info' : 'text-zinc-400 hover:text-zinc-100',
         )}
       >
@@ -296,7 +299,7 @@ const Count = ({
     variant="ghost"
     size="md"
     textEnd
-    className="inline-flex w-14 rounded border border-zinc-700 font-mono text-xs text-zinc-100"
+    className="inline-flex w-14 rounded border border-zinc-700 text-xs text-zinc-100"
   />
 )
 
@@ -384,7 +387,7 @@ const Row = ({
           label={`How many ${line.catalogNumber} (${KIND[line.component].toLowerCase()}) per assembly`}
         />
         {total === 1 ? null : (
-          <span className="text-2xs font-mono text-zinc-400">= {String(total * quantity)}</span>
+          <span className="text-2xs text-zinc-400">= {String(total * quantity)}</span>
         )}
         {/* One component off the assembly, rather than the whole of it. */}
         <IconButton
@@ -405,7 +408,7 @@ const Row = ({
         {KIND[line.component]}
       </span>
     </td>
-    <td className="px-3 py-1.5 text-sm whitespace-nowrap text-zinc-300">{line.brand}</td>
+    <td className="px-3 py-1.5 text-sm whitespace-nowrap">{line.brand}</td>
     {/*
       **The vendor's page is on the number** (Paul, 2026-09-01: "vendor link
       should be in part ID cell, and we need to make sure it's working"). The
@@ -414,23 +417,21 @@ const Row = ({
     */}
     <td className="px-3 py-1.5">
       {line.productLink === null ? (
-        <span className="block font-mono whitespace-nowrap text-zinc-100">
-          {line.catalogNumber}
-        </span>
+        <span className="block whitespace-nowrap">{line.catalogNumber}</span>
       ) : (
         <a
           href={line.productLink}
           target="_blank"
           rel="noreferrer noopener"
           title={`${line.catalogNumber} on the vendor's site`}
-          className="text-info/90 hover:text-info focus-visible:ring-info/60 inline-flex items-center gap-1 rounded font-mono whitespace-nowrap underline-offset-2 hover:underline focus-visible:ring-1 focus-visible:outline-none"
+          className="text-info/90 hover:text-info focus-visible:ring-info/60 inline-flex items-center gap-1 rounded whitespace-nowrap underline-offset-2 hover:underline focus-visible:ring-1 focus-visible:outline-none"
         >
           {line.catalogNumber}
           <ArrowSquareOutIcon aria-hidden="true" />
         </a>
       )}
     </td>
-    <td className="w-full px-3 py-1.5 text-sm text-zinc-400">{line.detail}</td>
+    <td className="w-full px-3 py-1.5 text-sm text-zinc-500">{line.detail}</td>
   </tr>
 )
 
@@ -662,12 +663,17 @@ const Bom = () => {
                 total, and a single field over them could only guess which of
                 the three a shop meant.
               */
-              <table className="w-full border-collapse text-sm">
+              <table className={cn(TABLE_FACE, TABLE_INK, 'w-full border-collapse text-sm')}>
                 <caption className="sr-only">
                   Every component on the order list, and how many to order
                 </caption>
                 <thead>
-                  <tr className="text-2xs border-b border-zinc-800 text-left tracking-wide text-zinc-400 uppercase">
+                  <tr
+                    className={cn(
+                      SECTION_LABEL,
+                      'border-b border-zinc-800 text-left text-zinc-400',
+                    )}
+                  >
                     {/*
                       **Every column is a way to read it** (Paul, 2026-09-09,
                       of the same view on the part). Buying, the list is walked
@@ -739,7 +745,7 @@ const Bom = () => {
                             </td>
                             <td className="px-3 py-1.5">
                               {line.productLink === null ? (
-                                <span className="block font-mono whitespace-nowrap text-zinc-100">
+                                <span className="block whitespace-nowrap">
                                   {line.catalogNumber}
                                 </span>
                               ) : (
@@ -748,7 +754,7 @@ const Bom = () => {
                                   target="_blank"
                                   rel="noreferrer noopener"
                                   title={`${line.catalogNumber} on the vendor's site`}
-                                  className="text-info/90 hover:text-info focus-visible:ring-info/60 inline-flex items-center gap-1 rounded font-mono whitespace-nowrap underline-offset-2 hover:underline focus-visible:ring-1 focus-visible:outline-none"
+                                  className="text-info/90 hover:text-info focus-visible:ring-info/60 inline-flex items-center gap-1 rounded whitespace-nowrap underline-offset-2 hover:underline focus-visible:ring-1 focus-visible:outline-none"
                                 >
                                   {line.catalogNumber}
                                   <ArrowSquareOutIcon aria-hidden="true" />
@@ -776,10 +782,15 @@ const Bom = () => {
                 </tbody>
               </table>
             ) : (
-              <table className="w-full border-collapse text-sm">
+              <table className={cn(TABLE_FACE, TABLE_INK, 'w-full border-collapse text-sm')}>
                 <caption className="sr-only">Everything kept for this part</caption>
                 <thead>
-                  <tr className="text-2xs border-b border-zinc-800 text-left tracking-wide text-zinc-400 uppercase">
+                  <tr
+                    className={cn(
+                      SECTION_LABEL,
+                      'border-b border-zinc-800 text-left text-zinc-400',
+                    )}
+                  >
                     <th scope="col" className="px-3 py-1.5 font-semibold">
                       Tool
                     </th>
@@ -802,7 +813,7 @@ const Bom = () => {
                 </thead>
                 <tbody>
                   {assemblies.flatMap(
-                    ({ key, choice, rows: machines, keys, featureless, title }) => {
+                    ({ key, choice, rows: machines, keys, ids, featureless, title }) => {
                       const tool = getTool(choice.toolGuid) ?? undefined
                       const holder =
                         choice.holderGuid == null
@@ -818,8 +829,14 @@ const Bom = () => {
                        * features it machines.
                        */
                       const across = (
-                        change: (sheetSoFar: SetupSheet, tag: string) => SetupSheet,
-                      ) => commit(keys.reduce(change, sheet))
+                        change: (sheetSoFar: SetupSheet, tag: string, id: string) => SetupSheet,
+                      ) =>
+                        commit(
+                          keys.reduce(
+                            (soFar, tag) => ids.reduce((held, id) => change(held, tag, id), soFar),
+                            sheet,
+                          ),
+                        )
                       /**
                        * The bill **reads out** what was decided; it is not where
                        * the deciding happens (Paul, 2026-08-31). The holder is
@@ -845,13 +862,9 @@ const Bom = () => {
                         features: machines,
                         total: totalOf(choice),
                         onTotal: (many: number) =>
-                          across((sheetSoFar, tag) =>
-                            setTotal(sheetSoFar, tag, choice.toolGuid, many),
-                          ),
+                          across((sheetSoFar, tag, id) => setTotal(sheetSoFar, tag, id, many)),
                         onRemove: () =>
-                          across((sheetSoFar, tag) =>
-                            removeChoice(sheetSoFar, tag, choice.toolGuid),
-                          ),
+                          across((sheetSoFar, tag, id) => removeChoice(sheetSoFar, tag, id)),
                       }
                       if (lines.length === 0) {
                         return (
@@ -877,21 +890,33 @@ const Bom = () => {
                           total={totalOf(choice)}
                           quantity={quantityOf(choice, line.component)}
                           onQuantity={(many) =>
-                            across((sheetSoFar, tag) =>
-                              setQuantity(sheetSoFar, tag, choice.toolGuid, line.component, many),
+                            across((sheetSoFar, tag, id) =>
+                              setQuantity(sheetSoFar, tag, id, line.component, many),
                             )
                           }
                           onRemove={() =>
-                            across((sheetSoFar, tag) =>
-                              line.component === 'tool'
-                                ? removeChoice(sheetSoFar, tag, choice.toolGuid)
+                            across((sheetSoFar, tag, id) => {
+                              if (line.component === 'tool') {
+                                return removeChoice(sheetSoFar, tag, id)
+                              }
+                              /*
+                                The line as this feature holds it, rather than
+                                the one the assembly was drawn from: a stack
+                                ordered by two rows is one row here and two
+                                lines on the sheet, and writing one of them back
+                                under the other's key would leave that feature
+                                holding a line belonging to a stack of another.
+                              */
+                              const had = lineUnder(sheetSoFar, tag, id)
+                              return had === null
+                                ? sheetSoFar
                                 : addChoice(sheetSoFar, tag, {
-                                    ...choice,
+                                    ...had,
                                     ...(line.component === 'holder'
                                       ? { holderGuid: undefined, colletGuid: undefined }
                                       : { colletGuid: undefined }),
-                                  }),
-                            )
+                                  })
+                            })
                           }
                         />
                       ))

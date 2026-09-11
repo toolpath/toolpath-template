@@ -2,6 +2,7 @@ import { labelOf, sheetKeysOf, type ListItem } from './feature-list'
 import {
   choicesFor,
   clearChoice,
+  lineId,
   quantityOf,
   setQuantity,
   totalOf,
@@ -42,18 +43,20 @@ import {
  *
  * A row writes the same line under each of its keys, so the union is what the
  * row holds and the duplicate is the storage rather than a second order. Keyed
- * by tool, which is what the sheet keys a line by.
+ * by {@link lineId} — the stack that wrote the line — so two assemblies holding
+ * one cutter are two lines here rather than one seen twice (Paul, 2026-09-11).
  */
 export const linesOf = (sheet: SetupSheet, keys: ReadonlyArray<string>): Array<Choice> => {
-  const byTool = new Map<string, Choice>()
+  const byLine = new Map<string, Choice>()
   for (const key of keys) {
     for (const line of choicesFor(sheet, key)) {
-      if (!byTool.has(line.toolGuid)) {
-        byTool.set(line.toolGuid, line)
+      const at = lineId(line)
+      if (!byLine.has(at)) {
+        byLine.set(at, line)
       }
     }
   }
-  return [...byTool.values()]
+  return [...byLine.values()]
 }
 
 /** What a row holds on the order list — its keys read together. */
@@ -111,6 +114,14 @@ export interface OrderAssembly {
   readonly rows: ReadonlyArray<string>
   /** Every sheet key it is kept under, which is what a control on it writes to. */
   readonly keys: ReadonlyArray<string>
+  /**
+   * The line ids it stands for, which is what a control on it writes *to*.
+   *
+   * A control used to name the tool, which was the sheet's key for a line until
+   * 2026-09-11; a row holding two stacks of one cutter has two lines of that
+   * tool, and a control naming the tool would reach both.
+   */
+  readonly ids: ReadonlyArray<string>
   /** Whether every row that ordered it answers no feature. */
   readonly featureless: boolean
 }
@@ -132,19 +143,38 @@ export const orderAssemblies = (
 ): Array<OrderAssembly> => {
   const stacks = new Map<
     string,
-    { choice: Choice; rows: Array<string>; keys: Array<string>; featureless: boolean }
+    {
+      choice: Choice
+      rows: Array<string>
+      keys: Array<string>
+      ids: Array<string>
+      featureless: boolean
+    }
   >()
   for (const item of list) {
     const row = labelOf(item, nameOf)
     const keys = sheetKeysOf(item)
+    /*
+      **The same stack twice on one row is two things to set up** (Paul,
+      2026-09-11). Two rows that ordered one stack are still one thing to buy —
+      that is what the key is for — so what tells them apart is *whose* second
+      copy it is: the count within this row. The first copy takes the plain key
+      and merges across rows the way it always has; the second takes a key of
+      its own, and a second row that also built two meets it there.
+    */
+    const copies = new Map<string, number>()
     for (const choice of linesOf(sheet, keys)) {
-      const key = assemblyKey(choice)
+      const stack = assemblyKey(choice)
+      const at = copies.get(stack) ?? 0
+      copies.set(stack, at + 1)
+      const key = at === 0 ? stack : `${stack}#${String(at + 1)}`
       const had = stacks.get(key)
       if (had === undefined) {
         stacks.set(key, {
           choice,
           rows: [row],
           keys: [...keys],
+          ids: [lineId(choice)],
           featureless: item.kind === 'assembly',
         })
         continue
@@ -156,6 +186,10 @@ export const orderAssemblies = (
         if (!had.keys.includes(each)) {
           had.keys.push(each)
         }
+      }
+      const id = lineId(choice)
+      if (!had.ids.includes(id)) {
+        had.ids.push(id)
       }
       had.featureless = had.featureless && item.kind === 'assembly'
     }
@@ -192,8 +226,8 @@ export interface ComponentUse {
   readonly total: number
   /** The sheet keys the assembly is kept under, for a control to write to. */
   readonly keys: ReadonlyArray<string>
-  /** The tool the line is keyed by, which is how a control finds it again. */
-  readonly toolGuid: string
+  /** The line ids the assembly is kept under, which is how a control finds it. */
+  readonly ids: ReadonlyArray<string>
 }
 
 /** Tools first, then what holds them: a bill is read in the order it is built. */
@@ -235,7 +269,7 @@ export const componentTotals = (
         quantity: quantityOf(assembly.choice, component),
         total: totalOf(assembly.choice),
         keys: assembly.keys,
-        toolGuid: assembly.choice.toolGuid,
+        ids: assembly.ids,
       })
       totals.set(at, had)
     }
@@ -283,7 +317,8 @@ export const setComponentCount = (
   const others = rest.reduce((sum, use) => sum + use.quantity * use.total, 0)
   const forFirst = Math.max(1, Math.round((Math.max(1, Math.floor(wanted)) - others) / first.total))
   return first.keys.reduce(
-    (soFar, key) => setQuantity(soFar, key, first.toolGuid, total.component, forFirst),
+    (soFar, key) =>
+      first.ids.reduce((held, id) => setQuantity(held, key, id, total.component, forFirst), soFar),
     sheet,
   )
 }

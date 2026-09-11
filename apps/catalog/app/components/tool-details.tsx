@@ -252,7 +252,7 @@ export const ToolDetails = ({
           <ToolTypeIcon toolType={tool.form} className="size-6" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-mono text-lg leading-tight font-bold text-zinc-100">
+          <span className="block truncate font-mono text-lg leading-tight text-zinc-100">
             {tool.catalogNumber}
           </span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400">

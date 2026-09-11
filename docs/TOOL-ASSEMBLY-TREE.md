@@ -118,21 +118,33 @@ this assembly`, because a rack is narrowed to what fits a stack only while
   this stack reads `TDMX0800 → TDMX0500`, the old one struck through. The button
   says the change in a sentence, which is the right place for _what pressing it
   does_ and the wrong place to find out which of three slots moved. An em dash
-  stands for a slot the line has nothing in; a stack that is not on the order
-  list at all says nothing on any row, because "not on the list yet" is the
-  stack's own state.
-- **One button per assembly, under the components it is about** (Paul,
-  2026-09-07: "I should just have an 'add to order list' button (or update,
-  context aware), at the top level of each tool assembly"). It writes the whole
-  assembly — tool, holder and collet are one line on the sheet and one thing a
-  shop orders — and its label is the change: _Add to order list_, _Change holder
-  from A to B_, _Remove from order list_. **A threaded hole is one press, not
-  two** (Paul, 2026-09-08: "there should only be one 'add to order list' button
-  for the full assembly"): the drill hangs under the tap, so the tap, its
-  holding, the drill and the drill's holding go on the list together. A tap
-  orderable on its own is a thread with no hole under it to cut. A sentence per
-  stack that moved, the first on the button and the rest under it, each naming
-  the stack it is about — `TAP: Change holder from A to B`.
+  stands for a slot the line has nothing in; a stack not on the order list says
+  nothing on any row. It used to carry a line reading _not on the list yet_; that
+  came out on 2026-09-11, along with the heading naming what the tree was for —
+  the card above it names the reading, and the list is dashed and marked once it
+  is a row.
+- **One button under the whole box, not one per assembly** (Paul, 2026-09-07: "I
+  should just have an 'add to order list' button (or update, context aware)",
+  and 2026-09-11: "the button should be below BOTH of them, and add both
+  assemblies to the order list — we only need one button and it just adds
+  everything on the list"). It writes every stack in the box — tool, holder and
+  collet are one line on the sheet and one thing a shop orders — and its label
+  is the change: _Add to order list_, _Change holder from A to B_, _Remove from
+  order list_. **A threaded hole is one press, not two** (Paul, 2026-09-08:
+  "there should only be one 'add to order list' button for the full assembly"):
+  the drill hangs under the tap, so the tap, its holding, the drill and the
+  drill's holding go on the list together. A tap orderable on its own is a
+  thread with no hole under it to cut. A rougher and a finisher go the same way
+  — one press, both stacks, which is what Enter on the same box had done since
+  2026-09-10 while the buttons disagreed with it. A sentence per stack that
+  moved, the first on the button and the rest under it, each naming the stack it
+  is about — `TAP: Change holder from A to B`.
+- **_Add assembly_ is a row of the tree, over that press** (Paul, 2026-09-11:
+  "add assembly should be above the add feature to list or add to order list
+  buttons — like another row with a plus button in the list of components"). It
+  stood outside the card as a second full-width button competing with the one
+  that finishes the box. It is drawn on the last card only: it makes a card
+  rather than a row inside one.
 - **The press that orders closes the box** (Paul, 2026-09-10: "clicking 'Add to
   Order List' should close the feature, group, or tool assembly dialog"). The
   decision is written the moment it is pressed, and what stood on screen
@@ -233,7 +245,8 @@ which tap was chosen. `treeRows` is the nesting and the drawing order:
   │   │ ○ HOLDER  —     │
   │   │ ○ COLLET  —     │
   └─────────────────────┘
-  [ Add to order list ]
+  + Add assembly
+[ Add to order list ]
 ```
 
 **The drill is a slot of the tap, not a card beside it** (Paul, 2026-09-08).
@@ -289,10 +302,10 @@ and the group editor alike — and its stacks are kept under `DRAFT_TREE`.
 **A stack is selected, not chosen** (Paul, 2026-09-07: "it should also no longer
 autoselect the tool component row that I click on"). Clicking a row in any of
 the three tables puts that component into the stack on screen and nowhere else —
-nothing reaches the list or the order list until the stack's own button is
-pressed. The tree says so while it is unconfirmed: _not on the list yet_.
+nothing reaches the list or the order list until the button under the box is
+pressed.
 
-**One press does both.** Where the feature is not a row yet, the stack's button
+**One press does both.** Where the feature is not a row yet, the box's button
 is still **Add to order list**, and the note under it says it adds the feature to
 the list as well. There is no order in which you confirm the feature and then
 confirm its tools: they are one decision, and splitting them left a built stack
@@ -303,7 +316,8 @@ row is given.
 2026-09-10: "I should be able to create a feature or group without adding a
 tool"). It reads **Add feature to list** — **Add group to list** for a group —
 and it orders nothing: the row goes onto the list marked incomplete, dashed, with
-whatever is standing in the stack carried onto it. The moment a component is
+whatever is standing in the stack carried onto it — which the list says by being
+dashed and marked, so the press no longer carries a note saying it (2026-09-11). The moment a component is
 picked it becomes **Add to order list** again, in the same place, so choosing a
 tool changes what the button will do rather than where it is. A **part-level tool
 assembly** is the one subject with no such press: it _is_ its order, so an empty
@@ -509,7 +523,7 @@ What changed is where a line comes from:
 - **A stack is the line's identity, not its tool** (Paul, 2026-09-07: "when
   editing an already active assembly, a tool not in the order list should say
   'replace' in the active assembly. Right now it is adding a new assembly to the
-  feature"). A line on the sheet is keyed by its tool, so a stack that swapped
+  feature"). A line on the sheet was keyed by its tool, so a stack that swapped
   cutters looked up nothing and read as never ordered — and its button offered to
   add a _second_ assembly to a feature that has one. `orderedTool` on the stack
   is the link back: what the sheet holds for this stack, written by the press
@@ -553,22 +567,38 @@ What changed is where a line comes from:
   one, because a collet bought twice is two collets whichever row it sits on. The
   table's own mark is about the order list; this is about the tree in hand.
 
-  **And two of one assembly are counted rather than collapsed** (Paul,
-  2026-09-10: "duplicates are now showing up as separate line items — in either
-  order list view … that should show 2 assemblies and a count of two of each
-  component"). The sheet keys a line by its tool, so a row cannot hold the same
-  cutter on two lines — what it holds is `Choice.total`, how many of that
-  assembly, which `componentTotals` has always multiplied every component by.
-  Nothing was writing it: `applyStacks` in `routes/part.tsx` now counts the
-  stacks of the row standing as that cutter and writes it, the part page's line
-  wears the `×2`, and taking one of two off leaves the line with a one on it
-  rather than removing it.
+  **And two of one assembly are two lines** (Paul, 2026-09-10: "duplicates are
+  now showing up as separate line items — in either order list view … that
+  should show 2 assemblies and a count of two of each component", and
+  2026-09-11: "when I have two (or more) tool assemblies on a feature or group,
+  both need to be shown in the order list. Only the first is being shown right
+  now"). The sheet keyed a line by its tool, so a row could not hold the same
+  cutter on two lines at all. What stood in for the second of them was
+  `Choice.total`, a count on the one line — which `componentTotals` multiplies
+  every component by, so the bill added up and the order list still drew one row
+  where a shop had built two.
 
-  **What is still keyed by the tool is the line itself.** A row holding one
-  cutter in two stacks _with different holding_ — the same end mill at two
-  stickouts — cannot keep both: the second overwrites the first. Counting fixes
-  the identical case, which is the one a shop hits; the general case needs a line
-  keyed by the stack that ordered it rather than by the tool in it.
+  **A line carries the id of the stack that wrote it.** `Choice.assemblyId`, and
+  `lineId` in `app/shared/setup-sheet.ts` is the one reading of it: the stack,
+  or the tool where nothing built the line out of a tree — the tool panel writes
+  one, and so does every sheet saved before 2026-09-11. `addChoice` replaces the
+  line with the same id rather than the same tool, `removeChoice` takes one line
+  off and `removeTool` takes every line of a tool off (which is what the tool
+  panel's _Remove_ means), and `applyStacks` in `routes/part.tsx` writes the id
+  with the line. So the identical case is two rows and two of each component to
+  buy, and the case a count could never have covered — the same end mill in two
+  holders, at two stickouts — keeps the holding each stack was given, instead of
+  the second writing over the first.
+
+  `Choice.total` stays what it always was: how many of _that_ assembly a shop
+  wants, edited on the order list page. Nothing writes it automatically any
+  more.
+
+  Two _rows_ that ordered one stack are still one thing to buy (Paul,
+  2026-08-31), so `orderAssemblies` in `app/shared/order-list.ts` groups by the
+  stack's contents across rows and by how many copies of it a row holds: the
+  first copy merges across rows the way it always has, and a second takes a key
+  of its own.
 
 - **Enter is about the box; the button is about the assembly** (Paul,
   2026-09-10: "when I create two tool assemblies on a group and click enter, it
