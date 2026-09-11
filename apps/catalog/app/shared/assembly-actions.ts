@@ -138,9 +138,6 @@ const LISTING: Readonly<Record<Subject, string | null>> = {
   assembly: null,
 }
 
-/** What a row put on the list with nothing in it is, said before it is made. */
-const INCOMPLETE = 'Nothing is ordered against it yet, so it goes on the list marked incomplete.'
-
 /**
  * The press under a stack with nothing in it to order.
  *
@@ -166,7 +163,15 @@ const nothingYet = (onList: boolean, subject: Subject): AssemblyAction => {
   const listing = onList ? null : LISTING[subject]
   return listing === null
     ? { kind: onList ? 'add' : 'confirm', label: 'Add to order list', disabled: true }
-    : { kind: 'list', label: listing, note: INCOMPLETE }
+    : /*
+      **The button is the whole of it** (Paul, 2026-09-11). It carried a note
+      saying the row would go on the list marked incomplete, which is what the
+      list already says about it in the one place it can be read — dashed, with
+      the mark beside the name (`isIncomplete`, `shared/order-list.ts`). Two
+      sentences of amber under the press said it before there was anything to
+      say it about.
+    */
+      { kind: 'list', label: listing }
 }
 
 /** The line this stack would write, or null while it has no tool to write one for. */
@@ -258,8 +263,25 @@ export const holdingChanges = (had: Choice, wanted: Choice): Array<HoldingChange
  * new stack is.
  */
 export const savedFor = (assembly: TreeAssembly, onSheet: ReadonlyArray<Choice>): Choice | null => {
+  /*
+    **The line this stack wrote, by name** (Paul, 2026-09-11). Since a line
+    carries the id of the stack that wrote it, that is the whole lookup — and it
+    is what lets two stacks of one cutter each find their own line rather than
+    both finding the first.
+  */
+  const mine = onSheet.find((each) => each.assemblyId === assembly.id)
+  if (mine !== undefined) {
+    return mine
+  }
+  /*
+    A line written before a line carried one — by the tool panel, or by any
+    sheet saved before 2026-09-11 — is still keyed by its tool, and
+    `orderedTool` is what says which tool this stack stands as.
+  */
   const wanted = assembly.orderedTool ?? null
-  return wanted === null ? null : (onSheet.find((each) => each.toolGuid === wanted) ?? null)
+  return wanted === null
+    ? null
+    : (onSheet.find((each) => each.assemblyId === undefined && each.toolGuid === wanted) ?? null)
 }
 
 /** How a component is named on the button, or null where the caller cannot name it. */

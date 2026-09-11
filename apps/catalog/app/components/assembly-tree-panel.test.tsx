@@ -24,7 +24,6 @@ const panel = (
     actionsFor={() => []}
     onAdd={() => undefined}
     onRemove={() => undefined}
-    title="Cuts the pocket"
     {...over}
   />
 )
@@ -364,5 +363,74 @@ describe('a component standing in two stacks of one tree', () => {
     ])
 
     expect(screen.queryByText(/used in Assembly/)).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * **One press for everything in the box** (Paul, 2026-09-11: "the button should
+ * be below BOTH of them, and add both assemblies to the order list — we only
+ * need one button and it just adds everything on the list").
+ *
+ * It used to be drawn inside every card, so a rougher and a finisher were two
+ * presses and ordering the pair meant pressing both — while Enter on the same
+ * box had written all of them since 2026-09-10. The two disagreed about what
+ * finishing the box means, and the button was the one that was wrong.
+ */
+describe('the press under the whole box', () => {
+  const two = addAssembly(defaultAssemblies(false))
+
+  it('is asked once, about every stack in the tree', () => {
+    const asked: Array<number> = []
+    draw(two, {
+      actionsFor: (stacks) => {
+        asked.push(stacks.length)
+        return []
+      },
+    })
+
+    // Once, over both stacks — not once per card.
+    expect(asked).toEqual([2])
+  })
+
+  it('draws one button for two assemblies, not one each', () => {
+    draw(two, {
+      actionsFor: () => [
+        { key: 'add', kind: 'add' as const, label: 'Add to order list', onClick: () => undefined },
+      ],
+    })
+
+    expect(screen.getAllByRole('button', { name: 'Add to order list' })).toHaveLength(1)
+  })
+
+  /**
+   * **And the press for another assembly is a row above it** (Paul, 2026-09-11:
+   * "add assembly should be above the add feature to list or add to order list
+   * buttons — like another row with a plus button in the list of components").
+   * It is drawn on the last card only: it makes a card rather than a row in
+   * this one, so one per card would be the same press drawn as many times as
+   * there are stacks.
+   */
+  it('offers another assembly once, under the last stack and over the press', () => {
+    draw(two, {
+      actionsFor: () => [
+        { key: 'add', kind: 'add' as const, label: 'Add to order list', onClick: () => undefined },
+      ],
+    })
+
+    const add = screen.getAllByRole('button', { name: 'Add assembly' })
+    expect(add).toHaveLength(1)
+
+    /*
+      Asserted as document order rather than as a parent: what the rule is about
+      is where somebody's eye lands — after the last stack's rows, before the
+      press that finishes the box — and the boxes around it are layout.
+    */
+    const order = (element: Element): number =>
+      Array.from(document.querySelectorAll('button')).indexOf(element as HTMLButtonElement)
+    const tools = screen.getAllByRole('button', { name: /^TOOL for/ })
+    const press = screen.getByRole('button', { name: 'Add to order list' })
+
+    expect(order(add[0] as Element)).toBeGreaterThan(order(tools[1] as Element))
+    expect(order(add[0] as Element)).toBeLessThan(order(press))
   })
 })

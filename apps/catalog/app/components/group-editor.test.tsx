@@ -260,3 +260,66 @@ describe('threading the whole group', () => {
     expect(screen.queryByRole('button', { name: 'Thread' })).not.toBeInTheDocument()
   })
 })
+
+/**
+ * **A group asks about identical holes too** (Paul, 2026-09-11: "the group
+ * dialog should ask if I want to add identical holes if I select one, just like
+ * the feature dialog").
+ *
+ * A click in here takes one hole since 2026-09-11, so a group can be corrected
+ * a hole at a time — which left a bolt circle costing thirty-nine clicks. The
+ * offer is the way back to one press; it is the reading panel's sentence doing
+ * a different thing, because there it *opens* a group and here it grows the one
+ * already open.
+ */
+describe('the identical holes the one picked stands with', () => {
+  const offer = (over: Partial<{ count: number }> = {}) => {
+    const onGroup = vi.fn()
+    const onDismiss = vi.fn()
+    show({
+      tags: ['hole-1'],
+      identical: { count: 8, onGroup, onDismiss, ...over },
+    })
+    return { onGroup, onDismiss }
+  }
+
+  it('says how many there are, and offers both answers', () => {
+    offer()
+
+    expect(screen.getByText(/7 other holes on this part are identical/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add all 8 to the group' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Just this hole' })).toBeInTheDocument()
+  })
+
+  /** One other hole is one hole, not "1 other holes". */
+  it('counts one sibling in the singular', () => {
+    offer({ count: 2 })
+
+    expect(screen.getByText(/One other hole on this part is identical/)).toBeInTheDocument()
+  })
+
+  it('grows the group on the press that takes it', () => {
+    const { onGroup, onDismiss } = offer()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add all 8 to the group' }))
+
+    expect(onGroup).toHaveBeenCalled()
+    expect(onDismiss).not.toHaveBeenCalled()
+  })
+
+  it('turns it down on the other one', () => {
+    const { onGroup, onDismiss } = offer()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Just this hole' }))
+
+    expect(onDismiss).toHaveBeenCalled()
+    expect(onGroup).not.toHaveBeenCalled()
+  })
+
+  /** Nothing to offer, nothing drawn — a press that adds what is there says nothing. */
+  it('is absent where the route offers nothing', () => {
+    show({ tags: ['hole-1'] })
+
+    expect(screen.queryByText(/other holes on this part/)).not.toBeInTheDocument()
+  })
+})

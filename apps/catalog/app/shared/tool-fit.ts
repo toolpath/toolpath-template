@@ -135,19 +135,23 @@ export const fittingTools = (
 /**
  * The removed tools still inside the person's discrete choices — brand, type,
  * shank, the crib — so the list's fill never shows a tool they filtered out.
- * The ranges are left aside: they are the rules' bounds, and "close" is
- * exactly a tool a little outside them.
+ *
+ * The **geometry's** bounds are left aside: they are the rules' own numbers
+ * written into a control, and "close" is exactly a tool a little outside them.
+ * A bound somebody typed is not one of those, and is obeyed — `ownBounds` in
+ * `shared/filter.ts` is the rule and says what it cost not to have it.
  */
 export const closeCandidates = (
   excluded: ReadonlyArray<Verdict>,
   query: ToolQuery,
+  own: ToolQuery['ranges'],
 ): Array<Verdict> => {
   const { tools: toolQuery, holding } = splitHolding(query)
   const kept = new Set(
     holdableTools(
       filterTools(
         excluded.map((verdict) => verdict.tool),
-        { ...toolQuery, ranges: {} },
+        { ...toolQuery, ranges: own },
       ),
       holding,
     ).map((each) => each.guid),

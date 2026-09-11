@@ -6,18 +6,12 @@ import {
   useReducer,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Badge, Button, Card, IconButton, cn, Panels } from '@toolpath/ui'
-import {
-  colletsFor,
-  colletsForShank,
-  toolCollisions,
-  type CatalogTool,
-  type Holder,
-  type Margins,
-} from '@toolpath/catalog-data'
+import { toolCollisions, type CatalogTool, type Holder, type Margins } from '@toolpath/catalog-data'
 import { useAnalysisEvents } from '@toolpath/part-client'
 import type { PartFeature, PublicInspectionReport } from '@toolpath/part-contracts'
 import { heldRegions } from '@toolpath/part-contracts/selection'
@@ -43,10 +37,12 @@ import {
   addChoice,
   clearChoice,
   chosenFor,
+  lineId,
   removeChoice,
-  setTotal,
+  removeTool,
   totalOf,
   useSetupSheet,
+  type Choice,
   type SetupSheet,
 } from 'shared/setup-sheet'
 import { PartViewer } from 'components/part-viewer'
@@ -74,6 +70,7 @@ import {
   type Results,
 } from 'shared/feature-list'
 import { recommendationRows, type RecommendationAnswer } from 'shared/recommendations'
+import { SECTION_LABEL } from 'shared/type'
 import {
   clearKeys,
   componentTotals,
@@ -97,10 +94,9 @@ import {
   TABLE_OPENS_AT,
   ToolTableToolbar,
   hiddenByDefault,
-  type Holding,
 } from 'components/part-tool-table'
-import { ColumnPicker, sameBound } from 'components/column-filter'
-import { BUTTON_FILTERS, FACET_AXES } from 'components/filter-panel'
+import { ColumnPicker } from 'components/column-filter'
+import { BUTTON_FILTERS } from 'components/filter-panel'
 import { orderedCodes } from 'shared/column-order'
 import { hiddenAfterAuto } from 'shared/auto-columns'
 import { capRows, firstBy, keptFirst, oneEach } from 'shared/tool-order'
@@ -117,6 +113,15 @@ import {
 } from 'shared/catalog'
 import { columnFilterOpen, useEscape } from 'shared/use-escape'
 import { assemblyPressEnabled, pressesShown, rowsShown } from 'shared/part-chrome'
+import {
+  COMPONENT_LIST,
+  TOOL_LIST,
+  arrowTarget,
+  focusList,
+  handToList,
+  insideList,
+  type ArrowTarget,
+} from 'shared/arrow-target'
 import {
   DRAFT_TREE,
   assemblyName,
@@ -177,8 +182,11 @@ import { ComponentTable } from 'components/component-table'
 import { CLAMPING_KNOB, withClampingLength, type ClampingRule } from 'shared/clamping-length'
 import {
   EMPTY_QUERY,
+  FACET_AXES,
   countBy,
   countsByAxis,
+  ownBounds,
+  releasedBounds,
   stillOffered,
   filterTools,
   queryFromSearch,
@@ -202,14 +210,7 @@ import {
 } from 'shared/holding'
 import { sectionOf } from 'shared/section-of'
 import { belowHolder, type BelowHolder } from 'shared/drawn-assembly'
-import {
-  drawable,
-  holdable,
-  holderOptions,
-  policyOf,
-  thresholdsFrom,
-  type HolderOption,
-} from 'shared/holder-choice'
+import { drawable, holdable, holderOptions, policyOf, thresholdsFrom } from 'shared/holder-choice'
 import { closestMisses, closestPerForm, type Format } from 'shared/judge'
 import {
   cautionedTypes,
@@ -423,22 +424,6 @@ const busyTyping = (event: KeyboardEvent): boolean =>
   typingInto(event) ||
   (event.target as HTMLElement | null)?.closest('[data-part-tool-table]') != null
 
-/**
- * Whether a holder option has a silhouette to draw.
- *
- * **Only the holders that can be drawn are offered** (Paul, 2026-09-07:
- * "exclude any holders without models"). A record with no measured profile and
- * no published nose has no shape at all, so picking it draws a blank panel.
- * `drawable` is the rule and `holder-choice.ts` documents it; this is the one
- * place the catalog's own profile document is what answers it.
- *
- * The dropdown only. Whether a tool can be *held* is a different question from
- * whether its holder has a picture, and narrowing the tool list by this would
- * take tools off a shop's list because a vendor publishes no CAD.
- */
-const hasPicture = (option: HolderOption): boolean =>
-  drawable(option.holder, (guid: string) => getProfile(guid) !== null)
-
 const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: string }) => {
   const [unit, setUnit] = useUnit()
   const [search, setSearch] = useSearchParams()
@@ -591,9 +576,15 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * filter panel opened over the part takes the press instead. Both used to
    * fire on one press, which put the panel away *and* dropped the reading
    * behind it.
+   *
+   * **A field keeps it; the tool list does not** (2026-09-11). The list used to
+   * be exempt along with them, on the grounds that it answers Escape for itself
+   * by dropping its selected row — and that was harmless only while nothing put
+   * the focus there. The focus goes to the list the moment anything is selected
+   * now, so exempting it meant Escape no longer backed out of the box at all.
    */
   useEscape(true, (event) => {
-    if (busyTyping(event)) {
+    if (typingInto(event)) {
       return
     }
     escapeRef.current()
@@ -655,13 +646,28 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           return
         }
       }
-      if (busyTyping(event)) {
+      /*
+        **The arrows are the list's, and never the features'** (Paul,
+        2026-09-11). The focus is already in the list by the time one is
+        pressed — selecting anything puts it there — so this is what repairs a
+        press that arrived anywhere else, and a list reading no row yet.
+        `shared/arrow-target.ts` is the rule.
+
+        Ahead of `busyTyping`, because that gate is the tool list's half of this
+        same question and `arrowTarget` now owns both halves.
+      */
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        if (typingInto(event)) {
+          return
+        }
+        if (arrowsRef.current(insideList(event.target)) === null) {
+          return
+        }
+        event.preventDefault()
+        handListRef.current()
         return
       }
-
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        event.preventDefault()
-        stepRef.current(event.key === 'ArrowDown' ? 1 : -1)
+      if (busyTyping(event)) {
         return
       }
       // Space puts the row being read on the list, or takes it off — the same
@@ -815,6 +821,19 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     draftFeatures.every((each) => boreOf(each) !== null)
 
   const selectedItem = useMemo(() => itemNamed(list, selectedId), [list, selectedId])
+
+  /**
+   * The row a draft is changing, where it is changing one rather than making
+   * one.
+   *
+   * **A row being edited is still that row** (Paul, 2026-09-11: "edit group
+   * does not show the tool assembly applied to the group"). Editing clears the
+   * selection — the box over the part is the question now, not the row — so
+   * every rule that reads {@link selectedItem} lost sight of a row that had not
+   * gone anywhere, and the tree beside the editor opened on empty stacks while
+   * the order list underneath it was showing that group's tools.
+   */
+  const editedItem = useMemo(() => itemNamed(list, draft?.editing ?? null), [list, draft?.editing])
 
   /**
    * The rows the order list draws: every row on the list.
@@ -1548,6 +1567,317 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       ),
     [],
   )
+  /**
+   * The bounds somebody set themselves, as against the ones this feature asked
+   * for — `ownBounds` in `shared/filter.ts` is the rule.
+   *
+   * Two things read it, and both are about a filter being the last word rather
+   * than a tolerance: which of the removed tools may stand in when nothing
+   * fits, and which columns still have an override to keep.
+   */
+  const own = useMemo(
+    () => ownBounds(query.ranges, suggestions.ranges),
+    [query.ranges, suggestions],
+  )
+  /**
+   * The columns whose number somebody took away, which releases their rules —
+   * `releasedBounds` in `shared/filter.ts` is the rule, and says why.
+   */
+  const released = useMemo(
+    () => releasedBounds(query.ranges, suggestions.ranges),
+    [query.ranges, suggestions],
+  )
+  /** Every column whose rules are set aside: the ticked ones and the emptied ones. */
+  const forgiven = useMemo(() => [...new Set([...overriding, ...released])], [overriding, released])
+  /*
+    The tree, the row it belongs to and the key it is stored under stand ahead
+    of the matcher because the matcher is told about them (2026-09-10): the
+    counts a filter offers are measured over the pool the tool table draws, and
+    the table under a stack is that pool with `narrowTools` on it. See
+    `MatchDemand.stack` in `shared/catalog-matcher.ts`.
+  */
+  /** Which feature the choice is for: the one being read, or the part as a whole. */
+  /**
+   * Which feature the choice is for: the one being read, or the part as a whole.
+   *
+   * **The group's own tag, not the sibling that happened to be clicked** (Paul,
+   * 2026-09-02: "if a tool is on the list and a holder is added to it, it
+   * should update the existing tool on the BOM rather than create a new one").
+   * Eight identical holes are one decision everywhere else on this page; keyed
+   * by whichever of them was under the mouse, the panel wrote a second line
+   * beside the one the feature list had already put there.
+   */
+  const choiceKey = useMemo(() => {
+    if (focused === null) {
+      return '*'
+    }
+    /*
+      **The row's key, where a row holds this reading** (Paul, 2026-09-09).
+      It used to be the *hole group's* first tag, which was the same thing while
+      every row held whole hole groups — a hole cannot be asked about alone any
+      more than a bolt circle could. It is not the same thing now: a feature
+      made from the second hole of a group is keyed by that hole, and a panel
+      still keying by the first wrote its lines where nothing read them.
+
+      Reading the list is also the honest way to state the 2026-09-02 rule: a
+      sibling clicked on a group already on the list updates that group's line
+      rather than opening a second one beside it, whatever grouping is doing.
+    */
+    const holder = list.find((item) => item.tags.includes(focused))
+    return holder ? (sheetKeysOf(holder)[0] ?? focused) : focused
+  }, [focused, list])
+
+  /**
+   * The row on the list the panel's buttons act on, where there is one.
+   *
+   * A previewed feature can already be on the list — clicking it on the part is
+   * how somebody goes back to it — so this is not simply the selected row.
+   */
+  const activeItem = useMemo(
+    () =>
+      /*
+        **A row being edited is the row in play**, whatever the draft's tags
+        have been dragged down to meanwhile: dropping a face out of a group
+        leaves the search below matching some other row that happens to hold
+        the rest, and the press under the stack would then write that row's
+        lines (Paul, 2026-09-11).
+      */
+      editedItem ??
+      /*
+        **An assembly being built is not a row, and is not any other row
+        either** (Paul, 2026-09-08). It asks about no features, so the search
+        below would hand back whichever row happened to match nothing — and the
+        press under the stack would write that row's lines instead of making
+        its own.
+      */
+      (draft?.kind === 'assembly' ? null : selectedItem) ??
+      /*
+        **A question about nothing matches no row** (Paul, 2026-09-07: "when no
+        feature is selected, the tool table should not show any assemblies").
+        `[].every(...)` is true of every item, so with nothing being asked this
+        matched whichever row happened to be first and handed it out as the row
+        in play. `toolActions` never noticed — it is gated on `active` — but the
+        assembly tree took the row at its word and drew that feature's stacks
+        under a table showing the whole catalog.
+      */
+      (askedNow.tags.length === 0
+        ? null
+        : draft?.kind === 'assembly'
+          ? null
+          : /*
+              **A group being built is not the feature it holds** (Paul,
+              2026-09-09, with the group editor's own confirm gone). A group of
+              one hole that is already a row matches that row here, so the press
+              under the stack read as *add a tool to that feature* and the group
+              was never made — the confirm button used to make it, and there is
+              no confirm button any more. A group being *edited* is the row it
+              is editing — `editedItem` above.
+            */
+            draft?.kind === 'group' && draft.editing === null
+            ? null
+            : list.find((item) => askedNow.tags.every((tag) => item.tags.includes(tag)))) ??
+      null,
+    [editedItem, selectedItem, list, askedNow.tags, draft?.kind, draft?.editing],
+  )
+
+  /* ----------------------- the tool assembly tree ------------------------- */
+
+  /**
+   * The shape being tried out, and the way back off it.
+   *
+   * **A feature is answered with assemblies, not tools** (Paul, 2026-09-07). A
+   * cutter is chosen with a holder and a collet; a threaded hole needs two
+   * stacks before it is a hole at all. The page asked for a tool and hung the
+   * other two off it as dropdowns, which made a holder a footnote on a tool and
+   * made the second stack for a feature unreachable.
+   *
+   * Behind a flag, switched in the header, because it replaces enough of this
+   * page at once that going back has to be a press rather than a revert.
+   */
+  /** Which slot of which stack is open, and the row it belongs to. */
+  const [nodeHeld, setNodeHeld] = useState<{ itemId: string; node: TreeNode } | null>(null)
+  const [holderQuery, setHolderQuery] = useState<ComponentQuery>(NO_QUERY)
+  const [colletQuery, setColletQuery] = useState<ComponentQuery>(NO_QUERY)
+  /**
+   * Whether the rack shows the chucks the crib has no collet for.
+   *
+   * **Off to begin with** (Paul, 2026-09-10: "by default, the holders with no
+   * collet should be hidden"). The rack opens on what the shop can actually
+   * build this afternoon, and the press asks the wider question — what could
+   * hold this, if a collet were ordered. The rule they are hidden *by* is the
+   * same one either way, and the count on the press is what stops the narrower
+   * rack reading as an empty crib.
+   *
+   * `components/no-collet-toggle.tsx` is the press and says why it exists. Not
+   * a filter: it is counted and cleared nowhere near `Clear n filters`, because
+   * it puts rows on the list rather than taking them off, and a shop that
+   * pressed it does not want it undone by clearing a taper.
+   */
+  const [noCollet, setNoCollet] = useState(false)
+  const [hiddenHolderColumns, setHiddenHolderColumns] = useState<ReadonlyArray<string>>(() =>
+    hiddenComponentColumns(HOLDER_COLUMNS),
+  )
+  const [holderColumnOrder, setHolderColumnOrder] = useState<ReadonlyArray<string>>(() =>
+    HOLDER_COLUMNS.map((column) => column.code),
+  )
+  const [hiddenColletColumns, setHiddenColletColumns] = useState<ReadonlyArray<string>>(() =>
+    hiddenComponentColumns(COLLET_COLUMNS),
+  )
+  const [colletColumnOrder, setColletColumnOrder] = useState<ReadonlyArray<string>>(() =>
+    COLLET_COLUMNS.map((column) => column.code),
+  )
+
+  /**
+   * Whose tree is on screen.
+   *
+   * **A draft has one before it is a row** (Paul, 2026-09-07: "when a new
+   * feature or group is selected (being created), the tree should already be
+   * shown"). Waiting for the row meant the bottom of the page had nothing in it
+   * during the one moment somebody is actually deciding — and the tools for the
+   * draft were already listed under it, which made the empty column beside them
+   * read as broken rather than as not-yet.
+   *
+   * The draft's stacks are kept under {@link DRAFT_TREE} and carried onto the
+   * row's own id when it is confirmed, so nothing built before the press is
+   * lost by making it.
+   *
+   * **Being created is wider than `draft`.** A plain click on a face previews a
+   * reading and offers the two ways in without opening a draft at all — that is
+   * `asked()`'s third row — and it is the commonest way a feature gets made. So
+   * anything being *asked* with no row of its own gets the draft's tree, which
+   * covers the preview and the group editor alike.
+   */
+  const treeKey =
+    /*
+      **A row being changed keeps its own stacks** (Paul, 2026-09-11: "edit
+      group does not show the tool assembly applied to the group"). Editing
+      opens a draft, and every draft below is keyed by what is being *built* —
+      so the tree beside the editor opened empty on a row the order list was
+      already answering, and the assembly somebody was there to change was not
+      on screen at all. The row exists, its stacks are keyed by its id, and an
+      edit is a change to those rather than a new thing beside them.
+    */
+    editedItem !== null
+      ? editedItem.id
+      : /*
+      **Only the group editor takes the plain key** (Paul, 2026-09-07: "new hole
+      selections should be treated as new"). Its tags change under the mouse as
+      faces are toggled, so a key that moved with them would reset the tree
+      mid-build. A *feature* draft has settled tags and was taking that key as
+      well — and the key is kept in the browser, so the tap and drill stacks
+      built for one hole were still standing the next time anybody pressed
+      *Add feature*, on a hole nobody had called threaded.
+    */
+        draft?.kind === 'group'
+        ? DRAFT_TREE
+        : /*
+          **An assembly being built keeps its stacks under a key of its own.**
+          It has no tags, so `draftKeyFor([])` is that key — and `carryDraftTree`
+          reads the same one when the press makes the row, so nothing built
+          before the press is lost by making it.
+        */
+          draft?.kind === 'assembly'
+          ? draftKeyFor([])
+          : /*
+          **A part-level assembly is a tree with no question above it** (Paul,
+          2026-09-08). It asks about no feature, so `asking` is false for it —
+          and the row is still the thing being built, keyed by its own id like
+          every other row's tree.
+        */
+            selectedItem?.kind === 'assembly'
+            ? selectedItem.id
+            : // Nothing asked is nothing to assemble: the table is the whole catalog
+              // then, and a tree beside it would be answering for a feature nobody
+              // has selected.
+              !asking
+              ? null
+              : draft !== null
+                ? draftKeyFor(askedNow.tags)
+                : (activeItem?.id ?? draftKeyFor(askedNow.tags))
+  /**
+   * The stacks for that row — what was built, or what the bill already holds.
+   *
+   * A part answered before this shape existed, or with the flag off, has lines
+   * on the sheet and no tree; `treeFromLines` opens on those rather than on an
+   * empty stack, so switching the flag on does not read as work lost.
+   *
+   * **And whatever it opens on, the roles follow the thread.** A tree is kept
+   * in the browser and the thread a hole is read for is not, so a tap stack
+   * outlived the reading that asked for it — `forThread` is that rule, and it
+   * leaves any stack somebody has put a component in exactly as it stands.
+   */
+  const assemblies = useMemo<ReadonlyArray<TreeAssembly>>(() => {
+    if (treeKey === null) {
+      return []
+    }
+    const threaded = threadSpec !== null
+    const kept = trees[treeKey]
+    if (kept !== undefined) {
+      return forThread(kept, threaded)
+    }
+    /*
+      A draft opens on empty stacks rather than on the bill: it has no lines
+      yet, and reading the focused feature's would show another row's answers
+      under a feature being created.
+
+      **A draft that is changing a row is the exception** (Paul, 2026-09-11): it
+      has lines, they are that row's, and opening empty in front of somebody who
+      came to change a holder is the bug. `editedItem` is the row, and the keys
+      below are its own.
+    */
+    const row = editedItem ?? selectedItem
+    return (draft !== null && editedItem === null) || treeKey === DRAFT_TREE
+      ? defaultAssemblies(threaded)
+      : treeFromLines(
+          /*
+            A part-level assembly's lines are kept under its own id — it has no
+            feature to be keyed by — so reading `choiceKey` here would open it
+            on whatever face was last clicked. Every key of the row it is,
+            because that is where the lines were written (`shared/order-list`).
+          */
+          linesOf(sheet, row === null ? [choiceKey] : sheetKeysOf(row)),
+          threaded,
+          // Which line is the tap is a fact about the tool, and the catalog is
+          // the route's to read.
+          (toolGuid) => getTool(toolGuid)?.form.startsWith('tap ') ?? false,
+        )
+  }, [trees, treeKey, sheet, choiceKey, threadSpec, draft, selectedItem, editedItem])
+
+  /**
+   * The slot open now: what was clicked while it still exists, else the first
+   * question the tree has not been answered.
+   *
+   * Derived rather than kept in an effect, and stamped with the row it was
+   * clicked on — every tree starts at `assembly-1`, so a node held across a
+   * change of row would land on a different feature's stack of the same name.
+   */
+  const node = useMemo<TreeNode | null>(() => {
+    const held =
+      nodeHeld !== null &&
+      nodeHeld.itemId === treeKey &&
+      assemblies.some((each) => each.id === nodeHeld.node.assemblyId)
+        ? nodeHeld.node
+        : null
+    return held ?? firstNode(assemblies)
+  }, [nodeHeld, treeKey, assemblies])
+
+  const selectNode = useCallback(
+    (next: TreeNode) => {
+      if (treeKey !== null) {
+        setNodeHeld({ itemId: treeKey, node: next })
+      }
+    },
+    [treeKey],
+  )
+
+  const assembly = useMemo(
+    () => assemblyNamed(assemblies, node?.assemblyId ?? null),
+    [assemblies, node],
+  )
+  const treeTool = assembly?.toolGuid == null ? null : getTool(assembly.toolGuid)
+  const treeHolder = assembly?.holderGuid == null ? null : getHolder(assembly.holderGuid)
+  const treeCollet = assembly?.colletGuid == null ? null : getCollet(assembly.colletGuid)
+
   const tableContext = useMemo<MatchContext>(
     () => ({
       features: report.features,
@@ -1558,7 +1888,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       holderFilters,
       margins,
       thresholds,
-      overrides: overriding,
+      overrides: forgiven,
+      ownRanges: own,
     }),
     [
       report.features,
@@ -1569,7 +1900,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       holderFilters,
       margins,
       thresholds,
-      overriding,
+      forgiven,
+      own,
     ],
   )
   const tableDemand = useMemo<MatchDemand | null>(() => {
@@ -1591,8 +1923,26 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       tags: askedNow.tags,
       ...(Object.keys(bores).length === 0 ? {} : { bores }),
       reachTag: focused,
+      /*
+        **What the open stack holds, so a count is measured over the rows it
+        stands beside** (Paul, 2026-09-10). `treeToolRows` narrows this answer
+        by the holder and the collet already chosen; without them the worker
+        counted what the *crib* could hold and offered six tools over a table
+        showing none. `MatchDemand.stack` is the rule.
+      */
+      stack: { holderGuid: assembly?.holderGuid ?? null, colletGuid: assembly?.colletGuid ?? null },
     }
-  }, [asking, perFeature, threadSpec, holeChoice.mode, focused, report.features, askedNow.tags])
+  }, [
+    asking,
+    perFeature,
+    threadSpec,
+    holeChoice.mode,
+    focused,
+    report.features,
+    askedNow.tags,
+    assembly?.holderGuid,
+    assembly?.colletGuid,
+  ])
   const tableKey = useMemo(
     () => (tableDemand === null ? null : matchKey('table', tableContext, [tableDemand])),
     [tableContext, tableDemand],
@@ -1660,11 +2010,11 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   /** The overridden columns in the words their headers use, for the note above the list. */
   const overridden = useMemo(
     () =>
-      overriding
+      forgiven
         .map((code) => TOOL_COLUMNS.find((column) => column.code === code)?.label.toLowerCase())
         .filter((label): label is string => label !== undefined)
         .join(' and '),
-    [overriding],
+    [forgiven],
   )
 
   /** What makes the thread: taps for either tapping mode, mills for milling. */
@@ -1791,7 +2141,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     if (!asking || (tools.length > 0 && !shortOfDrills)) {
       return []
     }
-    const admitted = closeCandidates(nearMisses, query)
+    const admitted = closeCandidates(nearMisses, query, own)
     /**
      * **A tapped hole is drilled.** The nearest misses are drawn from what the
      * rules removed, and a mill that could interpolate the bore is a near miss
@@ -1835,6 +2185,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     shortOfDrills,
     nearMisses,
     query,
+    own,
     holeChoice.mode,
     outOfReach,
     predrillForms,
@@ -1898,6 +2249,42 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     return drillsFirst(shownTools.filter((each) => predrillForms.includes(each.form)))
   }, [asking, catalogList, tools, closest, overrideTools, drillsOnly, predrillForms])
   /**
+   * The same rows with the open stack's own narrowing on them.
+   *
+   * **A count is measured over the list it stands beside** (Paul, 2026-09-10).
+   * The tool table under an assembly is {@link treeToolRows}, which is this
+   * list narrowed by the holder and the collet already chosen — so a count
+   * taken off `listed` offers tools the table has no intention of drawing. The
+   * matcher's own counts obey the same rule through `MatchDemand.stack`; this
+   * is the half that answers while the worker has nothing to say.
+   */
+  const listedInStack = useMemo(
+    () => narrowTools(listed, { holder: treeHolder, collet: treeCollet }, allCollets),
+    [listed, treeHolder, treeCollet, allCollets],
+  )
+  /**
+   * The counts the **matcher** measured, where a facet is narrowing the list.
+   *
+   * `shared/catalog-matcher.ts` § `facetCounts` is the whole of it: while a
+   * vendor is chosen, no other vendor's tools have been judged for this
+   * feature, so the rows on screen cannot say what a second vendor would bring
+   * — they said nought, and Paul could see on the part that it was not nought
+   * (2026-09-10). The worker judges the question with the facets cleared and
+   * sends the counts back, and they are the answer whenever it has one.
+   */
+  const judgedFacets = useMemo(
+    () =>
+      detailed?.facetCounts == null
+        ? null
+        : new Map<string, ReadonlyMap<string, number>>(
+            Object.entries(detailed.facetCounts).map(([axis, values]) => [
+              axis,
+              new Map(Object.entries(values)),
+            ]),
+          ),
+    [detailed],
+  )
+  /**
    * What each axis would leave, counted against every other filter.
    *
    * This is what lets the panel narrow itself — a vendor chosen takes the
@@ -1905,31 +2292,33 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * the axis's own term, so choosing one vendor does not hide the rest
    * (Paul, 2026-09-01).
    *
-   * **Over the rows the list is actually holding**, which is what "offer what
-   * is there" means. A feature's list has already been answered against the
-   * query — the matcher applied it — so the query is not applied a second time
-   * here: the nearest misses stand in when nothing fits, and they are outside
-   * the query by construction, which counted four rows on screen as nothing to
-   * narrow by. Without a feature the pool is the whole catalog, so there the
-   * query is what makes the counts mean anything.
+   * With a feature and nothing the worker could widen — no facet narrowing yet,
+   * or a question nothing fits at all — it falls back to **the rows the list is
+   * actually holding**, which is what "offer what is there" means. The list has
+   * already been answered against the query, so the query is not applied a
+   * second time there: the nearest misses stand in when nothing fits, and they
+   * are outside the query by construction, which counted four rows on screen as
+   * nothing to narrow by. Without a feature the pool is the whole catalog, so
+   * there the query is what makes the counts mean anything.
    */
   const axisCounts = useMemo(
     () =>
       asking
-        ? countsByAxis(listed, EMPTY_QUERY, FACET_AXES)
+        ? (judgedFacets ?? countsByAxis(listedInStack, EMPTY_QUERY, FACET_AXES))
         : countsByAxis(allTools, effectiveQuery, FACET_AXES),
-    [asking, allTools, listed, effectiveQuery],
+    [asking, allTools, listedInStack, effectiveQuery, judgedFacets],
   )
   /**
    * What each axis is offering, which is not always what it can still count.
    *
-   * `shared/filter.ts` § `stillOffered` has the reason: with a feature on the
-   * screen the counts are measured over what the matcher judged, and the
-   * matcher only judges what the terms already admit — so an axis that has been
-   * narrowed can only report itself, and a second vendor was unreachable. It
-   * keeps offering the list it last had instead. The memory is this feature's:
-   * another question is another set of values, and carrying one over would
-   * offer the last feature's vendors under this one's name.
+   * `shared/filter.ts` § `stillOffered` has the reason, and {@link judgedFacets}
+   * is why it is not always needed: a count the worker measured over the
+   * widened pool already holds every other vendor, so the memory would only put
+   * a stale number beside a fresh one. It stands for the answers that still
+   * come off the rows — a list the worker has not answered yet, and the near
+   * misses standing in when nothing fits. The memory is this feature's: another
+   * question is another set of values, and carrying one over would offer the
+   * last feature's vendors under this one's name.
    */
   const offeredAxes = useRef(new Map<string, ReadonlyMap<string, number>>())
   const askedOf = useRef<string | null>(null)
@@ -1943,19 +2332,20 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       const counts = axisCounts.get(axis) ?? new Map<string, number>()
       offered.set(
         axis,
-        asking
+        asking && judgedFacets === null
           ? stillOffered(counts, query.terms[axis] ?? [], offeredAxes.current.get(axis))
           : counts,
       )
     }
     offeredAxes.current = offered
     return offered
-  }, [asking, axisCounts, query.terms, ask])
+  }, [asking, axisCounts, query.terms, ask, judgedFacets])
 
   /** One axis's values as the pickers read them, however they were arrived at. */
   const countsOn = useCallback(
-    (axis: string): ReadonlyMap<string, number> => axisOptions.get(axis) ?? countBy(listed, axis),
-    [axisOptions, listed],
+    (axis: string): ReadonlyMap<string, number> =>
+      axisOptions.get(axis) ?? countBy(listedInStack, axis),
+    [axisOptions, listedInStack],
   )
 
   /**
@@ -2024,7 +2414,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       return {
         suggested,
         available: detailed?.overridableByCode[code] ?? 0,
-        on: overriding.includes(code),
+        on: forgiven.includes(code),
         /**
          * **The number and the forgiveness are one decision** (Paul,
          * 2026-09-08: "if override rules is off, it should go back to the
@@ -2044,7 +2434,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           sayBound(ask?.shape === 'range' ? ask.kind : 'length', bound, unit),
       }
     },
-    [asking, suggestions, detailed, overriding, overrideOn, unit],
+    [asking, suggestions, detailed, forgiven, overrideOn, unit],
   )
 
   /**
@@ -2056,17 +2446,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    */
   useEffect(() => {
     setOverriding((current) => {
-      const kept = current.filter((code) => {
-        const bound = query.ranges[code]
-        if (bound === undefined || (bound.min === undefined && bound.max === undefined)) {
-          return false
-        }
-        const suggested = suggestions.ranges[code]
-        return suggested === undefined || !sameBound(bound, suggested)
-      })
+      const kept = current.filter((code) => own[code] !== undefined)
       return kept.length === current.length ? current : kept
     })
-  }, [query.ranges, suggestions])
+  }, [own])
 
   /**
    * Every value each axis has, so a contextual list can say what it is not
@@ -2448,37 +2831,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     [sheet, allTools],
   )
 
-  /** Which feature the choice is for: the one being read, or the part as a whole. */
-  /**
-   * Which feature the choice is for: the one being read, or the part as a whole.
-   *
-   * **The group's own tag, not the sibling that happened to be clicked** (Paul,
-   * 2026-09-02: "if a tool is on the list and a holder is added to it, it
-   * should update the existing tool on the BOM rather than create a new one").
-   * Eight identical holes are one decision everywhere else on this page; keyed
-   * by whichever of them was under the mouse, the panel wrote a second line
-   * beside the one the feature list had already put there.
-   */
-  const choiceKey = useMemo(() => {
-    if (focused === null) {
-      return '*'
-    }
-    /*
-      **The row's key, where a row holds this reading** (Paul, 2026-09-09).
-      It used to be the *hole group's* first tag, which was the same thing while
-      every row held whole hole groups — a hole cannot be asked about alone any
-      more than a bolt circle could. It is not the same thing now: a feature
-      made from the second hole of a group is keyed by that hole, and a panel
-      still keying by the first wrote its lines where nothing read them.
-
-      Reading the list is also the honest way to state the 2026-09-02 rule: a
-      sibling clicked on a group already on the list updates that group's line
-      rather than opening a second one beside it, whatever grouping is doing.
-    */
-    const holder = list.find((item) => item.tags.includes(focused))
-    return holder ? (sheetKeysOf(holder)[0] ?? focused) : focused
-  }, [focused, list])
-
   /**
    * What is already kept for the feature being read.
    *
@@ -2533,174 +2885,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     setChosenTool(wantedTool.current)
     wantedTool.current = null
   }, [focused])
-
-  /**
-   * The holder and collet for a tool: the columns, the stickout column, and
-   * the panel beside the part all ask the same question.
-   *
-   * Grading every holder in the crib against a tool is real work, so it is
-   * done **per tool that asks**, cached for as long as the crib and the
-   * clearances hold still. Nothing is graded until something calls for it, so
-   * the panel's one tool costs one tool, and a list of two hundred pays only
-   * for the columns that are actually ticked.
-   */
-  const optionsFor = useMemo(() => {
-    const cache = new Map<string, Array<HolderOption>>()
-    return (each: CatalogTool): Array<HolderOption> => {
-      const had = cache.get(each.guid)
-      if (had) {
-        return had
-      }
-      const made = holderOptions(
-        each,
-        allHolders,
-        allCollets,
-        holderFilters,
-        curve,
-        margins,
-        thresholds,
-      )
-      cache.set(each.guid, made)
-      return made
-    }
-  }, [holderFilters, curve, margins, thresholds])
-  const holding = useMemo<Holding>(() => {
-    return {
-      /**
-       * **A collet chosen first puts its own chucks at the top** (Paul,
-       * 2026-09-01: "then all holders are shown but we show the ones that work
-       * with that collet at the top"). Every holder is still offered — the
-       * collet is a preference, not a filter — and the ones of its series lead.
-       */
-      holdersFor: (each) => {
-        const chosenCollet = picked[each.guid]?.colletGuid
-        const series =
-          chosenCollet == null ? undefined : (getCollet(chosenCollet)?.series ?? undefined)
-        // Only the holders that can be drawn — `hasPicture` above says why, and
-        // `undrawable` below reports what that hid.
-        const options = optionsFor(each).filter(hasPicture)
-        const ordered =
-          series === undefined
-            ? options
-            : [
-                ...options.filter((option) => option.holder.colletSeries === series),
-                ...options.filter((option) => option.holder.colletSeries !== series),
-              ]
-        return ordered.map((option) => ({
-          guid: option.holder.guid,
-          label:
-            option.holder.colletSeries === series
-              ? `${option.holder.catalogNumber} · takes this collet`
-              : option.holder.catalogNumber,
-          holder: option.holder,
-          trouble: option.unstocked
-            ? `no ${option.holder.colletSeries ?? 'matching'} collet stocked`
-            : option.clears === false
-              ? 'collision with geometry'
-              : option.band === 'bad'
-                ? 'too little grip'
-                : null,
-        }))
-      },
-      /**
-       * How many holders were left off for having no picture, so the panel can
-       * say so rather than showing an empty dropdown (Paul, 2026-09-07).
-       */
-      undrawable: (each) => optionsFor(each).filter((option) => !hasPicture(option)).length,
-      /**
-       * With a holder: the collets of its series that close on the shank.
-       * **Without one: every collet that closes on the shank**, whatever series
-       * it belongs to, each saying which series that is — the dropdown used to
-       * be empty until a holder was picked, which read as broken (Paul,
-       * 2026-09-01).
-       */
-      colletsFor: (each, holderGuid) => {
-        const holder = optionsFor(each).find((option) => option.holder.guid === holderGuid)?.holder
-        if (holder === undefined) {
-          return colletsForShank(each, allCollets).map((collet) => ({
-            guid: collet.guid,
-            label: `${collet.catalogNumber} · ${collet.series}`,
-          }))
-        }
-        return colletsFor(each, holder, allCollets).map((collet) => ({
-          guid: collet.guid,
-          label: collet.catalogNumber,
-        }))
-      },
-      chosen: (each) => ({
-        holderGuid: picked[each.guid]?.holderGuid ?? null,
-        colletGuid: picked[each.guid]?.colletGuid ?? null,
-      }),
-      /** What the chosen stack stands out at: the person's, or the option's own. */
-      stickoutFor: (each) => {
-        const holderGuid = picked[each.guid]?.holderGuid ?? null
-        return (
-          picked[each.guid]?.stickout ??
-          optionsFor(each).find((option) => option.holder.guid === holderGuid)?.stickout ??
-          null
-        )
-      },
-      requiredStickout: (each) => {
-        const holderGuid = picked[each.guid]?.holderGuid ?? null
-        if (holderGuid === null) {
-          return null
-        }
-        return (
-          optionsFor(each).find((option) => option.holder.guid === holderGuid)?.required ?? null
-        )
-      },
-      /**
-       * Why nothing in the crib can hold it, in one line.
-       *
-       * The holder stage drops a tool for one of two reasons and said neither:
-       * every stack fouls the part at the stickout this feature needs, or the
-       * tool is too short to stand out that far and keep hold. Both are about
-       * a length, and a length is what somebody can go and change.
-       */
-      reachNote: (each) => {
-        const options = optionsFor(each)
-        /**
-         * **Never "no holder grips this shank"** (Paul, 2026-09-01: "means
-         * nothing, never show it"). It said the crib holds nothing that takes
-         * this shank, which is a fact about the crib rather than about the
-         * length the cell is for — and it stood in that cell against every
-         * tool of a size nobody has a collet for, which is most of a
-         * seventeen-thousand-tool catalog.
-         */
-        if (options.length === 0) {
-          return null
-        }
-        if (options.some((option) => option.grade !== 'bad')) {
-          return null
-        }
-        /**
-         * **One stack's story, not two halves of two.**
-         *
-         * Taking the least required stickout from one holder and the longest
-         * grip from another read as "needs 53 mm out; holds at 55" — which
-         * says it fits (Paul, 2026-08-31). The stack that comes closest is the
-         * one worth quoting, and closest means the smallest gap between what
-         * it needs and what it can hold.
-         */
-        const gaps = options.flatMap((option) => {
-          const needs = option.required
-          const most = option.range?.max ?? null
-          return needs === null || most === null || needs <= most
-            ? []
-            : [{ needs, most, by: needs - most }]
-        })
-        const closestStack = gaps.sort((a, b) => a.by - b.by)[0]
-        return closestStack === undefined
-          ? 'no holder clears the part here'
-          : `needs ${format(closestStack.needs, 'mm')} out, holds ${format(closestStack.most, 'mm')}`
-      },
-      onChoose: (each, choice) =>
-        setPicked((current) => ({
-          ...current,
-          [each.guid]: { ...current[each.guid], ...choice },
-        })),
-    }
-  }, [optionsFor, picked])
 
   /**
    * The list: the ten best, each as the assembly the rules recommend — and,
@@ -3184,7 +3368,12 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           bill that quietly lost a line would report a part as tooled when it
           is not.
         */
-        const gone = { brand: '—', catalogNumber: 'gone', detail: 'no longer in the catalog' }
+        const gone = {
+          brand: '—',
+          catalogNumber: 'gone',
+          detail: 'no longer in the catalog',
+          productLink: null,
+        }
         if (total.component === 'tool') {
           const tool = getTool(total.guid)
           return tool === null
@@ -3194,6 +3383,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                 icon: <ToolTypeIcon toolType={tool.form} />,
                 brand: tool.brand,
                 catalogNumber: tool.catalogNumber,
+                productLink: tool.productLink,
                 detail: typeLabel(tool),
               }
         }
@@ -3206,6 +3396,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                 icon: <HolderIcon />,
                 brand: holder.brand,
                 catalogNumber: holder.catalogNumber,
+                productLink: holder.productLink,
                 detail: holderTypeLabel(holder),
               }
         }
@@ -3217,6 +3408,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               icon: <ColletIcon />,
               brand: collet.brand,
               catalogNumber: collet.catalogNumber,
+              productLink: collet.productLink,
               detail: colletTypeLabel(collet),
             }
       }),
@@ -3407,6 +3599,43 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   }, [focused, selectedItem, draft, list, sheet, groupOf, aloneFor, startAddGroup, changeToGroup])
 
   /**
+   * The same offer, inside the group being built.
+   *
+   * **A group asks it too** (Paul, 2026-09-11: "the group dialog should ask if
+   * I want to add identical holes if I select one, just like the feature
+   * dialog"). Clicking a hole while a group is open used to take every
+   * identical hole with it; that expansion came out on 2026-09-11 so a group
+   * could be corrected a hole at a time — and with it went the only way to pick
+   * up a bolt circle without thirty-nine clicks. `groupOffer` is deliberately
+   * silent here, because the offer it answers *opens* a group; this one grows
+   * the one already open, which is a different press with the same sentence.
+   *
+   * Withheld once every sibling is already in: an offer to add what is there
+   * reads as a press that does nothing.
+   */
+  const offerSiblings = useMemo(() => {
+    if (draft?.kind !== 'group' || focused === null || aloneFor === focused) {
+      return null
+    }
+    const siblings = groupOf(focused)
+    const missing = siblings.filter((each) => !kept.includes(each))
+    if (siblings.length < 2 || missing.length === 0) {
+      return null
+    }
+    return {
+      count: siblings.length,
+      // One `toggle` each, which is the same press as clicking each of them on
+      // the part — so a hole taken out afterwards comes out on its own.
+      onGroup: () => {
+        for (const tag of missing) {
+          dispatch({ type: 'toggle', featureTag: tag })
+        }
+      },
+      onDismiss: () => setAloneFor(focused),
+    }
+  }, [draft, focused, aloneFor, groupOf, kept, dispatch])
+
+  /**
    * A tool assembly of the part's own, begun.
    *
    * **Not tied to a feature or a group** (Paul, 2026-09-08: "the tool assembly
@@ -3453,6 +3682,41 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       dispatch({ type: 'collect', tags: item.tags, collecting: item.kind === 'group' })
     },
     [list],
+  )
+
+  /**
+   * A press on a row of the order list.
+   *
+   * **A group row opens the group** (Paul, 2026-09-11: clicking one "opens an
+   * individual feature dialog rather than the dialog for the group … it should
+   * work like right click *edit group* does"). Selecting a group read the first
+   * feature it holds, so what stood over the part was one hole's box — a
+   * question about one feature where the question about all of them belongs,
+   * and no way in to the faces the group is made of except the menu. There is
+   * one way into a group now, and the right-click item is the second door onto
+   * it rather than the only one.
+   *
+   * **The lines under the row are the same press** (Paul, 2026-09-11: "clicking
+   * on the tool assembly itself in the order list still brings me to a single
+   * feature. The tool assembly(s) added to the GROUP should open the GROUP
+   * dialog"). A group's answers are the group's, so pressing one asks the
+   * group's question: there is one way into a group, and every part of its row
+   * takes it.
+   *
+   * **A tag is the exception**, because it names something else — a feature
+   * inside a group opened for *one tool each* is its own question, and
+   * {@link selectRow} is what that press has always meant.
+   */
+  const pressRow = useCallback(
+    (id: string | null, tag: string | null, toolGuid?: string) => {
+      const item = itemNamed(list, id)
+      if (item?.kind === 'group' && tag === null) {
+        startEdit(item.id)
+        return
+      }
+      selectRow(id, tag, toolGuid)
+    },
+    [list, startEdit, selectRow],
   )
 
   /**
@@ -3835,231 +4099,14 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     selectRow(null)
   }, [draft, cancelDraft, selectRow])
 
-  /**
-   * The row on the list the panel's buttons act on, where there is one.
-   *
-   * A previewed feature can already be on the list — clicking it on the part is
-   * how somebody goes back to it — so this is not simply the selected row.
-   */
-  const activeItem = useMemo(
-    () =>
-      /*
-        **An assembly being built is not a row, and is not any other row
-        either** (Paul, 2026-09-08). It asks about no features, so the search
-        below would hand back whichever row happened to match nothing — and the
-        press under the stack would write that row's lines instead of making
-        its own.
-      */
-      (draft?.kind === 'assembly' ? null : selectedItem) ??
-      /*
-        **A question about nothing matches no row** (Paul, 2026-09-07: "when no
-        feature is selected, the tool table should not show any assemblies").
-        `[].every(...)` is true of every item, so with nothing being asked this
-        matched whichever row happened to be first and handed it out as the row
-        in play. `toolActions` never noticed — it is gated on `active` — but the
-        assembly tree took the row at its word and drew that feature's stacks
-        under a table showing the whole catalog.
-      */
-      (askedNow.tags.length === 0
-        ? null
-        : draft?.kind === 'assembly'
-          ? null
-          : /*
-              **A group being built is not the feature it holds** (Paul,
-              2026-09-09, with the group editor's own confirm gone). A group of
-              one hole that is already a row matches that row here, so the press
-              under the stack read as *add a tool to that feature* and the group
-              was never made — the confirm button used to make it, and there is
-              no confirm button any more. A group being *edited* is the row it
-              is editing, which the search below still finds.
-            */
-            draft?.kind === 'group' && draft.editing === null
-            ? null
-            : list.find((item) => askedNow.tags.every((tag) => item.tags.includes(tag)))) ??
-      null,
-    [selectedItem, list, askedNow.tags, draft?.kind, draft?.editing],
-  )
-
-  /* ----------------------- the tool assembly tree ------------------------- */
-
-  /**
-   * The shape being tried out, and the way back off it.
-   *
-   * **A feature is answered with assemblies, not tools** (Paul, 2026-09-07). A
-   * cutter is chosen with a holder and a collet; a threaded hole needs two
-   * stacks before it is a hole at all. The page asked for a tool and hung the
-   * other two off it as dropdowns, which made a holder a footnote on a tool and
-   * made the second stack for a feature unreachable.
-   *
-   * Behind a flag, switched in the header, because it replaces enough of this
-   * page at once that going back has to be a press rather than a revert.
-   */
-  /** Which slot of which stack is open, and the row it belongs to. */
-  const [nodeHeld, setNodeHeld] = useState<{ itemId: string; node: TreeNode } | null>(null)
-  const [holderQuery, setHolderQuery] = useState<ComponentQuery>(NO_QUERY)
-  const [colletQuery, setColletQuery] = useState<ComponentQuery>(NO_QUERY)
-  /**
-   * Whether the rack shows the chucks the crib has no collet for.
-   *
-   * **Off to begin with** (Paul, 2026-09-10: "by default, the holders with no
-   * collet should be hidden"). The rack opens on what the shop can actually
-   * build this afternoon, and the press asks the wider question — what could
-   * hold this, if a collet were ordered. The rule they are hidden *by* is the
-   * same one either way, and the count on the press is what stops the narrower
-   * rack reading as an empty crib.
-   *
-   * `components/no-collet-toggle.tsx` is the press and says why it exists. Not
-   * a filter: it is counted and cleared nowhere near `Clear n filters`, because
-   * it puts rows on the list rather than taking them off, and a shop that
-   * pressed it does not want it undone by clearing a taper.
-   */
-  const [noCollet, setNoCollet] = useState(false)
-  const [hiddenHolderColumns, setHiddenHolderColumns] = useState<ReadonlyArray<string>>(() =>
-    hiddenComponentColumns(HOLDER_COLUMNS),
-  )
-  const [holderColumnOrder, setHolderColumnOrder] = useState<ReadonlyArray<string>>(() =>
-    HOLDER_COLUMNS.map((column) => column.code),
-  )
-  const [hiddenColletColumns, setHiddenColletColumns] = useState<ReadonlyArray<string>>(() =>
-    hiddenComponentColumns(COLLET_COLUMNS),
-  )
-  const [colletColumnOrder, setColletColumnOrder] = useState<ReadonlyArray<string>>(() =>
-    COLLET_COLUMNS.map((column) => column.code),
-  )
-
-  /**
-   * Whose tree is on screen.
-   *
-   * **A draft has one before it is a row** (Paul, 2026-09-07: "when a new
-   * feature or group is selected (being created), the tree should already be
-   * shown"). Waiting for the row meant the bottom of the page had nothing in it
-   * during the one moment somebody is actually deciding — and the tools for the
-   * draft were already listed under it, which made the empty column beside them
-   * read as broken rather than as not-yet.
-   *
-   * The draft's stacks are kept under {@link DRAFT_TREE} and carried onto the
-   * row's own id when it is confirmed, so nothing built before the press is
-   * lost by making it.
-   *
-   * **Being created is wider than `draft`.** A plain click on a face previews a
-   * reading and offers the two ways in without opening a draft at all — that is
-   * `asked()`'s third row — and it is the commonest way a feature gets made. So
-   * anything being *asked* with no row of its own gets the draft's tree, which
-   * covers the preview and the group editor alike.
-   */
-  const treeKey =
-    /*
-      **Only the group editor takes the plain key** (Paul, 2026-09-07: "new hole
-      selections should be treated as new"). Its tags change under the mouse as
-      faces are toggled, so a key that moved with them would reset the tree
-      mid-build. A *feature* draft has settled tags and was taking that key as
-      well — and the key is kept in the browser, so the tap and drill stacks
-      built for one hole were still standing the next time anybody pressed
-      *Add feature*, on a hole nobody had called threaded.
-    */
-    draft?.kind === 'group'
-      ? DRAFT_TREE
-      : /*
-          **An assembly being built keeps its stacks under a key of its own.**
-          It has no tags, so `draftKeyFor([])` is that key — and `carryDraftTree`
-          reads the same one when the press makes the row, so nothing built
-          before the press is lost by making it.
-        */
-        draft?.kind === 'assembly'
-        ? draftKeyFor([])
-        : /*
-          **A part-level assembly is a tree with no question above it** (Paul,
-          2026-09-08). It asks about no feature, so `asking` is false for it —
-          and the row is still the thing being built, keyed by its own id like
-          every other row's tree.
-        */
-          selectedItem?.kind === 'assembly'
-          ? selectedItem.id
-          : // Nothing asked is nothing to assemble: the table is the whole catalog
-            // then, and a tree beside it would be answering for a feature nobody
-            // has selected.
-            !asking
-            ? null
-            : draft !== null
-              ? draftKeyFor(askedNow.tags)
-              : (activeItem?.id ?? draftKeyFor(askedNow.tags))
-  /**
-   * The stacks for that row — what was built, or what the bill already holds.
-   *
-   * A part answered before this shape existed, or with the flag off, has lines
-   * on the sheet and no tree; `treeFromLines` opens on those rather than on an
-   * empty stack, so switching the flag on does not read as work lost.
-   *
-   * **And whatever it opens on, the roles follow the thread.** A tree is kept
-   * in the browser and the thread a hole is read for is not, so a tap stack
-   * outlived the reading that asked for it — `forThread` is that rule, and it
-   * leaves any stack somebody has put a component in exactly as it stands.
-   */
-  const assemblies = useMemo<ReadonlyArray<TreeAssembly>>(() => {
-    if (treeKey === null) {
-      return []
-    }
-    const threaded = threadSpec !== null
-    const kept = trees[treeKey]
-    if (kept !== undefined) {
-      return forThread(kept, threaded)
-    }
-    /*
-      A draft opens on empty stacks rather than on the bill: it has no lines
-      yet, and reading the focused feature's would show another row's answers
-      under a feature being created.
-    */
-    return draft !== null || treeKey === DRAFT_TREE
-      ? defaultAssemblies(threaded)
-      : treeFromLines(
-          /*
-            A part-level assembly's lines are kept under its own id — it has no
-            feature to be keyed by — so reading `choiceKey` here would open it
-            on whatever face was last clicked. Every key of the row it is,
-            because that is where the lines were written (`shared/order-list`).
-          */
-          linesOf(sheet, selectedItem === null ? [choiceKey] : sheetKeysOf(selectedItem)),
-          threaded,
-          // Which line is the tap is a fact about the tool, and the catalog is
-          // the route's to read.
-          (toolGuid) => getTool(toolGuid)?.form.startsWith('tap ') ?? false,
-        )
-  }, [trees, treeKey, sheet, choiceKey, threadSpec, draft, selectedItem])
-
-  /**
-   * The slot open now: what was clicked while it still exists, else the first
-   * question the tree has not been answered.
-   *
-   * Derived rather than kept in an effect, and stamped with the row it was
-   * clicked on — every tree starts at `assembly-1`, so a node held across a
-   * change of row would land on a different feature's stack of the same name.
-   */
-  const node = useMemo<TreeNode | null>(() => {
-    const held =
-      nodeHeld !== null &&
-      nodeHeld.itemId === treeKey &&
-      assemblies.some((each) => each.id === nodeHeld.node.assemblyId)
-        ? nodeHeld.node
-        : null
-    return held ?? firstNode(assemblies)
-  }, [nodeHeld, treeKey, assemblies])
-
-  const selectNode = useCallback(
-    (next: TreeNode) => {
-      if (treeKey !== null) {
-        setNodeHeld({ itemId: treeKey, node: next })
-      }
-    },
-    [treeKey],
-  )
-
-  const assembly = useMemo(
-    () => assemblyNamed(assemblies, node?.assemblyId ?? null),
-    [assemblies, node],
-  )
-  const treeTool = assembly?.toolGuid == null ? null : getTool(assembly.toolGuid)
-  const treeHolder = assembly?.holderGuid == null ? null : getHolder(assembly.holderGuid)
-  const treeCollet = assembly?.colletGuid == null ? null : getCollet(assembly.colletGuid)
+  /*
+    **The tool assembly tree is declared above the matcher**, not here
+    (2026-09-10). The counts beside a filter are measured over the pool the
+    table draws, and the table under a stack is `narrowTools` applied to that
+    pool — so the worker has to be told what the open slot already holds, and
+    `tableDemand` is built long before this point. `MatchDemand.stack` in
+    `shared/catalog-matcher.ts` states the rule the move is for.
+  */
 
   /**
    * The length below the holder each row in the tool list would stand at.
@@ -4242,6 +4289,22 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     looking && componentSlot === 'holder' ? (lookedUp === null ? null : getHolder(lookedUp)) : null
   const lookedUpCollet =
     looking && componentSlot === 'collet' ? (lookedUp === null ? null : getCollet(lookedUp)) : null
+
+  /**
+   * The row that list is reading, whichever list it is.
+   *
+   * Read twice: by the table, for the row it marks, and by the arrows, which
+   * land on a list's first row rather than on nothing where it is reading
+   * nothing — `shared/arrow-target.ts` says why the kit needs that.
+   */
+  const rowRead =
+    componentSlot === null
+      ? (assembly?.toolGuid ?? null)
+      : looking
+        ? lookedUp
+        : componentSlot === 'holder'
+          ? (assembly?.holderGuid ?? null)
+          : (assembly?.colletGuid ?? null)
 
   /**
    * Whether the tree is drawn at all.
@@ -4632,64 +4695,42 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         }
       }
       /**
-       * How many stacks of this row stand on the bill as one cutter.
+       * **Every stack writes its own line, named after itself** (Paul,
+       * 2026-09-11: "when I have two (or more) tool assemblies on a feature or
+       * group, both need to be shown in the order list. Only the first is being
+       * shown right now").
        *
-       * **Two stacks of one cutter are two of it to buy** (Paul, 2026-09-10:
-       * "duplicates are now showing up as separate line items … that should show
-       * 2 assemblies and a count of two of each component"). The sheet keys a
-       * line by its tool, so a row cannot hold the same cutter on two lines —
-       * what it holds instead is `total`, how many of that assembly — and
-       * `componentTotals` already multiplies every component by it. Nothing was
-       * writing it, so a second identical assembly wrote the same line again and
-       * the bill said one.
+       * The sheet used to key a line by its tool, so a row could hold one line
+       * per cutter and no more: a second assembly given the first's cutter wrote
+       * over it — its holder along with it — and what stood in for the two of
+       * them was `total`, a count on one line saying "twice" about a stack the
+       * bill had only one description of. Two stacks with different holders were
+       * the same defect without the count: the second one's holder simply
+       * replaced the first's.
        *
-       * Counted off the tree once it is marked, because the tree is the row's
-       * answer: every stack of it standing as that cutter is one of it to set up.
+       * `assemblyId` on the line is the fix and this is where it is written:
+       * `lineId` in `shared/setup-sheet.ts` is the whole of the new rule, and
+       * `addChoice` replaces a line with the same id rather than the same tool.
        */
-      const ordered = (toolGuid: string): number =>
-        marked.filter((each) => each.orderedTool === toolGuid).length
       let next = sheet
-      for (const { line, had } of written) {
+      for (const { stack, line, had } of written) {
+        const mine: Choice = { ...line, assemblyId: stack.id }
         /*
-          **A replacement takes the old line off before the new one goes on.**
-          The sheet keys a line by its tool, so a stack that swapped cutters
-          would otherwise leave the tool it was ordered as sitting on the
-          feature beside the one that replaced it (Paul, 2026-09-07).
+          **A replacement takes the old line off before the new one goes on** —
+          for a line written before a line carried the stack's id, which is
+          keyed by its tool and so is a different line from this one (Paul,
+          2026-09-07). A line this stack already wrote is replaced where it
+          stands, so there is nothing to take off.
         */
         const off =
           kind === 'remove'
-            ? (had?.toolGuid ?? line.toolGuid)
-            : had !== null && had.toolGuid !== line.toolGuid
-              ? had.toolGuid
+            ? lineId(had ?? mine)
+            : had !== null && had.assemblyId !== stack.id
+              ? lineId(had)
               : null
-        /*
-          Unless another stack of this row is still standing as it: taking one of
-          two identical assemblies off leaves one, not none, and the line is
-          where that one lives.
-        */
-        const kept = off !== null && ordered(off) > 0
         for (const tag of tags) {
-          next = off === null || kept ? next : removeChoice(next, tag, off)
-          next = kind === 'remove' ? next : addChoice(next, tag, line)
-        }
-      }
-      /*
-        And then how many of each, over every cutter this press touched — the
-        one it wrote and the one it took off, which are different on a swap.
-      */
-      const touched = new Set(
-        written.flatMap(({ line, had }) => [
-          line.toolGuid,
-          ...(had === null ? [] : [had.toolGuid]),
-        ]),
-      )
-      for (const toolGuid of touched) {
-        const many = ordered(toolGuid)
-        if (many === 0) {
-          continue
-        }
-        for (const tag of tags) {
-          next = setTotal(next, tag, toolGuid, many)
+          next = off === null ? next : removeChoice(next, tag, off)
+          next = kind === 'remove' ? next : addChoice(next, tag, mine)
         }
       }
       commit(next)
@@ -4921,6 +4962,59 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const tappingNow = assembly !== null ? assembly.role === 'tap' : tapping
 
   /**
+   * Whether the tool list is drawn, rather than a notice or the skeleton.
+   *
+   * One derivation read twice — by the table area, for which of the four things
+   * it draws, and by the focus and the arrows, which have nothing to reach
+   * while it is false. Two of them would be two chances to disagree about what
+   * is on screen.
+   */
+  const toolListDrawn = !perFeature && !(asking && detailed === null && !tappingNow)
+
+  /**
+   * Which list the arrows and the focus are for, and `null` while there is none.
+   *
+   * The rack or the drawer where a slot has one open, the tools otherwise — and
+   * nothing at all unless a box is open over the part, because the arrows
+   * belong to a question being asked rather than to the catalog at rest.
+   */
+  const listOnScreen =
+    !dialogOpen || (componentSlot === null && !toolListDrawn)
+      ? null
+      : componentSlot === null
+        ? TOOL_LIST
+        : COMPONENT_LIST
+
+  /**
+   * **The focus follows the question** (Paul, 2026-09-11: "the focus should go
+   * to the table as soon as a feature is selected"). Selecting anything is what
+   * puts somebody in front of a list of tools, so it is what hands them the
+   * keys to it — an arrow press of their own is one press too late, and this
+   * application walks no features with the arrows for it to compete with.
+   *
+   * Keyed on what is being asked rather than on what the list holds: a filter
+   * typed into, a row picked, an answer arriving late — none of those are a new
+   * question, and taking the focus back on each of them would be taking it away
+   * from whatever somebody was doing.
+   */
+  const askingNow =
+    listOnScreen === null
+      ? null
+      : [
+          listOnScreen,
+          selectedId ?? '',
+          draft?.kind ?? '',
+          focused ?? '',
+          node?.assemblyId ?? '',
+          node?.slot ?? '',
+        ].join('|')
+  useEffect(() => {
+    if (askingNow !== null && listOnScreen !== null) {
+      focusList(listOnScreen)
+    }
+  }, [askingNow, listOnScreen])
+
+  /**
    * Which of this row's other stacks a component is standing in, by name.
    *
    * Named rather than counted, and never the stack being filled: the table's
@@ -5010,7 +5104,14 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     if (panelTool === null) {
       return []
     }
-    const held = holding.chosen(panelTool)
+    /**
+     * Whatever this tool is standing in, which is the tree's doing: the panel
+     * has offered no holding of its own since 2026-09-10.
+     */
+    const held = {
+      holderGuid: picked[panelTool.guid]?.holderGuid ?? null,
+      colletGuid: picked[panelTool.guid]?.colletGuid ?? null,
+    }
     const first = distinctIn(askedNow.tags)[0]?.[0]
     const line = first === undefined ? null : chosenFor(sheet, first, panelTool.guid)
     const wanted = toolActions({
@@ -5069,7 +5170,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
        */
       remove: () => {
         commit(
-          askedNow.tags.reduce((current, tag) => removeChoice(current, tag, panelTool.guid), sheet),
+          askedNow.tags.reduce((current, tag) => removeTool(current, tag, panelTool.guid), sheet),
         )
       },
     }
@@ -5084,7 +5185,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     }))
   }, [
     panelTool,
-    holding,
+    picked,
     distinctIn,
     askedNow,
     asking,
@@ -5168,8 +5269,18 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   }, [showTree, node, assemblies, treeActionsFor, applyStacks])
 
   const escapeRef = useRef(() => {})
-  const stepRef = useRef((_step: number) => {})
   const keepRef = useRef(() => {})
+  /** `arrowTarget`, asked with everything but where the press landed. */
+  const arrowsRef = useRef<(inList: boolean) => ArrowTarget>(() => null)
+  arrowsRef.current = (inList: boolean) =>
+    arrowTarget({ boxOpen: listOnScreen !== null, inList, readingARow: rowRead !== null })
+  /** And the press it asks for, once the rule has said there is one to make. */
+  const handListRef = useRef(() => {})
+  handListRef.current = () => {
+    if (listOnScreen !== null) {
+      handToList(listOnScreen, rowRead !== null)
+    }
+  }
   /** Enter's answer: whether there was a press to make, having made it. */
   const orderRef = useRef<() => boolean>(() => false)
   orderRef.current = () => {
@@ -5193,8 +5304,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     }
     dispatch({ type: 'escape' })
   }
-  stepRef.current = (step: number) =>
-    dispatch({ type: 'step', order: rows.map((each) => each.featureTag), by: step > 0 ? 1 : -1 })
   keepRef.current = () => {
     // Nothing being read yet: the first press takes the first row, so a fresh
     // list is one key rather than a click and a key.
@@ -5281,6 +5390,595 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           ? 'Collets for this assembly'
           : 'Every collet in the crib'
         : listTitle
+
+  /**
+   * How tall the bar over the bottom of the part is.
+   *
+   * **The handle that resizes the table stays above it** (Paul, 2026-09-11:
+   * "the control point to resize that panel should still be at the top above
+   * the buttons"). The bar is drawn inside the viewer, so the seam between the
+   * two panels is now *under* it — and a drag handle under the thing it looks
+   * like it should be over is a handle nobody finds. It is lifted by what the
+   * bar measures, which is a transform rather than a margin: the seam is still
+   * where the layout says it is, and only the grab moves.
+   */
+  const chromeBar = useRef<HTMLDivElement>(null)
+  const [chromeRoom, setChromeRoom] = useState(0)
+
+  useEffect(() => {
+    const box = chromeBar.current
+    if (box === null || typeof ResizeObserver === 'undefined') {
+      return
+    }
+    const measure = () => setChromeRoom(box.getBoundingClientRect().height)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(box)
+    return () => observer.disconnect()
+  }, [])
+
+  /**
+   * The bar over the bottom of the part: which list is on screen, what it is,
+   * what it is not showing, and the presses that narrow it.
+   *
+   * **It floats in the viewer above the table** (Paul, 2026-09-11: "they
+   * should float in the 3d viewer above the table … the text shown in
+   * different situations can also just overlay the viewer with a transparent
+   * background"). It was the table card's header bar, which is a strip of
+   * chrome the list pays for in rows: the same controls over the part cost
+   * the table nothing and stand where the part is being read.
+   *
+   * Held here rather than inline so the viewer is handed one node — it is
+   * five hundred lines of chrome, and threading it through the props of the
+   * component it is drawn over is where a JSX tree stops being readable.
+   */
+  /*
+    A `div`, not a `p`: this is the list's header bar, and it holds two tab
+    buttons and the column picker. A `p` may hold phrasing content only, so the
+    picker's own `div` inside it was invalid nesting — which the browser
+    corrects by closing the paragraph early, and which React reports as a
+    hydration error because the tree it built is not the tree that came back
+    (2026-09-02).
+  */
+  const listChrome = (
+    <div
+      ref={chromeBar}
+      data-list-chrome
+      /*
+        **No bar, no card, no chips** (Paul, 2026-09-11: "the text shown in
+        different situations can also just overlay the viewer with a
+        transparent background"). Standing on the part rather than at the top
+        of the table, it carries no ground of its own and no rule under it —
+        each press says for itself that it is one, and everything else is words
+        over the geometry. `pointer-events-auto` is the rule the other overlays
+        follow: the controls take a click and the strip between them does not,
+        so a drag that starts on the sky still turns the part.
+      */
+      className="pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 gap-y-1 rounded-lg bg-zinc-950/75 px-2 py-1 text-sm"
+    >
+      {/*
+        **One row, always** (Paul, 2026-09-11: "all information we show there
+        should be viewable in one row"). Wrapping, it grew a second line over
+        the part the moment two notes were true at once — and the bar is
+        measured to keep the questions above it, so a bar that grows is a
+        column that shortens under the mouse. Each note takes the ellipsis
+        instead; every one of them carries its full text as a hover.
+      */}
+      <div className="flex min-h-8 min-w-0 flex-nowrap items-center gap-2 overflow-hidden text-sm">
+        {/*
+          **Which of the three lists this is, as three buttons**
+          (Paul, 2026-09-07: "I want the table tabs for tools,
+          holders, and collets back, just as buttons like the
+          filters button. The one that is active should be
+          highlighted"). They were a full-width tab row for an
+          afternoon and then nothing at all; what was wanted is the
+          switch the *table* needs — small, in its chrome, beside
+          the Filters button they are dressed as — and an indicator
+          of which list is on screen.
+
+          They are the tree's slots, not a control beside it:
+          pressing one opens that slot on the open stack, so the
+          buttons and the tree cannot disagree about what the rows
+          below are for. Drawn only while there is a stack, because
+          with no feature there is no assembly for a holder to be
+          offered against and the table is the catalog.
+        */}
+        {!perFeature
+          ? SLOTS.map((slot) => {
+              const open = listKind === slot
+              return (
+                <Button
+                  key={slot}
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  aria-pressed={open}
+                  onClick={() => chooseList(slot)}
+                  className={cn(
+                    /* The presses keep their size; the notes beside them are
+                       what gives way — see the row's own note above. */
+                    'flex shrink-0 items-center gap-1.5 rounded border px-2 py-1 text-xs',
+                    /*
+                      **A press keeps its own ground** (Paul, 2026-09-11: "the
+                      buttons shouldn't be transparent"). The bar is words over
+                      the part; a button on it is a thing to press, and over
+                      geometry that reads only if it is solid.
+                    */
+                    open
+                      ? 'border-primary/60 bg-primary/15 text-zinc-100'
+                      : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
+                  )}
+                >
+                  {SLOT_TABLE_LABEL[slot]}
+                  {/*
+                    **Each button counts its own list** (Paul,
+                    2026-09-07: "the count is always showing the
+                    tool count. This should be unique to the
+                    component … and it should be shown in the
+                    buttons"). One number beside the heading
+                    counted tools whichever of the three was on
+                    screen, so a rack of three holders was headed
+                    by a nine.
+
+                    Derived, so they move with everything that
+                    narrows a list: the feature being asked about,
+                    the filters, and the components already in the
+                    stack — pick a holder and the collets left are
+                    the ones that close on it.
+                  */}
+                  <span className={cn('text-2xs', open ? 'text-zinc-400' : 'text-zinc-500')}>
+                    {/*
+                      A dash while the matching is still running:
+                      all three lists are empty until it answers,
+                      and three zeroes beside a spinner is a count
+                      somebody reads as "nothing fits".
+                    */}
+                    {tablePending ? '—' : listCounts[slot]}
+                  </span>
+                </Button>
+              )
+            })
+          : null}
+        {/*
+          **The words wrap; the presses do not** (Paul, 2026-09-11: "use two
+          rows for the text if you need to — just try to fit it into the height
+          of the buttons"). Ellipsising every note to keep one line turned the
+          heading into "Cuts the bl…" and each note into three words and a dot,
+          which is a bar that says nothing. So the text takes a box of its own
+          beside the buttons and wraps inside it, two lines of `text-2xs` being
+          about the height of the presses it stands beside.
+        */}
+        <div className="flex max-h-8 min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 overflow-hidden leading-tight">
+          {/*
+          The heading of whichever list is on screen. A threaded
+          hole used to put two tabs here — taps, then drills —
+          and the pair of stacks in the tree is that pair of tabs
+          now, so there is one title and the stack says which
+          list it is over.
+        */}
+          <span className="text-zinc-200">{tableTitle}</span>
+          {/*
+          **How the thread is made lives over the lists it
+          decides** (Paul, 2026-09-07: "we should no longer show
+          the 'cut tap' and 'form tap' rows in the feature dialog
+          when applying threads to a hole — it should just return
+          the right tap drills"). Saying what thread the hole is
+          for and saying whether it will be cut or rolled are two
+          decisions, and only the second one is about these lists:
+          the two predrills are half a millimetre apart on an M6,
+          and the drills are judged against whichever is chosen.
+          So it sits beside the list rather than on the dialog
+          somebody opens to name the thread.
+
+          **Over the taps as well as the drills** (Paul,
+          2026-09-09). It decides both — which taps the list holds
+          and which hole the drills are measured against — and one
+          control written to one mode is what keeps the pair of
+          stacks agreeing about the same thread. Not over a holder
+          or collet list, which it decides nothing about.
+        */}
+          {threadSpec === null ||
+          perFeature ||
+          componentSlot !== null ||
+          holeDiameter === null ? null : (
+            <PredrillChoice
+              spec={threadSpec}
+              mode={holeChoice.mode}
+              /*
+              **The same scope as the thread it refines** (Paul,
+              2026-09-09). Cut tap or form tap is a decision about
+              the hole the thread is on, and this wrote it to the
+              focused hole alone — so a group's predrill moved one
+              hole of thirty-nine and left the rest on the tap
+              drill they were chosen with.
+            */
+              onChange={(mode) =>
+                writeThread({ mode, spec: threadSpec }, threadScope, holeDiameter)
+              }
+              holeDiameter={holeDiameter}
+              deviation={drillDeviation}
+              unit={unit}
+            />
+          )}
+          {/* Nothing to count where nothing has been asked of this
+          panel: a number beside "nothing selected" reads as a
+          count of tools that are not there. */}
+          {/* One number beside the heading counted tools whichever
+          list was on screen; each button counts its own now. */}
+          {/*
+          **What the list is not showing is said where the list
+          is** — the rule this page follows for a rack the drawable
+          filter thinned and for the rules' own removals. The
+          button beside it counts what matched; this says how much
+          of that is on screen.
+        */}
+          {rowsHidden > 0 && componentSlot === null ? (
+            <span
+              className="text-2xs text-zinc-500"
+              title="The table sorts every row it is given, so it is handed the first two thousand. Narrow the list with the filters, the search box, or a feature on the part."
+            >
+              showing the first {String(tableRows.length)} — narrow the list to reach the other{' '}
+              {String(rowsHidden)}
+            </span>
+          ) : null}
+          {tablePending ? (
+            <span
+              role="status"
+              title="Updating compatible tools"
+              className="flex items-center text-info"
+            >
+              <span
+                aria-hidden="true"
+                className="size-3 animate-spin rounded-full border-2 border-info/30 border-t-info"
+              />
+              <span className="sr-only">Updating compatible tools...</span>
+            </span>
+          ) : null}
+          {tableError !== null && detailed !== null ? (
+            <span role="alert" className="text-2xs text-danger">
+              {tableError}
+            </span>
+          ) : null}
+          {/*
+        **The notes are about the list on show** (Paul,
+        2026-09-02). What the rules took off the drill list is
+        true of the drills and says nothing about the taps, and
+        it was printed over both. The tap tab says what its own
+        list was matched on, and what is wrong with it.
+      */}
+          {/* None of them are about a panel that is waiting to be
+          asked: they describe a list that is not on screen. */}
+          {/*
+          **What the drawable rule hid** (Paul, 2026-09-07). The
+          table is only the holders with a shape, so the ones that
+          fit and have no model have to be counted somewhere or an
+          empty list reads as "nothing in the rack fits this".
+        */}
+          {componentSlot === 'holder' ? (
+            undrawableHolders > 0 ? (
+              <span
+                className="text-2xs text-zinc-500"
+                title="A holder is drawn from its measured CAD model, or from a published nose diameter. These have neither, so there is no shape to put under the tool."
+              >
+                {undrawableHolders} more fit but have no model to draw
+              </span>
+            ) : null
+          ) : perFeature ? null : tapping && threadSpec !== null ? (
+            <>
+              {/*
+              **Each list says what it was swept on, and they are
+              two different numbers** (Paul, 2026-09-09: "in
+              drills, the highlighted message should show the tap
+              or form drill size (the predrill size) it is looking
+              for"). The taps were matched on the thread's nominal
+              size; the drills on the predrill the chosen tap
+              starts from — ⌀0.089 in against ⌀0.0995 in on a
+              #4-40. Printing the tap's number over the drills
+              named a diameter no row in that list is near, on a
+              list whose whole sweep is the other one.
+            */}
+              <span className="text-2xs text-zinc-500">
+                {holeChoice.mode === 'thread mill'
+                  ? `inside the ⌀${formatLength(minorOf(threadSpec), unit)} minor diameter`
+                  : tappingNow
+                    ? threadNote(threadSpec, unit)
+                    : shortOfDrills
+                      ? millStandInNote(threadSpec, holeChoice.mode, unit, millsListed)
+                      : predrillNote(threadSpec, holeChoice.mode, unit)}
+              </span>
+              {/* Both are about the tap list: how far the taps reach
+              and whether the crib holds one. */}
+              {makers.short && tappingNow ? (
+                <span className="text-2xs text-amber-300">
+                  none reach the bottom — the closest are shown
+                </span>
+              ) : null}
+              {makers.unheld && tappingNow ? (
+                <span className="text-2xs text-amber-300">
+                  nothing in the crib holds one at the stickout this needs
+                </span>
+              ) : null}
+            </>
+          ) : (
+            <>
+              {/*
+            **A corner no mill can leave** (Paul, 2026-09-01): the
+            model draws it sharp, and every cutter leaves its own
+            radius. Said once, plainly, rather than left for somebody
+            to work out from a list of tools that all miss it.
+          */}
+              {reading !== null && hasSharpCorner(reading) ? (
+                <span className="text-2xs text-amber-300">
+                  this feature has a sharp corner, and no milling tool can cut the geometry
+                </span>
+              ) : null}
+              {closest.length > 0 ? (
+                <span className="text-2xs text-amber-300">
+                  nothing in the crib fits — the closest are shown, with what stops each
+                </span>
+              ) : null}
+              {(detailed?.excludedCount ?? 0) > 0 && reading !== null ? (
+                <span className="text-2xs text-zinc-500" title={tightest ?? undefined}>
+                  {detailed?.excludedCount ?? 0} removed by the rules
+                  {tightest ? ` — most by ${tightest}` : ''}
+                </span>
+              ) : null}
+              {fitting.length > narrowed.length ? (
+                <span className="text-2xs text-amber-300/80">
+                  {fitting.length - narrowed.length} that fit are hidden by the filters
+                </span>
+              ) : null}
+              {/*
+              **A live override is said where the list is, and
+              changed where it was made** (Paul, 2026-09-08: "the
+              override the rules button should be in the filter
+              dialog rather than always shown"). This is the note,
+              not the control: the tick that confirms one is in
+              the column's own dialog, because that is the rule it
+              overrules.
+            */}
+              {forgiven.length > 0 && overrideTools.length > 0 ? (
+                <span
+                  className="text-2xs text-zinc-400"
+                  title="Confirmed in that column's filter. Clearing a geometry bound releases its rule; putting the geometry's bound back restores it."
+                >
+                  {overrideTools.length} the {overridden} rules turn down are listed
+                  {/*
+                  **No silent caps.** The list cannot draw more
+                  rows than this whether they are overridden or
+                  not, and a truncated answer that reads as the
+                  whole one is what sent somebody looking for
+                  half-inch cutters that were never on it.
+                */}
+                  {(detailed?.overridableCount ?? 0) > overrideTools.length
+                    ? ` of ${String(detailed?.overridableCount ?? 0)} — narrow the filters to reach the rest`
+                    : ''}
+                </span>
+              ) : null}
+              {unheld > 0 ? (
+                <span
+                  className="text-2xs text-zinc-500"
+                  title="A tool with no holder in the crib that grips it, clears the part and keeps hold is not offered"
+                >
+                  {unheld} with no holder that clears
+                </span>
+              ) : null}
+            </>
+          )}
+        </div>
+        {/*
+        **The picker edits the list that is open** (Paul,
+        2026-09-02: "allow me to use those columns if I edit the
+        tap table"). A tap offers the seven numbers it states and
+        the tool list offers its own, so which set is on offer —
+        and which hidden set a tick lands in — follows the tab.
+      */}
+      </div>
+      <ToolTableToolbar
+        /*
+          **Left of the clear press, and left of the pencil when
+          there is nothing to clear** (Paul, 2026-09-10). It is
+          the holder rack's press alone: a collet has no collet to
+          be missing, and a tool is not a stack.
+        */
+        before={
+          componentSlot === 'holder' ? (
+            <NoColletToggle
+              count={gappedHolders}
+              shown={noCollet}
+              onToggle={() => setNoCollet((current) => !current)}
+            />
+          ) : undefined
+        }
+        onClear={() => {
+          if (componentSlot === 'holder') {
+            setHolderQuery(NO_QUERY)
+            return
+          }
+          if (componentSlot === 'collet') {
+            setColletQuery(NO_QUERY)
+            return
+          }
+          if (tappingNow) {
+            clearTapFilters()
+            return
+          }
+          setNumberSearch('')
+          apply(EMPTY_QUERY)
+        }}
+        /*
+          **What is narrowing the list, named where it can be
+          cleared** (Paul, 2026-09-08, and 2026-09-09: "in Tap, it
+          shows 'Clear 4 filters' but I only see tool type. What
+          are the 4 filters active? It needs to be visible.").
+          Most of the filters are column headers now, and a header
+          on a column somebody has since hidden is a filter with
+          nothing on screen pointing at it — so the count includes
+          them and the press names every one of them.
+
+          **Per list, because a filter is only a filter over the
+          rows it reaches.** The tap list is swept out of the
+          catalog by the thread, so the drill half of the form
+          filter and every range the rules put on a drill narrow
+          nothing on it: counting them there named three filters
+          that table does not have and cannot show. It counts the
+          two `askOfTapColumn` asks.
+        */
+        set={
+          componentSlot === 'holder'
+            ? narrowingNames(holderQuery, HOLDER_COLUMNS)
+            : componentSlot === 'collet'
+              ? narrowingNames(colletQuery, COLLET_COLUMNS)
+              : tappingNow
+                ? narrowingNames(
+                    {
+                      text: numberSearch,
+                      terms: { type: shownTapTypes },
+                      /*
+                        **The bounds the part set count too**
+                        (Paul, 2026-09-09: "button should show to
+                        clear 3 filters not 1 in this situation").
+                        They narrow the list and they are drawn on
+                        it, so leaving them out made the figure
+                        disagree with the funnels a second time —
+                        the same defect from the other end. Grey
+                        rather than lit is what says a number is
+                        not yours to type; it was never a reason
+                        to stop counting it.
+                      */
+                      bounds: tapRanges,
+                    },
+                    TAP_COLUMNS,
+                  )
+                : narrowingNames(
+                    {
+                      text: numberSearch || query.text,
+                      terms: query.terms,
+                      bounds: query.ranges,
+                    },
+                    TOOL_COLUMNS,
+                  )
+        }
+        filters={
+          /*
+            **A holder list has no filter buttons at all.** Every
+            question about a holder or a collet is a question
+            about one of its columns, so all of them are asked in
+            the headings; the tool list keeps the few no column
+            shows.
+          */
+          componentSlot !== null ? undefined : (
+            <FilterPanel
+              facets={facets}
+              query={query}
+              onQuery={apply}
+              counts={countsOn}
+              unit={unit}
+              holding={{ tapers, series: colletSeries }}
+              materialGroup={materialGroup}
+              onMaterial={chooseMaterial}
+              only={BUTTON_FILTERS}
+              /*
+                **The floor allowance and the clamping length
+                are off the page** (Paul, 2026-09-08), with the
+                rule behind each still running: the sheet's
+                values are what the matching reads, and nothing
+                on screen asks to change them for now.
+              */
+              matching={{
+                ...(holeDiameter === null
+                  ? {}
+                  : {
+                      drill: {
+                        over: drillDeviation.over,
+                        under: drillDeviation.under,
+                        onChange: setDrillDeviation,
+                        sheet: sheetDrillDeviation,
+                      },
+                    }),
+              }}
+              toolbar
+            />
+          )
+        }
+        actions={
+          /*
+            **The picker edits the list that is open**, and under
+            the tree a list can be holders or collets as well as
+            tools. The three sets are kept apart for the reason the
+            tap set is: a code hidden in one means nothing in
+            another, and a nose diameter is not a column a tap has.
+          */
+          componentSlot !== null ? (
+            <ColumnPicker
+              columns={orderedCodes(
+                (componentSlot === 'holder' ? HOLDER_COLUMNS : COLLET_COLUMNS).map(
+                  (column) => column.code,
+                ),
+                componentSlot === 'holder' ? holderColumnOrder : colletColumnOrder,
+              ).flatMap((code) =>
+                (componentSlot === 'holder' ? HOLDER_COLUMNS : COLLET_COLUMNS)
+                  .filter((column) => column.code === code)
+                  .map((column) => ({ code: column.code, label: column.label })),
+              )}
+              shown={(componentSlot === 'holder' ? HOLDER_COLUMNS : COLLET_COLUMNS)
+                .filter(
+                  (column) =>
+                    !(
+                      componentSlot === 'holder' ? hiddenHolderColumns : hiddenColletColumns
+                    ).includes(column.code),
+                )
+                .map((column) => column.code)}
+              onToggle={(code) => {
+                const set =
+                  componentSlot === 'holder' ? setHiddenHolderColumns : setHiddenColletColumns
+                set((current) =>
+                  current.includes(code)
+                    ? current.filter((each) => each !== code)
+                    : [...current, code],
+                )
+              }}
+              onReorder={componentSlot === 'holder' ? setHolderColumnOrder : setColletColumnOrder}
+            />
+          ) : (
+            <ColumnPicker
+              columns={orderedCodes(
+                (tappingNow ? TAP_COLUMNS : TOOL_COLUMNS).map((column) => column.code),
+                tappingNow ? tapColumnOrder : columnOrder,
+              ).flatMap((code) =>
+                (tappingNow ? TAP_COLUMNS : TOOL_COLUMNS)
+                  .filter((column) => column.code === code)
+                  .map((column) => ({ code: column.code, label: column.label })),
+              )}
+              shown={(tappingNow ? TAP_COLUMNS : TOOL_COLUMNS)
+                .filter(
+                  (column) =>
+                    !(tappingNow ? hiddenTapColumns : hiddenColumns).includes(column.code),
+                )
+                .map((column) => column.code)}
+              onToggle={(code) => {
+                if (tappingNow) {
+                  setHiddenTapColumns((current) =>
+                    current.includes(code)
+                      ? current.filter((each) => each !== code)
+                      : [...current, code],
+                  )
+                  return
+                }
+                touchedColumns.current.add(code)
+                setHiddenColumns((current) =>
+                  current.includes(code)
+                    ? current.filter((each) => each !== code)
+                    : [...current, code],
+                )
+              }}
+              onReorder={tappingNow ? setTapColumnOrder : setColumnOrder}
+            />
+          )
+        }
+      />
+    </div>
+  )
 
   return (
     <main className="flex h-screen flex-col overflow-hidden">
@@ -5381,6 +6079,13 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               <PartViewer
                 report={report}
                 jobId={jobId}
+                /*
+                  **The list's chrome floats over the part** (Paul, 2026-09-11).
+                  The viewer owns its own bottom edge — the view cube, the
+                  shelf of view controls — so it takes the bar as a slot rather
+                  than having it laid over the top of them by the page.
+                */
+                bottomChrome={listChrome}
                 /*
                   Also once there is a list: it stacks into columns rather than
                   scrolling, and a column of it is taller than the viewer long
@@ -5614,6 +6319,11 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                     readings={draftReadings}
                                     unit={unit}
                                     mixed={draftMixedBores}
+                                    /* The identical holes the last pick stands
+                                       with — `offerSiblings` says when. */
+                                    {...(offerSiblings === null
+                                      ? {}
+                                      : { identical: offerSiblings })}
                                     /*
                                       **The thread is the whole group's** (Paul,
                                       2026-09-09). `writeThread` writes it across
@@ -5653,7 +6363,16 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                     regions={report.regions}
                                     unit={unit}
                                     siblings={focused === null ? 1 : groupOf(focused).length}
-                                    onInfo={() => setInfo(focused)}
+                                    /*
+                                      **The same press closes it again** (Paul,
+                                      2026-09-11). The `i` opened the details
+                                      panel and then did nothing at all, so the
+                                      only ways out were the X and a press of
+                                      Escape the page was taking for itself.
+                                    */
+                                    onInfo={() =>
+                                      setInfo((current) => (current === focused ? null : focused))
+                                    }
                                     candidates={candidates}
                                     onRead={(featureTag) => dispatch({ type: 'read', featureTag })}
                                     directionOf={(feature) => directionOf(feature)}
@@ -5758,8 +6477,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                     onRename={(id, name) =>
                                       writeTree(renameAssembly(assemblies, id, name))
                                     }
-                                    title={listTitle}
-                                    confirmed={activeItem !== null}
                                   />
                                 ) : null}
 
@@ -5886,7 +6603,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                             */}
                               <h4
                                 data-over-part
-                                className="text-2xs flex shrink-0 items-center gap-1.5 font-semibold tracking-wide text-zinc-500 uppercase [text-shadow:0_1px_2px_var(--color-zinc-950)]"
+                                className={cn(
+                                  SECTION_LABEL,
+                                  'flex shrink-0 items-center gap-1.5 [text-shadow:0_1px_2px_var(--color-zinc-950)]',
+                                )}
                               >
                                 <span className="text-zinc-600">
                                   <CursorClickIcon />
@@ -5961,8 +6681,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                   items={orderRows}
                                   selectedId={selectedId}
                                   selectedTag={selectedTag}
+                                  /* A group row opens the group; everything
+                                     else selects what it names — `pressRow`. */
                                   onSelect={(id, tag, toolGuid) =>
-                                    selectRow(id, tag ?? null, toolGuid)
+                                    pressRow(id, tag ?? null, toolGuid)
                                   }
                                   chosenTool={chosenTool}
                                   /*
@@ -6105,7 +6827,27 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               nobody had asked anything about yet — and the catalog, narrowed by
               the filters, is a list worth reading on its own.
             */}
-            <Panels.Separator className={separator} />
+            <Panels.Separator
+              /*
+                **Two places drag it** (Paul, 2026-09-11: "the control point to
+                resize that panel should still be at the top above the buttons",
+                and "clicking the top of the table should also resize this
+                section"). The seam itself is where the layout puts it — the top
+                edge of the table — and `::before` gives it a second strip up
+                above the bar, where the seam used to be before the bar floated
+                into the viewer. A pseudo-element takes the pointer for the
+                element it belongs to, so both are the one handle rather than
+                two things that can disagree.
+
+                Above the bar and not over it: the strip stops at the bar's top
+                edge, or the presses under it could not be pressed.
+              */
+              className={cn(
+                separator,
+                "relative before:absolute before:inset-x-0 before:h-2 before:content-[''] before:[top:calc(-1*var(--bar,0px))]",
+              )}
+              style={{ '--bar': `${String(chromeRoom + 10)}px` } as CSSProperties}
+            />
 
             {/*
               **Eight tools tall to begin with** (Paul, 2026-09-10: "the default
@@ -6124,537 +6866,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               <Card className="relative flex size-full min-h-0 flex-col overflow-hidden">
                 {/* The panel measures itself here: `Card` takes no ref. */}
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                  {/*
-                    A `div`, not a `p`: this is the list's header bar, and it
-                    holds two tab buttons and the column picker. A `p` may hold
-                    phrasing content only, so the picker's own `div` inside it
-                    was invalid nesting — which the browser corrects by closing
-                    the paragraph early, and which React reports as a hydration
-                    error because the tree it built is not the tree that came
-                    back (2026-09-02).
-                  */}
-                  <div
-                    data-list-chrome
-                    className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 gap-y-1 border-b border-zinc-900 px-3 py-2 text-sm"
-                  >
-                    <div className="flex min-w-0 min-h-8 flex-wrap items-center gap-2">
-                      {/*
-                        **Which of the three lists this is, as three buttons**
-                        (Paul, 2026-09-07: "I want the table tabs for tools,
-                        holders, and collets back, just as buttons like the
-                        filters button. The one that is active should be
-                        highlighted"). They were a full-width tab row for an
-                        afternoon and then nothing at all; what was wanted is the
-                        switch the *table* needs — small, in its chrome, beside
-                        the Filters button they are dressed as — and an indicator
-                        of which list is on screen.
-
-                        They are the tree's slots, not a control beside it:
-                        pressing one opens that slot on the open stack, so the
-                        buttons and the tree cannot disagree about what the rows
-                        below are for. Drawn only while there is a stack, because
-                        with no feature there is no assembly for a holder to be
-                        offered against and the table is the catalog.
-                      */}
-                      {!perFeature
-                        ? SLOTS.map((slot) => {
-                            const open = listKind === slot
-                            return (
-                              <Button
-                                key={slot}
-                                type="button"
-                                size="sm"
-                                variant="secondary"
-                                aria-pressed={open}
-                                onClick={() => chooseList(slot)}
-                                className={cn(
-                                  'flex items-center gap-1.5 rounded border px-2 py-1 text-xs',
-                                  open
-                                    ? 'border-primary/60 bg-primary/15 text-zinc-100'
-                                    : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
-                                )}
-                              >
-                                {SLOT_TABLE_LABEL[slot]}
-                                {/*
-                                  **Each button counts its own list** (Paul,
-                                  2026-09-07: "the count is always showing the
-                                  tool count. This should be unique to the
-                                  component … and it should be shown in the
-                                  buttons"). One number beside the heading
-                                  counted tools whichever of the three was on
-                                  screen, so a rack of three holders was headed
-                                  by a nine.
-
-                                  Derived, so they move with everything that
-                                  narrows a list: the feature being asked about,
-                                  the filters, and the components already in the
-                                  stack — pick a holder and the collets left are
-                                  the ones that close on it.
-                                */}
-                                <span
-                                  className={cn(
-                                    'text-2xs',
-                                    open ? 'text-zinc-400' : 'text-zinc-500',
-                                  )}
-                                >
-                                  {/*
-                                    A dash while the matching is still running:
-                                    all three lists are empty until it answers,
-                                    and three zeroes beside a spinner is a count
-                                    somebody reads as "nothing fits".
-                                  */}
-                                  {tablePending ? '—' : listCounts[slot]}
-                                </span>
-                              </Button>
-                            )
-                          })
-                        : null}
-                      {/*
-                        The heading of whichever list is on screen. A threaded
-                        hole used to put two tabs here — taps, then drills —
-                        and the pair of stacks in the tree is that pair of tabs
-                        now, so there is one title and the stack says which
-                        list it is over.
-                      */}
-                      <span className="text-zinc-200">{tableTitle}</span>
-                      {/*
-                        **How the thread is made lives over the lists it
-                        decides** (Paul, 2026-09-07: "we should no longer show
-                        the 'cut tap' and 'form tap' rows in the feature dialog
-                        when applying threads to a hole — it should just return
-                        the right tap drills"). Saying what thread the hole is
-                        for and saying whether it will be cut or rolled are two
-                        decisions, and only the second one is about these lists:
-                        the two predrills are half a millimetre apart on an M6,
-                        and the drills are judged against whichever is chosen.
-                        So it sits beside the list rather than on the dialog
-                        somebody opens to name the thread.
-
-                        **Over the taps as well as the drills** (Paul,
-                        2026-09-09). It decides both — which taps the list holds
-                        and which hole the drills are measured against — and one
-                        control written to one mode is what keeps the pair of
-                        stacks agreeing about the same thread. Not over a holder
-                        or collet list, which it decides nothing about.
-                      */}
-                      {threadSpec === null ||
-                      perFeature ||
-                      componentSlot !== null ||
-                      holeDiameter === null ? null : (
-                        <PredrillChoice
-                          spec={threadSpec}
-                          mode={holeChoice.mode}
-                          /*
-                            **The same scope as the thread it refines** (Paul,
-                            2026-09-09). Cut tap or form tap is a decision about
-                            the hole the thread is on, and this wrote it to the
-                            focused hole alone — so a group's predrill moved one
-                            hole of thirty-nine and left the rest on the tap
-                            drill they were chosen with.
-                          */
-                          onChange={(mode) =>
-                            writeThread({ mode, spec: threadSpec }, threadScope, holeDiameter)
-                          }
-                          holeDiameter={holeDiameter}
-                          deviation={drillDeviation}
-                          unit={unit}
-                        />
-                      )}
-                      {/* Nothing to count where nothing has been asked of this
-                        panel: a number beside "nothing selected" reads as a
-                        count of tools that are not there. */}
-                      {/* One number beside the heading counted tools whichever
-                        list was on screen; each button counts its own now. */}
-                      {/*
-                        **What the list is not showing is said where the list
-                        is** — the rule this page follows for a rack the drawable
-                        filter thinned and for the rules' own removals. The
-                        button beside it counts what matched; this says how much
-                        of that is on screen.
-                      */}
-                      {rowsHidden > 0 && componentSlot === null ? (
-                        <span
-                          className="text-2xs text-zinc-500"
-                          title="The table sorts every row it is given, so it is handed the first two thousand. Narrow the list with the filters, the search box, or a feature on the part."
-                        >
-                          showing the first {String(tableRows.length)} — narrow the list to reach
-                          the other {String(rowsHidden)}
-                        </span>
-                      ) : null}
-                      {tablePending ? (
-                        <span
-                          role="status"
-                          title="Updating compatible tools"
-                          className="flex items-center text-info"
-                        >
-                          <span
-                            aria-hidden="true"
-                            className="size-3 animate-spin rounded-full border-2 border-info/30 border-t-info"
-                          />
-                          <span className="sr-only">Updating compatible tools...</span>
-                        </span>
-                      ) : null}
-                      {tableError !== null && detailed !== null ? (
-                        <span role="alert" className="text-2xs text-danger">
-                          {tableError}
-                        </span>
-                      ) : null}
-                      {/*
-                      **The notes are about the list on show** (Paul,
-                      2026-09-02). What the rules took off the drill list is
-                      true of the drills and says nothing about the taps, and
-                      it was printed over both. The tap tab says what its own
-                      list was matched on, and what is wrong with it.
-                    */}
-                      {/* None of them are about a panel that is waiting to be
-                        asked: they describe a list that is not on screen. */}
-                      {/*
-                        **What the drawable rule hid** (Paul, 2026-09-07). The
-                        table is only the holders with a shape, so the ones that
-                        fit and have no model have to be counted somewhere or an
-                        empty list reads as "nothing in the rack fits this".
-                      */}
-                      {componentSlot === 'holder' ? (
-                        undrawableHolders > 0 ? (
-                          <span
-                            className="text-2xs text-zinc-500"
-                            title="A holder is drawn from its measured CAD model, or from a published nose diameter. These have neither, so there is no shape to put under the tool."
-                          >
-                            {undrawableHolders} more fit but have no model to draw
-                          </span>
-                        ) : null
-                      ) : perFeature ? null : tapping && threadSpec !== null ? (
-                        <>
-                          {/*
-                            **Each list says what it was swept on, and they are
-                            two different numbers** (Paul, 2026-09-09: "in
-                            drills, the highlighted message should show the tap
-                            or form drill size (the predrill size) it is looking
-                            for"). The taps were matched on the thread's nominal
-                            size; the drills on the predrill the chosen tap
-                            starts from — ⌀0.089 in against ⌀0.0995 in on a
-                            #4-40. Printing the tap's number over the drills
-                            named a diameter no row in that list is near, on a
-                            list whose whole sweep is the other one.
-                          */}
-                          <span className="text-2xs text-zinc-500">
-                            {holeChoice.mode === 'thread mill'
-                              ? `inside the ⌀${formatLength(minorOf(threadSpec), unit)} minor diameter`
-                              : tappingNow
-                                ? threadNote(threadSpec, unit)
-                                : shortOfDrills
-                                  ? millStandInNote(threadSpec, holeChoice.mode, unit, millsListed)
-                                  : predrillNote(threadSpec, holeChoice.mode, unit)}
-                          </span>
-                          {/* Both are about the tap list: how far the taps reach
-                            and whether the crib holds one. */}
-                          {makers.short && tappingNow ? (
-                            <span className="text-2xs text-amber-300">
-                              none reach the bottom — the closest are shown
-                            </span>
-                          ) : null}
-                          {makers.unheld && tappingNow ? (
-                            <span className="text-2xs text-amber-300">
-                              nothing in the crib holds one at the stickout this needs
-                            </span>
-                          ) : null}
-                        </>
-                      ) : (
-                        <>
-                          {reading === null ? (
-                            <span className="text-2xs text-zinc-500">
-                              click a feature on the part for the ones that cut it
-                            </span>
-                          ) : null}
-                          {/*
-                          **A corner no mill can leave** (Paul, 2026-09-01): the
-                          model draws it sharp, and every cutter leaves its own
-                          radius. Said once, plainly, rather than left for somebody
-                          to work out from a list of tools that all miss it.
-                        */}
-                          {reading !== null && hasSharpCorner(reading) ? (
-                            <span className="text-2xs text-amber-300">
-                              this feature has a sharp corner, and no milling tool can cut the
-                              geometry
-                            </span>
-                          ) : null}
-                          {closest.length > 0 ? (
-                            <span className="text-2xs text-amber-300">
-                              nothing in the crib fits — the closest are shown, with what stops each
-                            </span>
-                          ) : null}
-                          {(detailed?.excludedCount ?? 0) > 0 && reading !== null ? (
-                            <span className="text-2xs text-zinc-500" title={tightest ?? undefined}>
-                              {detailed?.excludedCount ?? 0} removed by the rules
-                              {tightest ? ` — most by ${tightest}` : ''}
-                            </span>
-                          ) : null}
-                          {fitting.length > narrowed.length ? (
-                            <span className="text-2xs text-amber-300/80">
-                              {fitting.length - narrowed.length} that fit are hidden by the filters
-                            </span>
-                          ) : null}
-                          {/*
-                            **A live override is said where the list is, and
-                            changed where it was made** (Paul, 2026-09-08: "the
-                            override the rules button should be in the filter
-                            dialog rather than always shown"). This is the note,
-                            not the control: the tick that confirms one is in
-                            the column's own dialog, because that is the rule it
-                            overrules.
-                          */}
-                          {overriding.length > 0 && overrideTools.length > 0 ? (
-                            <span
-                              className="text-2xs text-zinc-400"
-                              title="Confirmed in that column's filter. Clearing the filter, or backing it out to what the geometry asked for, puts the rule back."
-                            >
-                              {overrideTools.length} the {overridden} rules turn down are listed
-                              {/*
-                                **No silent caps.** The list cannot draw more
-                                rows than this whether they are overridden or
-                                not, and a truncated answer that reads as the
-                                whole one is what sent somebody looking for
-                                half-inch cutters that were never on it.
-                              */}
-                              {(detailed?.overridableCount ?? 0) > overrideTools.length
-                                ? ` of ${String(detailed?.overridableCount ?? 0)} — narrow the filters to reach the rest`
-                                : ''}
-                            </span>
-                          ) : null}
-                          {unheld > 0 ? (
-                            <span
-                              className="text-2xs text-zinc-500"
-                              title="A tool with no holder in the crib that grips it, clears the part and keeps hold is not offered"
-                            >
-                              {unheld} with no holder that clears
-                            </span>
-                          ) : null}
-                        </>
-                      )}
-                      {/*
-                      **The picker edits the list that is open** (Paul,
-                      2026-09-02: "allow me to use those columns if I edit the
-                      tap table"). A tap offers the seven numbers it states and
-                      the tool list offers its own, so which set is on offer —
-                      and which hidden set a tick lands in — follows the tab.
-                    */}
-                    </div>
-                    <ToolTableToolbar
-                      /*
-                        **Left of the clear press, and left of the pencil when
-                        there is nothing to clear** (Paul, 2026-09-10). It is
-                        the holder rack's press alone: a collet has no collet to
-                        be missing, and a tool is not a stack.
-                      */
-                      before={
-                        componentSlot === 'holder' ? (
-                          <NoColletToggle
-                            count={gappedHolders}
-                            shown={noCollet}
-                            onToggle={() => setNoCollet((current) => !current)}
-                          />
-                        ) : undefined
-                      }
-                      onClear={() => {
-                        if (componentSlot === 'holder') {
-                          setHolderQuery(NO_QUERY)
-                          return
-                        }
-                        if (componentSlot === 'collet') {
-                          setColletQuery(NO_QUERY)
-                          return
-                        }
-                        if (tappingNow) {
-                          clearTapFilters()
-                          return
-                        }
-                        setNumberSearch('')
-                        apply(EMPTY_QUERY)
-                      }}
-                      /*
-                        **What is narrowing the list, named where it can be
-                        cleared** (Paul, 2026-09-08, and 2026-09-09: "in Tap, it
-                        shows 'Clear 4 filters' but I only see tool type. What
-                        are the 4 filters active? It needs to be visible.").
-                        Most of the filters are column headers now, and a header
-                        on a column somebody has since hidden is a filter with
-                        nothing on screen pointing at it — so the count includes
-                        them and the press names every one of them.
-
-                        **Per list, because a filter is only a filter over the
-                        rows it reaches.** The tap list is swept out of the
-                        catalog by the thread, so the drill half of the form
-                        filter and every range the rules put on a drill narrow
-                        nothing on it: counting them there named three filters
-                        that table does not have and cannot show. It counts the
-                        two `askOfTapColumn` asks.
-                      */
-                      set={
-                        componentSlot === 'holder'
-                          ? narrowingNames(holderQuery, HOLDER_COLUMNS)
-                          : componentSlot === 'collet'
-                            ? narrowingNames(colletQuery, COLLET_COLUMNS)
-                            : tappingNow
-                              ? narrowingNames(
-                                  {
-                                    text: numberSearch,
-                                    terms: { type: shownTapTypes },
-                                    /*
-                                      **The bounds the part set count too**
-                                      (Paul, 2026-09-09: "button should show to
-                                      clear 3 filters not 1 in this situation").
-                                      They narrow the list and they are drawn on
-                                      it, so leaving them out made the figure
-                                      disagree with the funnels a second time —
-                                      the same defect from the other end. Grey
-                                      rather than lit is what says a number is
-                                      not yours to type; it was never a reason
-                                      to stop counting it.
-                                    */
-                                    bounds: tapRanges,
-                                  },
-                                  TAP_COLUMNS,
-                                )
-                              : narrowingNames(
-                                  {
-                                    text: numberSearch || query.text,
-                                    terms: query.terms,
-                                    bounds: query.ranges,
-                                  },
-                                  TOOL_COLUMNS,
-                                )
-                      }
-                      filters={
-                        /*
-                          **A holder list has no filter buttons at all.** Every
-                          question about a holder or a collet is a question
-                          about one of its columns, so all of them are asked in
-                          the headings; the tool list keeps the few no column
-                          shows.
-                        */
-                        componentSlot !== null ? undefined : (
-                          <FilterPanel
-                            facets={facets}
-                            query={query}
-                            onQuery={apply}
-                            counts={countsOn}
-                            unit={unit}
-                            holding={{ tapers, series: colletSeries }}
-                            materialGroup={materialGroup}
-                            onMaterial={chooseMaterial}
-                            only={BUTTON_FILTERS}
-                            /*
-                              **The floor allowance and the clamping length
-                              are off the page** (Paul, 2026-09-08), with the
-                              rule behind each still running: the sheet's
-                              values are what the matching reads, and nothing
-                              on screen asks to change them for now.
-                            */
-                            matching={{
-                              ...(holeDiameter === null
-                                ? {}
-                                : {
-                                    drill: {
-                                      over: drillDeviation.over,
-                                      under: drillDeviation.under,
-                                      onChange: setDrillDeviation,
-                                      sheet: sheetDrillDeviation,
-                                    },
-                                  }),
-                            }}
-                            toolbar
-                          />
-                        )
-                      }
-                      actions={
-                        /*
-                          **The picker edits the list that is open**, and under
-                          the tree a list can be holders or collets as well as
-                          tools. The three sets are kept apart for the reason the
-                          tap set is: a code hidden in one means nothing in
-                          another, and a nose diameter is not a column a tap has.
-                        */
-                        componentSlot !== null ? (
-                          <ColumnPicker
-                            columns={orderedCodes(
-                              (componentSlot === 'holder' ? HOLDER_COLUMNS : COLLET_COLUMNS).map(
-                                (column) => column.code,
-                              ),
-                              componentSlot === 'holder' ? holderColumnOrder : colletColumnOrder,
-                            ).flatMap((code) =>
-                              (componentSlot === 'holder' ? HOLDER_COLUMNS : COLLET_COLUMNS)
-                                .filter((column) => column.code === code)
-                                .map((column) => ({ code: column.code, label: column.label })),
-                            )}
-                            shown={(componentSlot === 'holder' ? HOLDER_COLUMNS : COLLET_COLUMNS)
-                              .filter(
-                                (column) =>
-                                  !(
-                                    componentSlot === 'holder'
-                                      ? hiddenHolderColumns
-                                      : hiddenColletColumns
-                                  ).includes(column.code),
-                              )
-                              .map((column) => column.code)}
-                            onToggle={(code) => {
-                              const set =
-                                componentSlot === 'holder'
-                                  ? setHiddenHolderColumns
-                                  : setHiddenColletColumns
-                              set((current) =>
-                                current.includes(code)
-                                  ? current.filter((each) => each !== code)
-                                  : [...current, code],
-                              )
-                            }}
-                            onReorder={
-                              componentSlot === 'holder'
-                                ? setHolderColumnOrder
-                                : setColletColumnOrder
-                            }
-                          />
-                        ) : (
-                          <ColumnPicker
-                            columns={orderedCodes(
-                              (tappingNow ? TAP_COLUMNS : TOOL_COLUMNS).map(
-                                (column) => column.code,
-                              ),
-                              tappingNow ? tapColumnOrder : columnOrder,
-                            ).flatMap((code) =>
-                              (tappingNow ? TAP_COLUMNS : TOOL_COLUMNS)
-                                .filter((column) => column.code === code)
-                                .map((column) => ({ code: column.code, label: column.label })),
-                            )}
-                            shown={(tappingNow ? TAP_COLUMNS : TOOL_COLUMNS)
-                              .filter(
-                                (column) =>
-                                  !(tappingNow ? hiddenTapColumns : hiddenColumns).includes(
-                                    column.code,
-                                  ),
-                              )
-                              .map((column) => column.code)}
-                            onToggle={(code) => {
-                              if (tappingNow) {
-                                setHiddenTapColumns((current) =>
-                                  current.includes(code)
-                                    ? current.filter((each) => each !== code)
-                                    : [...current, code],
-                                )
-                                return
-                              }
-                              touchedColumns.current.add(code)
-                              setHiddenColumns((current) =>
-                                current.includes(code)
-                                  ? current.filter((each) => each !== code)
-                                  : [...current, code],
-                              )
-                            }}
-                            onReorder={tappingNow ? setTapColumnOrder : setColumnOrder}
-                          />
-                        )
-                      }
-                    />
-                  </div>
                   <div
                     // The UI table owns the panel's virtualized scroll area.
                     className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
@@ -6680,7 +6891,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           Tools will automatically be selected for each feature. After creating the
                           group, click on a feature in the list to see all compatible tools.
                         </p>
-                      ) : asking && detailed === null && !tappingNow ? (
+                      ) : !toolListDrawn ? (
                         <TablePlaceholder error={tableError} />
                       ) : tappingNow ? (
                         /*
@@ -6781,13 +6992,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                           columnOrder={
                             componentSlot === 'holder' ? holderColumnOrder : colletColumnOrder
                           }
-                          chosen={
-                            looking
-                              ? lookedUp
-                              : componentSlot === 'holder'
-                                ? (assembly?.holderGuid ?? null)
-                                : (assembly?.colletGuid ?? null)
-                          }
+                          chosen={rowRead}
                           /*
                           A row fills the slot the tree has open; with no stack
                           open there is no slot, and the click is a look-up the
@@ -6956,7 +7161,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               <ToolDetails
                 tool={panelTool}
                 unit={unit}
-                holding={holding}
                 /*
                   **Nothing is added from here any more** (Paul, 2026-09-02:
                   "Add to list button can go away — we are now adding tools to

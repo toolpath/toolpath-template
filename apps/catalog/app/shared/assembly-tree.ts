@@ -614,7 +614,10 @@ export const treeFromLines = (
       : // Stable, so two drills or two taps keep the order the bill has them in.
         [...lines].sort((a, b) => Number(isTap(b.toolGuid)) - Number(isTap(a.toolGuid)))
   return ordered.map((line, index) => ({
-    id: `assembly-${String(index + 1)}`,
+    /* The stack that wrote the line, where it said so — a tree read back off
+       the bill has to come back with the ids the bill's lines name, or every
+       stack of it reads as one nobody has ordered. */
+    id: line.assemblyId ?? `assembly-${String(index + 1)}`,
     role: roles[index] ?? 'cut',
     toolGuid: line.toolGuid,
     holderGuid: line.holderGuid ?? null,

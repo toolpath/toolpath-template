@@ -265,11 +265,16 @@ export const SelectionPanel = ({
         )}
       </div>
 
-      {/* Two ways to say the same thing, and the arrows are the one that says
-       *which way up* — so the field points at them (Paul, 2026-08-31). */}
-      {ways.size > 1 ? (
-        <p className="text-2xs text-zinc-500">click an arrow for machining direction</p>
-      ) : null}
+      {/*
+        **No line pointing at the arrows** (Paul, 2026-09-11: "once a feature is
+        selected, it should no longer show 'click an arrow for machining
+        direction'"). It was advice for picking a way up, and it sat under a
+        box that already names the one being read — so it read as an
+        instruction to do something about a decision that had been made. The
+        picker above still says *Select a direction* while nothing has been
+        chosen, which is the same sentence in the one place it is still a
+        question (`asking`).
+      */}
 
       {/*
         **The offer, not the grouping** (Paul, 2026-09-09). A hole used to be
@@ -296,6 +301,24 @@ export const SelectionPanel = ({
             </Button>
           </div>
         </div>
+      ) : null}
+
+      {/*
+        Hole mode: a hole is drawn as a hole whether or not it is threaded, so
+        the panel asks (Paul, 2026-08-31) — **and it asks here**, under the
+        grouping offer rather than below the readings at the foot of the panel
+        (Paul, 2026-09-11). Whether the hole is tapped decides which list the
+        table is even showing, so it is read before the numbers rather than
+        after them. `thread-picker.tsx` is the bubble it is drawn in.
+      */}
+      {thread ? (
+        <ThreadPicker
+          holeDiameter={thread.holeDiameter}
+          mode={thread.mode}
+          spec={thread.spec}
+          onChange={thread.onChange}
+          unit={unit}
+        />
       ) : null}
 
       {/* The measurement row keeps its height while it is empty, for the same
@@ -334,18 +357,6 @@ export const SelectionPanel = ({
             </div>
           ))}
         </dl>
-      ) : null}
-
-      {/* Hole mode: a hole is drawn as a hole whether or not it is threaded,
-          so the panel asks (Paul, 2026-08-31). */}
-      {thread ? (
-        <ThreadPicker
-          holeDiameter={thread.holeDiameter}
-          mode={thread.mode}
-          spec={thread.spec}
-          onChange={thread.onChange}
-          unit={unit}
-        />
       ) : null}
     </div>
   )

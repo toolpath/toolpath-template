@@ -1,6 +1,7 @@
 import { Toggle, cn } from '@toolpath/ui'
 import { convertLength, decimalsFor, formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { HOLE_MODES, drillFor, type HoleMode, type ThreadSpec } from 'shared/threads'
+import { SECTION_LABEL } from 'shared/type'
 
 /**
  * How the thread is made: cut, or formed.
@@ -124,7 +125,7 @@ export const PredrillChoice = ({
         the drills it named the consequence rather than the decision — the same
         reason the two options are the tap's words now.
       */}
-      <span className="text-2xs tracking-wide text-zinc-500 uppercase">Thread</span>
+      <span className={SECTION_LABEL}>Thread</span>
       <Toggle
         value={mode}
         onValueChange={(next) => {

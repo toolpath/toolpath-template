@@ -5,7 +5,6 @@ import {
   focusWithin,
   pickFace,
   scopeToDirection,
-  stepThrough,
   type SelectionState,
 } from '@toolpath/part-contracts/selection'
 import { sameDirection, type PartPick } from '@toolpath/viewer'
@@ -23,9 +22,14 @@ import { dropAll, escapeStep, keepAll, preferLargest } from './part-selection'
  * three assertions each.
  *
  * The vocabulary is the DFM application's: `pickFace` decides what a face
- * click resolves to, `focusWithin` what naming a reading from a list does, and
- * `stepThrough` how the keyboard walks. This module only says what happens
- * *around* them — arming, guessing, keeping, escaping.
+ * click resolves to and `focusWithin` what naming a reading from a list does.
+ * This module only says what happens *around* them — arming, guessing,
+ * keeping, escaping.
+ *
+ * **Not `stepThrough`, which this application does not use.** A reading is
+ * chosen by clicking an arrow on the part or by naming one in the list, never
+ * walked with the keyboard (Paul, 2026-09-11) — the arrows belong to the tool
+ * list, and `shared/arrow-target.ts` is that rule.
  */
 export interface Interaction {
   /** What the viewport was asked about, and the readings that answer it. */
@@ -57,17 +61,16 @@ export interface Interaction {
   /**
    * Whether a **group** is being built.
    *
-   * **This is the one thing that turns identical-hole grouping on** (Paul,
-   * 2026-09-09: "the current hole grouping should only be applied in GROUP. In
-   * Add Feature, I should be able to select a single hole"). Grouping used to
-   * be unconditional — every path here expanded a tag into {@link groupOf}'s
-   * whole set — so a click on one hole of a bolt circle made a row holding all
-   * thirty-nine of them and there was no way to ask about one.
+   * **It says what a click on the part means, and nothing else** (Paul,
+   * 2026-09-02): outside a group a click asks about whatever was clicked last,
+   * and inside one it puts that feature in the group or takes it out.
    *
-   * Held in the state rather than passed on each action, because `click`,
-   * `read`, `arm`, `step` and `toggle` all expand and all have to agree: with
-   * the flag on `click` alone, choosing a direction mid-group re-read the face
-   * without its group and left the other thirty-eight in `kept` as orphans.
+   * **It no longer turns identical-hole grouping on.** Grouping happens once,
+   * in `group`, where somebody asks for it — never again while the group is
+   * open (Paul, 2026-09-11: "In this mode, I should be able to add or remove
+   * individual holes, even if they are identical"). It was the flag on this
+   * field from 2026-09-09 until then, which made a group of thirty-nine
+   * identical holes impossible to correct: every press took all thirty-nine.
    */
   readonly collecting: boolean
   /**
@@ -112,8 +115,6 @@ export type InteractionAction =
   | { readonly type: 'miss' }
   /** A reading named from a list. */
   | { readonly type: 'read'; readonly featureTag: string }
-  /** The keyboard walking a list, in the order it is drawn. */
-  | { readonly type: 'step'; readonly order: ReadonlyArray<string>; readonly by: 1 | -1 }
   /** A reading ticked or unticked by hand. */
   | { readonly type: 'toggle'; readonly featureTag: string }
   /** Escape, outward one press at a time. */
@@ -131,8 +132,9 @@ export type InteractionAction =
       /**
        * Whether what is being edited is a **group**.
        *
-       * A feature row and a group row are both edited this way and only one of
-       * them groups identical holes, so the kind travels with the tags.
+       * A feature row and a group row are both edited this way and a click on
+       * the part means a different thing in each — a group collects, a feature
+       * asks — so the kind travels with the tags.
        */
       readonly collecting: boolean
     }
@@ -166,12 +168,17 @@ export type InteractionPart = Pick<PublicInspectionReport, 'features' | 'candida
  * separately, because each is its own geometry; to a shop they are one tool and
  * one operation, which is the same rule the DFM application groups by.
  *
- * **It is applied while a group is being built and nowhere else** (Paul,
+ * **It is applied where somebody asks for a group and nowhere else** (Paul,
  * 2026-09-09: "the current hole grouping should only be applied in GROUP. In
  * Add Feature, I should be able to select a single hole"). Grouping used to
  * happen on every path here, so one hole could not be asked about at all — the
- * reading panel offers the group instead, and taking the offer is what turns
- * {@link Interaction.collecting} on.
+ * reading panel offers the group instead, and taking the offer is the `group`
+ * action, the one caller inside this reducer.
+ *
+ * **And it is the moment a group opens, not the mode it is open in** (Paul,
+ * 2026-09-11). Expanding on every path while {@link Interaction.collecting} was
+ * on made the set it grew un-editable: the group was right the instant it
+ * opened, and the first correction to it took every hole out at once.
  */
 export const groupOf = (
   features: ReadonlyArray<PartFeature>,
@@ -211,14 +218,20 @@ export const interactionFor = (part: InteractionPart) => {
   }
 
   /**
-   * What one tag stands for: itself, or every hole identical to it.
+   * What one tag stands for: **itself, always**.
    *
-   * The one place {@link groupOf} is reached from, so every path through this
-   * reducer answers the question the same way. Outside a group a tag stands for
-   * itself — that is what makes a single hole askable (Paul, 2026-09-09).
+   * Grouping identical holes happens once, where somebody asks for it — the
+   * {@link groupOf} expansion in `group` — and never again afterwards (Paul,
+   * 2026-09-11: "In this mode, I should be able to add or remove individual
+   * holes, even if they are identical"). It used to be applied on every path
+   * here while {@link Interaction.collecting} was on, so a group opened on a
+   * bolt circle could not be corrected: clicking one hole of the thirty-nine,
+   * or pressing the X beside one, took all thirty-nine out at once.
+   *
+   * Kept as a named step rather than inlined because *where* a tag would be
+   * expanded is the thing that was wrong, and this is the list of those places.
    */
-  const expand = (state: Interaction, featureTag: string): Array<string> =>
-    state.collecting ? groupOf(part.features, featureTag) : [featureTag]
+  const expand = (featureTag: string): Array<string> => [featureTag]
 
   /** A click on nothing puts the reading down, leaving what is kept by hand alone. */
   const putDown = (state: Interaction): Interaction => ({
@@ -235,7 +248,7 @@ export const interactionFor = (part: InteractionPart) => {
   })
 
   const read = (state: Interaction, featureTag: string): Interaction => {
-    const group = expand(state, featureTag)
+    const group = expand(featureTag)
     return {
       ...state,
       // Naming a reading from inside the list is an answer, not a new question:
@@ -307,7 +320,7 @@ export const interactionFor = (part: InteractionPart) => {
         if (scoped.focused === state.focused) {
           return { ...state, activeDirection: next, chose: true }
         }
-        const group = expand(state, scoped.focused)
+        const group = expand(scoped.focused)
         return {
           ...state,
           activeDirection: next,
@@ -334,7 +347,6 @@ export const interactionFor = (part: InteractionPart) => {
         }
 
         const selection = pickFace(state.selection, action.pick, preferArmed(state.activeDirection))
-        const group = selection.focused === null ? [] : expand(state, selection.focused)
         if (state.collecting) {
           /**
            * **While a group is being built, a click is a toggle** (Paul,
@@ -356,37 +368,57 @@ export const interactionFor = (part: InteractionPart) => {
            * genuinely new face lands on readings a held one already offered:
            * comparing those would have made the second feature of a group read
            * as the first being pressed twice, and taken it out again.
+           *
+           * So the same face means **the reading already open**, not the next
+           * of its readings: every press of one face puts it in and takes it
+           * out again, which is what "clicking on them in the model — as they
+           * are already selected, clicking on them again should deselect them"
+           * asks for (Paul, 2026-09-11). It used to drop whatever the last
+           * click had guessed and clear the reading, so a hole selected because
+           * the *group* was opened on it survived the press that was meant to
+           * take it out, and the press after that was spent re-picking it.
            */
           const again =
             state.selection.picks.length === 1 &&
             state.selection.picks[0]?.region === action.pick.region
-          if (again) {
+          const tag = again ? state.focused : selection.focused
+          if (tag === null) {
+            return state
+          }
+          // One hole, not its siblings: a group is corrected a feature at a
+          // time, whatever it was opened with (Paul, 2026-09-11).
+          if (state.kept.includes(tag)) {
             return {
+              /*
+                Taken out, and the part goes dark with it. `partHighlight`
+                lights what is *focused* as well as what is kept, so a hole
+                left under the reading it was dropped from goes on looking
+                exactly like the thirty-eight still in the group.
+              */
               selection: NOTHING_SELECTED,
               focused: null,
               activeDirection: null,
-              kept: dropAll(state.kept, state.guessed),
-              guessed: [],
               collecting: true,
+              kept: dropAll(state.kept, [tag]),
+              guessed: [],
               chose: false,
             }
           }
-          if (group.length === 0) {
-            return state
-          }
-          const inAlready = group.every((tag) => state.kept.includes(tag))
           return {
-            selection,
-            focused: selection.focused,
+            // The held face keeps the reading it had — walking to the next one
+            // is what the arrows are for while a group is being built.
+            selection: again ? state.selection : selection,
+            focused: tag,
             activeDirection: null,
             collecting: true,
-            kept: inAlready ? dropAll(state.kept, group) : keepAll(state.kept, group),
+            kept: keepAll(state.kept, [tag]),
             // What this face stands for, so choosing its direction replaces it
             // rather than leaving both readings in the group.
-            guessed: inAlready ? [] : group,
+            guessed: [tag],
             chose: false,
           }
         }
+        const group = selection.focused === null ? [] : expand(selection.focused)
         return {
           selection,
           focused: selection.focused,
@@ -430,13 +462,15 @@ export const interactionFor = (part: InteractionPart) => {
       case 'read':
         return read(state, action.featureTag)
 
-      case 'step': {
-        const next = stepThrough(action.order, state.focused, action.by)
-        return next === null ? state : read(state, next)
-      }
-
       case 'toggle': {
-        const group = expand(state, action.featureTag)
+        /*
+          One feature, in or out — the X beside a hole in the group box takes
+          that hole out and leaves the other thirty-eight standing (Paul,
+          2026-09-11). It used to take the whole identical set out with it while
+          a group was being built, which is the same defect a click on the part
+          had.
+        */
+        const group = expand(action.featureTag)
         const taking = !state.kept.includes(action.featureTag)
         return {
           ...state,
@@ -457,13 +491,18 @@ export const interactionFor = (part: InteractionPart) => {
 
       case 'group': {
         /**
-         * **Grouping starts here.** Whatever was being asked about is expanded
-         * to its identical holes, because that is what a group means and what
-         * the offer beside a hole promises — pressing *Add all 39 as a group*
-         * with one hole read has to arrive at all thirty-nine.
+         * **Grouping starts here, and only here.** Whatever was being asked
+         * about is expanded to its identical holes, because that is what a
+         * group means and what the offer beside a hole promises — pressing
+         * *Add all 39 as a group* with one hole read has to arrive at all
+         * thirty-nine. Every path after this one takes a hole at a time.
          *
-         * The guess is grown with it, so choosing a direction afterwards
-         * replaces the whole set rather than leaving thirty-eight behind.
+         * **And what it grew is somebody's, not a guess** (Paul, 2026-09-11:
+         * "it should pre-select all of the holes, but I should be able to
+         * remove individual holes while keeping all the other selections").
+         * The guess used to be grown with it, which is a set that any later
+         * click, arrow or click on nothing would take back out wholesale — the
+         * thirty-nine holes somebody asked for, gone to one press.
          */
         const grow = (tags: ReadonlyArray<string>): Array<string> =>
           keepAll(
@@ -473,8 +512,8 @@ export const interactionFor = (part: InteractionPart) => {
         return {
           ...state,
           collecting: true,
-          kept: grow(state.kept),
-          guessed: grow(state.guessed),
+          kept: grow(keepAll(state.kept, state.guessed)),
+          guessed: [],
         }
       }
 

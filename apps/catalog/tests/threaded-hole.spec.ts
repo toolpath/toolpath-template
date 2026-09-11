@@ -35,6 +35,8 @@ test.use({ viewport: { width: 1680, height: 1000 } })
 
 /** The face under the default camera's centre, scanned in `on-the-part.spec.ts`. */
 const FACE = { x: 0.5, y: 0.5 }
+/** Off the part, and clear of everything over it — the same corner that file uses. */
+const NOTHING = { x: 0.86, y: 0.86 }
 
 const at = async (page: Page, spot: { x: number; y: number }): Promise<void> => {
   const box = await page.locator('canvas').boundingBox()
@@ -214,6 +216,48 @@ test('stands the mills in where no drill makes the predrill, and says so', async
 })
 
 /**
+ * **A count says whether ticking a box is worth it, so it cannot be nought
+ * while the answer is not** (Paul, 2026-09-10: "it is showing zero compatible
+ * end mills currently, but checking any of the boxes shows there are end mills
+ * that do work").
+ *
+ * The matcher judges what the filters admit, and a threaded hole's `form` axis
+ * holds the drill and the taps — so no end mill had ever been put to this
+ * hole's rules and every one of them read nought. The feature's own type table
+ * turns them away besides: `ThreadedBlindHole` considers `tap right hand;
+ * drill`. The pool the counts are measured over is widened past both.
+ *
+ * Taking the type off the filter is what makes it visible here — the fixture's
+ * predrill has no drill that makes it, so the page turns the mills on by itself
+ * — and it is the same state either way: a type the list is not holding, over a
+ * feature it works on. The number must not move.
+ */
+test('says how many end mills work while the filter is holding none', async ({ page }) => {
+  await open(page, 'DRILL')
+  await page.getByRole('button', { name: 'Filter by Type', exact: true }).click()
+  const types = page.getByRole('group', { name: 'Type' })
+  const flat = types.locator('[data-term-option="Flat end mill"]')
+  await expect(flat.locator('[data-term-count]')).toHaveText('1')
+
+  await types.getByRole('checkbox', { name: 'Flat end mill' }).click()
+
+  await expect
+    .poll(async () => new URL(page.url()).searchParams.getAll('form'))
+    .not.toContain('flat end mill')
+  /*
+    **The row that says how many are behind the list must not move.** Two of
+    the sample's types work on no hole at all and are behind it either way;
+    taking the mill off the filter used to put it there too, which is the
+    defect — and asserting the row rather than the count is what makes this a
+    sensor rather than a race, because the counts land a task after the rows
+    (`countLater`) and the panel shows what it last offered until they do.
+  */
+  await expect(types.getByRole('button', { name: '… 2 more' })).toBeVisible()
+  // Off the list, and still the answer to "what would ticking this bring".
+  await expect(flat.locator('[data-term-count]')).toHaveText('1')
+})
+
+/**
  * **Nothing on the control is marked** (Paul, 2026-09-09: "we also shouldn't
  * show the X on drills"). A red `✗` said *no standard drill makes this predrill
  * from the model as drawn* and was read as *this option is unavailable* — over
@@ -225,4 +269,102 @@ test('marks neither way of making the thread', async ({ page }) => {
 
   await open(page, 'DRILL')
   await expect(chrome(page).locator('.text-danger')).toHaveCount(0)
+})
+
+/**
+ * **A group of identical holes is corrected one hole at a time** (Paul,
+ * 2026-09-11: "when I create a group of all holes with the same diameter and
+ * depth, removing one of the holes removes all of them from the list. In this
+ * mode, I should be able to add or remove individual holes, even if they are
+ * identical").
+ *
+ * The group opens on every hole like the one being read — that is what the
+ * offer beside it promises — and from there it is editable: the X beside a hole
+ * takes that hole out, and a press on a hole already in the group takes that
+ * hole out. Both used to take the whole set, so the first correction to a
+ * thirty-nine-hole group emptied it, and a group of all-but-one could not be
+ * asked for at all.
+ *
+ * Here rather than in `on-the-part.spec.ts` for the usual reason: the plain
+ * cube has no two identical holes, so the offer this begins with never appears.
+ */
+test('takes one hole out of a group of identical holes at a time', async ({ page }) => {
+  const offer = page.getByRole('button', { name: /^Add all \d+ as a group$/ })
+  await expect(offer).toBeVisible()
+  const all = Number(/\d+/.exec((await offer.innerText()) ?? '')?.[0] ?? '0')
+  expect(all).toBeGreaterThan(2)
+
+  await offer.click()
+  // Pre-selected: every hole identical to the one being read (Paul, 2026-09-11).
+  const chips = page.getByRole('button', { name: /^Take .+ out of the group$/ })
+  await expect(chips).toHaveCount(all)
+
+  /*
+    A press on the hole already selected takes it out — and only it. The click
+    lands on the face the group was opened from, which is the one hole here
+    that is certain to still be in the group.
+  */
+  await at(page, FACE)
+  await expect(chips).toHaveCount(all - 1)
+
+  // And so does the X beside one, which is the same rule from the other side.
+  await chips.first().click()
+  await expect(chips).toHaveCount(all - 2)
+})
+
+/**
+ * **A group asks about identical holes too** (Paul, 2026-09-11: "the group
+ * dialog should ask if I want to add identical holes if I select one, just like
+ * the feature dialog").
+ *
+ * Clicking a hole while a group is open used to take every identical hole with
+ * it. That expansion came out on 2026-09-11 so a group could be corrected a
+ * hole at a time — and with it went the only way to pick up a bolt circle
+ * without one click per hole. The offer is the way back to one press;
+ * `offerSiblings` in `routes/part.tsx` is the rule, and it is a different press
+ * from the reading panel's, which *opens* a group rather than growing one.
+ *
+ * Here rather than in `on-the-part.spec.ts` for the usual reason: the plain
+ * cube has no two identical holes, so the offer never appears there.
+ */
+test('offers the identical holes inside the group being built', async ({ page }) => {
+  // How many there are, read off the reading panel's own offer before the
+  // group is opened — the same set, counted the same way.
+  const named = page.getByRole('button', { name: /^Add all \d+ as a group$/ })
+  await expect(named).toBeVisible()
+  const all = Number(/\d+/.exec((await named.innerText()) ?? '')?.[0] ?? '0')
+  expect(all).toBeGreaterThan(2)
+
+  /*
+    The reading is put down first. `+ Group` over a held hole opens the group on
+    every hole like it — the reading panel's offer, taken through the press —
+    and what is under test here is the group that starts empty.
+  */
+  await at(page, NOTHING)
+  await page.getByRole('button', { name: '+ Group', exact: true }).click()
+  await at(page, FACE)
+  const chips = page.getByRole('button', { name: /^Take .+ out of the group$/ })
+  await expect(chips).toHaveCount(1)
+
+  const offer = page.getByRole('button', { name: `Add all ${String(all)} to the group` })
+  await expect(offer).toBeVisible()
+  await offer.click()
+
+  await expect(chips).toHaveCount(all)
+  // Nothing left to add, so nothing left to offer.
+  await expect(offer).toHaveCount(0)
+})
+
+/** And the other answer stands the group down without adding anything. */
+test('leaves the group at one hole when the offer is turned down', async ({ page }) => {
+  await at(page, NOTHING)
+  await page.getByRole('button', { name: '+ Group', exact: true }).click()
+  await at(page, FACE)
+  const chips = page.getByRole('button', { name: /^Take .+ out of the group$/ })
+  await expect(chips).toHaveCount(1)
+
+  await page.getByRole('button', { name: 'Just this hole' }).click()
+
+  await expect(chips).toHaveCount(1)
+  await expect(page.getByRole('button', { name: /^Add all \d+ to the group$/ })).toHaveCount(0)
 })

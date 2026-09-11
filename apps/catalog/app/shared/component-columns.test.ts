@@ -93,6 +93,24 @@ describe('reading a value', () => {
 })
 
 describe('columns', () => {
+  /**
+   * **The holder Type field was incorrect and came off** (Paul, 2026-09-11).
+   * `BT30 ER16 collet chuck` was Taper, Collet series and Clamping glued into
+   * one phrase, so the rack said each of them twice; how a holder grips is the
+   * honest answer, and Clamping is the heading called Type now.
+   */
+  it('reads a holder type as how it grips, under one heading', () => {
+    const labels = HOLDER_COLUMNS.filter((column) => column.label === 'Type')
+    expect(labels.map((column) => column.code)).toEqual(['clamping'])
+    expect(HOLDER_COLUMNS.some((column) => column.code === 'type')).toBe(false)
+    expect(holderValue(holder({}), 'type')).toBeNull()
+  })
+
+  /** A collet keeps its own, which is its series and nothing else: `ER20 collet`. */
+  it('keeps the type a collet reads as', () => {
+    expect(COLLET_COLUMNS.some((column) => column.code === 'type')).toBe(true)
+  })
+
   it('hides the ones that are read only when something does not clear', () => {
     expect(hiddenByDefault(HOLDER_COLUMNS)).toContain('flangeDiameter')
     expect(hiddenByDefault(HOLDER_COLUMNS)).not.toContain('gaugeLength')

@@ -5,6 +5,7 @@ import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import type { ToolQuery } from 'shared/filter'
 import { useEscape } from 'shared/use-escape'
 import { FilterPanel, QUICK_FILTERS, type FilterPanelProps } from './filter-panel'
+import { SECTION_LABEL } from 'shared/type'
 
 /**
  * The filters as a rail of buttons over the part.
@@ -181,7 +182,7 @@ export const RailBubble = ({
       >
         <span className="mt-px shrink-0 opacity-70">{icon}</span>
         <span className="min-w-0 flex-1">
-          <span className="text-2xs block font-semibold tracking-wide uppercase">{label}</span>
+          <span className={cn(SECTION_LABEL, 'block text-inherit')}>{label}</span>
           {set ? (
             <span className="text-2xs mt-0.5 block truncate">
               {answers.slice(0, SHOWN).join(', ')}

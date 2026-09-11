@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { UnitSystem } from '@toolpath/tool-support'
 import { columnFilterOpen } from 'shared/use-escape'
@@ -9,7 +9,6 @@ import {
   OverrideNotice,
   RangeFilter,
   TermFilter,
-  boundFor,
   compareOf,
   menuRoom,
   optionsMatching,
@@ -51,55 +50,47 @@ const Harness = ({
   )
 }
 
-const operator = () => screen.getByRole('combobox', { name: 'How to compare Diameter' })
-const choose = (compare: string) => {
-  const labels: Record<string, string> = {
-    any: 'Any',
-    under: '≤ at most',
-    over: '≥ at least',
-    equals: '= exactly',
-    range: 'between',
-  }
-  fireEvent.click(operator())
-  fireEvent.click(screen.getByRole('option', { name: labels[compare] }))
+const box = (side: 'min' | 'max' = 'min') =>
+  screen.getByRole('textbox', { name: `Diameter — ${side}` })
+const type = (raw: string, side: 'min' | 'max' = 'min') =>
+  fireEvent.change(box(side), { target: { value: raw } })
+/** Finishing with a box, which is when shorthand is written back out in longhand. */
+const leave = (side: 'min' | 'max' = 'min') => {
+  fireEvent.blur(box(side))
+  fireEvent.focusOut(box(side))
 }
-const box = (name = 'value') => screen.getByRole('textbox', { name: `Diameter — ${name}` })
-const type = (raw: string, name = 'value') =>
-  fireEvent.change(box(name), { target: { value: raw } })
 
 describe('asking about one number', () => {
   /**
-   * The defect: the operator was derived from the bound, so ≤ with nothing
-   * typed yet wrote `{ max: undefined }` — which is `{}`, which is "Any" — and
-   * the box to type into never appeared. Choosing an operator has to be enough.
+   * The defect this control replaced: the menu opened on an operator list set
+   * to "Any", "Any" drew no box, and narrowing a column cost four presses
+   * before the first keystroke (Paul, 2026-09-11).
    */
-  it('shows a box to type in as soon as an operator is chosen', () => {
+  it('shows both ends from the start, with nothing to choose first', () => {
     render(<Harness initial={undefined} />)
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
 
-    choose('under')
-
-    expect(box()).toBeInTheDocument()
+    expect(box('min')).toBeInTheDocument()
+    expect(box('max')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   })
 
   it('writes the number in millimetres, whatever unit it was typed in', () => {
     const onBound = vi.fn()
     render(<Harness initial={undefined} unit="inches" onBound={onBound} />)
 
-    choose('under')
-    type('1.25')
+    type('1.25', 'max')
 
     expect(onBound).toHaveBeenLastCalledWith({ max: 31.75 })
     expect(screen.getByText('in')).toBeInTheDocument()
   })
 
   /**
-   * The other defect: a controlled number box that re-formatted through
-   * millimetres on every keystroke turned "1." into "1.000" under the cursor.
+   * The other defect the boxes were built around: a controlled number box that
+   * re-formatted through millimetres on every keystroke turned "1." into
+   * "1.000" under the cursor.
    */
   it('keeps what was typed, half-typed numbers included', () => {
     render(<Harness initial={undefined} unit="inches" />)
-    choose('over')
 
     type('1.')
     expect(box()).toHaveValue('1.')
@@ -108,25 +99,62 @@ describe('asking about one number', () => {
     expect(box()).toHaveValue('1.2')
   })
 
-  it('takes two numbers for a range', () => {
+  it('takes one end from each box', () => {
     const onBound = vi.fn()
     render(<Harness initial={undefined} onBound={onBound} />)
 
-    choose('range')
-    type('3', 'from')
-    type('6', 'to')
+    type('3', 'min')
+    type('6', 'max')
 
     expect(onBound).toHaveBeenLastCalledWith({ min: 3, max: 6 })
   })
 
-  it('writes one number as both ends for exactly', () => {
+  /** The shorthand, and the box it settles into: `6-12` is a range wherever it is typed. */
+  it('splits a range typed into one box across both of them', () => {
     const onBound = vi.fn()
     render(<Harness initial={undefined} onBound={onBound} />)
 
-    choose('equals')
-    type('4')
+    type('6-12')
+    expect(onBound).toHaveBeenLastCalledWith({ min: 6, max: 12 })
+
+    leave()
+    expect(box('min')).toHaveValue('6.00')
+    expect(box('max')).toHaveValue('12.00')
+  })
+
+  it('moves an end typed into the wrong box over to the right one', () => {
+    const onBound = vi.fn()
+    render(<Harness initial={undefined} onBound={onBound} />)
+
+    type('<12')
+    expect(onBound).toHaveBeenLastCalledWith({ max: 12 })
+
+    leave()
+    expect(box('min')).toHaveValue('')
+    expect(box('max')).toHaveValue('12.00')
+  })
+
+  it('writes one number into both ends for =', () => {
+    const onBound = vi.fn()
+    render(<Harness initial={undefined} onBound={onBound} />)
+
+    type('=4')
 
     expect(onBound).toHaveBeenLastCalledWith({ min: 4, max: 4 })
+  })
+
+  /**
+   * Settling is the leaving box's own business. Rewriting the far box while
+   * the caret is arriving in it is the "1." to "1.000" defect wearing a hat.
+   */
+  it('leaves the text in the other box alone when one is finished with', () => {
+    render(<Harness initial={{ min: 2, max: 6 }} />)
+
+    type('3.', 'max')
+    leave('min')
+
+    expect(box('min')).toHaveValue('2.00')
+    expect(box('max')).toHaveValue('3.')
   })
 
   /** A suggestion, a saved filter, Clear: the stored bound moves, and the boxes follow. */
@@ -141,59 +169,64 @@ describe('asking about one number', () => {
       />
     )
     const { rerender } = render(shown({ max: 6 }))
-    expect(box()).toHaveValue('6.00')
+    expect(box('min')).toHaveValue('')
+    expect(box('max')).toHaveValue('6.00')
 
     rerender(shown({ min: 2, max: 6 }))
-    expect(box('from')).toHaveValue('2.00')
-    expect(box('to')).toHaveValue('6.00')
+    expect(box('min')).toHaveValue('2.00')
+    expect(box('max')).toHaveValue('6.00')
 
     rerender(shown(undefined))
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(box('min')).toHaveValue('')
+    expect(box('max')).toHaveValue('')
   })
 
-  it('puts the number down on Any', () => {
+  it('puts the number down once both boxes are empty', () => {
     const onBound = vi.fn()
     render(<Harness initial={{ max: 6 }} onBound={onBound} />)
 
-    choose('any')
+    type('', 'max')
 
     expect(onBound).toHaveBeenLastCalledWith(undefined)
-  })
-
-  /** Emptying the box is on the way to the next number, not a change of mind about the operator. */
-  it('keeps the operator while the box is empty', () => {
-    render(<Harness initial={{ max: 6 }} />)
-
-    type('')
-
-    expect(box()).toBeInTheDocument()
   })
 
   it('never converts a count, and gives it no unit', () => {
     const onBound = vi.fn()
     render(<Harness initial={undefined} unit="inches" kind="count" onBound={onBound} />)
 
-    choose('over')
-    type('4')
+    type('4', 'min')
 
     expect(onBound).toHaveBeenLastCalledWith({ min: 4 })
     expect(screen.queryByText('in')).not.toBeInTheDocument()
   })
+
+  /** Opened *by* a press, so the caret is already where the number goes. */
+  it('takes the caret into the lower box when it is the dialog somebody opened', async () => {
+    render(
+      <RangeFilter
+        label="Diameter"
+        bound={undefined}
+        onBound={vi.fn()}
+        unit="millimeters"
+        kind="length"
+        opened
+      />,
+    )
+
+    // On the next frame: the press that opened it takes the focus first.
+    await waitFor(() => expect(box('min')).toHaveFocus())
+  })
 })
 
-describe('what an operator and its numbers add up to', () => {
-  it('is nothing until there is a number', () => {
-    expect(boundFor('under', undefined, undefined)).toBeUndefined()
-    expect(boundFor('range', undefined, undefined)).toBeUndefined()
-  })
-
-  /** Every operator survives the round trip through the bound it writes. */
-  it('reads back as the operator it was written from', () => {
-    expect(compareOf(boundFor('under', 6, undefined))).toBe('under')
-    expect(compareOf(boundFor('over', 6, undefined))).toBe('over')
-    expect(compareOf(boundFor('equals', 6, undefined))).toBe('equals')
-    expect(compareOf(boundFor('range', 3, 6))).toBe('range')
-    expect(compareOf(boundFor('any', 6, 6))).toBe('any')
+describe('the shape a stored bound has', () => {
+  /** Not what any control is set to any more — what the column is asking. */
+  it('reads back the question the two ends add up to', () => {
+    expect(compareOf(undefined)).toBe('any')
+    expect(compareOf({})).toBe('any')
+    expect(compareOf({ min: 6 })).toBe('over')
+    expect(compareOf({ max: 6 })).toBe('under')
+    expect(compareOf({ min: 6, max: 6 })).toBe('equals')
+    expect(compareOf({ min: 3, max: 6 })).toBe('range')
   })
 })
 
@@ -476,10 +509,35 @@ describe('changing a number the geometry set', () => {
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
   })
 
-  it('says nothing where no bound is set at all', () => {
-    render(<OverrideNotice label="Diameter" bound={undefined} override={offer()} />)
+  it('says nothing where no bound is set and the geometry asked for none', () => {
+    render(
+      <OverrideNotice
+        label="Diameter"
+        bound={undefined}
+        override={offer({ suggested: undefined })}
+      />,
+    )
 
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
+  })
+
+  /**
+   * **An empty box is an answer too, where the geometry put a number there**
+   * (Paul, 2026-09-11: "when I remove a value for min or max, it is not showing
+   * tools down to the smallest or largest tool in the library"). Clearing is
+   * the loosest thing a column can say, so `part.tsx` § `released` sets its
+   * rules aside on the spot — and this is the sentence saying so. Gated on the
+   * bound alone, the dialog said nothing at all in the one state where the list
+   * had just widened underneath it.
+   */
+  it('speaks for a number the geometry set and somebody took away', () => {
+    render(<OverrideNotice label="Diameter" bound={undefined} override={offer({ on: true })} />)
+
+    const note = screen.getByRole('note')
+    expect(note).toHaveTextContent('The diameter rules are set aside: 3 tools they turn down')
+    expect(note).toHaveTextContent('Putting the diameter back to at most 8 mm takes them off again')
+    // And not the sentence that contradicts it.
+    expect(note).not.toHaveTextContent('does not change the rules')
   })
 
   /**

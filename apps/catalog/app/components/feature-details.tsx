@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { CheckIcon, CopyIcon } from '@phosphor-icons/react'
-import { IconButton, Tooltip } from '@toolpath/ui'
+import { IconButton, Tooltip, cn } from '@toolpath/ui'
 import type { PartFeature } from '@toolpath/part-contracts'
 import { asRecord } from '@toolpath/part-contracts/datasheet'
 import {
@@ -11,6 +11,7 @@ import {
 import { featureSummary, kindOf, rawDatasheet } from '@toolpath/part-contracts/report'
 import type { UnitSystem } from '@toolpath/tool-support'
 import { KindIcon, MeasurementIcon } from './feature-icons'
+import { HEADING, SECTION_LABEL } from 'shared/type'
 
 /**
  * Everything Toolpath has to say about one feature.
@@ -47,7 +48,7 @@ const flatten = (value: unknown, prefix = ''): Array<[string, string]> => {
 
 const Section = ({ title, children }: { title: string; children: ReactNode }) => (
   <section className="mt-5">
-    <h3 className="text-2xs mb-1.5 font-bold tracking-wider text-zinc-500 uppercase">{title}</h3>
+    <h3 className={cn(SECTION_LABEL, 'mb-1.5')}>{title}</h3>
     {children}
   </section>
 )
@@ -137,7 +138,7 @@ export const FeatureDetails = ({
   return (
     <div className="p-3">
       <header className="flex flex-col gap-1.5">
-        <h2 className="font-heading flex flex-wrap items-center gap-2 text-lg leading-tight font-bold text-zinc-100">
+        <h2 className={cn(HEADING, 'flex flex-wrap items-center gap-2 leading-tight')}>
           <KindIcon featureType={feature.featureType} kind={kindOf(feature)} />
           {name ?? summary.type}
           {siblings > 1 ? (
@@ -188,7 +189,7 @@ export const FeatureDetails = ({
                   {row.label} <span className="text-zinc-600">ⓘ</span>
                 </span>
               </dt>
-              <dd className="text-right font-medium tabular-nums text-zinc-100">
+              <dd className="text-right font-semibold tabular-nums text-zinc-100">
                 {row.value}
                 {/* The other unit, quietly. A shop reads in one and buys tooling
                     in the other, and the sum between them is the kind somebody
@@ -203,9 +204,7 @@ export const FeatureDetails = ({
       </Section>
 
       <details className="mt-5 border-t border-zinc-800 pt-3">
-        <summary className="text-2xs cursor-pointer font-bold tracking-wider text-zinc-500 uppercase">
-          All datasheet fields
-        </summary>
+        <summary className={cn(SECTION_LABEL, 'cursor-pointer')}>All datasheet fields</summary>
         <dl className="text-2xs mt-2">
           {flatten(feature.datasheet).map(([path, value]) => (
             <div key={path} className="flex items-baseline justify-between gap-4 py-0.5">
@@ -220,9 +219,7 @@ export const FeatureDetails = ({
       </details>
 
       <details className="mt-3 border-t border-zinc-800 pt-3">
-        <summary className="text-2xs cursor-pointer font-bold tracking-wider text-zinc-500 uppercase">
-          Raw API record
-        </summary>
+        <summary className={cn(SECTION_LABEL, 'cursor-pointer')}>Raw API record</summary>
         <div className="mt-2">
           <div className="flex justify-end">
             <CopyButton value={rawDatasheet(feature)} label="raw API record" />

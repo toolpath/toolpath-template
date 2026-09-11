@@ -41,13 +41,26 @@ export interface ComponentColumn {
  * headers the picker had never heard of — so a list could not be cut down to
  * the two things somebody was comparing, and the four columns this session
  * added or renamed were missing from the one place that lists columns.
+ *
+ * A *collet* still carries a derived Type — `ER20 collet` — because its series
+ * and its type are the same fact said twice. A **holder does not** (Paul,
+ * 2026-09-11: the holder Type field is incorrect): `BT30 ER16 collet chuck` was
+ * three other columns glued together, so it repeated Taper and Collet series
+ * and disagreed with them wherever one of the three was read differently. How a
+ * holder grips is the honest answer to "what type is it", and that is the
+ * Clamping column, which is called **Type** now.
  */
 const IDENTITY: ReadonlyArray<ComponentColumn> = [
   { code: 'catalogNumber', label: 'Catalog number', kind: 'text', default: true },
   { code: 'brand', label: 'Vendor', kind: 'text', default: true },
-  { code: 'type', label: 'Type', kind: 'text', default: true },
-  { code: 'familyId', label: 'Family', kind: 'text', default: true },
 ]
+
+const FAMILY: ComponentColumn = {
+  code: 'familyId',
+  label: 'Family',
+  kind: 'text',
+  default: true,
+}
 
 /**
  * What a holder is, then the nine numbers a vendor publishes.
@@ -58,8 +71,9 @@ const IDENTITY: ReadonlyArray<ComponentColumn> = [
  */
 export const HOLDER_COLUMNS: ReadonlyArray<ComponentColumn> = [
   ...IDENTITY,
+  FAMILY,
   { code: 'taper', label: 'Taper', kind: 'text', default: true },
-  { code: 'clamping', label: 'Clamping', kind: 'text', default: true },
+  { code: 'clamping', label: 'Type', kind: 'text', default: true },
   { code: 'colletSeries', label: 'Collet series', kind: 'text', default: true },
   { code: 'gaugeLength', label: 'Gauge length', kind: 'length', default: true },
   { code: 'projection', label: 'Projection', kind: 'length', default: true },
@@ -75,6 +89,8 @@ export const HOLDER_COLUMNS: ReadonlyArray<ComponentColumn> = [
 
 export const COLLET_COLUMNS: ReadonlyArray<ComponentColumn> = [
   ...IDENTITY,
+  { code: 'type', label: 'Type', kind: 'text', default: true },
+  FAMILY,
   { code: 'series', label: 'Series', kind: 'text', default: true },
   { code: 'clampMin', label: 'Grips from', kind: 'length', default: true },
   { code: 'clampMax', label: 'Grips to', kind: 'length', default: true },
@@ -129,8 +145,6 @@ export const holderValue = (holder: Holder, code: string): number | string | nul
       return holder.catalogNumber
     case 'brand':
       return holder.brand
-    case 'type':
-      return holderTypeLabel(holder)
     case 'familyId':
       return familyLabel(holder.familyId)
     case 'taper':

@@ -30,12 +30,16 @@ const holder: Holder = {
   provenance: {},
 }
 
-const show = (onQuery = vi.fn(), gap?: (guid: string) => string | null) => {
+const show = (
+  onQuery = vi.fn(),
+  gap?: (guid: string) => string | null,
+  records: Array<Holder> = [holder],
+) => {
   render(
     <div className="h-96">
       <ComponentTable
         kind="holder"
-        records={[holder]}
+        records={records}
         unit="millimeters"
         columns={HOLDER_COLUMNS}
         hiddenColumns={[]}
@@ -94,40 +98,49 @@ describe('the filters a holder heading asks', () => {
   })
 
   /**
-   * **A dropdown opened from inside the filter is inside it.** The kit draws a
-   * `Combobox` popover in a portal of its own, outside the menu's own box, so
-   * the press that chose an operator read as a press on the page and shut the
-   * filter before the box to type in had been drawn. The press is dispatched
-   * rather than clicked because that rule is written against `pointerdown`.
+   * **The filter opens on somewhere to type, and stays open while it is typed
+   * in** (Paul, 2026-09-11). It used to open on an operator list reading "Any",
+   * which drew no box at all, and the press that chose an operator landed in a
+   * portal outside the menu's own box and read as a press on the page — so the
+   * filter shut before the box to type in had been drawn. Both ends are now on
+   * screen from the start and there is no popover in the way of them.
    */
-  it('stays open while the compare dropdown is used', () => {
+  it('opens on both ends of the number, and stays open while one is typed', () => {
     show()
 
     fireEvent.click(screen.getByRole('button', { name: 'Filter by Gauge length' }))
-    fireEvent.click(screen.getByRole('combobox', { name: 'How to compare Gauge length' }))
-    const option = screen.getByRole('option', { name: '≥ at least' })
-    fireEvent.pointerDown(option)
-    fireEvent.click(option)
+    const box = screen.getByRole('textbox', { name: 'Gauge length — min' })
+    expect(screen.getByRole('textbox', { name: 'Gauge length — max' })).toBeInTheDocument()
+
+    fireEvent.change(box, { target: { value: '60' } })
 
     expect(screen.getByRole('group', { name: 'Gauge length' })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Gauge length — value' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Gauge length — min' })).toHaveValue('60')
   })
 
   /**
-   * **The type is a list of its own** (Paul, 2026-09-08: "I should be able to
-   * filter by holder type as a list … same with collet type"). It is three of
-   * a holder's columns said as one phrase — `BT30 ER11 collet chuck` — and
-   * that phrase is what a shop calls the thing; the three behind it still ask
-   * for themselves, so one press can take every BT30 or every BT30 ER11 collet
-   * chuck.
+   * **A holder's type is how it grips** (Paul, 2026-09-11: the Type field was
+   * incorrect and came off, and Clamping is what Type means now). It used to be
+   * a phrase glued out of three other columns — `BT30 ER11 collet chuck` —
+   * which repeated Taper and Collet series and could disagree with them; the
+   * heading writes the `clamping` axis now, and Taper still asks for itself.
    */
-  it('offers the type a holder reads as, as a list', () => {
+  it('narrows how a holder grips from the Type heading', () => {
     const onQuery = show()
 
     fireEvent.click(screen.getByRole('button', { name: 'Filter by Type' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'BT30' }))
 
-    expect(onQuery).toHaveBeenCalledWith({ text: '', terms: { type: ['BT30'] }, bounds: {} })
+    expect(onQuery).toHaveBeenCalledWith({ text: '', terms: { clamping: ['BT30'] }, bounds: {} })
+  })
+
+  /** One Type heading, not two: the glued phrase is off the rack entirely. */
+  it('shows the type once, as how it grips', () => {
+    show()
+
+    expect(screen.getAllByRole('button', { name: 'Filter by Type' })).toHaveLength(1)
+    expect(screen.getByText('collet chuck')).toBeVisible()
+    expect(screen.queryByText('BT30 ER11 collet chuck')).toBeNull()
   })
 })
 
@@ -151,5 +164,36 @@ describe('a holder the crib has no collet for', () => {
     show(vi.fn(), () => null)
 
     expect(screen.queryByText('no collet')).toBeNull()
+  })
+})
+
+/**
+ * **The vendor's page is on the number** (Paul, 2026-09-11: move the vendor
+ * links from the vendor cells to the catalog number cells). The order list has
+ * read that way since 2026-09-01, and a link a cell away from the number it
+ * opens is the thing a shop reaches for by the number.
+ */
+describe('where a holder row carries the vendor link', () => {
+  const linked: Holder = { ...holder, productLink: 'https://example.com/BT30ER11060M' }
+
+  it('hangs it off the catalog number', () => {
+    show(vi.fn(), undefined, [linked])
+
+    const link = screen.getByRole('link', { name: 'Open BT30ER11060M at the vendor' })
+    expect(link).toHaveAttribute('href', 'https://example.com/BT30ER11060M')
+    expect(screen.getByText('BT30ER11060M').parentElement).toContainElement(link)
+  })
+
+  it('leaves the vendor cell with nothing but the vendor', () => {
+    show(vi.fn(), undefined, [linked])
+
+    const brand = screen.getByTitle('Kennametal')
+    expect(brand.parentElement?.querySelector('a')).toBeNull()
+  })
+
+  it('draws no link where the vendor published none', () => {
+    show()
+
+    expect(screen.queryByRole('link', { name: /at the vendor/ })).toBeNull()
   })
 })

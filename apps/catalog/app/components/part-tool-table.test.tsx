@@ -119,22 +119,19 @@ describe('PartToolTable', () => {
     expect(choices).toHaveBeenCalledTimes(1)
   })
 
-  it('does not select a row while changing its holder', async () => {
-    const onChoose = show({
-      holding: {
-        holdersFor: () => [{ guid: 'holder', label: 'BT30', trouble: null, holder: {} as never }],
-        colletsFor: () => [],
-        chosen: () => ({ holderGuid: null, colletGuid: null }),
-        requiredStickout: () => null,
-        stickoutFor: () => null,
-        onChoose: vi.fn(),
-      },
-    })
+  /**
+   * **A row holds no holder** (Paul, 2026-09-10). The list used to draw a
+   * holder and a collet dropdown per row; the assembly tree took that decision
+   * off the row, the page stopped handing the list any holding, and the two
+   * columns became dashes over a choice made elsewhere. They are gone, and a
+   * stored column order naming them cannot bring them back.
+   */
+  it('draws no holder or collet column, whatever the order says', () => {
+    show({ hiddenColumns: [], columnOrder: ['DC', 'holder', 'collet'], columns: TOOL_COLUMNS })
 
-    fireEvent.click(screen.getAllByRole('combobox', { name: 'Holder for T-20' })[0]!)
-    fireEvent.click(screen.getByRole('option', { name: 'BT30' }))
-
-    expect(onChoose).not.toHaveBeenCalled()
+    expect(screen.queryByRole('columnheader', { name: /Holder/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /Collet/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /Holder for/ })).not.toBeInTheDocument()
   })
 
   /**
@@ -320,19 +317,6 @@ describe('the filters a heading asks', () => {
     expect(within(type).getByRole('checkbox', { name: /Flat end mill/ })).toBeInTheDocument()
   })
 
-  /** The two cells that set a choice rather than hold a value ask nothing. */
-  it('leaves the holder and collet cells alone', () => {
-    show({
-      filtering: filtering(),
-      hiddenColumns: [],
-      columnOrder: ['DC', 'holder', 'collet'],
-      columns: TOOL_COLUMNS,
-    })
-
-    expect(screen.queryByRole('button', { name: 'Filter by Holder' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Filter by Collet' })).not.toBeInTheDocument()
-  })
-
   /**
    * A tap list is swept out of the catalog by its thread, so the tool filters
    * never reach it. It narrows on its catalog number, and its other headings
@@ -426,5 +410,48 @@ describe('the filters a heading asks', () => {
     expect(within(menu).getByText('Every tap the M6×1 thread takes.')).toBeVisible()
     expect(within(menu).queryByRole('spinbutton')).not.toBeInTheDocument()
     expect(within(menu).queryByRole('textbox')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * **The vendor's page is on the number** (Paul, 2026-09-11: move the vendor
+ * links from the vendor cells to the catalog number cells). The order list has
+ * read that way since 2026-09-01, and a link a cell away from the number it
+ * opens is the thing a shop reaches for by the number.
+ */
+describe('where a tool row carries the vendor link', () => {
+  const linked: CatalogTool = { ...first, productLink: 'https://example.com/T-20' }
+
+  it('hangs it off the catalog number', () => {
+    show({ tools: [linked] })
+
+    const link = screen.getByRole('link', { name: 'Open T-20 at the vendor' })
+    expect(link).toHaveAttribute('href', 'https://example.com/T-20')
+    expect(screen.getByText('T-20').parentElement).toContainElement(link)
+  })
+
+  it('leaves the vendor cell with nothing but the vendor', () => {
+    show({ tools: [linked] })
+
+    const brand = screen.getByTitle('Acme')
+    expect(brand.parentElement?.querySelector('a')).toBeNull()
+  })
+
+  /**
+   * And the press on it is not a press on the row: the number is where a row
+   * is clicked to select the tool, so the link has to stop there.
+   */
+  it('does not choose the tool when the link is pressed', () => {
+    const onChoose = show({ tools: [linked] })
+
+    fireEvent.click(screen.getByRole('link', { name: 'Open T-20 at the vendor' }))
+
+    expect(onChoose).not.toHaveBeenCalled()
+  })
+
+  it('draws no link where the vendor published none', () => {
+    show()
+
+    expect(screen.queryByRole('link', { name: /at the vendor/ })).toBeNull()
   })
 })

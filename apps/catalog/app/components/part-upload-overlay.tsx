@@ -3,6 +3,7 @@ import { Button, Card } from '@toolpath/ui'
 import { CAD_EXTENSIONS } from '@toolpath/part-contracts'
 import type { UploadStatus } from 'client/use-part-upload'
 import { useEscape } from 'shared/use-escape'
+import { HEADING } from 'shared/type'
 
 export interface ReplacementAnalysis {
   readonly message: string
@@ -81,7 +82,7 @@ export const PartUploadOverlay = ({
           <div className={full ? 'flex size-full max-w-2xl flex-col justify-center' : undefined}>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="font-heading text-lg font-bold text-zinc-100">{title}</h2>
+                <h2 className={HEADING}>{title}</h2>
                 <p className="mt-2 max-w-xl text-sm text-zinc-400">{description}</p>
               </div>
               {!busy && onClose ? (

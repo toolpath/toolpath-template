@@ -25,7 +25,7 @@ const names = (tag: string) => (tag.startsWith('h') ? 'Through Hole' : 'Pocket')
 const order = (
   sheet: SetupSheet,
   item: ListItem,
-  choice: { toolGuid: string; holderGuid?: string; colletGuid?: string },
+  choice: { toolGuid: string; holderGuid?: string; colletGuid?: string; assemblyId?: string },
 ): SetupSheet =>
   (item.kind === 'assembly' ? [item.id] : item.tags).reduce(
     (current, key) => addChoice(current, key, choice),
@@ -103,6 +103,7 @@ describe('the order list itself', () => {
         choice: { toolGuid: 'em', holderGuid: 'bt30' },
         rows: ['Through Hole', 'Pocket'],
         keys: ['h1', 'h2', 'h3', 'p1'],
+        ids: ['em'],
         featureless: false,
       },
     ])
@@ -122,6 +123,77 @@ describe('the order list itself', () => {
       'em|a|',
       'em|b|',
     ])
+  })
+
+  /**
+   * **Two stacks of one cutter on one row are two rows here** (Paul,
+   * 2026-09-11: "when I have two (or more) tool assemblies on a feature or
+   * group, both need to be shown in the order list. Only the first is being
+   * shown right now"). A line is keyed by the stack that wrote it, so the
+   * second no longer writes over the first — and the holder each was given is
+   * the holder it keeps.
+   */
+  it('is two stacks where one row gave a cutter two holders', () => {
+    const sheet = order(
+      order(emptySheet('part-1'), circle, {
+        toolGuid: 'em',
+        holderGuid: 'a',
+        assemblyId: 'assembly-1',
+      }),
+      circle,
+      { toolGuid: 'em', holderGuid: 'b', assemblyId: 'assembly-2' },
+    )
+
+    expect(orderAssemblies([circle], sheet, names).map((each) => each.key)).toEqual([
+      'em|a|',
+      'em|b|',
+    ])
+  })
+
+  /** Identical twice over is still two things to set up, and two to buy. */
+  it('is two stacks where one row ordered the same assembly twice', () => {
+    const sheet = order(
+      order(emptySheet('part-1'), circle, {
+        toolGuid: 'em',
+        holderGuid: 'bt30',
+        assemblyId: 'assembly-1',
+      }),
+      circle,
+      { toolGuid: 'em', holderGuid: 'bt30', assemblyId: 'assembly-2' },
+    )
+    const stacks = orderAssemblies([circle], sheet, names)
+
+    expect(stacks.map((each) => each.key)).toEqual(['em|bt30|', 'em|bt30|#2'])
+    expect(
+      componentTotals(stacks, (each) => each.rows.join(', ')).map((each) => [
+        each.component,
+        each.count,
+      ]),
+    ).toEqual([
+      ['tool', 2],
+      ['holder', 2],
+    ])
+  })
+
+  /**
+   * And two *rows* that ordered one stack are still one thing to buy (Paul,
+   * 2026-08-31), whatever the stacks that wrote them are called.
+   */
+  it('is one stack where two rows ordered it under different stack ids', () => {
+    const sheet = order(
+      order(emptySheet('part-1'), circle, {
+        toolGuid: 'em',
+        holderGuid: 'bt30',
+        assemblyId: 'assembly-1',
+      }),
+      pocket,
+      { toolGuid: 'em', holderGuid: 'bt30', assemblyId: 'assembly-2' },
+    )
+    const stacks = orderAssemblies([circle, pocket], sheet, names)
+
+    expect(stacks.map((each) => each.key)).toEqual(['em|bt30|'])
+    expect(stacks[0]?.rows).toEqual(['Through Hole', 'Pocket'])
+    expect(stacks[0]?.ids).toEqual(['assembly-1', 'assembly-2'])
   })
 
   it('says a stack answers no feature only where every row it is on does', () => {
@@ -186,7 +258,7 @@ describe('what to buy, by component', () => {
         quantity: 1,
         total: 1,
         keys: ['h1', 'h2', 'h3'],
-        toolGuid: 'em',
+        ids: ['em'],
       },
     ])
   })

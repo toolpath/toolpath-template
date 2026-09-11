@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { GEOMETRY_FIELDS } from '@toolpath/catalog-data'
 import { AXES_IN_TOOL_COLUMNS } from 'shared/column-filters'
-import { TAP_COLUMNS, TOOL_COLUMNS, isHolding, isIdentity, isStack } from './part-tool-table'
+import { TAP_COLUMNS, TOOL_COLUMNS, isIdentity, isStack } from './part-tool-table'
 
 /**
  * **A column has to have a number behind it.**
@@ -12,15 +12,13 @@ import { TAP_COLUMNS, TOOL_COLUMNS, isHolding, isIdentity, isStack } from './par
  * no error to say so (Paul, 2026-08-31: "what is the usable length? It's
  * showing as empty — what is the intent?").
  *
- * Every column is either a field the catalog defines, or one of the two the
- * table works out for itself — the holder and collet it is held in, and the
- * stickout the stack needs.
+ * Every column is either a field the catalog defines, one of the four that say
+ * which tool it is, or the length below the holder the table works out.
  */
 describe('the columns the list offers', () => {
   it('names a field the catalog defines, or one the table works out', () => {
     const unknown = TOOL_COLUMNS.filter(
       (column) =>
-        !isHolding(column.code) &&
         !isStack(column.code) &&
         // The four that say which tool this is rather than a number about it.
         !isIdentity(column.code) &&
@@ -39,7 +37,7 @@ describe('the columns the list offers', () => {
  * 2026-08-31). It is the tool's own **length below holder** now: the overall
  * length less the shank the clamping rule holds, which is a number every tool
  * has and which decides whether it reaches (Paul, 2026-09-01). So it opens
- * with the rest, and the holder and collet still wait to be asked for.
+ * with the rest.
  */
 describe('the columns a list opens with', () => {
   it('opens with the numbers a tool is chosen on, reach among them', () => {
@@ -62,7 +60,7 @@ describe('the columns a list opens with', () => {
    * the column picker lists them the same way top to bottom, because the page
    * seeds its order from this list.
    */
-  it('is in the order a row is read, holding last', () => {
+  it('is in the order a row is read', () => {
     expect(TOOL_COLUMNS.map((column) => column.code)).toEqual([
       'catalogNumber',
       'brand',
@@ -77,8 +75,6 @@ describe('the columns a list opens with', () => {
       'RE',
       'SFDM',
       'SIG',
-      'holder',
-      'collet',
     ])
   })
 
@@ -97,9 +93,16 @@ describe('the columns a list opens with', () => {
     }
   })
 
-  it('leaves the holder and the collet for somebody to ask for', () => {
+  /**
+   * **The holder and the collet are not columns** (Paul, 2026-09-10). They were
+   * the per-row dropdowns from before the assembly tree; the tree took the
+   * choice off the row and the page stopped handing the list any holding, so
+   * both had become columns of dashes anybody could tick in the picker.
+   */
+  it('offers neither a holder nor a collet, on either list', () => {
     for (const code of ['holder', 'collet']) {
-      expect(TOOL_COLUMNS.find((column) => column.code === code)?.default).toBe(false)
+      expect(TOOL_COLUMNS.map((column) => column.code)).not.toContain(code)
+      expect(TAP_COLUMNS.map((column) => column.code)).not.toContain(code)
     }
   })
 })
@@ -118,16 +121,15 @@ describe('the columns a tap list offers', () => {
   /** Every number 129 taps in the dataset carry, and nothing they do not. */
   const ON_A_TAP = ['DC', 'SFDM', 'OAL', 'LCF', 'NOF', 'LBH', 'LD']
 
-  it('offers a number a tap carries, or the holding every list can ask for', () => {
+  it('offers a number a tap carries, and nothing else', () => {
     const unknown = TAP_COLUMNS.filter(
-      (column) =>
-        !isHolding(column.code) && !isIdentity(column.code) && !ON_A_TAP.includes(column.code),
+      (column) => !isIdentity(column.code) && !ON_A_TAP.includes(column.code),
     ).map((column) => column.code)
 
     expect(unknown).toEqual([])
   })
 
-  it('opens with all of them, and leaves the holding to be asked for', () => {
+  it('opens with all of them', () => {
     expect(TAP_COLUMNS.filter((column) => column.default).map((column) => column.code)).toEqual([
       'catalogNumber',
       'brand',
@@ -141,9 +143,6 @@ describe('the columns a tap list offers', () => {
       'NOF',
       'SFDM',
     ])
-    for (const code of ['holder', 'collet']) {
-      expect(TAP_COLUMNS.find((column) => column.code === code)?.default).toBe(false)
-    }
   })
 
   /**

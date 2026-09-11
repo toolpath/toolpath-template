@@ -17,7 +17,6 @@ import { thresholdsFrom } from 'shared/holder-choice'
 import { ToolTypeIcon, formLabel } from './tool-icons'
 import { MeasurementIcon } from './feature-icons'
 import { CatalogDrawing } from './catalog-drawing'
-import type { Holding } from './part-tool-table'
 import { CatalogComboboxButton } from './catalog-combobox-button'
 
 /**
@@ -91,8 +90,6 @@ const PANEL_MATERIAL_ROOM = 130
 export interface ToolDetailsProps {
   readonly tool: CatalogTool
   readonly unit: UnitSystem
-  /** The holder and collet for this tool, asked the same way the list asks. */
-  readonly holding?: Holding | undefined
   /**
    * Keeping the tool, from the panel it was assembled in.
    *
@@ -138,14 +135,14 @@ export interface ToolDetailsProps {
   /** Room the shop wants kept between the stack and the part. */
   readonly margins?: Margins
   /**
-   * The stack around the tool, where something other than this panel holds it.
+   * The stack around the tool, worked out by the tree that holds it.
    *
-   * **The tool assembly tree is that something** (Paul, 2026-09-07): with the
-   * tree on, a holder is a slot with a table of its own and this panel offers
-   * no dropdowns at all — so `holding` is absent, and without this the sheet
-   * would draw the cutter on its own beside a stack the tree had fully
-   * assembled. `holding` still wins where both are given: the dropdowns and the
-   * picture must not be able to disagree.
+   * **The tree is the only thing that holds a tool** (Paul, 2026-09-07 for the
+   * tree, 2026-09-10 for the last of the dropdowns): a holder is a slot with a
+   * table of its own, and this panel offers no holding of its own at all.
+   * Without this the sheet would draw the cutter on its own beside a stack the
+   * tree had fully assembled; with it there is one answer rather than two that
+   * can disagree.
    */
   readonly stack?: { readonly holder: Holder | null; readonly collet: Collet | null }
   /**
@@ -166,7 +163,6 @@ export interface ToolDetailsProps {
 export const ToolDetails = ({
   tool,
   unit,
-  holding,
   actions = [],
   mappedTo = [],
   curve = null,
@@ -193,29 +189,17 @@ export const ToolDetails = ({
    * about what is lit.
    */
   const [pointed, setPointed] = useState<string | null>(null)
-  const chosen = holding?.chosen(tool) ?? {
+  /**
+   * The stack this panel is drawing, which is the tree's and nothing else's
+   * (Paul, 2026-09-10). The panel used to offer a holder and a collet of its
+   * own when no feature was open, so a stack could be assembled in two places
+   * — the tree, and a pair of dropdowns over a tool nobody had ordered.
+   */
+  const chosen = {
     holderGuid: stack?.holder?.guid ?? null,
     colletGuid: stack?.collet?.guid ?? null,
   }
-  const holders = holding?.holdersFor(tool) ?? []
-  /**
-   * Holders that fit and have no picture, which is why they are not on the
-   * list above (Paul, 2026-09-07). Zero once they have been measured, and the
-   * note goes with it.
-   */
-  const undrawable = holding?.undrawable?.(tool) ?? 0
-  const collets = holding?.colletsFor(tool, chosen.holderGuid) ?? []
-  /**
-   * What the stack has to stand out to clear, from the list rather than the
-   * drawing. `drawnAssembly` works the same number out as `drawn.required`,
-   * and this is the one shown: the tool list was sorted and graded on
-   * `holding`'s, so printing the drawing's beside a list ordered by the
-   * other would be two answers to one question.
-   */
-  const needed = holding?.requiredStickout(tool) ?? null
-  const holderChosen =
-    holders.find((each) => each.guid === chosen.holderGuid)?.holder ?? stack?.holder ?? undefined
-  const stickout = holding?.stickoutFor?.(tool) ?? null
+  const holderChosen = stack?.holder ?? undefined
   /**
    * The stack, worked out where every other page works it out.
    *
@@ -234,7 +218,7 @@ export const ToolDetails = ({
    */
   const drawn = drawnAssembly(
     tool,
-    { holder: chosen.holderGuid, collet: chosen.colletGuid, stickout },
+    { holder: chosen.holderGuid, collet: chosen.colletGuid, stickout: null },
     curve,
     margins,
     thresholdsFrom(),
@@ -268,7 +252,7 @@ export const ToolDetails = ({
           <ToolTypeIcon toolType={tool.form} className="size-6" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-mono text-lg leading-tight font-bold text-zinc-100">
+          <span className="block truncate font-mono text-lg leading-tight text-zinc-100">
             {tool.catalogNumber}
           </span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400">
@@ -325,101 +309,10 @@ export const ToolDetails = ({
       )}
 
       {/*
-        **Holding first, because it changes the picture below it.** The tool is
-        assembled here: a holder and a collet, then what that stack looks like,
-        then the numbers (Paul, 2026-09-01).
-      */}
-      {holding === undefined ? null : (
-        <div className="flex flex-col gap-2">
-          {/* No label over either: the select says which it is (Paul, 2026-09-01). */}
-          <Combobox
-            items={['', ...holders.map((each) => each.guid)]}
-            value={chosen.holderGuid ?? ''}
-            aria-label="Holder"
-            onValueChange={(next) => {
-              const holderGuid = typeof next === 'string' && next !== '' ? next : null
-              const kept = holding
-                .colletsFor(tool, holderGuid)
-                .some((each) => each.guid === chosen.colletGuid)
-              holding.onChoose(tool, {
-                holderGuid,
-                colletGuid: kept ? chosen.colletGuid : null,
-              })
-            }}
-            itemToStringLabel={(guid) =>
-              guid === '' ? 'No holder' : (holders.find((each) => each.guid === guid)?.label ?? '')
-            }
-            size="sm"
-            variant="ghost"
-          >
-            <CatalogComboboxButton label="Holder" placeholder="No holder" />
-            <Combobox.Popover>
-              <Combobox.List>
-                {['', ...holders.map((each) => each.guid)].map((guid) => (
-                  <Combobox.Item key={guid || 'none'} value={guid}>
-                    {guid === '' ? 'No holder' : holders.find((each) => each.guid === guid)?.label}
-                    <Combobox.ItemIndicator />
-                  </Combobox.Item>
-                ))}
-              </Combobox.List>
-            </Combobox.Popover>
-          </Combobox>
-          {/*
-            **An empty dropdown has to say which empty it is** (Paul,
-            2026-09-07: "now I see no holders"). Nothing fitting and everything
-            fitting but unmeasured both showed the same "No holder", so a
-            measuring run nobody had made read as a broken page.
-          */}
-          {undrawable === 0 ? null : (
-            <p className="text-2xs text-zinc-500">
-              {holders.length === 0
-                ? `${undrawable} holder${undrawable === 1 ? '' : 's'} fit here, none with a model to draw.`
-                : `${undrawable} more fit but have no model to draw.`}
-            </p>
-          )}
-          <Combobox
-            items={['', ...collets.map((each) => each.guid)]}
-            value={chosen.colletGuid ?? ''}
-            aria-label="Collet"
-            disabled={collets.length === 0}
-            onValueChange={(next) =>
-              holding.onChoose(tool, {
-                holderGuid: chosen.holderGuid,
-                colletGuid: typeof next === 'string' && next !== '' ? next : null,
-              })
-            }
-            itemToStringLabel={(guid) =>
-              guid === '' ? 'No collet' : (collets.find((each) => each.guid === guid)?.label ?? '')
-            }
-            size="sm"
-            variant="ghost"
-          >
-            <CatalogComboboxButton label="Collet" placeholder="No collet" />
-            <Combobox.Popover>
-              <Combobox.List>
-                {['', ...collets.map((each) => each.guid)].map((guid) => (
-                  <Combobox.Item key={guid || 'none'} value={guid}>
-                    {guid === '' ? 'No collet' : collets.find((each) => each.guid === guid)?.label}
-                    <Combobox.ItemIndicator />
-                  </Combobox.Item>
-                ))}
-              </Combobox.List>
-            </Combobox.Popover>
-          </Combobox>
-          {needed === null ? null : (
-            <p className="text-2xs text-zinc-500">
-              This stack has to stand out{' '}
-              <span className="font-mono text-zinc-300">{formatLength(needed, unit)}</span> to clear
-              the part.
-            </p>
-          )}
-        </div>
-      )}
-      {/*
         **The drawing takes the room** (Paul, 2026-09-01). It was a fixed 16 rem
         in a panel half a screen tall, which is a thumbnail of the one thing
-        the panel exists to show. It fills what the head, the holding and the
-        numbers leave.
+        the panel exists to show. It fills what the head and the numbers
+        leave.
       */}
       <div className="flex min-h-0 flex-1 flex-col gap-1">
         {drawn.holder === null ? null : (

@@ -8,8 +8,8 @@ import {
   type ReactNode,
 } from 'react'
 import { ArrowSquareOutIcon, CheckIcon, InfoIcon, XCircleIcon } from '@phosphor-icons/react'
-import { Button, Combobox, Table, cn } from '@toolpath/ui'
-import type { CatalogTool, Holder } from '@toolpath/catalog-data'
+import { Button, Table, cn } from '@toolpath/ui'
+import type { CatalogTool } from '@toolpath/catalog-data'
 import type { UnitSystem } from '@toolpath/tool-support'
 import { formatGeometry } from 'shared/geometry'
 import { askOfToolColumn, type ColumnAsk } from 'shared/column-filters'
@@ -27,7 +27,7 @@ import {
   type ColumnHeadingProps,
 } from './column-heading'
 import type { Bound, ColumnOverride } from './column-filter'
-import { CatalogComboboxButton } from './catalog-combobox-button'
+import { TABLE_FACE, TABLE_INK } from 'shared/type'
 
 export interface PartToolColumn {
   readonly code: string
@@ -68,9 +68,11 @@ const IDENTITY: ReadonlyArray<PartToolColumn> = [
  * brings the angle — `shared/auto-columns.ts` is the rule. They are `false`
  * here because that is what a fresh list, holding neither, shows.
  *
- * The holder and the collet stay off until somebody asks for them, and sit at
- * the end so that turning one on adds a column rather than moving every other
- * one along.
+ * **The holder and the collet are not columns** (Paul, 2026-09-10). They were
+ * the per-row dropdowns from before the assembly tree, and the tree took that
+ * choice off the row: the page hands the list no holding at all, so ticking
+ * either in the picker drew a column of dashes over a decision made in the
+ * tree beside it.
  */
 export const TOOL_COLUMNS: ReadonlyArray<PartToolColumn> = [
   ...IDENTITY,
@@ -83,15 +85,11 @@ export const TOOL_COLUMNS: ReadonlyArray<PartToolColumn> = [
   { code: 'RE', label: 'Corner radius', default: false },
   { code: 'SFDM', label: 'Shank', default: false },
   { code: 'SIG', label: 'Tip angle', default: false },
-  { code: 'holder', label: 'Holder', default: false },
-  { code: 'collet', label: 'Collet', default: false },
 ]
 
 export const TAP_COLUMNS: ReadonlyArray<PartToolColumn> = [
   ...IDENTITY,
   { code: 'DC', label: 'Thread diameter', default: true },
-  { code: 'holder', label: 'Holder', default: false },
-  { code: 'collet', label: 'Collet', default: false },
   { code: 'LCF', label: 'Thread length', default: true },
   { code: 'LBH', label: 'Below holder', default: true },
   { code: 'LD', label: 'L/D', default: true },
@@ -116,15 +114,18 @@ export const flexibleColumnWidth = (width: string): string => `minmax(${width}, 
 const ROW = 33
 
 /**
- * Everything the rows share the panel with: the toolbar carrying the three list
- * buttons and the filters, the column headings under it, and the hairline
- * border of the card around the lot.
+ * Everything the rows share the panel with: the column headings, and the
+ * hairline border of the card around them.
  *
  * The border is two pixels and it is the difference between eight rows and
  * seven-and-a-bit — the panel's size is its outer box, and the rows get what is
  * inside it.
+ *
+ * **The toolbar is no longer one of them** (Paul, 2026-09-11): the three list
+ * buttons, the filters and the notes float over the bottom of the viewer now,
+ * so the 49 pixels they took out of the panel would open the list a row short.
  */
-const OVER_THE_ROWS = 49 + ROW + 2
+const OVER_THE_ROWS = ROW + 2
 
 /** How many tools the list opens showing (Paul, 2026-09-10). */
 export const TOOLS_ON_OPENING = 8
@@ -140,42 +141,6 @@ export const TOOLS_ON_OPENING = 8
  * that wants the room.
  */
 export const TABLE_OPENS_AT = OVER_THE_ROWS + TOOLS_ON_OPENING * ROW
-
-export interface Holding {
-  readonly holdersFor: (tool: CatalogTool) => ReadonlyArray<{
-    readonly guid: string
-    readonly label: string
-    readonly trouble: string | null
-    readonly holder: Holder
-  }>
-  readonly colletsFor: (
-    tool: CatalogTool,
-    holderGuid: string | null,
-  ) => ReadonlyArray<{ readonly guid: string; readonly label: string }>
-  readonly chosen: (tool: CatalogTool) => {
-    readonly holderGuid: string | null
-    readonly colletGuid: string | null
-  }
-  readonly requiredStickout: (tool: CatalogTool) => number | null
-  readonly stickoutFor: (tool: CatalogTool) => number | null
-  readonly reachNote?: (tool: CatalogTool) => string | null
-  /**
-   * How many holders that would otherwise fit were left off for having no
-   * picture, so the panel can say so.
-   *
-   * **An empty dropdown that fits is indistinguishable from one that was
-   * filtered** (Paul, 2026-09-07: "I just asked you to hide holders that do
-   * not have profiles, and now I see no holders"). `drawable` hid every holder
-   * in the rack, and the panel showed the same "No holder" it shows for a tool
-   * nothing holds — so a missing measuring run read as a broken page. This is
-   * the count behind that silence, and zero where nothing was hidden.
-   */
-  readonly undrawable?: (tool: CatalogTool) => number
-  readonly onChoose: (
-    tool: CatalogTool,
-    choice: { readonly holderGuid: string | null; readonly colletGuid: string | null },
-  ) => void
-}
 
 /**
  * A tool as the table sorts it.
@@ -197,20 +162,26 @@ interface Selection {
   readonly ids: Array<string>
 }
 
-export const isHolding = (code: string): boolean => code === 'holder' || code === 'collet'
 export const isStack = (code: string): boolean => code === 'LBH'
 
 /** The four that say which tool this is, rather than a number about it. */
 export const isIdentity = (code: string): boolean => IDENTITY.some((column) => column.code === code)
 
-/** How wide a column starts, by what it holds rather than by its numbers. */
+/**
+ * How wide a column starts, by what it holds rather than by its numbers.
+ *
+ * **Only the largest of these is doing anything.** `@toolpath/ui`'s table gives
+ * every column the width of the widest `minmax()` floor it is handed, so
+ * raising one entry here raises all thirteen — measured on 2026-09-11 by
+ * setting `type` to `20rem` and watching each column become 320px. The map
+ * reads as a per-column decision and is not one. Left as it was rather than
+ * tuned around, because the column sizing is the kit's to fix.
+ */
 const WIDTH: Readonly<Record<string, string>> = {
   catalogNumber: '10rem',
   brand: '7rem',
   type: '12rem',
   family: '9rem',
-  holder: '10rem',
-  collet: '10rem',
 }
 
 /** What a column sorts on: the words on the row, or the number behind it. */
@@ -234,102 +205,6 @@ const columnsShown = (
     kept.map((column) => column.code),
     order,
   ).flatMap((code) => kept.filter((column) => column.code === code))
-}
-
-const HoldingCell = ({
-  tool,
-  code,
-  holding,
-}: {
-  tool: CatalogTool
-  code: string
-  holding: Holding
-}) => {
-  const { holderGuid, colletGuid } = holding.chosen(tool)
-  if (code === 'holder') {
-    const holders = holding.holdersFor(tool)
-    const items = ['', ...holders.map((each) => each.guid)]
-    return (
-      <div className="w-36 max-w-full" onClick={(event) => event.stopPropagation()}>
-        <Combobox
-          items={items}
-          value={holderGuid ?? ''}
-          aria-label={`Holder for ${tool.catalogNumber}`}
-          onValueChange={(next) => {
-            const nextHolder = typeof next === 'string' && next !== '' ? next : null
-            holding.onChoose(tool, { holderGuid: nextHolder, colletGuid: null })
-          }}
-          itemToStringLabel={(guid) => {
-            if (guid === '') {
-              return 'No holder'
-            }
-            const holder = holders.find((each) => each.guid === guid)
-            return holder === undefined
-              ? ''
-              : `${holder.label}${holder.trouble === null ? '' : ` · ${holder.trouble}`}`
-          }}
-          size="sm"
-          variant="ghost"
-        >
-          <CatalogComboboxButton
-            label={`Holder for ${tool.catalogNumber}`}
-            placeholder="No holder"
-          />
-          <Combobox.Popover>
-            <Combobox.List>
-              {items.map((guid) => {
-                const holder = holders.find((each) => each.guid === guid)
-                return (
-                  <Combobox.Item key={guid || 'none'} value={guid}>
-                    {guid === '' ? 'No holder' : holder?.label}
-                    {holder?.trouble === null || holder === undefined
-                      ? null
-                      : ` · ${holder.trouble}`}
-                    <Combobox.ItemIndicator />
-                  </Combobox.Item>
-                )
-              })}
-            </Combobox.List>
-          </Combobox.Popover>
-        </Combobox>
-      </div>
-    )
-  }
-  const collets = holding.colletsFor(tool, holderGuid)
-  const items = ['', ...collets.map((each) => each.guid)]
-  return (
-    <div className="w-36 max-w-full" onClick={(event) => event.stopPropagation()}>
-      <Combobox
-        items={items}
-        value={colletGuid ?? ''}
-        disabled={collets.length === 0}
-        aria-label={`Collet for ${tool.catalogNumber}`}
-        onValueChange={(next) =>
-          holding.onChoose(tool, {
-            holderGuid,
-            colletGuid: typeof next === 'string' && next !== '' ? next : null,
-          })
-        }
-        itemToStringLabel={(guid) =>
-          guid === '' ? 'No collet' : (collets.find((each) => each.guid === guid)?.label ?? '')
-        }
-        size="sm"
-        variant="ghost"
-      >
-        <CatalogComboboxButton label={`Collet for ${tool.catalogNumber}`} placeholder="No collet" />
-        <Combobox.Popover>
-          <Combobox.List>
-            {items.map((guid) => (
-              <Combobox.Item key={guid || 'none'} value={guid}>
-                {guid === '' ? 'No collet' : collets.find((each) => each.guid === guid)?.label}
-                <Combobox.ItemIndicator />
-              </Combobox.Item>
-            ))}
-          </Combobox.List>
-        </Combobox.Popover>
-      </Combobox>
-    </div>
-  )
 }
 
 /**
@@ -367,24 +242,15 @@ const GeometryCell = ({
   tool,
   code,
   mark,
-  holding,
   below,
   unit,
 }: {
   tool: CatalogTool
   code: string
   mark: Mark | undefined
-  holding: Holding | undefined
   below: BelowHolder | null
   unit: UnitSystem
 }) => {
-  if (isHolding(code)) {
-    return holding === undefined ? (
-      <span className="text-zinc-600">—</span>
-    ) : (
-      <HoldingCell tool={tool} code={code} holding={holding} />
-    )
-  }
   if (isStack(code) && (mark === undefined || mark.ok)) {
     const own = tool.geometry.LBH
     const needed = below?.length ?? null
@@ -401,7 +267,7 @@ const GeometryCell = ({
         : null
     const changed = own !== undefined && needed !== null && Math.abs(needed - own) > 0.005
     return (
-      <span className="flex min-w-0 flex-col items-end font-mono text-zinc-300">
+      <span className="flex min-w-0 flex-col items-end">
         <span>
           {needed === null
             ? own === undefined
@@ -410,9 +276,9 @@ const GeometryCell = ({
             : formatGeometry('LBH', needed, unit)}
         </span>
         {cannot !== null ? (
-          <span className="text-2xs font-sans text-amber-300">{cannot}</span>
+          <span className="text-2xs text-amber-300">{cannot}</span>
         ) : changed ? (
-          <span className="text-2xs font-sans text-amber-300">holder needs</span>
+          <span className="text-2xs text-amber-300">holder needs</span>
         ) : null}
       </span>
     )
@@ -421,9 +287,9 @@ const GeometryCell = ({
   return (
     <span
       className={cn(
-        'flex items-baseline justify-end gap-1.5 font-mono whitespace-nowrap',
+        'flex items-baseline justify-end gap-1.5 whitespace-nowrap',
         mark === undefined || (mark.ok && mark.caution === undefined)
-          ? 'text-zinc-300'
+          ? null
           : mark.ok
             ? 'text-amber-300'
             : mark.level === 'must'
@@ -524,7 +390,6 @@ export interface PartToolTableProps {
   readonly hiddenColumns: ReadonlyArray<string>
   readonly columnOrder: ReadonlyArray<string>
   readonly marks?: (tool: CatalogTool) => Record<string, Mark>
-  readonly holding?: Holding
   /**
    * The length below the holder each candidate would stand at, in the stack
    * that is open — `shared/drawn-assembly`'s {@link BelowHolder}.
@@ -571,7 +436,6 @@ export const PartToolTable = ({
   hiddenColumns,
   columnOrder,
   marks,
-  holding,
   below,
   inBom,
   keptElsewhere,
@@ -728,7 +592,11 @@ export const PartToolTable = ({
   )
 
   return (
-    <div ref={inside} data-part-tool-table className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div
+      ref={inside}
+      data-part-tool-table
+      className={cn(TABLE_FACE, TABLE_INK, 'flex min-h-0 min-w-0 flex-1 flex-col')}
+    >
       <div className="min-h-0 flex-1">
         <Table
           id="part-tools"
@@ -763,15 +631,30 @@ export const PartToolTable = ({
                 {shown.map((column) => (
                   <Table.Cell
                     key={column.code}
-                    className={
-                      isIdentity(column.code) || isHolding(column.code)
-                        ? 'justify-start'
-                        : 'justify-end'
-                    }
+                    className={isIdentity(column.code) ? 'justify-start' : 'justify-end'}
                   >
                     {column.code === 'catalogNumber' ? (
                       <>
-                        <span className="font-mono text-zinc-100">{tool.catalogNumber}</span>
+                        <span>{tool.catalogNumber}</span>
+                        {/*
+                          **The vendor's page is on the number** (Paul,
+                          2026-09-11), as it already is on the order list: the
+                          catalogue number is what a shop orders by and looks
+                          up, so the link belongs beside it rather than a cell
+                          away in Vendor.
+                        */}
+                        {tool.productLink === null ? null : (
+                          <a
+                            href={tool.productLink}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            aria-label={`Open ${tool.catalogNumber} at the vendor`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="text-info ml-1 shrink-0"
+                          >
+                            <ArrowSquareOutIcon />
+                          </a>
+                        )}
                         {here || elsewhere ? (
                           <span
                             className={cn(
@@ -794,35 +677,18 @@ export const PartToolTable = ({
                         )}
                       </>
                     ) : column.code === 'brand' ? (
-                      <span className="flex min-w-0 items-center gap-1">
-                        <span className="truncate text-zinc-400" title={tool.brand}>
-                          {tool.brand}
-                        </span>
-                        {tool.productLink === null ? null : (
-                          <a
-                            href={tool.productLink}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                            aria-label={`Open ${tool.catalogNumber} at the vendor`}
-                            onClick={(event) => event.stopPropagation()}
-                            className="shrink-0 text-info"
-                          >
-                            <ArrowSquareOutIcon />
-                          </a>
-                        )}
+                      <span className="truncate" title={tool.brand}>
+                        {tool.brand}
                       </span>
                     ) : column.code === 'type' ? (
-                      <span
-                        className="flex min-w-0 items-center gap-1.5 text-zinc-300"
-                        title={tool.type}
-                      >
+                      <span className="flex min-w-0 items-center gap-1.5" title={tool.type}>
                         <span className="shrink-0 text-zinc-500">
                           <ToolTypeIcon toolType={tool.form} />
                         </span>
                         <span className="truncate">{tool.type}</span>
                       </span>
                     ) : column.code === 'family' ? (
-                      <span className="truncate text-zinc-400" title={tool.family}>
+                      <span className="truncate" title={tool.family}>
                         {tool.family}
                       </span>
                     ) : (
@@ -830,7 +696,6 @@ export const PartToolTable = ({
                         tool={tool}
                         code={column.code}
                         mark={rowMarks[column.code]}
-                        holding={holding}
                         below={rowBelow}
                         unit={unit}
                       />
