@@ -980,13 +980,24 @@ test('keeps a dragged column width, and drops every one when the columns change'
    * Named, not `.first()`: the kit draws an 8px selection column ahead of them.
    */
   const firstShare = async () => {
-    const column = (await page
+    const heading = page
       .locator('[data-part-tool-table]')
       .first()
       .getByRole('columnheader', { name: /Catalog number/ })
-      .boundingBox())!.width
+    /*
+      Waited for, not read: a heading that has mounted but not been laid out is
+      visible and has no box, and this runs right after a reload and again
+      after the columns change. Six of six repeats failed on a loaded machine
+      with `Cannot read properties of null` before this — the same trap
+      `cube-fixture.ts` documents for the canvas.
+    */
+    let box = await heading.boundingBox()
+    await expect(async () => {
+      box = await heading.boundingBox()
+      expect(box).not.toBeNull()
+    }).toPass({ timeout: 15_000 })
     const { room } = await tableFit(page)
-    return Math.round((column / room) * 100)
+    return Math.round((box!.width / room) * 100)
   }
 
   const stores = () =>
