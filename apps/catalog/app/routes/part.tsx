@@ -98,6 +98,7 @@ import {
 import { ColumnPicker } from 'components/column-filter'
 import { BUTTON_FILTERS } from 'components/filter-panel'
 import { orderedCodes } from 'shared/column-order'
+import { COLUMN_KEY, useColumnLayout } from 'shared/column-layout'
 import { hiddenAfterAuto } from 'shared/auto-columns'
 import { capRows, firstBy, keptFirst, oneEach } from 'shared/tool-order'
 import {
@@ -530,9 +531,25 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     at: DOMRect
     featureTag?: string
   } | null>(null)
-  const [hiddenColumns, setHiddenColumns] = useState<ReadonlyArray<string>>(
-    hiddenByDefault(TOOL_COLUMNS),
-  )
+  /**
+   * The tool list's columns — which are shown, in what order, remembered.
+   *
+   * `shared/column-layout.ts` owns the storing and, more to the point, what a
+   * stored answer means once the catalog's columns have moved under it.
+   */
+  const toolLayout = useColumnLayout(COLUMN_KEY.tools, TOOL_COLUMNS)
+  const {
+    hidden: hiddenColumns,
+    order: columnOrder,
+    /**
+     * The columns somebody has decided for themselves.
+     *
+     * Tip angle and corner radius follow the list — `shared/auto-columns.ts`
+     * is the rule — and a code in here is one the list stops deciding about.
+     */
+    touched: touchedColumns,
+    setHidden: setHiddenColumns,
+  } = toolLayout
   /**
    * The tap list's columns, kept apart from the tool list's.
    *
@@ -540,25 +557,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * point angle — so they cannot share one hidden set: a code hidden in one
    * would mean nothing in the other, and the picker in the corner edits
    * whichever list is open (Paul, 2026-09-02: "allow me to use those columns
-   * if I edit the tap table").
+   * if I edit the tap table"). A separate key, for the same reason.
    */
-  const [hiddenTapColumns, setHiddenTapColumns] = useState<ReadonlyArray<string>>(
-    hiddenByDefault(TAP_COLUMNS),
-  )
-  const [tapColumnOrder, setTapColumnOrder] = useState<ReadonlyArray<string>>(() =>
-    TAP_COLUMNS.map((column) => column.code),
-  )
-  /**
-   * The columns somebody has decided for themselves.
-   *
-   * Tip angle and corner radius follow the list — `shared/auto-columns.ts` is
-   * the rule — and a code in here is one the list stops deciding about.
-   */
-  const touchedColumns = useRef(new Set<string>())
-  /** The order the columns are drawn in, dragged in the column picker. */
-  const [columnOrder, setColumnOrder] = useState<ReadonlyArray<string>>(() =>
-    TOOL_COLUMNS.map((column) => column.code),
-  )
+  const tapLayout = useColumnLayout(COLUMN_KEY.taps, TAP_COLUMNS)
+  const { hidden: hiddenTapColumns, order: tapColumnOrder } = tapLayout
   /** Narrowing the list by catalog number, as typed into the first column. */
   const [numberSearch, setNumberSearch] = useState('')
 
@@ -1716,18 +1718,11 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * pressed it does not want it undone by clearing a taper.
    */
   const [noCollet, setNoCollet] = useState(false)
-  const [hiddenHolderColumns, setHiddenHolderColumns] = useState<ReadonlyArray<string>>(() =>
-    hiddenComponentColumns(HOLDER_COLUMNS),
-  )
-  const [holderColumnOrder, setHolderColumnOrder] = useState<ReadonlyArray<string>>(() =>
-    HOLDER_COLUMNS.map((column) => column.code),
-  )
-  const [hiddenColletColumns, setHiddenColletColumns] = useState<ReadonlyArray<string>>(() =>
-    hiddenComponentColumns(COLLET_COLUMNS),
-  )
-  const [colletColumnOrder, setColletColumnOrder] = useState<ReadonlyArray<string>>(() =>
-    COLLET_COLUMNS.map((column) => column.code),
-  )
+  /** The holder and collet lists' columns, each remembered under its own key. */
+  const holderLayout = useColumnLayout(COLUMN_KEY.holders, HOLDER_COLUMNS)
+  const { hidden: hiddenHolderColumns, order: holderColumnOrder } = holderLayout
+  const colletLayout = useColumnLayout(COLUMN_KEY.collets, COLLET_COLUMNS)
+  const { hidden: hiddenColletColumns, order: colletColumnOrder } = colletLayout
 
   /**
    * Whose tree is on screen.
@@ -2368,8 +2363,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    */
   const listedForms = useMemo(() => listed.map((each) => each.form), [listed])
   useEffect(() => {
-    setHiddenColumns((current) => hiddenAfterAuto(current, listedForms, touchedColumns.current))
-  }, [listedForms])
+    setHiddenColumns((current) => hiddenAfterAuto(current, listedForms, new Set(touchedColumns)))
+  }, [listedForms, touchedColumns, setHiddenColumns])
   /**
    * The list narrowed by what was typed into the catalog number column.
    *
@@ -5923,16 +5918,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                     ).includes(column.code),
                 )
                 .map((column) => column.code)}
-              onToggle={(code) => {
-                const set =
-                  componentSlot === 'holder' ? setHiddenHolderColumns : setHiddenColletColumns
-                set((current) =>
-                  current.includes(code)
-                    ? current.filter((each) => each !== code)
-                    : [...current, code],
-                )
-              }}
-              onReorder={componentSlot === 'holder' ? setHolderColumnOrder : setColletColumnOrder}
+              onToggle={componentSlot === 'holder' ? holderLayout.toggle : colletLayout.toggle}
+              onReorder={componentSlot === 'holder' ? holderLayout.reorder : colletLayout.reorder}
             />
           ) : (
             <ColumnPicker
@@ -5950,23 +5937,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                     !(tappingNow ? hiddenTapColumns : hiddenColumns).includes(column.code),
                 )
                 .map((column) => column.code)}
-              onToggle={(code) => {
-                if (tappingNow) {
-                  setHiddenTapColumns((current) =>
-                    current.includes(code)
-                      ? current.filter((each) => each !== code)
-                      : [...current, code],
-                  )
-                  return
-                }
-                touchedColumns.current.add(code)
-                setHiddenColumns((current) =>
-                  current.includes(code)
-                    ? current.filter((each) => each !== code)
-                    : [...current, code],
-                )
-              }}
-              onReorder={tappingNow ? setTapColumnOrder : setColumnOrder}
+              onToggle={tappingNow ? tapLayout.toggle : toolLayout.toggle}
+              onReorder={tappingNow ? tapLayout.reorder : toolLayout.reorder}
             />
           )
         }
