@@ -79,20 +79,54 @@ drift off those the longer a session runs — on 2026-08-28 one session wrote
 eighty single-line `if`s against a rule stated two paragraphs above. So when a
 judgment rule starts being violated, give it a check rather than restating it.
 
-| Rule                                                                 | Proven by          |
-| -------------------------------------------------------------------- | ------------------ |
-| `const name = () => {}`, never `function name() {}`                  | `pnpm check-style` |
-| `Array<Item>`, never `Item[]` — left to right is more explicit       | `pnpm lint`        |
-| Braces and multiple lines on every `if`, never a single-line one     | `pnpm lint`        |
-| Import React members individually (`ReactNode`), never `React.X`     | `pnpm lint`        |
-| `components/*`, `client/*`, `routes/*`, `shared/*` aliases in `app/` | `pnpm lint`        |
-| Only `@toolpath/part-server` uses the Toolpath SDK at runtime        | `pnpm lint`        |
-| Nothing in `packages/` imports an application                        | `pnpm lint`        |
-| Only `stickout.ts` turns a clamping length into a stickout           | `pnpm lint`        |
-| A relative import inside a package carries its `.js` extension       | `pnpm lint`        |
-| The layering under Project Map                                       | `pnpm lint`        |
-| Tailwind classes for styling; `style={{}}` only for a computed value | judgment           |
-| `@toolpath/ui` components over hand-authored HTML, while it is used  | judgment           |
+| Rule                                                                    | Proven by          |
+| ----------------------------------------------------------------------- | ------------------ |
+| `const name = () => {}`, never `function name() {}`                     | `pnpm check-style` |
+| `Array<Item>`, never `Item[]` — left to right is more explicit          | `pnpm lint`        |
+| Braces and multiple lines on every `if`, never a single-line one        | `pnpm lint`        |
+| Import React members individually (`ReactNode`), never `React.X`        | `pnpm lint`        |
+| `components/*`, `client/*`, `routes/*`, `shared/*` aliases in `app/`    | `pnpm lint`        |
+| Only `@toolpath/part-server` uses the Toolpath SDK at runtime           | `pnpm lint`        |
+| Nothing in `packages/` imports an application                           | `pnpm lint`        |
+| Only `stickout.ts` turns a clamping length into a stickout              | `pnpm lint`        |
+| A relative import inside a package carries its `.js` extension          | `pnpm lint`        |
+| The layering under Project Map                                          | `pnpm lint`        |
+| Tailwind classes for styling; `style={{}}` only for a computed value    | judgment           |
+| `@toolpath/ui` components over anything hand-authored, while it is used | judgment           |
+| A box drawn over the page is `Menu`, not a portal of its own            | `kit-usage.test`   |
+
+### Reach for `@toolpath/ui` first
+
+**Before writing any UI, look for the kit component that already does it.** Not
+only instead of raw HTML — instead of _anything hand-authored_, including a
+control assembled out of other kit components, a popover, a placement rule, a
+drag affordance, or a piece of keyboard handling. The kit is `Menu`, `Toggle`,
+`Table`, `Button`, `IconButton`, `Checkbox`, `Input`, `Combobox`, `Dialog`,
+`Tabs`, `Tooltip`, `Slider`, `Switch`, `Badge`, `Callout`, `Card`, `Notification`
+and more; read `node_modules/@toolpath/ui/src/` and look before you build.
+
+This is the rule agents in this repository break most often, and it is expensive
+every time. On 2026-09-11 one session hand-wrote a portal, a placing rule, a
+flip rule, an Escape handler and a press-outside handler for two menus — every
+one of them something `Menu.Popover` already is — and both menus then shipped
+clipped by the card they were drawn inside, which is the defect the kit exists
+to have solved once. The same session drew the millimetres/inches switch as two
+`Chip`s side by side rather than the `Toggle` the kit exports for exactly that.
+Neither was noticed until somebody looked at the screen and asked why.
+
+So:
+
+- **Search the kit before writing a component**, and name the kit component you
+  rejected if you write your own — "the kit has no X" is a claim to check, not
+  an assumption to make.
+- **A kit component beats a correct hand-written one.** Being clipped, being
+  unreachable by keyboard, and reading as one more control on a crowded panel
+  are the costs a shared component has already paid.
+- **Style with the kit's props and `cn`**, not with a parallel set of classes.
+- **When the kit's shape fights you, use its escape hatch rather than leaving
+  it.** `Menu.Trigger` renders its own element, so pass the kit `Button`
+  through `render` instead of nesting one inside it — nesting is two controls
+  with one name, which a screen reader and `getByRole` both see.
 
 What the checks cannot carry:
 
@@ -550,7 +584,10 @@ original. For the catalog:
   closest meaningful test in the same session.
 - After meaningful changes, run the relevant checks and report what passed,
   failed, or was skipped.
-- When building UI, if the user is still using `@toolpath/ui`, be sure to always prefer the toolpath UI components and css conventions over raw HTML or other hand authored components if possible.
+- **When building UI, reach for `@toolpath/ui` first** — see _Reach for
+  `@toolpath/ui` first_ under Code Styling. Prefer a kit component over anything
+  hand-authored, including a popover, a placement rule or a piece of keyboard
+  handling you could write yourself, and follow its CSS conventions.
 
 Before editing:
 

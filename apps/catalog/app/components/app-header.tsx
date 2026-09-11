@@ -1,6 +1,6 @@
 import { NavLink, useNavigate, useParams, useSearchParams } from 'react-router'
-import { Badge, IconButton, cn } from '@toolpath/ui'
-import { Chip, ChipGroup } from 'components/chip'
+import { Badge, IconButton, Toggle, cn } from '@toolpath/ui'
+import { Chip } from 'components/chip'
 import { ToolpathLogo } from 'components/toolpath-logo'
 import { UNIT_ABBREVIATION, UNIT_SYSTEMS, type UnitSystem } from '@toolpath/tool-support'
 import { MoonIcon, SunIcon, UploadSimpleIcon } from '@phosphor-icons/react'
@@ -78,13 +78,31 @@ export const AppHeader = ({ unit, onUnit, toolCount, onUploadPart }: AppHeaderPr
         >
           {theme === 'dark' ? <SunIcon aria-hidden="true" /> : <MoonIcon aria-hidden="true" />}
         </IconButton>
-        <ChipGroup label="Units">
-          {UNIT_SYSTEMS.map((each) => (
-            <Chip key={each} pressed={each === unit} onClick={() => onUnit(each)}>
-              {UNIT_ABBREVIATION[each]}
-            </Chip>
-          ))}
-        </ChipGroup>
+        {/*
+          **The kit's `Toggle`, not two chips** (Paul, 2026-09-11). Millimetres
+          or inches is one setting with two states, which is the control the kit
+          exports for exactly this — it slides an indicator between them and
+          handles the keyboard, where a pair of chips is two buttons that happen
+          to be drawn next to each other.
+
+          Labelled by the group around it, because the kit makes a two-item
+          toggle a `role="switch"` and takes no name of its own: without it the
+          header offers a switch that says only "mm".
+        */}
+        <div role="group" className="mb-0.5" aria-label="Units">
+          <Toggle
+            size="sm"
+            value={unit}
+            onValueChange={(next) => onUnit(next as UnitSystem)}
+            className="text-2xs font-semibold dark:bg-black/25"
+          >
+            {UNIT_SYSTEMS.map((each) => (
+              <Toggle.Item key={each} value={each}>
+                {UNIT_ABBREVIATION[each]}
+              </Toggle.Item>
+            ))}
+          </Toggle>
+        </div>
       </div>
       <nav className="flex gap-2 border-t border-zinc-900 px-6">
         {/*

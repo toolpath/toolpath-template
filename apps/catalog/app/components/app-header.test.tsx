@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { PublicInspectionReport } from '@toolpath/part-contracts'
 import { forgetPart, rememberPart } from 'shared/part-session'
@@ -80,5 +80,36 @@ describe('the tabs', () => {
     render(<AppHeader unit="millimeters" onUnit={vi.fn()} toolCount={42} />)
 
     expect(screen.getByRole('link', { name: 'Parts' })).toHaveAttribute('href', '/parts')
+  })
+})
+
+/**
+ * **One setting with two states, so the kit's `Toggle`** (Paul, 2026-09-11:
+ * "the mm/in toggle should use the toggle component from @toolpath/ui"). It was
+ * two `Chip`s side by side, which is two buttons that happen to be drawn next
+ * to each other — the kit's control slides an indicator between the two and
+ * takes the keyboard with it.
+ *
+ * The group around it is load-bearing: the kit makes a two-item toggle a
+ * `role="switch"` and takes no name of its own, so without it the header offers
+ * a switch that says only "mm".
+ */
+describe('the unit control', () => {
+  it('is the kit toggle, named, with the current unit selected', () => {
+    render(<AppHeader unit="millimeters" onUnit={vi.fn()} toolCount={42} />)
+
+    const units = screen.getByRole('group', { name: 'Units' })
+    expect(within(units).getByRole('switch')).toBeVisible()
+    expect(within(units).getByRole('button', { name: 'mm' })).toHaveAttribute('data-selected')
+    expect(within(units).getByRole('button', { name: 'in' })).toHaveAttribute('data-unselected')
+  })
+
+  it('asks for the other unit when the other one is pressed', () => {
+    const onUnit = vi.fn()
+    render(<AppHeader unit="millimeters" onUnit={onUnit} toolCount={42} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'in' }))
+
+    expect(onUnit).toHaveBeenCalledWith('inches')
   })
 })

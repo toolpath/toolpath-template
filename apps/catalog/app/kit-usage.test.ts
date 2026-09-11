@@ -58,4 +58,29 @@ describe('catalog uses Toolpath UI controls', () => {
     )
     expect(inputs).toEqual(['app/components/part-upload-overlay.tsx'])
   })
+
+  /**
+   * **A box drawn over the page belongs to `Menu`, not to a portal of its own.**
+   *
+   * This is the rule the session of 2026-09-11 broke three times before
+   * anybody said the word: the column picker and the quick filters each grew a
+   * hand-written portal, a placing rule, a flip rule, an Escape handler and a
+   * press-outside handler — every one of which `Menu.Popover` already is — and
+   * both were then clipped by the card they were drawn inside, which is the
+   * defect the kit exists to have solved once. `createPortal` is what that
+   * mistake looks like in the source, so it is counted.
+   *
+   * **`FilterMenu` is the exception and says why**: it opens off a funnel
+   * inside a virtualized table header, which the table throws away and rebuilds
+   * underneath it, so the anchor has to be *re-found* every frame rather than
+   * held — and no anchored-popover API takes an anchor that keeps being
+   * replaced. Anything else reaching for a portal should reach for `Menu`
+   * first, and change this list only with the same kind of reason.
+   */
+  it('draws its overlays with the kit menu rather than portals of its own', () => {
+    const portals = files.filter((file) =>
+      withoutComments(readFileSync(file, 'utf8')).includes('createPortal'),
+    )
+    expect(portals).toEqual(['app/components/column-filter.tsx'])
+  })
 })
