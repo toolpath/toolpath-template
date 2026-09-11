@@ -230,6 +230,77 @@ describe('the shape a stored bound has', () => {
 })
 
 describe('the column picker', () => {
+  /**
+   * **The drag says where the row will land before it lands** (Paul,
+   * 2026-09-11: "the list should show a blue line (2px horizontal) where the
+   * item will be dropped to help the user see where it will go").
+   *
+   * Which edge is `shared/column-order.ts` § `dropEdge`, and its own tests tie
+   * that to where `movedTo` actually puts the row. What this pins is the wire:
+   * that a drag over a row draws the line, on the edge the rule names, on that
+   * row and no other — and that letting go anywhere puts it away.
+   */
+  const picker = (order: ReadonlyArray<string>, onReorder = vi.fn()) => {
+    render(
+      <ColumnPicker
+        columns={order.map((code) => ({ code, label: code }))}
+        shown={[...order]}
+        onToggle={vi.fn()}
+        onReorder={onReorder}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Which columns to show' }))
+    const rows = screen.getByRole('group', { name: 'Columns' }).children
+    return {
+      rows,
+      lines: () => Array.from(document.querySelectorAll('[data-drop-edge]')),
+      grab: (code: string) =>
+        fireEvent.dragStart(screen.getByRole('button', { name: `Move ${code}` })),
+      release: (code: string) =>
+        fireEvent.dragEnd(screen.getByRole('button', { name: `Move ${code}` })),
+    }
+  }
+
+  it('draws one line, on the row under the pointer, while a column is dragged', () => {
+    const { rows, lines, grab } = picker(['a', 'b', 'c', 'd'])
+
+    expect(lines()).toHaveLength(0)
+
+    grab('a')
+    fireEvent.dragOver(rows[2]!)
+
+    expect(lines()).toHaveLength(1)
+    expect(rows[2]!.querySelector('[data-drop-edge]')).not.toBeNull()
+  })
+
+  /** Down lands after the row, up lands before it — `movedTo` decides which. */
+  it('puts the line under the row dragging down and over it dragging up', () => {
+    const { rows, lines, grab, release } = picker(['a', 'b', 'c', 'd'])
+
+    grab('a')
+    fireEvent.dragOver(rows[2]!)
+    expect(lines()[0]).toHaveAttribute('data-drop-edge', 'below')
+
+    release('a')
+    grab('d')
+    fireEvent.dragOver(rows[1]!)
+    expect(lines()[0]).toHaveAttribute('data-drop-edge', 'above')
+  })
+
+  it('draws nothing over the row being dragged, and nothing once it is let go', () => {
+    const { rows, lines, grab, release } = picker(['a', 'b', 'c'])
+
+    grab('b')
+    fireEvent.dragOver(rows[1]!)
+    expect(lines()).toHaveLength(0)
+
+    fireEvent.dragOver(rows[0]!)
+    expect(lines()).toHaveLength(1)
+
+    release('b')
+    expect(lines()).toHaveLength(0)
+  })
+
   it('keeps the pencil at the table header touch target size', () => {
     render(
       <ColumnPicker

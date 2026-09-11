@@ -15,7 +15,7 @@ import {
   convertLength,
   decimalsFor,
 } from '@toolpath/tool-support'
-import { movedBy, movedTo } from 'shared/column-order'
+import { dropEdge, movedBy, movedTo } from 'shared/column-order'
 import { MENU_GAP, MENU_LEAST, placeMenu, type Placed } from 'shared/menu-place'
 import { sameBound } from 'shared/filter'
 import { readEntry, readRange, type Side } from 'shared/range-entry'
@@ -1053,9 +1053,12 @@ export const ColumnPicker = ({
 }) => {
   const [open, setOpen] = useState(false)
   const [held, setHeld] = useState<string | null>(null)
+  /** Which row the pointer is over mid-drag, so the line knows where to be. */
+  const [over, setOver] = useState<number | null>(null)
   const order = columns.map((column) => column.code)
 
   const move = (code: string, index: number) => {
+    setOver(null)
     const next = movedTo(order, code, index)
     if (next.join() !== order.join()) {
       onReorder?.(next)
@@ -1126,61 +1129,100 @@ export const ColumnPicker = ({
           aria-label="Columns"
           className="max-h-[var(--available-height)] overflow-y-auto"
         >
-          {columns.map((column, at) => (
-            <div
-              key={column.code}
-              // The row is the drop target; the handle is what starts the
-              // drag, so a press on the tick still only ticks.
-              onDragOver={(event) => {
-                if (held !== null) {
+          {columns.map((column, at) => {
+            const edge = held === null ? null : dropEdge(order, held, over === at ? at : -1)
+            return (
+              <div
+                key={column.code}
+                // The row is the drop target; the handle is what starts the
+                // drag, so a press on the tick still only ticks.
+                onDragOver={(event) => {
+                  if (held !== null) {
+                    event.preventDefault()
+                    // Set here rather than on enter and cleared on leave: this
+                    // fires for as long as the pointer is on the row, so the
+                    // one under it is always the last to have spoken, and a
+                    // drag over a child never reads as a drag out of the row.
+                    setOver(at)
+                  }
+                }}
+                onDrop={(event) => {
                   event.preventDefault()
-                }
-              }}
-              onDrop={(event) => {
-                event.preventDefault()
-                if (held !== null) {
-                  move(held, at)
-                  setHeld(null)
-                }
-              }}
-              className={cn(
-                'text-2xs flex items-center gap-1.5 px-2 py-1 whitespace-nowrap hover:bg-zinc-900',
-                held === column.code && 'opacity-50',
-              )}
-            >
-              {onReorder === undefined ? null : (
-                <IconButton
-                  size="md"
-                  variant="muted"
-                  draggable
-                  aria-label={`Move ${column.label.toLowerCase()}`}
-                  title="Drag to reorder, or use the arrow keys"
-                  onDragStart={() => setHeld(column.code)}
-                  onDragEnd={() => setHeld(null)}
-                  onKeyDown={(event) => {
-                    const by = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0
-                    if (by !== 0) {
-                      event.preventDefault()
-                      onReorder(movedBy(order, column.code, by))
-                    }
-                  }}
-                  className="focus-visible:ring-info/60 shrink-0 cursor-grab rounded text-zinc-600 transition hover:text-zinc-300 focus-visible:ring-1 focus-visible:outline-none active:cursor-grabbing"
-                >
-                  <DotsSixVerticalIcon aria-hidden="true" />
-                </IconButton>
-              )}
-              <div className="flex flex-1 cursor-pointer items-center gap-2">
-                <Checkbox
-                  name={`column-${column.code}`}
-                  checked={shown.includes(column.code)}
-                  onChange={() => onToggle(column.code)}
-                  size="sm"
-                  aria-label={column.label}
-                />
-                <span className="text-zinc-200">{column.label}</span>
+                  if (held !== null) {
+                    move(held, at)
+                    setHeld(null)
+                  }
+                }}
+                className={cn(
+                  'text-2xs relative flex items-center gap-1.5 px-2 py-1 whitespace-nowrap hover:bg-zinc-900',
+                  held === column.code && 'opacity-50',
+                )}
+              >
+                {/*
+                  **Where it would land** (Paul, 2026-09-11), drawn on the edge
+                  `shared/column-order.ts` says the drop resolves to rather than
+                  on the one under the pointer — the two differ whenever the
+                  drag is downwards, and a line that lies about the drop is
+                  worse than none.
+
+                  Absolutely positioned, so the rows under it do not step down
+                  by two pixels as the line moves between them; `-top-px` and
+                  `-bottom-px` put it *on* the boundary rather than inside one
+                  of the two rows it divides.
+
+                  Blue, and not the `info` accent every other affordance here
+                  wears: this is a thing being carried rather than a control
+                  being answered, and the accent is teal against this ground —
+                  which is not what was asked for, and reads as one more
+                  highlighted control on a panel already full of them.
+                */}
+                {edge === null ? null : (
+                  <div
+                    aria-hidden="true"
+                    data-drop-edge={edge}
+                    className={cn(
+                      'pointer-events-none absolute inset-x-0 h-0.5 bg-blue-500',
+                      edge === 'above' ? '-top-px' : '-bottom-px',
+                    )}
+                  />
+                )}
+                {onReorder === undefined ? null : (
+                  <IconButton
+                    size="md"
+                    variant="muted"
+                    draggable
+                    aria-label={`Move ${column.label.toLowerCase()}`}
+                    title="Drag to reorder, or use the arrow keys"
+                    onDragStart={() => setHeld(column.code)}
+                    onDragEnd={() => {
+                      setHeld(null)
+                      setOver(null)
+                    }}
+                    onKeyDown={(event) => {
+                      const by = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0
+                      if (by !== 0) {
+                        event.preventDefault()
+                        onReorder(movedBy(order, column.code, by))
+                      }
+                    }}
+                    className="focus-visible:ring-info/60 shrink-0 cursor-grab rounded text-zinc-600 transition hover:text-zinc-300 focus-visible:ring-1 focus-visible:outline-none active:cursor-grabbing"
+                  >
+                    <DotsSixVerticalIcon aria-hidden="true" />
+                  </IconButton>
+                )}
+                <div className="flex flex-1 cursor-pointer items-center gap-2">
+                  <Checkbox
+                    name={`column-${column.code}`}
+                    checked={shown.includes(column.code)}
+                    onChange={() => onToggle(column.code)}
+                    size="sm"
+                    aria-label={column.label}
+                  />
+                  <span className="text-zinc-200">{column.label}</span>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </Menu.Popover>
     </Menu>
