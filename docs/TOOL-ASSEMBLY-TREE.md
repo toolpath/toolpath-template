@@ -207,11 +207,19 @@ this assembly`, because a rack is narrowed to what fits a stack only while
   "I need to see the context aware changes I'm making, or I just need one button
   to confirm what is selected in the tool assembly."
 - **One drawing, whichever slot is open.** `<ToolDetails>` owns the sheet and
-  its Tool / Tool + holder switch; selecting a holder or a collet changes only
-  the column underneath it, through that panel's `details` prop. A second
-  drawing for the holder is what this replaces — it came out lying on its side,
-  because `orientationFor` reads the box it is given, and it took the switch
-  away the moment somebody looked at a holder.
+  the press that frames it — _Zoom to tool_ / _Zoom out_, which cuts the sheet
+  just above the holder nose rather than dropping the holder out of the
+  picture. Selecting a holder or a collet changes only the column underneath
+  it, through that panel's `details` prop. A second drawing for the holder is
+  what this replaces — it came out lying on its side, because `orientationFor`
+  reads the box it is given, and it took the press away the moment somebody
+  looked at a holder.
+
+  **It used to be a Tool / Tool + holder switch** (replaced 2026-09-11). That
+  let the one picture on the page disagree with the tree about what was on the
+  tool — the tree with a holder in its slot, the sheet with a bare cutter. What
+  a reader wanted from the _Tool_ half was the working end drawn bigger, which
+  `@toolpath/tool-drawing`'s `zoom` prop now frames itself.
 
 **And an assembly need not answer a feature at all** (Paul, 2026-09-08). _+
 Tool Assembly_, over the top-left of the part, makes a row of its own that holds
@@ -908,6 +916,42 @@ in turn on 2026-09-09, along with the group editor's confirm and both Cancels:
 the press under the stack makes the row and orders the assembly in one go, and
 an **X** in the top right of the box is the way out of all three. See
 `docs/FEATURE-LIST.md` § _The X in the corner_.
+
+### What the dropdowns left behind, 2026-09-11
+
+The dropdowns themselves came off on 2026-09-10, in two places on the same day:
+the Holder and Collet columns off `PartToolTable`, and the panel's own pair off
+`ToolDetails` — § _Where the rules live_ above has both. What they left behind
+was the machinery on the route that had fed them, and it outlived them by a day
+because nothing on screen was drawn from it any more.
+
+`picked` was a map of holder and collet guids keyed by tool, written only by the
+panel's dropdowns. With those gone it had no writer at all, so it could only
+ever be empty — and an empty map still read like an unsaved answer at three call
+sites. Gone, and with it:
+
+- The `pick` and `saveAssembly` callbacks, whose only caller was the panel, and
+  the per-tool `optionsFor` cache that fed them.
+- `panelActions`'s `assemblyChanged`, which compared `picked` against the ordered
+  line to offer _Update_. The panel holds nothing to differ with now, so it is
+  `false`. Reading the empty pick as a change would have offered _Update_ on
+  every tool ordered with a holder.
+
+**And the switch over the sheet went with them**, for the reason the dropdowns
+did: it was a second answer to a question the tree settles. _Tool_ / _Tool +
+holder_ let the one picture on the page draw a bare cutter beside a stack the
+tree had fully assembled. What a reader wanted from the _Tool_ half was the
+working end drawn bigger, so the press is now a zoom — `@toolpath/tool-drawing`'s
+`zoom` prop, which cuts the sheet just above the holder nose rather than dropping
+the holder out of the picture. `ToolDetails` holds it as `Zoom` state and the
+sheet is the stack either way, so `LBH` reads the stack's stickout under both
+framings; `components/tool-details.test.tsx` § _prints the stickout the stack is
+drawn at_ is the sensor, and it presses the zoom to say so.
+
+`OrderDialog` still carries a holder and collet pair of its own and was **left
+standing**: it has been unreachable since before any of this — `setAdding` is
+only ever called with `null` — so removing it is a separate decision about a
+separate dialog.
 
 What went with it that had no home under the tree: the **Show compatible end
 mills** press, which lived inside the drill tab and so had already been

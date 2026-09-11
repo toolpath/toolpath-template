@@ -15,6 +15,11 @@ import appCss from './styles.css?url'
 
 export const links = () => [
   { rel: 'stylesheet', href: appCss },
+  // Toolpath's own mark, from toolpath.com's declared `rel="icon"`. Declaring
+  // it stops the browser guessing at `/favicon.ico`, which nothing serves —
+  // that guess reached React Router as a document and logged a 404 stack
+  // trace on every boot.
+  { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
   // The same type scale as the rest of the portal: Open Sans for UI copy,
   // Nunito for headings, and Roboto Mono for identifiers and measured values.
   { rel: 'preconnect', href: 'https://fonts.googleapis.com' },

@@ -48,21 +48,38 @@ export const viewerFor = (stack: MeasuredStack, measured = true): ViewerAssembly
   return toViewerAssembly(stack, profile)
 }
 
-/** How wide the cut itself is, which is what every gap is measured past. */
-export const cuttingRadiusOf = (tool: Pick<CatalogTool, 'geometry'>): number =>
-  (tool.geometry.DC ?? 0) / 2
+/**
+ * How wide the cut itself is, which is what every gap is measured past — and
+ * `null` where the tool states no cutting diameter at all.
+ *
+ * **Null rather than nought** (Paul, 2026-09-11). `(DC ?? 0) / 2` put the
+ * material's inner face on the centreline for a tool publishing no diameter,
+ * so the wall was measured, and drawn, straight through the tool it was
+ * supposed to stand clear of. `typeof` rather than `!== undefined`, because
+ * the type says `Record<string, number>` and a catalog built from a vendor
+ * that published no cutting diameter carries `null` at runtime — which is the
+ * case the old guard was written for and the one it missed.
+ *
+ * A tool with no flank has nothing to measure a gap from, so every caller
+ * reads nothing rather than a number taken from `r = 0`.
+ */
+export const cuttingRadiusOf = (tool: Pick<CatalogTool, 'geometry'>): number | null => {
+  const stated = tool.geometry.DC
+  return typeof stated === 'number' && stated > 0 ? stated / 2 : null
+}
 
 /**
  * Both tightest gaps for one stack against one feature, or null with nothing
- * to measure — no feature, or a form the package draws no outline for.
+ * to measure — no feature, no cutting diameter, or a form the package
+ * draws no outline for.
  */
 export const gapsFor = (
   viewer: ViewerAssembly,
   curve: ReachCurve | null,
-  cuttingRadius: number,
+  cuttingRadius: number | null,
   margins: Margins,
 ): Gaps | null => {
-  if (curve === null) {
+  if (curve === null || cuttingRadius === null) {
     return null
   }
   const outline = assemblyOutline(viewer)

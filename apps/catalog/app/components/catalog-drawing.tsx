@@ -11,14 +11,23 @@ import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import {
   SHEETS,
   ToolDrawing,
+  useDrawingContext,
   type Box,
   type Extent,
   type Padding,
   type Sheet,
   type ViewerAssembly,
+  type Zoom,
 } from '@toolpath/tool-drawing'
 import { ClearanceOverlay, type Gaps } from '@toolpath/tool-drawing/clearance'
+import { useEffect, useRef } from 'react'
 import { assemblyLabel } from 'shared/assemblies'
+import {
+  clearanceCase,
+  clearanceReport,
+  type ClearanceCase,
+  type ClearanceDebugInput,
+} from 'shared/clearance-debug'
 import { cuttingRadiusOf, gapsFor, viewerFor } from 'shared/assembly-gaps'
 import { useTheme } from 'shared/use-theme'
 
@@ -41,16 +50,22 @@ import { useTheme } from 'shared/use-theme'
  * Room reserved on the `+r` flank for the material, in pixels.
  *
  * A number, because `<ToolDrawing>` is told its padding before it has measured
- * anything. The drawing this replaces gave the material whatever the panel had
- * spare, which it could do only because it did its own framing; the package
- * clamps an over-large request back to `MOST_OF_A_PANEL` — 0.6 of the axis —
- * and scales the dimension bands back with it.
+ * anything — the caller has to guess, and the guess is the same on every sheet
+ * this application draws.
  *
- * That clamp is a guard, not a layout: on the part page's tool panel, 240 px
- * of a 400 px-tall sheet *is* the whole 0.6, so the assembly was crushed into
- * the top third and the dimension bands with it (2026-09-03). So the room is a
- * prop, and this is the wide card's default rather than everybody's — see
- * {@link CatalogDrawingProps.materialRoom}.
+ * **One figure, asked generously** (2026-09-11). It used to be a prop, because
+ * `padding` was priced as a *margin*: the package clamped an over-large request
+ * to 0.6 of the axis and paid for it out of the scale, so 240 px on the part
+ * page's ~400 px panel was the whole allowance and the assembly came out
+ * crushed into the top third (2026-09-03). The wide card asked for 240 and the
+ * panel had to ask for 130 to dodge that.
+ *
+ * `@toolpath/tool-drawing` 1.0.0 retired those semantics: `padding` is now a
+ * *reservation*, granted out of room the drawing itself cannot use, so asking
+ * for more than the panel has costs the drawing nothing and a narrow sheet
+ * simply grants what it has. The package's own guidance is to ask for as much
+ * as the widest sheet could use — which is one number, not a per-caller one, so
+ * the prop and the panel's smaller figure both came off.
  */
 export const MATERIAL_ROOM = 240
 
@@ -75,6 +90,30 @@ export const MATERIAL_ROOM = 240
  * and leaves the hatched material, its break and the margin line standing.
  */
 const UNDIMENSIONED: Gaps = { axial: null, radial: null }
+
+/**
+ * The colour of the sheet the drawing is on, for the panel it sits in.
+ *
+ * **The drawing is a sheet of paper and the panel was a grey wash around it**
+ * (Paul, 2026-09-01), which read as a white rectangle inset in a card rather
+ * than as a drawing (Paul, 2026-09-11). A panel flush with the sheet has no
+ * inset to read, and the sheet reaches the card's own edge.
+ *
+ * It is a hook rather than a constant because the two grounds are not the same
+ * colour: white on a light page, and `#22252b` on a dark one, which is a step
+ * above the card on purpose — the package will not put a torch in a dark
+ * application. So a panel that hard-coded white would match in one theme and
+ * glare in the other.
+ *
+ * Here rather than in the panel because this is the file wired to
+ * `@toolpath/tool-drawing`: `SHEETS` is the package's word for its own ground,
+ * and a second copy of those two colours in a stylesheet is a drift with a
+ * delay on it.
+ */
+export const useSheetGround = (): string => {
+  const [theme] = useTheme()
+  return SHEETS[theme].ground
+}
 
 export interface CatalogDrawingProps {
   readonly tool: CatalogTool
@@ -115,14 +154,19 @@ export interface CatalogDrawingProps {
    */
   readonly measured?: boolean
   /**
-   * Room reserved on the `+r` flank for the material, in pixels.
+   * How much of the stack the sheet is framed to.
    *
-   * The caller's, because only the caller knows how much sheet there is: the
-   * package measures its panel *after* it has been told its padding, so it
-   * cannot ask for a share of an axis it has not seen yet. A narrow panel
-   * passes less; {@link MATERIAL_ROOM} is what a full-width card wants.
+   * `'assembly'` is the whole stack, `'tool'` the working end and a sliver of
+   * the holder above it. The package's own prop, handed straight on: the cut,
+   * the headroom above it and the refusal to zoom a tool that states no length
+   * are all its rules, and a second copy of them here would be a drift with a
+   * delay on it.
+   *
+   * The caller's rather than this file's because it is a reading decision —
+   * the panel that has a button for it passes what the button says, and a card
+   * beside a list has no button and takes the whole stack.
    */
-  readonly materialRoom?: number
+  readonly zoom?: Zoom
 }
 
 /**
@@ -148,6 +192,92 @@ export interface CatalogDrawingProps {
  * on the drawing. That is the verdict in the place it is about.
  */
 
+/**
+ * What the clearance wall was drawn from, in the console, while it is wrong.
+ *
+ * **Four of the overlay's inputs are only knowable from inside the sheet.** The
+ * curve and the cutting radius are this file's, but the extent the sheet was
+ * framed to, the panel as the `ResizeObserver` measured it and the room the
+ * frame actually granted on the `+r` flank are all settled after
+ * `<ToolDrawing>` has been called — so a caller debugging a wall that collapsed
+ * against the cut can see none of them. A child inside the drawing can: the
+ * frame reaches it through `useDrawingContext`, and the `<svg>` it is rendered
+ * into is the box that was measured.
+ *
+ * Dev only, and it draws nothing. It prints once per drawing rather than once
+ * per render — pointing at a dimension line re-renders the sheet and would
+ * otherwise fill the console — and leaves `__clearanceDebug()` behind, which
+ * reprints the report and returns the case as JSON for
+ * `scratchpad/reach-probe.mjs`.
+ */
+const ClearanceProbe = ({
+  about,
+  curve,
+  cuttingRadius,
+  profile,
+  margins,
+  asked,
+  stickout,
+}: Omit<ClearanceDebugInput, 'extent' | 'box' | 'granted' | 'scale' | 'fontSize' | 'viewBox'>) => {
+  const drawing = useDrawingContext()
+  /** An anchor in the sheet, for the one thing context does not publish: the measured box. */
+  const anchor = useRef<SVGGElement>(null)
+  const frame = drawing?.frame ?? null
+  const extent = drawing?.extent ?? null
+  /**
+   * One line per drawing, not one per render.
+   *
+   * The scale stands in for the panel: the box is measured after the paint that
+   * would have to report it, and every box that framed differently reaches here
+   * as a different scale.
+   */
+  const signature = JSON.stringify([
+    about,
+    curve.horizontalOffset,
+    curve.verticalOffset,
+    cuttingRadius,
+    extent,
+    frame?.scale,
+    frame?.reserve?.plus,
+  ])
+  useEffect(() => {
+    if (!import.meta.env.DEV || frame === null || extent === null) {
+      return
+    }
+    const measured = anchor.current?.ownerSVGElement?.getBoundingClientRect()
+    const input: ClearanceDebugInput = {
+      about,
+      curve,
+      cuttingRadius,
+      profile,
+      margins,
+      asked,
+      stickout,
+      extent,
+      box: { width: measured?.width ?? 0, height: measured?.height ?? 0 },
+      granted: { padding: frame.padding, reserve: frame.reserve ?? null },
+      scale: frame.scale,
+      fontSize: frame.fontSize,
+      viewBox: frame.viewBox,
+    }
+    const report = (): ClearanceCase => {
+      console.log(clearanceReport(input))
+      const shape = clearanceCase(input)
+      console.log('case.json for scratchpad/reach-probe.mjs:\n' + JSON.stringify(shape, null, 2))
+      return shape
+    }
+    report()
+    ;(window as unknown as { __clearanceDebug?: () => ClearanceCase }).__clearanceDebug = report
+    return () => {
+      delete (window as unknown as { __clearanceDebug?: () => ClearanceCase }).__clearanceDebug
+    }
+    // The signature is what identifies a drawing; the rest is read through it,
+    // so it is the whole dependency. (No `react-hooks` plugin is configured in
+    // this repository, so there is no exhaustive-deps directive to disable.)
+  }, [signature])
+  return <g ref={anchor} data-clearance-probe />
+}
+
 export const CatalogDrawing = ({
   tool,
   assembly = null,
@@ -159,7 +289,7 @@ export const CatalogDrawing = ({
   highlight = null,
   onDimensionHover,
   measured = true,
-  materialRoom = MATERIAL_ROOM,
+  zoom = 'assembly',
 }: CatalogDrawingProps) => {
   const [theme] = useTheme()
   const format = (millimetres: number) => formatLength(millimetres, unit)
@@ -175,9 +305,25 @@ export const CatalogDrawing = ({
    * drawing is the number the tool list sorted on.
    */
   const verdict = curve !== null && assembly !== null ? clearance(assembly, curve, margins) : null
+  /**
+   * The flank the material stands beside, and `null` where the tool has none.
+   *
+   * **A reach curve is measured out from the cut**, so every r the overlay
+   * draws is `cuttingRadius + offset` and the wall's inner face *is* the
+   * cutting radius. `(DC ?? 0) / 2` put that face on the centreline for any
+   * tool stating no cutting diameter, and the guard beside it —
+   * `DC !== undefined` — let one through: a `DC` of `null` or `0` is not
+   * `undefined`, so the wall was drawn, from `r = 0`, straight through the
+   * tool it was supposed to stand clear of (Paul, 2026-09-11).
+   *
+   * The guard is `cuttingRadiusOf` rather than this expression, because the
+   * three boxes under this sheet measure off the same radius: a fix applied
+   * to the drawing alone would leave a box reading a gap taken from `r = 0`
+   * while the picture beside it had stopped drawing one.
+   */
   const cuttingRadius = cuttingRadiusOf(tool)
   const profile =
-    curve !== null && tool.geometry.DC !== undefined ? materialProfile(curve, cuttingRadius) : null
+    curve !== null && cuttingRadius !== null ? materialProfile(curve, cuttingRadius) : null
   /**
    * The gaps, measured where every other reader of them measures them.
    *
@@ -185,11 +331,14 @@ export const CatalogDrawing = ({
    * this sheet show the same two numbers the caption below writes out, and two
    * measurements of one gap is the divergence-with-a-delay this repository has
    * paid for once already.
+   *
+   * A tool with no flank has nothing to measure from, so the gaps go with it,
+   * `overlaid` turns off, and the sheet is the tool on its own.
    */
   const gaps = gapsFor(viewer, curve, cuttingRadius, margins)
 
   const overlaid = profile !== null && gaps !== null
-  const padding: Partial<Padding> = overlaid ? { plus: materialRoom } : {}
+  const padding: Partial<Padding> = overlaid ? { plus: MATERIAL_ROOM } : {}
 
   return (
     <ToolDrawing
@@ -198,6 +347,7 @@ export const CatalogDrawing = ({
       caption={caption}
       dimensions={dimensions}
       dimensionSides={dimensionSides}
+      zoom={zoom}
       highlight={highlight}
       {...(onDimensionHover === undefined ? {} : { onDimensionHover })}
       padding={padding}
@@ -205,14 +355,27 @@ export const CatalogDrawing = ({
       verdict={null}
       className="size-full"
     >
-      {overlaid && profile !== null && gaps !== null ? (
-        <ClearanceOverlay
-          profile={profile}
-          cuttingRadius={cuttingRadius}
-          gaps={UNDIMENSIONED}
-          margins={margins}
-          formatLength={format}
-        />
+      {overlaid && profile !== null && gaps !== null && cuttingRadius !== null ? (
+        <>
+          <ClearanceOverlay
+            profile={profile}
+            cuttingRadius={cuttingRadius}
+            gaps={UNDIMENSIONED}
+            margins={margins}
+            formatLength={format}
+          />
+          {import.meta.env.DEV && curve !== null ? (
+            <ClearanceProbe
+              about={caption}
+              curve={curve}
+              cuttingRadius={cuttingRadius}
+              profile={profile}
+              margins={margins}
+              asked={padding}
+              stickout={viewer.stickout}
+            />
+          ) : null}
+        </>
       ) : null}
     </ToolDrawing>
   )

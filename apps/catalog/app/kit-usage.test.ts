@@ -15,20 +15,22 @@ const componentFiles = (dir: string): Array<string> =>
 /**
  * The file with its comments taken out.
  *
- * A sensor that reads source rather than exercising it counts whatever the
- * regex sees, and on 2026-09-09 that was five `<button>`s written *in prose* —
- * `feature-list-panel.tsx` explaining which box a rule is given on, and
- * `assembly-tree-panel.tsx` explaining `min-width: auto`. The kit was being
- * used correctly everywhere and the gate was red, which is the one thing a
- * sensor must never do: a false alarm gets the check disabled, and then the
- * real rule is a comment again.
+ * `<button>` appears in this application's prose about as often as in its
+ * markup, and every mention is a component explaining why it reached for a kit
+ * `Button` instead — so counting the raw text reports the rule being *kept* as
+ * the rule being broken. It did: five mentions across `feature-list-panel.tsx`
+ * and `assembly-tree-panel.tsx` failed this check against a budget of zero on
+ * 2026-09-10, with no hand-authored button anywhere in either file. A false
+ * alarm is the one thing a sensor must never raise — it gets the check
+ * disabled, and then the real rule is a comment again.
  *
+ * Scanning rather than parsing, which is what the rest of this file does.
  * `/* … *\/` covers a JSX comment too, since `{/* … *\/}` is a block comment in
- * braces. A `//` only counts from the start of a line so that a `https://` in a
- * string does not swallow the rest of its line along with a tag on it.
+ * braces. The `[^:]` is what keeps `https://` from eating the rest of a line,
+ * and with it a real control written after a URL.
  */
 const withoutComments = (source: string): string =>
-  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  source.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/(^|[^:])\/\/.*$/gm, '$1')
 
 const countTag = (file: string, tag: string): number =>
   withoutComments(readFileSync(file, 'utf8')).match(new RegExp(`<${tag}[\\s>]`, 'g'))?.length ?? 0

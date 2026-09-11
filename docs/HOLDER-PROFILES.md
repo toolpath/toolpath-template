@@ -159,7 +159,7 @@ holders at all.
 
 379 of the 555 publish a `cadModelUrl` to measure. The remaining 176 have no
 silhouette from any source; `drawable` in `apps/catalog/app/shared/holder-choice.ts`
-is what keeps them out of the holder dropdown, checked against the real
+is what keeps them off the holder slot's table, checked against the real
 `assemblyOutline` in `holder-drawable.test.ts` rather than restating the
 package's gate.
 

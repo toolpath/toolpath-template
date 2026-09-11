@@ -19,6 +19,15 @@ export const DEV_SERVER_EXCLUDE: Array<string | RegExp> = [
   /^\/@.+$/,
   /\?t=\d+$/,
   /^\/favicon\.ico$/,
+  // The rest of the icons a browser asks for unprompted. `root.tsx` declares
+  // `/favicon.svg`, and a browser that ignores the declaration still guesses
+  // at `.png` or an apple-touch icon; each guess is Vite's to answer or 404
+  // quietly, never a document for React Router to fail to route.
+  /^\/(?:favicon|apple-touch-icon)[\w-]*\.(?:ico|svg|png)$/,
+  // Chrome asks for this on every DevTools open, looking for a workspace
+  // mapping nobody here publishes. It is not a route, so React Router logged
+  // a "No route matches" stack trace each time DevTools came up.
+  /^\/\.well-known\/.*/,
   /^\/static\/.+/,
   /^\/node_modules\/.*/,
   '/assets/**',

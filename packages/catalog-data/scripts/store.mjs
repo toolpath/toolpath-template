@@ -70,3 +70,73 @@ export const writeMergedScrape = () => {
     collets: collets.length,
   }
 }
+
+/** One family's measurements, as `profiles.mjs` writes them beside the family. */
+const isProfileDocument = (name) => name.endsWith('.profiles.json')
+
+/** The path `profiles.mjs` writes one family's measurements to. */
+export const profilesFileFor = (familyDocument) =>
+  resolve(HOLDING, familyDocument.replace(/\.json$/, '.profiles.json'))
+
+/**
+ * Rebuild `profiles.json` from every measurement in the store.
+ *
+ * **The counterpart of {@link writeMergedScrape}, and it exists for the same
+ * reason.** Until 2026-09-10 `profiles.mjs` merged from an accumulator holding
+ * only what that invocation had measured, and overwrote `profiles.json` with
+ * it — so a `--only` run truncated the document to one family, and a run that
+ * died before its last line wrote nothing at all. Both happened the same
+ * afternoon: a two-holder smoke test cut the document from 374 holders to 2,
+ * and then a `read ETIMEDOUT` on a vendor CDN killed the full run at 137 of 158
+ * families with 1,421 measurements sitting on disk and 2 in the file the
+ * application reads.
+ *
+ * Reading the store back is what makes those two failures cost nothing, and it
+ * is why the store is a store rather than a cache.
+ *
+ * `ingest` is handed in so this module stays `fs` and nothing else — the shape
+ * the application reads is `src/`'s to decide, exactly as the toolholding
+ * handoff is.
+ */
+export const writeMergedProfiles = (ingest, { kernelVersion, options }) => {
+  const holders = {}
+  const documents = existsSync(HOLDING)
+    ? readdirSync(HOLDING)
+        .filter(isProfileDocument)
+        .sort()
+        .map((name) => JSON.parse(readFileSync(resolve(HOLDING, name), 'utf8')))
+    : []
+
+  for (const document of documents) {
+    Object.assign(holders, document.holders ?? {})
+  }
+
+  // The kernel that measured this run, falling back to whatever the store last
+  // recorded: a merge with nothing new in it still has to name a kernel, and
+  // the documents are the only place one is written down.
+  const kernel =
+    kernelVersion ||
+    documents
+      .map((one) => one.kernelVersion)
+      .filter(Boolean)
+      .pop()
+
+  const profiles = ingest({
+    profilesVersion: 1,
+    unit: 'millimeters',
+    kernelVersion: kernel ?? '',
+    options,
+    holderCount: Object.keys(holders).length,
+    holders,
+  })
+
+  const out = resolve(ROOT, 'profiles.json')
+  writeFileSync(out, `${JSON.stringify(profiles, null, 2)}\n`, 'utf8')
+
+  return {
+    path: out,
+    families: documents.length,
+    holders: Object.keys(profiles.holders).length,
+    complete: Object.values(profiles.holders).filter((profile) => profile.complete).length,
+  }
+}

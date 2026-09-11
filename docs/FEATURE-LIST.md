@@ -449,6 +449,21 @@ Opens the group editor, seeded with whatever is already clicked.
     was folded from, deduplicated, so a group of thirty-nine identical holes
     says its line once — and `featureTag` on the fold's answer still says it for
     anything that wants to.
+  - **The material around it folds the same way**, and is the one fold that is
+    not a number on the strip: a reach curve is a staircase of material heights
+    by offset out from the cut, read from the bottom of the feature — which is
+    where the tool's tip is when it is in that feature — so a group's curve is
+    the pointwise maximum of its features'. `groupCurve` in
+    `shared/group-geometry.ts`, over whatever `asked()` says is being asked —
+    `askedCurve` beside it is that scope — and `heightAt` in
+    `@toolpath/tool-support` is the reader it folds
+    through so the drawing and the sweep cannot disagree about where a rise
+    comes. It was the _focused_ feature's alone — the face clicked last — so a
+    group of a shallow pocket and a deep slot was drawn, swept and judged
+    against whichever of the two that happened to be, and the verdict under the
+    drawing changed when nothing about the question had (Paul, 2026-09-11). A
+    group asked for one tool **each** is exempt: every feature gets its own
+    tool, so there is nothing to fold.
 - **There is no confirm on the box** (Paul, 2026-09-09). _Create group and add
   tool_ and the **Cancel** beside it are gone: the group is created and put on
   the order list by the press under the stack that answers it, in one press.
@@ -1028,6 +1043,7 @@ true of the work the worker does:
 | the list on screen                           | `app/components/feature-list-panel.tsx`               |
 | building a group                             | `app/components/group-editor.tsx`                     |
 | a group's worst case, and whose it is        | `app/shared/group-geometry.ts`                        |
+| the material a whole question has to clear   | `askedCurve`, same file                               |
 | the one bore a group shares                  | `sharedHoleDiameter`, same file                       |
 | what a click on the part means, group or not | `Interaction.collecting`, `part-interaction.ts`       |
 | where identical holes are grouped, once      | `{ type: 'group' }`, `part-interaction.ts`            |

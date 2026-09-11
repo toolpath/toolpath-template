@@ -1011,17 +1011,34 @@ the whole allowance: the clamp scaled the dimension bands back proportionally
 with it and the assembly was crushed into the top third of the sheet. The clamp
 is a guard against nonsense, not a layout.
 
-The fix stayed on this side: `MATERIAL_ROOM` is now the default of a
-`materialRoom` prop on `CatalogDrawing`, the drawing card keeps 240, and
-`tool-details.tsx` passes `PANEL_MATERIAL_ROOM = 130`.
-`catalog-drawing.test.tsx` pins that asking for less leaves the tool more of
-the sheet, so the prop cannot quietly become decoration.
+The fix stayed on this side at the time: `MATERIAL_ROOM` became the default of a
+`materialRoom` prop on `CatalogDrawing`, the drawing card kept 240, and
+`tool-details.tsx` passed `PANEL_MATERIAL_ROOM = 130`.
 
-**The package-side fix is still the better one and is still not taken**: teach
-`Padding` to accept a fraction of the panel as well as pixels, since the caller
-cannot know the panel width and the package measures it. That is a
-`@toolpath/tool-drawing` release and a version bump across two repositories
-(§ 12), which is why a prop was enough for now.
+**The package-side fix was taken in 1.0.0 — 2026-09-11.** Not as the fraction
+this section proposed, but by changing what `padding` _means_: it is a
+**reservation** rather than a margin, granted out of room the drawing itself
+cannot use. Asking for more than the panel has now costs the drawing nothing,
+and a narrow sheet grants what it has. The package's guidance is to ask for as
+much as the widest sheet could use — which is one number rather than a
+per-caller one, so the workaround came off with it:
+
+- `materialRoom` is gone from `CatalogDrawing`, which asks for `MATERIAL_ROOM`
+  always.
+- `PANEL_MATERIAL_ROOM` is gone from `tool-details.tsx`. It only ever existed to
+  dodge the clamp.
+- The test inverted. It pinned that asking for _less_ left the tool _more_ sheet
+  — the workaround's own symptom, and it fails on 1.0.0 because there is no
+  longer anything to trade. `catalog-drawing.test.tsx` § _frames the tool the
+  same whether or not it reserves room for the material_ now pins the guarantee
+  that made deleting the prop safe: the only reservation the component still
+  varies is whether there is an overlay to reserve for, and the tool must be
+  framed identically either way. Checked against 0.3.2, where it fails
+  (97.39 reserved against 90.55 bare), so it is a sensor rather than a
+  restatement.
+
+The upgrade is the reason this repository no longer carries a `link:` override
+onto the sibling checkout — see § 12.
 
 ### Phase 7 — Publish
 
