@@ -194,6 +194,51 @@ describe('the faces and weights', () => {
     ).toEqual([])
   })
 
+  /**
+   * The three boxes over the part, and the two controls drawn inside them.
+   *
+   * `+ Feature`, `+ Group` and `+ Tool Assembly` each open one of these, and
+   * between them they held fifteen type recipes — three sizes, two faces, two
+   * weights and six greys, with the same job done differently in each box
+   * (Paul, 2026-09-11: "can we get less text sizes and types in the feature,
+   * group, and tool assembly dialogs?"). The slot names were the clearest case:
+   * `TOOL`, `HOLDER` and `COLLET` are capitals typed into the data rather than
+   * set with `uppercase`, so the small-capitals check above could not see them
+   * and they had drifted a size and two greys away from every other label.
+   */
+  const DIALOGS = [
+    'app/components/selection-panel.tsx',
+    'app/components/group-editor.tsx',
+    'app/components/assembly-tree-panel.tsx',
+    'app/components/thread-picker.tsx',
+  ]
+
+  /** The named recipes — `shared/type.ts` is where a dialog's type comes from. */
+  const RECIPE = /\b(HEADING|SECTION_LABEL|TABLE_FACE|TABLE_INK|DIALOG_[A-Z]+)\b/
+
+  /**
+   * A copy without `/g`, because `SIZE` and `FACE` carry one.
+   *
+   * `RegExp.test` on a global pattern resumes from `lastIndex`, so calling it
+   * down a list of strings answers every second one `false` whatever it holds —
+   * a check that passes by alternating rather than by being kept.
+   */
+  const has = (pattern: RegExp, text: string): boolean => new RegExp(pattern.source).test(text)
+
+  it('names no type of its own in a dialog', () => {
+    const typed = DIALOGS.flatMap((file) =>
+      expressions(code(readFileSync(file, 'utf8')))
+        .filter((classes) => has(SIZE, classes) || has(FACE, classes))
+        .filter((classes) => !RECIPE.test(classes))
+        .map((classes) => `${file}: ${classes}`),
+    )
+
+    expect(
+      typed,
+      "A size, face or weight written into a dialog rather than taken from `shared/type.ts`. The vocabulary is DIALOG_TITLE, DIALOG_VALUE, DIALOG_TEXT, DIALOG_NOTE, DIALOG_EMPTY and SECTION_LABEL; `cn(DIALOG_VALUE, 'font-mono')` is how a value takes the mono face.",
+    ).toEqual([])
+  })
+
   it('sets small capitals one way', () => {
     const wrong = sourceFiles(appDir).flatMap((file) =>
       expressions(code(readFileSync(file, 'utf8')))

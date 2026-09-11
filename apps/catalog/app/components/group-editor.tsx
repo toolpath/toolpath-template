@@ -1,5 +1,5 @@
 import { XIcon } from '@phosphor-icons/react'
-import { Button } from '@toolpath/ui'
+import { Button, cn } from '@toolpath/ui'
 import type { UnitSystem } from '@toolpath/tool-support'
 import type { Results } from 'shared/feature-list'
 import { readingText } from 'shared/feature-defaults'
@@ -8,7 +8,7 @@ import type { HoleMode, ThreadSpec } from 'shared/threads'
 import { useEscape } from 'shared/use-escape'
 import { MeasurementIcon } from './feature-icons'
 import { ThreadPicker } from './thread-picker'
-import { SECTION_LABEL } from 'shared/type'
+import { DIALOG_EMPTY, DIALOG_NOTE, DIALOG_TEXT, DIALOG_VALUE, SECTION_LABEL } from 'shared/type'
 
 /**
  * Building a group: which features are in it.
@@ -177,7 +177,7 @@ export const GroupEditor = ({
       2026-09-08). One tool for all of them is the only question a group asks,
       so the sentence that used to sit under a radio says it instead.
     */}
-      <p className="text-2xs text-zinc-500">
+      <p className={DIALOG_NOTE}>
         Select a feature on the part to add it to the group. The Tool Catalog will find tools
         compatible with all features in the group.
       </p>
@@ -185,7 +185,13 @@ export const GroupEditor = ({
       {/* What is in it, each with the way out. Empty says so rather than
         leaving a gap somebody has to interpret. */}
       {tags.length === 0 ? (
-        <p className="text-2xs rounded border border-dashed border-zinc-800 px-2 py-1.5 text-zinc-600">
+        <p
+          className={cn(
+            DIALOG_NOTE,
+            DIALOG_EMPTY,
+            'rounded border border-dashed border-zinc-800 px-2 py-1.5',
+          )}
+        >
           Nothing in this group yet.
         </p>
       ) : (
@@ -210,7 +216,10 @@ export const GroupEditor = ({
                 size="sm"
                 aria-label={`Take ${nameOf(tag)} out of the group`}
                 onClick={() => onDrop(tag)}
-                className="text-2xs focus-visible:ring-info/60 flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-zinc-300 hover:border-zinc-700 hover:text-zinc-100 focus-visible:ring-1 focus-visible:outline-none"
+                className={cn(
+                  DIALOG_TEXT,
+                  'focus-visible:ring-info/60 flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 hover:border-zinc-700 hover:text-zinc-100 focus-visible:ring-1 focus-visible:outline-none',
+                )}
               >
                 <span className="max-w-32 truncate">{nameOf(tag)}</span>
                 <XIcon aria-hidden="true" className="shrink-0 text-zinc-500" />
@@ -231,7 +240,7 @@ export const GroupEditor = ({
       */}
       {identical ? (
         <div className="border-info/40 bg-info/10 flex flex-col gap-1.5 rounded border px-2 py-1.5">
-          <p className="text-2xs text-zinc-300">
+          <p className={DIALOG_TEXT}>
             {identical.count - 1 === 1
               ? 'One other hole on this part is identical'
               : `${String(identical.count - 1)} other holes on this part are identical`}{' '}
@@ -272,7 +281,7 @@ export const GroupEditor = ({
           unit={unit}
         />
       ) : mixed ? (
-        <p className="text-2xs rounded border border-zinc-700 bg-zinc-800/60 px-2 py-1.5 text-zinc-400">
+        <p className={cn(DIALOG_TEXT, 'rounded border border-zinc-700 bg-zinc-800/60 px-2 py-1.5')}>
           The holes in this group are different sizes, so they cannot share one thread. Thread them
           one at a time.
         </p>
@@ -307,12 +316,12 @@ export const GroupEditor = ({
                 <span className="shrink-0 text-zinc-600">
                   <MeasurementIcon measurement={reading.icon} />
                 </span>
-                <dd className="font-mono text-xs text-zinc-100">
+                <dd className={cn(DIALOG_VALUE, 'font-mono')}>
                   {reading.value === null
                     ? 'differs'
                     : readingText({ unit: reading.unit, value: reading.value }, unit)}
                 </dd>
-                <dt className="text-2xs text-zinc-500">{reading.name}</dt>
+                <dt className={DIALOG_NOTE}>{reading.name}</dt>
               </div>
             ))}
           </dl>
@@ -332,7 +341,7 @@ export const GroupEditor = ({
       */}
       <div className="flex items-center gap-1.5">
         {tags.length > 0 && results === 'each' && matching === 'pending' ? (
-          <span role="status" className="text-2xs flex items-center gap-1 text-zinc-500">
+          <span role="status" className={cn(DIALOG_NOTE, 'flex items-center gap-1')}>
             <span
               aria-hidden="true"
               className="size-2.5 animate-spin rounded-full border-2 border-zinc-700 border-t-info"
@@ -341,17 +350,15 @@ export const GroupEditor = ({
           </span>
         ) : null}
         {tags.length > 0 && results === 'each' && matching === 'error' ? (
-          <span className="text-2xs text-danger">
+          <span className={cn(DIALOG_NOTE, 'text-danger')}>
             Unable to match tools. Change the group to retry.
           </span>
         ) : null}
         {tags.length > 0 && results === 'each' && matching === 'nothing-fits' ? (
-          <span className="text-2xs text-zinc-500">
-            Nothing in the catalog fits at least one feature.
-          </span>
+          <span className={DIALOG_NOTE}>Nothing in the catalog fits at least one feature.</span>
         ) : null}
         {tags.length > 0 && !picked && !(results === 'each' && matching !== 'ready') ? (
-          <span className="text-2xs text-zinc-500">
+          <span className={DIALOG_NOTE}>
             Pick a tool from the list below, then add the assembly to the order list.
           </span>
         ) : null}

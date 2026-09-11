@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Combobox } from '@toolpath/ui'
+import { Combobox, cn } from '@toolpath/ui'
 import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import {
   THREADS,
@@ -13,7 +13,7 @@ import {
   type ThreadSpec,
 } from 'shared/threads'
 import { CatalogComboboxButton } from './catalog-combobox-button'
-import { SECTION_LABEL } from 'shared/type'
+import { DIALOG_NOTE, DIALOG_VALUE, SECTION_LABEL } from 'shared/type'
 
 /**
  * How this hole is made, and for what thread.
@@ -97,9 +97,9 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
         </span>
       </div>
 
-      <div className="text-2xs flex items-baseline justify-between gap-2 text-zinc-500">
+      <div className={cn(DIALOG_NOTE, 'flex items-baseline justify-between gap-2')}>
         Modeled hole diameter:
-        <span className="font-mono text-zinc-200">⌀{formatLength(holeDiameter, unit)}</span>
+        <span className={cn(DIALOG_VALUE, 'font-mono')}>⌀{formatLength(holeDiameter, unit)}</span>
       </div>
 
       {/*
@@ -111,7 +111,7 @@ export const ThreadPicker = ({ holeDiameter, mode, spec, onChange, unit }: Threa
         first group in the list, each saying what it read as and by how much
         the model is off it.
       */}
-      <div className="text-2xs mt-0.5 flex flex-col gap-0.5 text-zinc-500">
+      <div className={cn(DIALOG_NOTE, 'mt-0.5 flex flex-col gap-0.5')}>
         <span>Thread:</span>
         <Combobox
           items={['', ...THREADS.map((each) => each.name)]}
