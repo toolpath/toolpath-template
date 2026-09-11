@@ -215,11 +215,22 @@ export const useColumnLayout = (key: string, columns: ReadonlyArray<LayoutColumn
    * The hidden set rewritten by a rule rather than by a press —
    * `hiddenAfterAuto`. Returning the same array leaves the stored layout
    * alone, which is what keeps a rule that decided nothing out of storage.
+   *
+   * **The rule is handed the whole layout, not just the hidden set** (Paul,
+   * 2026-09-11: "I hide corner radius and tip angle … I hit refresh. They come
+   * back. Local storage also changes to add them back in."). It used to take
+   * `hidden` alone, so the caller read `touched` out of its own render while
+   * `hidden` came from the update queue — and on the frame where the stored
+   * layout is restored those two are *different states*: `hidden` was already
+   * the restored one and `touched` was still the empty default. So
+   * `hiddenAfterAuto` concluded nobody had decided about corner radius, turned
+   * it back on, and wrote that over the shop's answer. A rule that reads two
+   * halves of one state has to be given one state to read.
    */
   const setHidden = useCallback(
-    (next: (hidden: ReadonlyArray<string>) => ReadonlyArray<string>) => {
+    (rule: (layout: ColumnLayout) => ReadonlyArray<string>) => {
       keep((current) => {
-        const hidden = next(current.hidden)
+        const hidden = rule(current)
         return hidden === current.hidden ? current : { ...current, hidden }
       })
     },

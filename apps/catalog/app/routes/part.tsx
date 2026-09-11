@@ -538,18 +538,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * stored answer means once the catalog's columns have moved under it.
    */
   const toolLayout = useColumnLayout(COLUMN_KEY.tools, TOOL_COLUMNS)
-  const {
-    hidden: hiddenColumns,
-    order: columnOrder,
-    /**
-     * The columns somebody has decided for themselves.
-     *
-     * Tip angle and corner radius follow the list — `shared/auto-columns.ts`
-     * is the rule — and a code in here is one the list stops deciding about.
-     */
-    touched: touchedColumns,
-    setHidden: setHiddenColumns,
-  } = toolLayout
+  const { hidden: hiddenColumns, order: columnOrder, setHidden: setHiddenColumns } = toolLayout
   /**
    * The tap list's columns, kept apart from the tool list's.
    *
@@ -2363,8 +2352,13 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    */
   const listedForms = useMemo(() => listed.map((each) => each.form), [listed])
   useEffect(() => {
-    setHiddenColumns((current) => hiddenAfterAuto(current, listedForms, new Set(touchedColumns)))
-  }, [listedForms, touchedColumns, setHiddenColumns])
+    // Both halves off one layout: what is hidden, and what somebody has already
+    // decided for themselves. `shared/column-layout.ts` § `setHidden` says what
+    // reading those two out of two different states cost.
+    setHiddenColumns((layout) =>
+      hiddenAfterAuto(layout.hidden, listedForms, new Set(layout.touched)),
+    )
+  }, [listedForms, setHiddenColumns])
   /**
    * The list narrowed by what was typed into the catalog number column.
    *

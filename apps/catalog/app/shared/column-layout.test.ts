@@ -157,15 +157,57 @@ describe('the press that edits the columns', () => {
    * The list turning a column on for itself is not a press. A width stored
    * under the set the list settles on has to survive the settling.
    */
-  it('leaves them alone when the list edits its own columns', () => {
+  it('leaves the widths alone when the list edits its own columns', () => {
     localStorage.setItem('table-part-tools.catalogNumber.brand.RE', '8px 40% 30% 30%')
     const { result } = renderHook(() => useColumnLayout(COLUMN_KEY.tools, COLUMNS))
 
     act(() => {
-      result.current.setHidden((hidden) => hidden.filter((code) => code !== 'RE'))
+      result.current.setHidden((layout) => layout.hidden.filter((code) => code !== 'RE'))
     })
 
     expect(widths()).toEqual(['table-part-tools.catalogNumber.brand.RE'])
     expect(result.current.hidden).not.toContain('RE')
+  })
+})
+
+/**
+ * The rule that edits the columns for the list, and the state it reads.
+ *
+ * **Both halves off one layout** (Paul, 2026-09-11: "I hide corner radius and
+ * tip angle … I hit refresh. They come back. Local storage also changes to add
+ * them back in."). `hiddenAfterAuto` asks two questions of this state — what is
+ * hidden, and what has somebody already decided — and the answer to the second
+ * is what stops it undoing the first. While the rule took only `hidden`, the
+ * caller had to read `touched` out of its own render, and on the frame where a
+ * stored layout is restored those are different states: the hidden set came
+ * from the update queue and `touched` was still the empty default.
+ */
+describe('a rule rewriting the hidden set', () => {
+  const COLUMNS: ReadonlyArray<LayoutColumn> = [
+    { code: 'DC', default: true },
+    { code: 'RE', default: false },
+  ]
+
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('reads what somebody decided out of the same layout as the hidden set', () => {
+    localStorage.setItem(
+      COLUMN_KEY.tools,
+      written({ hidden: ['RE'], order: ['DC', 'RE'], touched: ['RE'] }, COLUMNS),
+    )
+    const { result } = renderHook(() => useColumnLayout(COLUMN_KEY.tools, COLUMNS))
+    const seen: Array<ReadonlyArray<string>> = []
+
+    act(() => {
+      result.current.setHidden((layout) => {
+        seen.push(layout.touched)
+        return layout.hidden
+      })
+    })
+
+    // The restored answer, not the empty default the hook started at.
+    expect(seen).toEqual([['RE']])
   })
 })

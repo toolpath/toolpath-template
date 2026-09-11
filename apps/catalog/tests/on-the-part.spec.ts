@@ -864,6 +864,88 @@ test('the columns divide the panel, at every width and column set', async ({ pag
 })
 
 /**
+ * **A column the list would have turned on stays off once somebody turns it
+ * off** (Paul, 2026-09-11: "I hide corner radius and tip angle … I hit refresh.
+ * They come back. Local storage also changes to add them back in.").
+ *
+ * Corner radius and tip angle are the two the list decides for itself —
+ * `shared/auto-columns.ts` — until somebody decides instead, and that decision
+ * is stored with the rest of the layout. What broke it was the rule reading its
+ * two inputs out of two different states: on the frame where the stored layout
+ * is restored, the hidden set was already the restored one and the record of
+ * what somebody had decided was still the empty default, so the rule concluded
+ * nobody had decided and turned the column back on — over the top of the answer
+ * in storage. `shared/column-layout.ts` § `setHidden` is the fix.
+ *
+ * **The feature has to be on the order list for this to bite**, and that is the
+ * whole reason it is here rather than in a component test: the race needs the
+ * tool list to be populated on the first render, and a part page with nothing
+ * ordered has no tools until they arrive a tick later. A reload with the
+ * feature kept is the shop's ordinary case and the one that reproduces.
+ */
+test('keeps a column the shop turned off, even one the list decides for itself', async ({
+  page,
+}) => {
+  await ready(page)
+  /*
+    **Ordered, not merely read.** The race needs the tool list populated on the
+    *first* render after a reload, and that only happens when the page comes
+    back with something on the order list — a part page with nothing ordered has
+    no tools until they arrive a tick later, which is late enough for the
+    restored layout to have landed first. So this is the press under the card
+    that `ready` opened rather than `keepFeature`, which opens a row without
+    ordering it.
+  */
+  await page.getByRole('button', { name: /Add feature to list/ }).click()
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+
+  const headings = () =>
+    page.locator('[data-part-tool-table]').first().getByRole('columnheader').allInnerTexts()
+  const shows = async (label: string) =>
+    (await headings()).some((heading) => heading.includes(label))
+
+  // The list turned it on for the end mills it is holding, which is the rule
+  // this is about: there is something to undo.
+  expect(await shows('Corner radius')).toBe(true)
+
+  await page.getByRole('button', { name: 'Which columns to show' }).first().click()
+  const columns = page.getByRole('group', { name: 'Columns' }).first()
+  await expect(columns).toBeVisible()
+  await columns.getByRole('checkbox', { name: 'Corner radius' }).click()
+  await page.keyboard.press('Escape')
+  await expect(async () => {
+    expect(await shows('Corner radius')).toBe(false)
+  }).toPass()
+
+  await page.reload()
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+
+  /*
+    **Waited out rather than polled for.** This is an assertion that something
+    does *not* happen, and the thing that used to happen took a beat: the rule
+    runs when the tool list is populated, which is after the first row is on
+    screen. A `toPass` succeeds on its first look — before the defect has had
+    its say — and passed against the broken code when this was written.
+
+    Asserted twice over, because the defect wrote as well as drew: the column
+    came back *and* the answer in storage was replaced with one that had it
+    showing, so a shop could not fix it by reloading again either.
+  */
+  await page.waitForTimeout(2000)
+  expect(await shows('Corner radius')).toBe(false)
+  expect(
+    await page.evaluate(
+      () =>
+        (
+          JSON.parse(localStorage.getItem('tool-catalog.columns.tools')!) as {
+            hidden: Array<string>
+          }
+        ).hidden,
+    ),
+  ).toContain('RE')
+})
+
+/**
  * **A dragged width is kept, and kept only for the columns it was about**
  * (Paul, 2026-09-11: "the column widths should be stored in local storage but
  * invalidate the old stores/ids every time a column is added or hidden. The
