@@ -198,20 +198,16 @@ describe('PartToolTable', () => {
   })
 
   /**
-   * **Nothing about a column's width is remembered between visits.** The kit
-   * stores a dragged layout under the `id` it is given and hands it back on the
-   * next mount, which is a saved answer to a question a column being shown or
-   * hidden has already changed.
+   * **A dragged width is remembered, and only for the columns it was about.**
+   * The kit stores its track list under the `id` it is given, positionally, so
+   * the id is the column set — `shared/column-width.ts` says why at length, and
+   * `shared/column-width.test.ts` pins the id itself.
+   *
+   * Nothing here can check the id reaches the kit: it is hung on no DOM node,
+   * and the write happens on a `mouseup` inside the kit that jsdom cannot
+   * produce. `tests/on-the-part.spec.ts` § "keeps a dragged column width" is
+   * where that is answered, with a real pointer.
    */
-  it('gives the kit no id to store a column layout under', () => {
-    show({
-      columns: TOOL_COLUMNS,
-      hiddenColumns: [],
-      columnOrder: TOOL_COLUMNS.map((column) => column.code),
-    })
-
-    expect(Object.keys(localStorage).filter((key) => key.startsWith('table-'))).toHaveLength(0)
-  })
 
   it('asks for tracks that divide the panel rather than floors under it', () => {
     expect(flexibleColumnWidth('10rem')).toBe('minmax(0, 10fr)')

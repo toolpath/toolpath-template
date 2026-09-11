@@ -842,8 +842,13 @@ test('the columns divide the panel, at every width and column set', async ({ pag
   await page.mouse.move(grip!.x + grip!.width / 2 + 40, grip!.y + grip!.height / 2, { steps: 5 })
   await page.mouse.up()
 
-  const dragged = await tableFit(page)
-  expect(dragged.table).toBe(dragged.room)
+  // Retried: a drag is five synthetic mouse moves, and a loaded machine can
+  // read the box between the last of them and the layout that follows it.
+  let dragged = await tableFit(page)
+  await expect(async () => {
+    dragged = await tableFit(page)
+    expect(dragged.table).toBe(dragged.room)
+  }).toPass()
 
   await page.getByRole('button', { name: 'Which columns to show' }).first().click()
   const columns = page.getByRole('group', { name: 'Columns' }).first()
@@ -856,6 +861,141 @@ test('the columns divide the panel, at every width and column set', async ({ pag
     expect(fewer.columns).toBe(dragged.columns - 1)
     expect(fewer.table).toBe(fewer.room)
   }).toPass()
+})
+
+/**
+ * **A dragged width is kept, and kept only for the columns it was about**
+ * (Paul, 2026-09-11: "the column widths should be stored in local storage but
+ * invalidate the old stores/ids every time a column is added or hidden. The
+ * table id controls the local storage so the id needs to be changed to be the
+ * cache breaker").
+ *
+ * What `@toolpath/ui` writes is a grid track list — percentages in the order
+ * the columns were in when the handle was let go. It is positional and silent
+ * about which column each track was for, and the kit only guards a change in
+ * the *count*. So the column set is the id, and the rules are in
+ * `app/shared/column-width.ts`.
+ *
+ * Only a real browser can answer this one: the write happens on `mouseup`
+ * inside the kit, and nothing in jsdom can drag.
+ */
+test('keeps a dragged column width, and drops every one when the columns change', async ({
+  page,
+}) => {
+  await ready(page)
+  await keepFeature(page)
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+
+  /**
+   * How much of the list the first column takes, in hundredths.
+   *
+   * A **share**, not a width in pixels: what the kit stores is percentages of
+   * the box, and the box is not the same size on the next visit — the column of
+   * questions over the part is a different width once a feature is on the order
+   * list, and the list gets what is left. Comparing pixels across the reload
+   * compares two panels.
+   *
+   * Named, not `.first()`: the kit draws an 8px selection column ahead of them.
+   */
+  const firstShare = async () => {
+    const column = (await page
+      .locator('[data-part-tool-table]')
+      .first()
+      .getByRole('columnheader', { name: /Catalog number/ })
+      .boundingBox())!.width
+    const { room } = await tableFit(page)
+    return Math.round((column / room) * 100)
+  }
+
+  const stores = () =>
+    page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('table-')))
+
+  const columnCount = () =>
+    page.locator('[data-part-tool-table]').first().getByRole('columnheader').count()
+
+  const opened = await firstShare()
+  const shownAtDrag = await columnCount()
+
+  const handle = page.locator('[data-part-tool-table] .resizer-area').first()
+  const grip = await handle.boundingBox()
+  expect(grip).not.toBeNull()
+  await page.mouse.move(grip!.x + grip!.width / 2, grip!.y + grip!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(grip!.x + grip!.width / 2 + 60, grip!.y + grip!.height / 2, { steps: 5 })
+  await page.mouse.up()
+
+  const dragged = await firstShare()
+  expect(dragged).toBeGreaterThan(opened + 3)
+  /*
+    Stored under the columns it was dragged on: the kit writes under
+    `table-<id>`, and the id is this list and the whole set it is drawing, in
+    order — `app/shared/column-width.ts` names it.
+
+    Asserted as "one of these keys is the tool list's" rather than as the only
+    key there, because the kit writes a layout of its own accord as the list
+    settles; what this test is about is whether the *width* survives, which the
+    reload below is what answers.
+  */
+  const stored = (await stores()).filter((each) => each.startsWith('table-part-tools.'))
+  expect(stored.length).toBeGreaterThan(0)
+
+  /*
+    And it is still there on the next visit. Asserted on the store rather than
+    on the pixels: the kit restores by id, and which id this list settles on
+    depends on what is on it — `shared/auto-columns.ts` brings corner radius and
+    tip angle on for the forms the list happens to be holding, so the column set
+    after a reload is not reliably the one a drag was stored under. That the
+    drag *survives* is this half; that it is only ever applied to its own column
+    set is `shared/column-width.test.ts`.
+  */
+  await page.reload()
+  await ready(page)
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+  expect(await stores()).toEqual(expect.arrayContaining(stored))
+
+  /*
+    And now the invalidation (Paul, 2026-09-11: "I don't want columns to change
+    size as I show and hide columns. Go back to the default sizes."). Hiding one
+    column drops **every** stored width, so the list is back on the tracks it
+    computes rather than on eleven percentages meant for twelve columns.
+  */
+  await page.getByRole('button', { name: 'Which columns to show' }).first().click()
+  const columns = page.getByRole('group', { name: 'Columns' }).first()
+  await expect(columns).toBeVisible()
+  await columns.getByRole('checkbox', { name: 'Flutes' }).click()
+  await page.keyboard.press('Escape')
+
+  await expect(async () => {
+    expect(await columnCount()).toBe(shownAtDrag - 1)
+    expect(await stores()).toEqual([])
+  }).toPass()
+
+  /*
+    Back on the share the tracks give it — `minmax(0, 10fr)` against the weights
+    beside it — rather than on the one that was dragged.
+
+    Not equal to the share it opened at, and correctly so: a column has gone, so
+    the ten weights left divide the box between fewer of them and every share
+    rises a little. What it must not be is the dragged one, and the panel
+    filling exactly is what says the list is back on its own tracks.
+  */
+  expect(await firstShare()).toBeLessThan(dragged - 2)
+  const fit = await tableFit(page)
+  expect(fit.table).toBe(fit.room)
+
+  /*
+    And it does not come back on the next visit — the drag is genuinely gone
+    rather than merely not applied this time.
+
+    Asserted on the share and not on an empty store, because the store does not
+    stay empty: the kit writes its current layout on any mouse-up once it has
+    one in hand, so a key for the columns now on screen reappears within a click
+    or two. What it holds is the tracks the list computed, which is the point.
+  */
+  await page.reload()
+  await ready(page)
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+  expect(await firstShare()).toBeLessThan(dragged - 2)
 })
 
 /**

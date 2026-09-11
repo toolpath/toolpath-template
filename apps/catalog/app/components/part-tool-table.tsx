@@ -19,7 +19,7 @@ import type { ToolQuery } from 'shared/filter'
 import { markWords, type Mark } from 'shared/tool-marks'
 import type { BelowHolder } from 'shared/drawn-assembly'
 import { orderedCodes } from 'shared/column-order'
-import { DEFAULT_COLUMN_WIDTH, fillingWidth } from 'shared/column-width'
+import { DEFAULT_COLUMN_WIDTH, fillingWidth, widthId } from 'shared/column-width'
 import { useFittedColumns } from 'shared/use-fitted-columns'
 import { ToolTypeIcon } from './tool-icons'
 import {
@@ -476,9 +476,18 @@ export const PartToolTable = ({
   /** The open column, or nothing where it has since been hidden. */
   const openColumn = shown.find((column) => column.code === openFilter) ?? null
   const inside = useRef<HTMLDivElement>(null)
+  const codes = useMemo(() => shown.map((column) => column.code), [shown])
+  /**
+   * Where the kit keeps what somebody dragged — named after these columns.
+   *
+   * A stored track list is positional, so it is only ever an answer about the
+   * column set it was dragged on: `shared/column-width.ts` says why that is the
+   * id rather than a fixed one.
+   */
+  const widths = widthId('part-tools', codes)
   // The columns divide the panel; anything the kit's resizer froze onto it goes
   // when the panel or the column set changes.
-  useFittedColumns(inside, shown.map((column) => column.code).join(' '))
+  useFittedColumns(inside, codes.join(' '))
   const selectionCameFromTable = useRef(false)
   const setSelection = useCallback((next: SetStateAction<Selection>) => {
     setSelectedRows((current) => {
@@ -610,14 +619,15 @@ export const PartToolTable = ({
     >
       <div className="min-h-0 flex-1">
         {/*
-          **No `id`, and no `min-w-max`** (Paul, 2026-09-11). The kit stores a
-          dragged layout under its `id` and hands it back on the next visit,
-          which is a saved answer to a question — how wide is a column — that a
-          column being shown or hidden has already changed. And `min-w-max` was
-          half of what made the list open wider than its panel;
-          `shared/column-width` is the whole story.
+          **An id named after the columns, and no `min-w-max`** (Paul,
+          2026-09-11). The kit stores a dragged layout under its `id` and hands
+          it back on the next visit — which is worth keeping, and is only ever
+          an answer about the columns it was dragged on, so the column set *is*
+          the id. `min-w-max` was half of what made the list open wider than its
+          panel; `shared/column-width` is the whole story on both.
         */}
         <Table
+          id={widths}
           data={data}
           header={header}
           select

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_WEIGHT, columnWeight, fillingWidth } from './column-width'
+import {
+  DEFAULT_WEIGHT,
+  columnWeight,
+  fillingWidth,
+  forgetStoredWidths,
+  widthId,
+} from './column-width'
 
 /**
  * How wide a column is.
@@ -32,5 +38,79 @@ describe('how wide a column is', () => {
     expect(columnWeight('20%')).toBe(DEFAULT_WEIGHT)
     expect(columnWeight('0rem')).toBe(DEFAULT_WEIGHT)
     expect(columnWeight('')).toBe(DEFAULT_WEIGHT)
+  })
+})
+
+/**
+ * Where the kit keeps what somebody dragged (Paul, 2026-09-11: "the column
+ * widths should be stored in local storage but invalidate the old stores/ids
+ * every time a column is added or hidden").
+ *
+ * `@toolpath/ui` writes a grid track list under `table-<id>` — positional, and
+ * silent about which column each track was for. The kit guards the one case it
+ * can see, a change in the column *count*, and a swap or a reorder leaves that
+ * alone. So the id carries the column set, and a set that has changed asks a
+ * different key rather than being handed the wrong answer.
+ */
+describe('where a list keeps its dragged widths', () => {
+  it('names the id after the list and the columns on screen', () => {
+    expect(widthId('part-tools', ['catalogNumber', 'brand', 'DC'])).toBe(
+      'part-tools.catalogNumber.brand.DC',
+    )
+  })
+
+  it('asks a different key once a column is hidden, added or moved', () => {
+    const shown = ['catalogNumber', 'brand', 'DC']
+    const hidden = widthId('part-tools', ['catalogNumber', 'DC'])
+    const added = widthId('part-tools', [...shown, 'RE'])
+    // A reorder is a rearrangement of the very positions a track list indexes.
+    const moved = widthId('part-tools', ['brand', 'catalogNumber', 'DC'])
+    const same = widthId('part-tools', shown)
+
+    expect(new Set([hidden, added, moved, same]).size).toBe(4)
+    expect(widthId('part-tools', shown)).toBe(same)
+  })
+
+  /**
+   * **Editing the columns puts every list back on its defaults** (Paul,
+   * 2026-09-11: "I don't want columns to change size as I show and hide
+   * columns"). Every list, not this one: a stored width is an answer about a
+   * column set, and the press that edits one set has invalidated the idea that
+   * an old answer is worth resurfacing.
+   */
+  describe('clearing the stored widths', () => {
+    const store = (entries: Record<string, string>): Storage => {
+      const held = new Map(Object.entries(entries))
+      return {
+        get length() {
+          return held.size
+        },
+        key: (at: number) => [...held.keys()][at] ?? null,
+        getItem: (key: string) => held.get(key) ?? null,
+        setItem: (key: string, value: string) => held.set(key, value),
+        removeItem: (key: string) => void held.delete(key),
+        clear: () => held.clear(),
+      } as Storage
+    }
+
+    it('drops every width any list has stored, and nothing else', () => {
+      const held = store({
+        'table-part-tools.catalogNumber.brand': 'a',
+        'table-part-tools.catalogNumber.brand.DC': 'b',
+        'table-part-holders.catalogNumber': 'c',
+        'tool-catalog.columns.tools': 'd',
+        'tool-catalog.preferences': 'e',
+      })
+
+      forgetStoredWidths(held)
+
+      expect(held.length).toBe(2)
+      expect(held.getItem('tool-catalog.columns.tools')).toBe('d')
+      expect(held.getItem('tool-catalog.preferences')).toBe('e')
+    })
+
+    it('does nothing where a browser has no storage', () => {
+      expect(() => forgetStoredWidths(null)).not.toThrow()
+    })
   })
 })

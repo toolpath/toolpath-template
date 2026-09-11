@@ -12,7 +12,7 @@ import { Table, cn } from '@toolpath/ui'
 import type { Collet, Holder } from '@toolpath/catalog-data'
 import type { UnitSystem } from '@toolpath/tool-support'
 import { orderedCodes } from 'shared/column-order'
-import { DEFAULT_COLUMN_WIDTH, fillingWidth } from 'shared/column-width'
+import { DEFAULT_COLUMN_WIDTH, fillingWidth, widthId } from 'shared/column-width'
 import { useFittedColumns } from 'shared/use-fitted-columns'
 import {
   colletTypeLabel,
@@ -242,8 +242,11 @@ export const ComponentTable = ({
   /** The open column, or nothing where it has since been hidden. */
   const openColumn = shown.find((column) => column.code === openFilter) ?? null
   const inside = useRef<HTMLDivElement>(null)
+  const codes = useMemo(() => shown.map((column) => column.code), [shown])
+  /** Where the kit keeps what somebody dragged — `PartToolTable` says why. */
+  const widths = widthId(`part-${kind}s`, codes)
   // The columns divide the panel, the same rule the tool list keeps.
-  useFittedColumns(inside, shown.map((column) => column.code).join(' '))
+  useFittedColumns(inside, codes.join(' '))
   /**
    * Whose move the selection was — the same guard `PartToolTable` keeps, and
    * for the same reason: without it the row the tree already holds is reported
@@ -359,8 +362,9 @@ export const ComponentTable = ({
       className={cn(TABLE_FACE, TABLE_INK, 'flex min-h-0 min-w-0 flex-1 flex-col')}
     >
       <div className="min-h-0 flex-1">
-        {/* No stored layout and no `min-w-max`: `PartToolTable` says why. */}
+        {/* An id named after the columns, and no `min-w-max`: `PartToolTable` says why. */}
         <Table
+          id={widths}
           data={data}
           header={header}
           select

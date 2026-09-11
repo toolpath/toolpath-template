@@ -1,15 +1,26 @@
-import { describe, expect, it } from 'vitest'
-import { defaultLayout, readLayout, reconciled, written, type LayoutColumn } from './column-layout'
+import { act, renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it } from 'vitest'
+import {
+  COLUMN_KEY,
+  defaultLayout,
+  readLayout,
+  reconciled,
+  useColumnLayout,
+  written,
+  type LayoutColumn,
+} from './column-layout'
 
 /**
  * Which columns a list shows, and in what order, across a reload.
  *
  * The whole risk in storing this is the *second* visit: a stored answer is
  * about the columns that existed when it was written, and this catalog's column
- * sets move. Column widths were taken out of storage on 2026-09-11 for exactly
- * that reason — the kit stores them positionally, so hiding one re-applies
- * every width to the wrong column. Codes survive that, but only if what comes
- * back is reconciled rather than trusted, which is what this pins.
+ * sets move. Codes survive that, but only if what comes back is reconciled
+ * rather than trusted, which is what this pins.
+ *
+ * A column *width* is the other case: it is stored positionally, so it cannot
+ * be reconciled at all and is thrown away instead — `shared/column-width.ts`,
+ * and the press that throws it is at the bottom of this file.
  */
 const COLUMNS: ReadonlyArray<LayoutColumn> = [
   { code: 'catalogNumber', default: true },
@@ -91,5 +102,70 @@ describe('the columns a list shows', () => {
     const stored = written({ hidden: [], order: [], touched: ['RE'] }, COLUMNS)
 
     expect(readLayout(stored, later)).toMatchObject({ hidden: ['SIG'], touched: ['RE'] })
+  })
+})
+
+/**
+ * The press that edits the columns, and what it costs a dragged width.
+ *
+ * **Every stored width goes** (Paul, 2026-09-11: "on changing columns
+ * shown/hidden delete all localstorage keys saving column widths … Go back to
+ * the default sizes."). The rule is `shared/column-width.ts`; this is the wire
+ * from the picker to it, which is the part that can be got wrong silently —
+ * clearing on the columns *changing* rather than on the press throws away the
+ * width the list is about to settle on, since the list edits its own columns a
+ * tick after it loads.
+ */
+describe('the press that edits the columns', () => {
+  const COLUMNS: ReadonlyArray<LayoutColumn> = [
+    { code: 'catalogNumber', default: true },
+    { code: 'brand', default: true },
+    { code: 'RE', default: false },
+  ]
+
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  const widths = () => Object.keys(localStorage).filter((key) => key.startsWith('table-'))
+
+  it('drops every stored width when a column is shown or hidden', () => {
+    localStorage.setItem('table-part-tools.catalogNumber.brand', '8px 50% 50%')
+    localStorage.setItem('table-part-holders.catalogNumber', '8px 100%')
+    const { result } = renderHook(() => useColumnLayout(COLUMN_KEY.tools, COLUMNS))
+
+    act(() => {
+      result.current.toggle('brand')
+    })
+
+    expect(widths()).toEqual([])
+    expect(result.current.hidden).toContain('brand')
+  })
+
+  it('drops them when the columns are dragged into another order too', () => {
+    localStorage.setItem('table-part-tools.catalogNumber.brand', '8px 50% 50%')
+    const { result } = renderHook(() => useColumnLayout(COLUMN_KEY.tools, COLUMNS))
+
+    act(() => {
+      result.current.reorder(['brand', 'catalogNumber', 'RE'])
+    })
+
+    expect(widths()).toEqual([])
+  })
+
+  /**
+   * The list turning a column on for itself is not a press. A width stored
+   * under the set the list settles on has to survive the settling.
+   */
+  it('leaves them alone when the list edits its own columns', () => {
+    localStorage.setItem('table-part-tools.catalogNumber.brand.RE', '8px 40% 30% 30%')
+    const { result } = renderHook(() => useColumnLayout(COLUMN_KEY.tools, COLUMNS))
+
+    act(() => {
+      result.current.setHidden((hidden) => hidden.filter((code) => code !== 'RE'))
+    })
+
+    expect(widths()).toEqual(['table-part-tools.catalogNumber.brand.RE'])
+    expect(result.current.hidden).not.toContain('RE')
   })
 })

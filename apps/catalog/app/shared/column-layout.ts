@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { orderedCodes } from './column-order'
+import { forgetStoredWidths } from './column-width'
 
 /**
  * Which columns a list shows, and in what order — remembered per browser.
@@ -177,9 +178,19 @@ export const useColumnLayout = (key: string, columns: ReadonlyArray<LayoutColumn
     [key, columns],
   )
 
-  /** A column shown or hidden, and marked as somebody's own decision. */
+  /**
+   * A column shown or hidden, and marked as somebody's own decision.
+   *
+   * **And every stored column width goes with it** (Paul, 2026-09-11: "I don't
+   * want columns to change size as I show and hide columns. Go back to the
+   * default sizes."). A dragged width is a track list positional in one column
+   * set, so it is an answer about a set that no longer exists the moment this
+   * press lands — `shared/column-width.ts` § {@link forgetStoredWidths} is the
+   * rule, and why it hangs on this press rather than on the columns changing.
+   */
   const toggle = useCallback(
     (code: string) => {
+      forgetStoredWidths(globalThis.localStorage ?? null)
       keep((current) => ({
         ...current,
         hidden: current.hidden.includes(code)
@@ -191,8 +202,10 @@ export const useColumnLayout = (key: string, columns: ReadonlyArray<LayoutColumn
     [keep],
   )
 
+  /** The columns dragged into another order — which invalidates a width the same way. */
   const reorder = useCallback(
     (order: ReadonlyArray<string>) => {
+      forgetStoredWidths(globalThis.localStorage ?? null)
       keep((current) => ({ ...current, order }))
     },
     [keep],
