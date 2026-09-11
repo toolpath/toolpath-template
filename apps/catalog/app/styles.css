@@ -150,20 +150,27 @@ html:not(.dark) body {
   .filter-off {
     background-color: var(--color-zinc-950);
   }
+}
 
-  /* The UI table hides its scrollbar by default; the part table needs its full width reachable. */
-  [data-part-tool-table] .hide-scrollbar {
-    overflow-x: auto !important;
-    scrollbar-gutter: stable;
-    scrollbar-width: auto;
+@layer utilities {
+  /**
+   * `hide-scrollbar`, which the kit asks for and nothing defined.
+   *
+   * `@toolpath/ui`'s table draws its scroll box as `overflow-x-scroll
+   * hide-scrollbar` and leaves the class to the application; with no rule
+   * behind it Chromium reserved a classic scrollbar anyway, which is the 16px
+   * of dead ground down the right of the tool list (Paul, 2026-09-11: "a
+   * padding on the container element that is the size of a scrollbar").
+   *
+   * Defining it rather than fighting it: the columns divide the panel now —
+   * `shared/column-width` — so a list has nothing to scroll sideways to, and
+   * this application's own overrides that widened the table past its box and
+   * reserved a gutter for the overflow came out with it.
+   */
+  .hide-scrollbar {
+    scrollbar-width: none;
   }
-  [data-part-tool-table] .hide-scrollbar::-webkit-scrollbar {
-    display: block;
-    height: 0.75rem;
-  }
-
-  /* The UI table's fixed tracks must be wider than the viewport, not clipped to it. */
-  [data-part-tool-table] [data-table-library_table] {
-    min-width: max-content;
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 }

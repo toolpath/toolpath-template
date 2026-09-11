@@ -181,18 +181,40 @@ describe('PartToolTable', () => {
     expect(screen.queryByText('holder needs')).not.toBeInTheDocument()
   })
 
-  it('keeps the table grid wider than its scroll container', () => {
+  /**
+   * **The grid is never wider than the box it is read in** (Paul, 2026-09-11).
+   * It used to be, by `min-w-max` here and a `min-width: max-content` in
+   * `app/styles.css`, and under max-content sizing every `1fr` track came out
+   * at the widest floor in the map — thirteen 192px columns in a 1169px panel.
+   */
+  it('lets the scroll container size the table grid', () => {
     show({
       columns: TOOL_COLUMNS,
       hiddenColumns: [],
       columnOrder: TOOL_COLUMNS.map((column) => column.code),
     })
 
-    expect(document.querySelector('[data-table-library_table]')).toHaveClass('min-w-max')
+    expect(document.querySelector('[data-table-library_table]')).not.toHaveClass('min-w-max')
   })
 
-  it('uses flexible tracks for initial column widths', () => {
-    expect(flexibleColumnWidth('10rem')).toBe('minmax(10rem, 1fr)')
+  /**
+   * **Nothing about a column's width is remembered between visits.** The kit
+   * stores a dragged layout under the `id` it is given and hands it back on the
+   * next mount, which is a saved answer to a question a column being shown or
+   * hidden has already changed.
+   */
+  it('gives the kit no id to store a column layout under', () => {
+    show({
+      columns: TOOL_COLUMNS,
+      hiddenColumns: [],
+      columnOrder: TOOL_COLUMNS.map((column) => column.code),
+    })
+
+    expect(Object.keys(localStorage).filter((key) => key.startsWith('table-'))).toHaveLength(0)
+  })
+
+  it('asks for tracks that divide the panel rather than floors under it', () => {
+    expect(flexibleColumnWidth('10rem')).toBe('minmax(0, 10fr)')
   })
 })
 

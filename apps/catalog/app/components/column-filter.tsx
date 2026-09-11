@@ -1,4 +1,4 @@
-import { Button, Checkbox, IconButton, Input, cn } from '@toolpath/ui'
+import { Button, Checkbox, IconButton, Input, Menu, cn } from '@toolpath/ui'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -16,6 +16,7 @@ import {
   decimalsFor,
 } from '@toolpath/tool-support'
 import { movedBy, movedTo } from 'shared/column-order'
+import { MENU_GAP, MENU_LEAST, placeMenu, type Placed } from 'shared/menu-place'
 import { sameBound } from 'shared/filter'
 import { readEntry, readRange, type Side } from 'shared/range-entry'
 import { LAYER_COLUMN_FILTER, useEscape, useKeyLayer } from 'shared/use-escape'
@@ -406,51 +407,6 @@ export const OverrideNotice = ({
   )
 }
 
-/** Room kept between the menu and the edge of the screen. */
-const MENU_EDGE = 12
-
-/**
- * The least room worth opening downwards into.
- *
- * Below this the menu opens upwards instead. It is a floor on the height as
- * well: a menu squeezed into eighty pixels is one nobody can read, so it takes
- * this much and overhangs rather than becoming a slot.
- */
-const MENU_LEAST = 220
-
-/**
- * How tall a box opened off a button may be, and which way it opens.
- *
- * **A menu is as tall as the screen leaves it** (Paul, 2026-09-10, of the Type
- * filter and then of the column picker: "the edit columns drop down list should
- * be scrollable if it runs off the screen"). Both boxes are opened from a
- * header that can sit anywhere down the page, and both were drawn at whatever
- * height their contents came to, so the rows past the bottom edge were
- * unreachable — the column picker's last column could not be ticked at all.
- *
- * One rule for both: the room under the button is measured, the box takes it
- * and scrolls inside itself, and where what is left under the button is a strip
- * it opens upwards into the larger room instead.
- */
-export const menuRoom = (
-  button: { readonly top: number; readonly bottom: number },
-  viewport: number,
-): { readonly upwards: boolean; readonly height: number } => {
-  const below = viewport - button.bottom - MENU_EDGE
-  const above = button.top - MENU_EDGE
-  const upwards = below < MENU_LEAST && above > below
-  return { upwards, height: Math.max(MENU_LEAST, upwards ? above : below) }
-}
-
-/** Where the menu stands: by its top, or by its bottom where it opened upwards. */
-type Placed = {
-  readonly top: number | null
-  readonly bottom: number | null
-  readonly left: number
-  /** The most it may be, which is the room the screen left it. */
-  readonly height: number
-}
-
 /**
  * The box a column's funnel opens, drawn over the page and away from the table.
  *
@@ -563,23 +519,16 @@ export const FilterMenu = ({
         })
         return
       }
-      const button = anchor.getBoundingClientRect()
-      const width = box.current?.getBoundingClientRect().width ?? 0
-      const wanted = align === 'right' ? button.right - width : button.left
-      const left = Math.max(8, Math.min(wanted, window.innerWidth - width - 8))
-      /*
-        `menuRoom` is the rule — and where it says upwards the menu is anchored
-        by its bottom rather than placed by a height it has not been measured at
-        yet, which is the one way to flip a box without a frame of it in the
-        wrong place.
-      */
-      const room = menuRoom(button, window.innerHeight)
-      setAt({
-        top: room.upwards ? null : button.bottom + 4,
-        bottom: room.upwards ? window.innerHeight - button.top + 4 : null,
-        left,
-        height: room.height,
-      })
+      // `shared/menu-place` is the rule, and the same one the picker and the
+      // quick filters follow — this menu only finds its button the hard way.
+      setAt(
+        placeMenu(
+          anchor.getBoundingClientRect(),
+          box.current?.getBoundingClientRect().width ?? 0,
+          align,
+          { width: window.innerWidth, height: window.innerHeight },
+        ),
+      )
     }
 
     /**
@@ -1104,9 +1053,6 @@ export const ColumnPicker = ({
 }) => {
   const [open, setOpen] = useState(false)
   const [held, setHeld] = useState<string | null>(null)
-  const box = useRef<HTMLDivElement>(null)
-  const pencil = useRef<HTMLButtonElement>(null)
-  const [room, setRoom] = useState({ upwards: false, height: MENU_LEAST })
   const order = columns.map((column) => column.code)
 
   const move = (code: string, index: number) => {
@@ -1116,84 +1062,69 @@ export const ColumnPicker = ({
     }
   }
 
-  useEffect(() => {
-    if (!open) {
-      return
-    }
-    const onDown = (event: PointerEvent) => {
-      if (!box.current?.contains(event.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('pointerdown', onDown)
-    return () => document.removeEventListener('pointerdown', onDown)
-  }, [open])
-
   /*
-    The list is as long as the table has columns — twenty on the tool list — and
-    the pencil is at the top of a table that can sit anywhere down the page, so
-    the bottom of the list ran off the screen and the columns there could not be
-    ticked. `menuRoom` is the same rule the filter menus follow: take the room
-    the screen leaves and scroll inside it, or open upwards where what is under
-    the pencil is a strip.
+    **The kit's `Menu`, rather than a box drawn under the pencil** (Paul,
+    2026-09-11: "the 'which columns to show' menu is now hidden behind the table
+    when opened", then "why aren't these menus just using the menu component
+    from @toolpath/ui?"). The strip this button stands on floats over the
+    viewer, which is a card that clips, so a box positioned inside it was cut
+    off at the card's bottom edge with the tool list showing through the rest of
+    it. Every part of the answer — the portal out of the card, the placing
+    against the pencil, turning over where the room is above, the height the
+    screen leaves, Escape, and a press outside — is what `Menu.Popover` already
+    is, and this had a hand-written half of each.
   */
-  useLayoutEffect(() => {
-    if (!open) {
-      return
-    }
-    const measure = () => {
-      const button = pencil.current?.getBoundingClientRect()
-      if (button !== undefined) {
-        setRoom(menuRoom(button, window.innerHeight))
-      }
-    }
-    // A scroll inside the list is the list's own business, exactly as it is
-    // inside a filter menu.
-    const onScroll = (event: Event) => {
-      if (event.target instanceof Node && box.current?.contains(event.target) === true) {
-        return
-      }
-      measure()
-    }
-    measure()
-    window.addEventListener('resize', measure)
-    window.addEventListener('scroll', onScroll, true)
-    return () => {
-      window.removeEventListener('resize', measure)
-      window.removeEventListener('scroll', onScroll, true)
-    }
-  }, [open])
-
-  // Escape puts it away as well, without going back to find the header.
-  useEscape(open, () => setOpen(false))
-
   return (
-    <div ref={box} className="relative">
-      <IconButton
-        ref={pencil}
-        size="lg"
-        variant="muted"
-        aria-label="Which columns to show"
-        aria-expanded={open}
-        title="Which columns to show"
-        onClick={() => setOpen(!open)}
-        /* **A press keeps its own ground** (Paul, 2026-09-11: "the buttons
-           shouldn't be transparent"). The chrome this stands in floats over the
-           part now, so the pencil wears the same chip the buttons beside it
-           wear rather than sitting bare on the geometry. */
-        className="rounded border border-zinc-800 bg-zinc-900 p-1 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+    <Menu open={open} onOpenChange={setOpen}>
+      {/*
+        The pencil *is* the trigger. `Menu.Trigger` renders a `role="button"`
+        div of its own by default, and a button inside that is two controls
+        with one name — `filter-panel.tsx` says the same thing at more length.
+      */}
+      <Menu.Trigger
+        nativeButton
+        render={
+          <IconButton
+            size="lg"
+            variant="muted"
+            aria-label="Which columns to show"
+            title="Which columns to show"
+            /* **A press keeps its own ground** (Paul, 2026-09-11: "the buttons
+               shouldn't be transparent"). The chrome this stands in floats over
+               the part now, so the pencil wears the same chip the buttons
+               beside it wear rather than sitting bare on the geometry. */
+            className="rounded border border-zinc-800 bg-zinc-900 p-1 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+          >
+            <PencilSimpleIcon />
+          </IconButton>
+        }
+      />
+      {/*
+        **Under its button, not flipped above it** (Paul, 2026-09-11: "don't
+        just show the menus above, that's a lazy solution"). This strip sits two
+        thirds of the way down the page, so a menu free to pick the roomier side
+        picks *above* every time and hangs over the part rather than over the
+        list it narrows. Pinned to the bottom, it opens where a menu belongs and
+        scrolls inside `--available-height`, which is the positioner's own
+        measurement of what is left there — and a hair off the pencil, so the
+        two read as a control and its answer.
+      */}
+      <Menu.Popover
+        sideOffset={MENU_GAP}
+        side="bottom"
+        collisionAvoidance={{ side: 'none' }}
+        className="rounded-lg border-zinc-800 bg-zinc-950 py-1 shadow-xl"
       >
-        <PencilSimpleIcon />
-      </IconButton>
-      {open ? (
+        {/*
+          `--available-height` is the positioner's own measurement of the room
+          it found, so the list scrolls inside what the screen left rather than
+          running off the bottom of the page with its last columns out of reach
+          (Paul, 2026-09-10).
+        */}
         <div
           role="group"
           aria-label="Columns"
-          style={{ maxHeight: room.height }}
-          className={cn(
-            'absolute right-0 z-30 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950 py-1 shadow-xl',
-            room.upwards ? 'bottom-full mb-1' : 'top-full mt-1',
-          )}
+          className="max-h-[var(--available-height)] overflow-y-auto"
         >
           {columns.map((column, at) => (
             <div
@@ -1251,7 +1182,7 @@ export const ColumnPicker = ({
             </div>
           ))}
         </div>
-      ) : null}
-    </div>
+      </Menu.Popover>
+    </Menu>
   )
 }

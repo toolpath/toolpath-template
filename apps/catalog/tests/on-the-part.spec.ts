@@ -732,10 +732,12 @@ test('filters open from the bar floating over the bottom of the part', async ({ 
     expect(toolbarBox!.y + toolbarBox!.height).toBeLessThanOrEqual(rowsBox!.y)
   }).toPass()
 
+  // And the rows under it end where the panel ends — see "the columns divide
+  // the panel" below, which is where that rule is pinned.
   const tableScroll = page.locator('[data-part-tool-table] .hide-scrollbar').first()
   await expect(tableScroll).toBeVisible()
   expect(await tableScroll.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(
-    true,
+    false,
   )
 
   // What no column shows is on the toolbar, answerable without a press first.
@@ -759,6 +761,153 @@ test('filters open from the bar floating over the bottom of the part', async ({ 
   await expect(types.getByRole('checkbox', { name: 'Tap right hand' })).toBeVisible()
   await expect(types.getByRole('checkbox', { name: /Reduced shank/ })).toHaveCount(0)
   await expect(types.getByRole('checkbox', { name: 'Circle segment taper' })).toHaveCount(0)
+})
+
+/**
+ * The tracks the list is laid out on, and whether they fit the box it is in.
+ *
+ * Read off the scroll container rather than off the header cells, because what
+ * went wrong was the *sum*: every column came out at 192px whatever it asked
+ * for, and the thirteen of them added up to 2120px inside an 1169px panel.
+ */
+const tableFit = (page: Page) =>
+  page.evaluate(() => {
+    const holder = document.querySelector('[data-part-tool-table]')
+    const scroller = holder?.querySelector('.hide-scrollbar')
+    const table = holder?.querySelector('[data-table-library_table]')
+    if (
+      !(scroller instanceof HTMLElement) ||
+      !(table instanceof HTMLElement) ||
+      !(holder instanceof HTMLElement)
+    ) {
+      throw new Error('the tool list is on screen')
+    }
+    return {
+      // What the columns add up to, against the room they have.
+      table: table.offsetWidth,
+      room: scroller.clientWidth,
+      // The gutter a scrollbar reserves, which should be none of it.
+      gutter: scroller.offsetWidth - scroller.clientWidth,
+      columns: holder.querySelectorAll('[role="columnheader"]').length,
+    }
+  })
+
+/**
+ * **The columns divide the panel; they do not overflow it** (Paul, 2026-09-11:
+ * "on load, the table extends outside of the bounds of the container. On
+ * clicking to resize a column all of the columns then snap to fit").
+ *
+ * Both halves of that were true and neither was a coincidence. The list asked
+ * for `minmax(10rem, 1fr)` tracks under a table pinned to `min-width:
+ * max-content`, and under max-content sizing every `1fr` track resolves to the
+ * *widest* floor it was handed — so thirteen columns opened at 192px each,
+ * 2120px of them inside an 1169px panel, with only the largest entry in the
+ * width map doing anything at all. Touching a resize handle then rewrote the
+ * tracks as percentages of the box, which is the layout it should have opened
+ * at: the fix is to open at it. `app/shared/column-width.ts` is the rule.
+ *
+ * Three moments, because the layout is settled in three different ways: by CSS
+ * on load, by CSS again when the window changes, and by
+ * `shared/use-fitted-columns` after a drag has frozen a layout onto the table
+ * that the column set has since outgrown. A list that fits on load and breaks
+ * on the first column somebody hides is the defect this is here for.
+ */
+test('the columns divide the panel, at every width and column set', async ({ page }) => {
+  await ready(page)
+  await keepFeature(page)
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+
+  const opened = await tableFit(page)
+  expect(opened.table).toBe(opened.room)
+  // No scrollbar, and so no strip of dead ground reserved for one.
+  expect(opened.gutter).toBe(0)
+
+  await page.setViewportSize({ width: 1200, height: 1000 })
+  await expect(async () => {
+    const resized = await tableFit(page)
+    expect(resized.room).toBeLessThan(opened.room)
+    expect(resized.table).toBe(resized.room)
+  }).toPass()
+
+  /*
+    A drag first, because dragging is what freezes a layout onto the table:
+    the kit's resizer writes the tracks inline, outside React, and they name
+    the columns that were there when the mouse went down.
+  */
+  const handle = page.locator('[data-part-tool-table] .resizer-area').first()
+  const grip = await handle.boundingBox()
+  expect(grip).not.toBeNull()
+  await page.mouse.move(grip!.x + grip!.width / 2, grip!.y + grip!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(grip!.x + grip!.width / 2 + 40, grip!.y + grip!.height / 2, { steps: 5 })
+  await page.mouse.up()
+
+  const dragged = await tableFit(page)
+  expect(dragged.table).toBe(dragged.room)
+
+  await page.getByRole('button', { name: 'Which columns to show' }).first().click()
+  const columns = page.getByRole('group', { name: 'Columns' }).first()
+  await expect(columns).toBeVisible()
+  await columns.getByRole('checkbox', { name: 'Flutes' }).click()
+  await page.keyboard.press('Escape')
+
+  await expect(async () => {
+    const fewer = await tableFit(page)
+    expect(fewer.columns).toBe(dragged.columns - 1)
+    expect(fewer.table).toBe(fewer.room)
+  }).toPass()
+})
+
+/**
+ * **A menu belongs to the page, not to the card it was opened from** (Paul,
+ * 2026-09-11: "the 'which columns to show' menu is now hidden behind the table
+ * when opened. Same with the 'part material' menu").
+ *
+ * The strip carrying both of these buttons floats over the bottom of the
+ * viewer, and the viewer is a card with `overflow: hidden` — so each box was
+ * cut off at the card's bottom edge, with the tool list showing through where
+ * the rest of it should have been. Opening them upwards would have hidden that
+ * rather than fixed it: a menu with half the window under it belongs under its
+ * button. Both are portals placed by `shared/menu-place` now, the arrangement
+ * the column funnels already needed.
+ *
+ * Asked by hit-testing rather than by reading a `z-index`, because what was
+ * wrong was a clip and not a stacking order, and neither is visible in a style.
+ */
+test('the menus over the part are drawn over the table, not clipped by the card', async ({
+  page,
+}) => {
+  await ready(page)
+  await keepFeature(page)
+  await expect(page.getByRole('grid').first().getByRole('row').nth(1)).toBeVisible()
+
+  /** What is actually painted at the middle of the box, and at its bottom edge. */
+  const reaches = (menu: Locator) =>
+    menu.evaluate((box) => {
+      const rect = box.getBoundingClientRect()
+      const hits = (y: number) => document.elementFromPoint(rect.x + rect.width / 2, y)
+      return {
+        middle: box.contains(hits(rect.y + rect.height / 2)),
+        // One pixel inside the bottom edge — where a clip takes the box away.
+        bottom: box.contains(hits(rect.bottom - 1)),
+        height: rect.height,
+      }
+    })
+
+  await page.getByRole('button', { name: 'Which columns to show' }).first().click()
+  const columns = page.getByRole('group', { name: 'Columns' }).first()
+  await expect(columns).toBeVisible()
+  expect(await reaches(columns)).toMatchObject({ middle: true, bottom: true })
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('button', { name: 'Part material' }).first().click()
+  const material = page.locator('[data-tool-filter-menu]').first()
+  await expect(material).toBeVisible()
+  expect(await reaches(material)).toMatchObject({ middle: true, bottom: true })
+
+  // And it is still a menu: a press inside it answers rather than closing it.
+  await material.getByRole('button', { name: /Steel/ }).click()
+  await expect(material).toBeVisible()
 })
 
 /**

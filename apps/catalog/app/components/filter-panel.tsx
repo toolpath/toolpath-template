@@ -1,5 +1,5 @@
-import { Button, cn, Input } from '@toolpath/ui'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Button, cn, Input, Menu } from '@toolpath/ui'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   BookmarksSimpleIcon,
   CaretDownIcon,
@@ -16,9 +16,10 @@ import { formatLength, type UnitSystem } from '@toolpath/tool-support'
 import { brandsOfFamily, brandsOfProductLine, getFamily } from 'shared/catalog'
 import { toggleTerm, type ToolQuery } from 'shared/filter'
 import { AXES_IN_TOOL_COLUMNS, AXES_PARKED } from 'shared/column-filters'
+import { MENU_GAP } from 'shared/menu-place'
 import { useEscape } from 'shared/use-escape'
 import { Chip, ChipGroup } from './chip'
-import { menuRoom, RangeFilter, type Bound, type Kind } from './column-filter'
+import { RangeFilter, type Bound, type Kind } from './column-filter'
 import { DrillDeviationFields } from './drill-deviation'
 import {
   ColletIcon,
@@ -430,94 +431,78 @@ const ToolbarFilterBody = ({
   onOpen: () => void
   children: ReactNode
 }) => {
-  const menu = useRef<HTMLDivElement>(null)
-  const press = useRef<HTMLDivElement>(null)
-  const [menuOffset, setMenuOffset] = useState(0)
-  /**
-   * Which way it opens, and the most it may be.
-   *
-   * **These buttons stand at the bottom of the viewer now** (Paul, 2026-09-11),
-   * so a box opening downwards opens past the edge of a viewer that clips, and
-   * what is under the button is a strip. `menuRoom` is the same rule the column
-   * funnels and the column picker follow: take the room the screen leaves, and
-   * turn over where there is none.
-   */
-  const [room, setRoom] = useState<{ readonly upwards: boolean; readonly height: number }>({
-    upwards: false,
-    height: 0,
-  })
+  /*
+    **The kit's `Menu`, rather than a box drawn under the button** (Paul,
+    2026-09-11: "the 'part material' menu", then "why aren't these menus just
+    using the menu component from @toolpath/ui?"). These buttons stand on the
+    strip that floats over the bottom of the viewer, and the viewer is a card
+    that clips — so the box was cut off at the card's edge whichever way it
+    opened, with the tool list showing through the rest of it. `Menu.Popover`
+    is a portal placed against its trigger and bounded by the window, which is
+    every part of the answer.
 
-  useLayoutEffect(() => {
-    if (!open || menu.current === null) {
-      setMenuOffset(0)
-      return
-    }
-
-    const place = () => {
-      const element = menu.current
-      if (element === null) {
-        return
-      }
-      const menuRect = element.getBoundingClientRect()
-      const chrome = element.closest('[data-list-chrome]')?.getBoundingClientRect()
-      const left = Math.max(chrome?.left ?? 0, 8) + 8
-      const right = Math.min(chrome?.right ?? window.innerWidth, window.innerWidth) - 8
-      const correction =
-        menuRect.left < left
-          ? left - menuRect.left
-          : menuRect.right > right
-            ? right - menuRect.right
-            : 0
-      setMenuOffset(correction)
-      const button = press.current?.getBoundingClientRect()
-      if (button !== undefined) {
-        setRoom(menuRoom(button, window.innerHeight))
-      }
-    }
-
-    place()
-    window.addEventListener('resize', place)
-    return () => window.removeEventListener('resize', place)
-  }, [open])
-
+    Controlled, because which filter is open is the toolbar's business: opening
+    one closes the last.
+  */
   return (
-    <div ref={press} className="relative min-w-0">
-      <Button
-        type="button"
-        variant="muted"
-        size="sm"
-        aria-expanded={open}
-        onClick={onOpen}
-        className={cn(
-          'focus-visible:ring-info/60 flex w-full min-w-0 items-center gap-1.5 rounded border px-2 py-1 text-left text-xs transition focus-visible:ring-1 focus-visible:outline-none',
-          open || summary !== 'Any'
-            ? 'border-info/50 bg-info/10 text-zinc-100'
-            : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
-        )}
+    <Menu
+      open={open}
+      onOpenChange={(next) => {
+        if (next !== open) {
+          onOpen()
+        }
+      }}
+    >
+      {/*
+        **The kit's `Button` *is* the trigger**, rather than one wrapped in the
+        trigger's own element: `Menu.Trigger` renders a `role="button"` div by
+        default, and a button inside that is two controls with one name — which
+        is what a screen reader and `getByRole` both saw.
+      */}
+      <Menu.Trigger
+        nativeButton
+        render={
+          <Button
+            type="button"
+            variant="muted"
+            size="sm"
+            className={cn(
+              'focus-visible:ring-info/60 flex w-full min-w-0 items-center gap-1.5 rounded border px-2 py-1 text-left text-xs transition focus-visible:ring-1 focus-visible:outline-none',
+              open || summary !== 'Any'
+                ? 'border-info/50 bg-info/10 text-zinc-100'
+                : 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200',
+            )}
+          >
+            <span className="shrink-0 text-zinc-600">{icon}</span>
+            <span className="min-w-0 flex-1 truncate">
+              {summary === 'Any' ? label : `${label}: ${summary}`}
+            </span>
+            <CaretDownIcon
+              className={cn('shrink-0 text-zinc-600 transition', open && 'rotate-180')}
+            />
+          </Button>
+        }
+      />
+      {/*
+        **Under its button, not flipped above it** (Paul, 2026-09-11: "don't
+        just show the menus above, that's a lazy solution"). This strip sits two
+        thirds of the way down the page, so a menu free to pick the roomier side
+        picks *above* every time and hangs over the part rather than over the
+        list it narrows. Pinned to the bottom, it opens where a menu belongs and
+        scrolls inside `--available-height`, which is the positioner's own
+        measurement of what is left there — and a hair off the button, so the
+        two read as a control and its answer.
+      */}
+      <Menu.Popover
+        data-tool-filter-menu
+        sideOffset={MENU_GAP}
+        side="bottom"
+        collisionAvoidance={{ side: 'none' }}
+        className="max-h-[var(--available-height)] w-[min(30rem,calc(100vw-2rem))] overflow-y-auto rounded-md border-zinc-800 bg-zinc-950 p-2 shadow-xl"
       >
-        <span className="shrink-0 text-zinc-600">{icon}</span>
-        <span className="min-w-0 flex-1 truncate">
-          {summary === 'Any' ? label : `${label}: ${summary}`}
-        </span>
-        <CaretDownIcon className={cn('shrink-0 text-zinc-600 transition', open && 'rotate-180')} />
-      </Button>
-      {open ? (
-        <div
-          data-tool-filter-menu
-          ref={menu}
-          style={{
-            transform: `translateX(${String(menuOffset)}px)`,
-            ...(room.height === 0 ? {} : { maxHeight: room.height }),
-          }}
-          className={cn(
-            'absolute right-0 z-30 w-[min(30rem,calc(100vw-2rem))] overflow-y-auto rounded-md border border-zinc-800 bg-zinc-950 p-2 shadow-xl',
-            room.upwards ? 'bottom-full mb-1' : 'top-full mt-1',
-          )}
-        >
-          {children}
-        </div>
-      ) : null}
-    </div>
+        {children}
+      </Menu.Popover>
+    </Menu>
   )
 }
 
@@ -626,7 +611,21 @@ const useCloseOnOutside = (open: boolean, close: () => void) => {
       return
     }
     const onDown = (event: PointerEvent) => {
-      if (!box.current?.contains(event.target as Node)) {
+      const target = event.target instanceof Element ? event.target : null
+      if (target === null) {
+        close()
+        return
+      }
+      /*
+        **A menu drawn on the page is still inside the strip that opened it.**
+        `ToolbarFilterBody` puts its box in a portal so the viewer card cannot
+        clip it, which takes it out of this element — and a press on the thing
+        somebody just opened read as a press outside and shut it again.
+      */
+      if (target.closest('[data-tool-filter-menu]') !== null) {
+        return
+      }
+      if (!box.current?.contains(target)) {
         close()
       }
     }
