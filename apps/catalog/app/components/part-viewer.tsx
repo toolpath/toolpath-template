@@ -455,10 +455,19 @@ export const PartViewer = ({
               <EnginePart
                 report={viewerReport}
                 selection={[...selected]}
-                // Under everything else, at the consumer's own weight: a
-                // feature with a tool kept for it reads as done rather than
-                // as chosen.
-                highlights={tooled.map((tag) => ({ tag, color: 0x3f4650, weight: 0.55 }))}
+                // Under everything else: a feature with a tool kept for it
+                // reads as done rather than as chosen. Darker than it was and
+                // a little flatter (Paul, 2026-09-11) — 0x3f4650 at 0.55 was a
+                // shade of the part rather than a mark on it, and 0x1f232a at
+                // 1 was a black hole in it.
+                //
+                // **The weight is the shine.** The paint mixes into the
+                // material's diffuse colour, so whatever weight is left over
+                // keeps that fraction of the part's own white in the lit term
+                // — and the white is what catches the bright side of the
+                // hemisphere light. Hence a shade under 1: enough of the rig
+                // left to read the face as a surface, not enough to gloss it.
+                highlights={tooled.map((tag) => ({ tag, color: 0x333b46, weight: 0.85 }))}
                 pickedRegions={heldRegions}
                 hoveredFeatureIds={hovered === null ? [] : [hovered]}
                 focusFeature={focus}
