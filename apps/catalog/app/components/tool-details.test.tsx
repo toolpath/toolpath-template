@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { CatalogTool, Holder } from '@toolpath/catalog-data'
+import { applyTheme } from 'shared/use-theme'
 import { ToolDetails } from './tool-details'
 
 const tool = {
@@ -186,6 +187,24 @@ describe('pointing at a number', () => {
 })
 
 /**
+ * **The panel reads a tool; it does not assemble one** (2026-09-11).
+ *
+ * It carried a Holder dropdown and a Collet dropdown from 2026-08-31. The tool
+ * assembly tree took that job on 2026-09-08 and covered every state but one —
+ * a tool read with no feature selected — so the pair survived there, and the
+ * page had two ways to fill one slot with no rule saying which won. What used
+ * to be checked here was the dropdowns' own behaviour; what is checked here
+ * now is that they are not offered at all.
+ */
+describe('what the panel offers for a holder', () => {
+  it('offers no holder or collet control of its own', () => {
+    render(<ToolDetails tool={tool} unit="millimeters" />)
+
+    expect(screen.queryByRole('combobox', { name: 'Holder' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Collet' })).toBeNull()
+  })
+})
+/**
  * **The part is drawn beside the tool** (2026-09-03).
  *
  * The panel drew the cutter against nothing from 2026-08-31 to 2026-09-03,
@@ -258,10 +277,13 @@ describe('the material around the feature', () => {
       'Below holderLBH12.70 mm*',
     )
 
-    // And with the sheet switched back to the bare tool, its own figure again.
-    fireEvent.click(screen.getByRole('button', { name: 'Tool' }))
+    // And it stays that figure under the zoom, which is the 2026-09-11 half of
+    // the same rule: the press over the sheet moves the frame, not the stack.
+    // The switch it replaced drew a bare tool, and the number went back to the
+    // tool's own 46 mm with it; there is no bare tool to go back to now.
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom to tool' }))
     expect(screen.getByText('Below holder').closest('div')?.textContent).toBe(
-      'Below holderLBH46.00 mm*',
+      'Below holderLBH12.70 mm*',
     )
   })
 
@@ -284,17 +306,145 @@ describe('the material around the feature', () => {
   })
 
   /**
-   * The material is the feature's, not the holder's, so it stays on the sheet
-   * with the stack switched off — the gaps are then the bare cutter's, which
-   * is the honest answer rather than a blank flank.
+   * The material is the feature's, not the frame's, so it stays on the sheet
+   * with the drawing zoomed to the working end — which is the half of the
+   * stack the gaps are tightest against anyway.
    */
-  it('keeps the material on the sheet with the drawing switched back to the tool', () => {
+  it('keeps the material on the sheet with the drawing zoomed to the tool', () => {
     const { container } = measured(
       <ToolDetails tool={tool} unit="millimeters" stack={held} curve={curve} />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tool' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom to tool' }))
 
     expect(container.querySelector('[data-part="material"]')).not.toBeNull()
+  })
+})
+
+/**
+ * **The press over the sheet moves the frame, not the subject** (2026-09-11).
+ *
+ * It used to be a Tool / Tool + holder switch, which let the one picture on the
+ * page disagree with the tree about what was on the tool: the tree had a holder
+ * in its slot and the sheet drew a bare cutter. What a reader wanted from the
+ * *Tool* half was the working end drawn bigger, and `@toolpath/tool-drawing`
+ * frames that itself — so the holder stays on the sheet either way and the
+ * press chooses how much of it the sheet is cut to.
+ *
+ * Read off `data-zoom`, which the package sets only where the zoom actually
+ * took: a tool with no length to frame to is drawn whole, and a test pinned to
+ * the button's own label would pass on a sheet that never moved.
+ */
+describe('how much of the stack the sheet is framed to', () => {
+  const holder: Holder = {
+    guid: 'h-er16',
+    familyId: 'bt30',
+    brand: 'REGO-FIX',
+    vendor: 'REGO-FIX',
+    catalogNumber: 'BT 30 / ER 16 x 060',
+    materialNumber: null,
+    taper: 'BT30',
+    contact: null,
+    clamping: 'collet',
+    gaugeLength: 60,
+    colletSeries: 'ER16',
+    boreDiameter: null,
+    noseDiameter: 28,
+    noseLength: 8,
+    bodyDiameter: 42,
+    bodyLength: 3,
+    projection: 11.6,
+    flangeDiameter: 46,
+    colletProtrusion: 2,
+    productLink: null,
+    cadModelUrl: null,
+    provenance: {},
+  }
+  const held = { holder, collet: null }
+
+  /** The drawing, not the tool-type icon above it — both are `<svg>`. */
+  const sheet = (container: HTMLElement) => container.querySelector('figure svg')!
+
+  it('frames the whole stack until the press asks for the working end', () => {
+    const { container } = measured(<ToolDetails tool={tool} unit="millimeters" stack={held} />)
+
+    expect(sheet(container).getAttribute('data-zoom')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom to tool' }))
+    expect(sheet(container).getAttribute('data-zoom')).toBe('tool')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }))
+    expect(sheet(container).getAttribute('data-zoom')).toBeNull()
+  })
+
+  /**
+   * Zoomed or fitted, the holder the tree chose is on the sheet — the nose is
+   * the part the zoom deliberately keeps above the cut. This is the guard on
+   * the thing that came out: the panel could draw a bare cutter while the tree
+   * held a full stack.
+   */
+  it('keeps the holder on the sheet at either frame', () => {
+    const { container } = measured(<ToolDetails tool={tool} unit="millimeters" stack={held} />)
+
+    expect(container.querySelector('[data-part="nose"]')).not.toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom to tool' }))
+    expect(container.querySelector('[data-part="nose"]')).not.toBeNull()
+  })
+
+  /** Nothing holding the cutter is nothing to cut the sheet against. */
+  it('offers no press where the tree has chosen no holder', () => {
+    measured(<ToolDetails tool={tool} unit="millimeters" />)
+
+    expect(screen.queryByRole('button', { name: 'Zoom to tool' })).toBeNull()
+  })
+})
+
+/**
+ * **The drawing is a sheet, not a white rectangle inset in a card** (Paul,
+ * 2026-09-11). The panel was a grey wash and the sheet is capped at 16 rem, so
+ * the wash filled whatever the panel had either side of the drawing and the
+ * figure read as a box rather than as paper.
+ *
+ * Read off the DOM in both directions rather than pinned to a colour: the two
+ * grounds are `@toolpath/tool-drawing`'s to state, and a hex written here would
+ * be a second copy of them that nothing keeps in step. What this holds is that
+ * they are the *same* colour — which a hard-coded white would satisfy in light
+ * and break in dark, where the package's ground is a step above the card
+ * rather than white.
+ */
+describe('the ground the panel is painted in', () => {
+  const ground = (container: HTMLElement) => ({
+    panel: (container.firstElementChild as HTMLElement).style.background,
+    sheet: container.querySelector('figure')!.style.background,
+  })
+
+  afterEach(() => {
+    applyTheme(document.documentElement, 'dark')
+  })
+
+  for (const theme of ['dark', 'light'] as const) {
+    it(`matches the sheet the tool is drawn on in ${theme}`, () => {
+      applyTheme(document.documentElement, theme)
+
+      const { panel, sheet } = ground(
+        measured(<ToolDetails tool={tool} unit="millimeters" />).container,
+      )
+
+      expect(sheet).not.toBe('')
+      expect(panel).toBe(sheet)
+    })
+  }
+
+  /** And the two grounds are different colours, so neither test passes by accident. */
+  it('turns over with the theme rather than stating one colour', () => {
+    applyTheme(document.documentElement, 'dark')
+    const dark = ground(measured(<ToolDetails tool={tool} unit="millimeters" />).container).panel
+
+    cleanup()
+    applyTheme(document.documentElement, 'light')
+    const light = ground(measured(<ToolDetails tool={tool} unit="millimeters" />).container).panel
+
+    expect(dark).not.toBe(light)
   })
 })

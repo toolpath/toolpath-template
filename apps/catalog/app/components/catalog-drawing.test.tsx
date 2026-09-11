@@ -127,6 +127,27 @@ describe('the catalog drawing', () => {
   })
 
   /**
+   * **The zoom is the package's, handed straight on.**
+   *
+   * This is a sensor on the wire rather than on the framing: what the cut is,
+   * how much holder stays above it and when a zoom is refused are all
+   * `@toolpath/tool-drawing`'s rules, and it marks the sheet `data-zoom="tool"`
+   * only where the zoom actually took. So a prop that never reached it would
+   * leave that attribute off — which is exactly what the panel's press would
+   * look like if it were doing nothing.
+   */
+  it('frames the sheet on the working end when asked, and on the stack by default', () => {
+    const whole = drawn(<CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" />)
+    expect(whole.querySelector('figure svg')?.getAttribute('data-zoom')).toBeNull()
+
+    StubResizeObserver.all = []
+    const working = drawn(
+      <CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" zoom="tool" />,
+    )
+    expect(working.querySelector('figure svg')?.getAttribute('data-zoom')).toBe('tool')
+  })
+
+  /**
    * The drawing stopped writing its own figures in `@toolpath/tool-drawing`
    * 0.2.0 — it draws the lines and the panel's table carries the numbers — so
    * the unit no longer reaches it through a dimension. It still reaches the
@@ -282,39 +303,43 @@ describe('the overlay this application draws', () => {
   })
 
   /**
-   * **The room for the material is the caller's**, because only the caller
-   * knows how much sheet there is.
+   * **Reserving room for the material costs the tool none of the sheet.**
    *
-   * `<ToolDrawing>` is told its padding before it has measured its panel, so
-   * it cannot take a share of an axis it has not seen; it only clamps an
-   * over-large request to 0.6 of the axis and scales the dimension bands back
-   * with it. On the part page's tool panel — a column beside the part, not a
-   * full-width card — 240 px *was* that whole 0.6, and the assembly was
-   * crushed into the top third (2026-09-03). Asking for less has to leave the
-   * tool more of the sheet, or the prop is decoration.
+   * This replaces the inverse test, and the inversion is the point.
+   * `padding` used to be priced as a *margin*: the package clamped an
+   * over-large request to 0.6 of the axis and paid for it out of the scale, so
+   * `MATERIAL_ROOM` on the part page's ~400 px panel took the whole allowance
+   * and the assembly was crushed into the top third (2026-09-03). The old test
+   * pinned the workaround — that asking for less left the tool more sheet — and
+   * the application carried a `materialRoom` prop so a narrow panel could ask
+   * for less.
+   *
+   * `@toolpath/tool-drawing` 1.0.0 retired that: the reservation is granted out
+   * of room the drawing cannot use, so the guess no longer comes out of the
+   * scale and the caller is told to ask for as much as the widest sheet could
+   * use. The prop went with it, and this drawing now asks for one figure always.
+   *
+   * So what is pinned is the guarantee that made deleting the prop safe. The
+   * only reservation this component still varies is whether there is an overlay
+   * to reserve for at all — with a curve it asks for `MATERIAL_ROOM` on the
+   * `+r` flank, without one it asks for nothing — and the tool has to be framed
+   * the same either way. Re-pricing padding as a margin upstream would shrink
+   * the first against the second, which is the regression this drawing cannot
+   * see for itself.
    */
-  it('draws the tool larger when the caller keeps less of the sheet for the material', () => {
-    const wide = drawn(
+  it('frames the tool the same whether or not it reserves room for the material', () => {
+    const reserved = drawn(
       <CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" curve={curve} />,
     )
-    const generous = wide.querySelector('svg')?.getAttribute('viewBox')
 
     StubResizeObserver.all = []
-    const narrow = drawn(
-      <CatalogDrawing
-        tool={tool}
-        assembly={assembly}
-        unit="millimeters"
-        curve={curve}
-        materialRoom={MATERIAL_ROOM / 4}
-      />,
-    )
-    const tight = narrow.querySelector('svg')?.getAttribute('viewBox')
+    const bare = drawn(<CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" />)
 
-    const across = (viewBox: string | null | undefined) =>
-      Number((viewBox ?? '0 0 0 0').split(' ')[2])
-    expect(across(tight)).toBeGreaterThan(0)
-    expect(across(tight)).toBeLessThan(across(generous))
+    const across = (container: HTMLElement) =>
+      Number((container.querySelector('svg')?.getAttribute('viewBox') ?? '0 0 0 0').split(' ')[2])
+
+    expect(across(bare)).toBeGreaterThan(0)
+    expect(across(reserved)).toBe(across(bare))
   })
 
   /**

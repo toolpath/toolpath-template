@@ -437,10 +437,13 @@ scrape:holding` into `scrape-out/toolholding/`, because a shop re-scrapes
   end mill) and `FamilyDefinition.familyCode` on toolholding. `clampLength` maps
   from `L9` rather than `LF` — a different quantity under the same name, which
   is why catalog version 11 is a re-ingest and not a rebuild — and a collet
-  publishing no `L9` states no grip rather than borrowing one. The hand-pinned
-  `KENNAMETAL_HOLDING_CODES` is a fallback for what upstream leaves silent, not
-  the source: keeping it ahead of the vendor's own is how one goes stale, and
-  one had. See `docs/TOOL-CATALOG-PLAN.md` § _Length below the holder_.
+  publishing no `L9` states no grip rather than borrowing one. **The family code
+  is the scraper's, and only the scraper's**: the hand-pinned
+  `KENNAMETAL_HOLDING_CODES` came out of `scrape.ts` on 2026-09-10, because
+  keeping a code ahead of the vendor's own is how one goes stale, and one had.
+  A family the scraper states no code for is one this package cannot reach, and
+  `holdingReachable` says so. See `docs/TOOL-CATALOG-PLAN.md` § _Length below
+  the holder_ and `docs/TOOL-SCRAPER-REFACTOR.md`.
 - **`src/vendors/` is dead and kept on purpose.** Nothing calls it now that the
   seam is taken. It is the only written record of REGO-FIX's DIN 4000 code
   pinning, each mapping citing its evidence, so it stays until either that

@@ -69,8 +69,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/part-server
       '@toolpath/tool-drawing':
-        specifier: 0.3.2
-        version: 0.3.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        specifier: 1.0.0
+        version: 1.0.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@toolpath/tool-support':
         specifier: 0.3.0
         version: 0.3.0
@@ -278,8 +278,8 @@ importers:
         specifier: workspace:*
         version: link:../part-contracts
       '@toolpath/tool-scraper':
-        specifier: 2.5.0
-        version: 2.5.0
+        specifier: 3.0.0
+        version: 3.0.0
       '@toolpath/tool-support':
         specifier: 0.3.0
         version: 0.3.0
@@ -1308,20 +1308,24 @@ packages:
       react: ^19.0.0
       react-dom: ^19.0.0
 
-  '@toolpath/tool-drawing@0.3.2':
-    resolution: {integrity: sha512-viH7w9xnkU/2lsENgLq2bBsr8BQr6lIrkzD1+V+aLRX9WWq2hIWG+LbxpFIq6BLbwC9SXCbFV9w1SHrLbYgGoA==}
+  '@toolpath/tool-drawing@1.0.0':
+    resolution: {integrity: sha512-ppLG270AACmRAT/hoUl8scHDtsgQ7RIjTROMc0+drLa5IADsAAZ/97CWXn/YEVoeIfrNAYudnwnH8RoR9ocPrA==}
     engines: {node: '>=20'}
     peerDependencies:
       react: ^19.0.0
       react-dom: ^19.0.0
 
-  '@toolpath/tool-scraper@2.5.0':
-    resolution: {integrity: sha512-4ThSLcZyJ5ocKCTo6wjXDOOP6dvf0QTzh/dMRzprMX81nLdnby0m4+DsOJWJ3AkOftL6Wyw2+j5XviADayMXog==}
+  '@toolpath/tool-scraper@3.0.0':
+    resolution: {integrity: sha512-Uzoc3fdDpdQeOE0DUnKc+fnERbbGHyrjBWxIidkPTVlGgKBDg1qnmP9OmWuMgKUPJCgfJ/wFNFFbEtRiusZerA==}
     engines: {node: '>=20'}
     hasBin: true
 
   '@toolpath/tool-support@0.3.0':
     resolution: {integrity: sha512-7sv9UMTgEyOIBKTUhlbgOtUJ5tOA10G61crfRZcO8BILooWzfw/V2cUTOt35M15WyLnxMu/uPX1pBY1eO8nziw==}
+    engines: {node: '>=20'}
+
+  '@toolpath/tool-support@0.3.1':
+    resolution: {integrity: sha512-X2sTebw0liETcmbypaz2I/KYeO2N4oQCN/pHhgkMzNfbeSaCwMkJy5UiukbksAjWJfeH56AcfZrjLMX/aMSCig==}
     engines: {node: '>=20'}
 
   '@toolpath/ui@1.0.0':
@@ -3976,18 +3980,20 @@ snapshots:
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
 
-  '@toolpath/tool-drawing@0.3.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+  '@toolpath/tool-drawing@1.0.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
-      '@toolpath/tool-support': 0.3.0
+      '@toolpath/tool-support': 0.3.1
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
 
-  '@toolpath/tool-scraper@2.5.0':
+  '@toolpath/tool-scraper@3.0.0':
     dependencies:
-      '@toolpath/tool-support': 0.3.0
+      '@toolpath/tool-support': 0.3.1
       htmlparser2: 12.0.0
 
   '@toolpath/tool-support@0.3.0': {}
+
+  '@toolpath/tool-support@0.3.1': {}
 
   '@toolpath/ui@1.0.0(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)':
     dependencies:

@@ -102,6 +102,7 @@ import { hiddenAfterAuto } from 'shared/auto-columns'
 import { capRows, firstBy, keptFirst, oneEach } from 'shared/tool-order'
 import {
   allTools as catalogTools,
+  builtAt,
   collets as allCollets,
   facets,
   familyName,
@@ -168,6 +169,7 @@ import {
   narrowTools,
   whyEmpty,
 } from 'shared/assembly-narrowing'
+import { holderReport } from 'shared/holder-debug'
 import {
   COLLET_COLUMNS,
   HOLDER_COLUMNS,
@@ -2865,23 +2867,18 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const shownRows = useMemo(() => keptFirst(searched, keptHere), [searched, keptHere])
 
   /**
-   * Holder, collet and stickout picked on a row, per tool, for the feature
-   * being read — the person's, until Save writes them to the sheet. Cleared
-   * when the reading changes: a holder picked for a pocket is not a holder
-   * picked for a hole.
+   * A tool a press asked for, kept across the reading it also asked for.
+   *
+   * **The holder beside it is gone** (2026-09-11). A `picked` map sat here
+   * holding a holder, a collet and a stickout per tool, written by the panel's
+   * own dropdowns and read back by whatever wrote the sheet. The dropdowns
+   * were its only writer, so with them the map could only ever be empty — and
+   * an empty map still read like a person's unsaved answer at three call
+   * sites. What holds a tool is the tree's slots, and `shared/assembly-tree`
+   * keeps those.
    */
-  const [picked, setPicked] = useState<
-    Readonly<
-      Record<
-        string,
-        { holderGuid?: string | null; colletGuid?: string | null; stickout?: number | null }
-      >
-    >
-  >({})
-  /** A tool a press asked for, kept across the reading it also asked for. */
   const wantedTool = useRef<string | null>(null)
   useEffect(() => {
-    setPicked({})
     setChosenTool(wantedTool.current)
     wantedTool.current = null
   }, [focused])
@@ -2890,15 +2887,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * The list: the ten best, each as the assembly the rules recommend — and,
    * when fewer than ten fit, the nearest misses after them, marked
    * incompatible and saying by how much.
-   */
-  /**
-   * The tool being read, and the holders for it.
-   *
-   * This was a ten-row table with a superlative badge on each, computed on
-   * every render — and nothing has drawn that table since the list took its
-   * place. What survives is the one thing the page still asks: which tool is
-   * being read, and what can hold it (Paul, 2026-08-31, on a page running
-   * slowly: ten `holderOptions` sweeps per render, thrown away).
    */
   /**
    * The row being drawn: the one clicked, or the first — the drawing is never
@@ -2992,49 +2980,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     const panes = threadPanes(shownRows, tapRows, chosenTool)
     return panes.tap ?? tool ?? shownRows[0] ?? null
   }, [chosenTool, threadSpec, tool, shownRows, tapRows])
-
-  const pick = useCallback(
-    (
-      guid: string,
-      change: { holderGuid?: string | null; colletGuid?: string | null; stickout?: number | null },
-    ) => setPicked((current) => ({ ...current, [guid]: { ...current[guid], ...change } })),
-    [],
-  )
-
-  /** Save writes the drawn assembly to the sheet for this feature, and opens the strip. */
-  const saveAssembly = useCallback(
-    (saved: CatalogTool) => {
-      const mine = picked[saved.guid]
-      const options = holderOptions(
-        saved,
-        allHolders,
-        allCollets,
-        holderFilters,
-        curve,
-        margins,
-        thresholds,
-      )
-      const option =
-        options.find((each) => each.holder.guid === mine?.holderGuid) ??
-        options.find((each) => each.recommended) ??
-        options[0] ??
-        null
-      const stickout = mine?.stickout ?? option?.stickout ?? null
-      commit(
-        addChoice(sheet, choiceKey, {
-          toolGuid: saved.guid,
-          ...(option ? { holderGuid: option.holder.guid } : {}),
-          ...(mine?.colletGuid
-            ? { colletGuid: mine.colletGuid }
-            : option?.collet
-              ? { colletGuid: option.collet.guid }
-              : {}),
-          ...(stickout === null ? {} : { stickout }),
-        }),
-      )
-    },
-    [picked, holderFilters, curve, margins, thresholds, commit, sheet, choiceKey],
-  )
 
   /** Identical holes are one decision — `shared/part-interaction` says why. */
   const groupOf = useCallback(
@@ -4504,6 +4449,66 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     return filterComponents('holder', offered.shown, holderQuery).length - holderRows.length
   }, [noCollet, holderRows, offered, holderQuery])
 
+  /**
+   * The whole holder funnel, on demand, for somebody looking at an empty rack.
+   *
+   * **A row that is not there says nothing about which rule removed it.** Five
+   * gates stand between the crib and the table and every one of them fails
+   * identically on screen, so "why are there no hydraulic or shrink-fit holders
+   * for this feature" cannot be answered by looking. `holderReport` re-asks the
+   * same rules over the same lists and counts the answers.
+   *
+   * Dev only, and reached from the console rather than from the page:
+   * `__holderDebug()` prints it and returns it, so it can be copied out. There
+   * is no UI for it because it is a question asked while something is already
+   * wrong, not a thing the page offers.
+   */
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return
+    }
+    const report = (): string => {
+      const text = holderReport({
+        about: [
+          `job ${jobId}`,
+          askedNow.tags.length === 0
+            ? 'no feature asked'
+            : `feature tags [${askedNow.tags.join(', ')}]`,
+          assembly === null ? 'no assembly' : `assembly ${assembly.id} (role ${assembly.role})`,
+          `slot ${componentSlot ?? 'tool'}`,
+        ].join(' · '),
+        dataset: builtAt,
+        holders: allHolders,
+        collets: allCollets,
+        tools: asking ? stackShanks : null,
+        chosenTool: treeTool,
+        chosenCollet: treeCollet,
+        filters: holderFilters,
+        canDraw: (holder) => drawable(holder, (guid) => getProfile(guid) !== null),
+        inQuery: (holder) => filterComponents('holder', [holder], holderQuery).length > 0,
+        noCollet,
+      })
+      console.log(text)
+      return text
+    }
+    ;(window as unknown as { __holderDebug?: () => string }).__holderDebug = report
+    return () => {
+      delete (window as unknown as { __holderDebug?: () => string }).__holderDebug
+    }
+  }, [
+    jobId,
+    askedNow,
+    assembly,
+    componentSlot,
+    asking,
+    stackShanks,
+    treeTool,
+    treeCollet,
+    holderFilters,
+    holderQuery,
+    noCollet,
+  ])
+
   const colletPool = useMemo(
     // The same rule the holder slot follows, for the same reason: a collet
     // closing on nothing this feature can be cut with is not a row to click.
@@ -5104,31 +5109,22 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     if (panelTool === null) {
       return []
     }
-    /**
-     * Whatever this tool is standing in, which is the tree's doing: the panel
-     * has offered no holding of its own since 2026-09-10.
-     */
-    const held = {
-      holderGuid: picked[panelTool.guid]?.holderGuid ?? null,
-      colletGuid: picked[panelTool.guid]?.colletGuid ?? null,
-    }
-    const first = distinctIn(askedNow.tags)[0]?.[0]
-    const line = first === undefined ? null : chosenFor(sheet, first, panelTool.guid)
     const wanted = toolActions({
       active: asking && !askedNow.summary,
       mapped: mappedHere.length,
       here: mappedHere.includes(panelTool.guid),
-      assemblyChanged:
-        line !== null &&
-        ((line.holderGuid ?? null) !== held.holderGuid ||
-          (line.colletGuid ?? null) !== held.colletGuid),
+      /*
+        **The panel cannot change an assembly any more** (2026-09-11). It
+        compared its own holder and collet dropdowns against the ordered line,
+        and offered *Update* where the two differed. The dropdowns are gone —
+        a holder is a slot of the tree — so the panel holds nothing to differ
+        *with*, and reading the empty pick as a change would offer *Update* on
+        every tool ordered with a holder.
+      */
+      assemblyChanged: false,
     })
-    /** This tool, with whatever the panel has it held in. */
-    const asLine = {
-      toolGuid: panelTool.guid,
-      ...(held.holderGuid === null ? {} : { holderGuid: held.holderGuid }),
-      ...(held.colletGuid === null ? {} : { colletGuid: held.colletGuid }),
-    }
+    /** This tool alone: what holds it is the tree's answer, not this panel's. */
+    const asLine = { toolGuid: panelTool.guid }
     /*
       **Every tag being asked about, not the first of each distinct feature.**
       The tree writes a line under all of a row's keys and this wrote it under
@@ -5185,8 +5181,6 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     }))
   }, [
     panelTool,
-    picked,
-    distinctIn,
     askedNow,
     asking,
     sheet,
@@ -6011,19 +6005,15 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           )}
           feature={reading ? listTitle.replace(/^Cuts the /, '') : null}
           unit={unit}
-          // What the row already had chosen in its Holder and Collet columns,
-          // so the box opens on it rather than asking twice.
-          // What the row had chosen, or what the bill already holds for it —
-          // the pencil reopens the box on the decision it is editing.
+          // What the bill already holds for it — the pencil reopens the box on
+          // the decision it is editing. It read an unsaved pick off the row's
+          // Holder and Collet dropdowns first; those came off on 2026-09-11,
+          // so the sheet is the whole answer.
           holderGuid={
-            picked[adding.tool.guid]?.holderGuid ??
-            chosenFor(sheet, adding.featureTag ?? choiceKey, adding.tool.guid)?.holderGuid ??
-            null
+            chosenFor(sheet, adding.featureTag ?? choiceKey, adding.tool.guid)?.holderGuid ?? null
           }
           colletGuid={
-            picked[adding.tool.guid]?.colletGuid ??
-            chosenFor(sheet, adding.featureTag ?? choiceKey, adding.tool.guid)?.colletGuid ??
-            null
+            chosenFor(sheet, adding.featureTag ?? choiceKey, adding.tool.guid)?.colletGuid ?? null
           }
           onCancel={() => setAdding(null)}
           onConfirm={({ holderGuid, colletGuid }) => {
@@ -7121,8 +7111,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                   One sheet for every slot: the panel decides what goes under
                   the drawing, this decides what the drawing is of. No
                   `holding` — the holder and the collet are slots of the tree
-                  with tables of their own, so the panel offers no dropdowns;
-                  `stack` is what still draws them.
+                  with tables of their own, so the panel offers no dropdowns
+                  anywhere; `stack` is what draws them.
                 */
                 toolDetails={
                   treeTool === null
@@ -7162,11 +7152,12 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                 tool={panelTool}
                 unit={unit}
                 /*
-                  **Nothing is added from here any more** (Paul, 2026-09-02:
-                  "Add to list button can go away — we are now adding tools to
-                  the BOM by confirming the feature/tool mapping"). What the
-                  panel still owns is the *assembly*: a holder, a collet and, in
-                  time, a stickout, changed on a decision already made.
+                  **Nothing is assembled from here either** (2026-09-11). The
+                  panel offered a holder and a collet of its own until this
+                  branch was the last place they survived — the tree covers
+                  every state but this one, a tool read with no feature
+                  selected — so the page had two ways to fill one slot and no
+                  rule saying which won. What the panel does now is read.
                 */
                 mappedTo={mappedTo}
                 /*

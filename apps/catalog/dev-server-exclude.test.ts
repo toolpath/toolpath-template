@@ -26,6 +26,25 @@ describe('what the dev server leaves to Vite', () => {
     }
   })
 
+  /**
+   * The two a browser asks for on its own. Neither is a route, so both
+   * reached React Router and logged a "No route matches" stack trace on the
+   * dev server — the favicon on every boot, the Chrome probe on every
+   * DevTools open.
+   */
+  it('leaves what a browser asks for unprompted to Vite', () => {
+    for (const url of [
+      '/favicon.ico',
+      '/favicon.svg',
+      '/favicon-32x32.png',
+      '/apple-touch-icon.png',
+      '/apple-touch-icon-precomposed.png',
+      '/.well-known/appspecific/com.chrome.devtools.json',
+    ]) {
+      expect(leftToVite(url), url).toBe(true)
+    }
+  })
+
   it('leaves a document to the app', () => {
     for (const url of ['/', '/parts', '/parts/part-1?job=job-1', '/api/session']) {
       expect(leftToVite(url), url).toBe(false)

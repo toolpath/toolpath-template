@@ -1,4 +1,9 @@
-import { AEM_BRANDS, familyBrand, type ToolRecord } from '@toolpath/tool-scraper'
+import {
+  AEM_BRANDS,
+  familyBrand,
+  type BoundToolholding,
+  type ToolRecord,
+} from '@toolpath/tool-scraper'
 import { boundFamilies, boundToolholding } from '@toolpath/tool-scraper/registry'
 import { describe, expect, it } from 'vitest'
 
@@ -6,6 +11,7 @@ import { statedForm } from './forms.js'
 import {
   familyTitle,
   holdingReachable,
+  needsCadPass,
   reachable,
   sharedDescription,
   threadSystemOf,
@@ -166,50 +172,79 @@ describe('which families this package can actually scrape', () => {
 
 describe('which toolholding families this package can actually scrape', () => {
   /**
-   * The counterpart of the cutting-tool check above, and it holds a list where
-   * that one demands an empty one.
+   * The counterpart of the cutting-tool check above, and it demands the same
+   * empty answer — as of 2026-09-10, when the scraper began stating a
+   * `familyCode` on a toolholding family and `KENNAMETAL_HOLDING_CODES` came
+   * out of `scrape.ts`. Until then this held a list: seven Kennametal holder
+   * families were declared upstream with no AEM code typed out here, and the
+   * code could not be derived, because Kennametal's category pages build their
+   * family lists in the browser.
    *
-   * Seven Kennametal holder families are declared upstream and have no AEM
-   * family code here. The code cannot be derived: Kennametal's category pages
-   * build their family lists in the browser, so each is read by hand off a
-   * `fam.<slug>.<code>.html` URL, which is why `KENNAMETAL_HOLDING_CODES` is
-   * typed out at all. Until somebody reads those seven, they are a gap, and
-   * this is where the gap is written down.
-   *
-   * **The list may shrink and may not grow.** A family joining it is either one
-   * that arrived upstream with no target wired, or a target that stopped
-   * resolving — both worth knowing while the scrape is being set up rather than
-   * after a run has quietly missed them. That is not hypothetical: eleven
-   * REGO-FIX collet families sat unreachable through every scrape until
-   * 2026-09-08, because nothing asked this question.
+   * **A family arriving here is a regression, not a note.** Either it landed
+   * upstream with no target wired, or a target stopped resolving — both worth
+   * knowing while the scrape is being set up rather than after a run has
+   * quietly missed them. That is not hypothetical: eleven REGO-FIX collet
+   * families sat unreachable through every scrape until 2026-09-08, because
+   * nothing asked this question.
    */
-  const WITHOUT_A_TARGET: ReadonlyArray<string> = [
-    'bt30_hydraulic_chucks_form_ad_inch.csv',
-    'bt30_hydraulic_chucks_form_ad_metric.csv',
-    'bt30_shrink_fit_fc_form_ad_inch.csv',
-    'bt30_shrink_fit_fc_form_ad_metric.csv',
-    'bt30_shrink_fit_hpv_form_ad_inch.csv',
-    'bt30_shrink_fit_hpv_form_ad_metric.csv',
-    'btkv30_er_collet_chucks_metric.csv',
-  ]
-
-  it('names every toolholding family it cannot reach, and no others', () => {
+  it('reaches every toolholding family the scraper declares', () => {
     expect(holding.length).toBeGreaterThan(20)
 
     const refused = holding
-      .filter(([name, family]) => holdingReachable(name, family) !== null)
-      .map(([name]) => name)
+      .map(([name, family]) => [name, holdingReachable(name, family)] as const)
+      .filter(([, reason]) => reason !== null)
+      .map(([name, reason]) => `${name}: ${String(reason)}`)
 
-    expect([...refused].sort()).toEqual([...WITHOUT_A_TARGET].sort())
+    expect(refused).toEqual([])
   })
 
+  /**
+   * The refusal still has to be reachable, or the check above passes because
+   * nothing can fail rather than because everything resolves. A real family
+   * with the one fact removed is the smallest way to ask.
+   */
   it('answers before a request, naming the brand and the family', () => {
-    const missing = holding.filter(([name]) => name === 'btkv30_er_collet_chucks_metric.csv')
+    const entry = holding.find(([, family]) => familyBrand(family) === 'kennametal')
 
-    expect(missing).toHaveLength(1)
-    expect(missing.map(([name, family]) => holdingReachable(name, family))).toEqual([
-      'kennametal declares no scrape target for btkv30_er_collet_chucks_metric.csv',
-    ])
+    expect(entry).toBeDefined()
+    const [name, family] = entry as [string, BoundToolholding]
+
+    expect(holdingReachable(name, { ...family, familyCode: undefined })).toBe(
+      `kennametal declares no scrape target for ${name}`,
+    )
+  })
+})
+
+describe('which toolholding families need the CAD pass', () => {
+  /**
+   * The pass is one paced request per row on top of the family scrape, so which
+   * families take it is a cost as well as a rule — and it is checked against the
+   * live table rather than a fixture for the reason every rule in this file is.
+   *
+   * **Kennametal holders and nothing else**, today. MariTool and REGO-FIX
+   * publish a model link on the page their holders come from, so a second pass
+   * would spend a request per row to overwrite a URL the record already has.
+   */
+  it('asks it of every Kennametal holder family', () => {
+    const kennametalHolders = holding.filter(
+      ([, family]) => familyBrand(family) === 'kennametal' && family.kind === 'holder',
+    )
+
+    expect(kennametalHolders.length).toBeGreaterThan(100)
+    expect(kennametalHolders.every(([, family]) => needsCadPass(family))).toBe(true)
+  })
+
+  /**
+   * A collet is held rather than drawn — nothing measures one and `drawable`
+   * never asks it for a silhouette — so the 443 requests are the whole cost of
+   * a column with no reader.
+   */
+  it('asks it of no collet family, and of no other brand', () => {
+    const asked = holding
+      .filter(([, family]) => needsCadPass(family))
+      .map(([, family]) => `${familyBrand(family)} ${family.kind}`)
+
+    expect([...new Set(asked)]).toEqual(['kennametal holder'])
   })
 })
 

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { ArrowSquareOutIcon } from '@phosphor-icons/react'
-import { Badge, Button, Combobox, Toggle, cn } from '@toolpath/ui'
+import { Badge, Button, cn } from '@toolpath/ui'
 import {
   NO_MARGINS,
   type CatalogTool,
@@ -9,33 +9,45 @@ import {
   type Margins,
 } from '@toolpath/catalog-data'
 import type { ReachCurve } from '@toolpath/part-contracts'
-import { formatLength, type UnitSystem } from '@toolpath/tool-support'
+import type { UnitSystem } from '@toolpath/tool-support'
+import type { Zoom } from '@toolpath/tool-drawing'
 import { formatGeometry } from 'shared/geometry'
 import { getFamily } from 'shared/catalog'
 import { drawnAssembly } from 'shared/drawn-assembly'
 import { thresholdsFrom } from 'shared/holder-choice'
 import { ToolTypeIcon, formLabel } from './tool-icons'
 import { MeasurementIcon } from './feature-icons'
-import { CatalogDrawing } from './catalog-drawing'
-import { CatalogComboboxButton } from './catalog-combobox-button'
+import { CatalogDrawing, useSheetGround } from './catalog-drawing'
 
 /**
  * The tool being read, beside the part.
  *
- * Paul's panel (2026-08-31): the cutter drawn on its own, the numbers it is
- * chosen on in a form somebody can read at a glance, and the two decisions
- * that finish an assembly — a holder and a collet — asked here rather than
- * only in the list. The vendor's page is a button at the top, because "where
- * do I buy this" is asked of the thing on screen.
+ * Paul's panel (2026-08-31): the cutter drawn on its own and the numbers it
+ * is chosen on, in a form somebody can read at a glance. The vendor's page is
+ * a button at the top, because "where do I buy this" is asked of the thing on
+ * screen.
+ *
+ * **It reads a tool; it does not assemble one** (2026-09-11). It carried a
+ * holder dropdown and a collet dropdown from 2026-08-31, and the tool assembly
+ * tree took that job on 2026-09-08 — but the pair survived in the one state
+ * the tree does not cover, a panel with no feature selected, so the page still
+ * had two ways to fill a slot and no rule saying which won. The dropdowns are
+ * gone; `stack` is what this panel is told about a holder.
  *
  * This is the working panel, not a reference sheet: the tool's own page and
  * the standalone catalog browser were removed on 2026-09-03, so the panel
  * beside the part is the only place a tool is read.
  *
- * **The drawing shows the tool, or the tool and what holds it** (Paul,
- * 2026-09-01), and says so with a switch rather than by whether a holder
- * happens to have been chosen. Either way it is dimensioned — the lengths and
- * widths the vendor states, drawn on the tool the way a drawing states them.
+ * **The drawing shows the whole stack, and the switch over it is a zoom**
+ * (2026-09-11). It used to choose between the tool and the tool with its
+ * holder, which was a second answer to a question the tree already settles —
+ * a panel drawing the cutter alone beside a stack the tree had fully
+ * assembled. What a reader actually wanted from the *Tool* half was the
+ * working end drawn bigger, and `@toolpath/tool-drawing` now frames that
+ * itself: `zoom` cuts the sheet just above the holder nose rather than
+ * dropping the holder out of the picture. Either way it is dimensioned — the
+ * lengths and widths the vendor states, drawn on the tool the way a drawing
+ * states them.
  */
 
 /** The numbers a tool is chosen on, in the order the question is asked. */
@@ -73,19 +85,6 @@ const KEY_LABELS: Record<(typeof KEY_CODES)[number], string> = {
  * lights nothing, which is the truth.
  */
 const UNLETTERED: ReadonlySet<string> = new Set(['LD', 'NOF'])
-
-/**
- * Room for the material on this panel's sheet, in pixels.
- *
- * The drawing card's own figure is `MATERIAL_ROOM`, 240, which is right on a
- * full-width `h-96` card and wrong here: this panel is a column beside the
- * part, `minSize={280}` wide and around 400 tall, and the package caps every
- * flank at 0.6 of the axis — so 240 was the whole allowance, taken from the
- * assembly and from the dimension bands that share it (2026-09-03). About a
- * third of the short axis leaves the tool the sheet and the material a band
- * wide enough to read.
- */
-const PANEL_MATERIAL_ROOM = 130
 
 export interface ToolDetailsProps {
   readonly tool: CatalogTool
@@ -153,9 +152,9 @@ export interface ToolDetailsProps {
    * the details column should change when a different component is selected").
    * Selecting a holder in the tree used to swap the whole panel for a second
    * drawing in a box of its own — which is why that one came out lying on its
-   * side, and why the Tool / Tool + holder switch vanished the moment somebody
-   * looked at a holder. The sheet above is the same sheet either way; this is
-   * the half that answers "which component am I reading".
+   * side, and why the zoom over the sheet vanished the moment somebody looked
+   * at a holder. The sheet above is the same sheet either way; this is the
+   * half that answers "which component am I reading".
    */
   readonly details?: ReactNode
 }
@@ -172,10 +171,11 @@ export const ToolDetails = ({
 }: ToolDetailsProps) => {
   const family = getFamily(tool.familyId)
   /**
-   * Which of the two is drawn. Kept while the panel is up, so a shop reading
-   * cutters does not have to say so again on every tool it clicks.
+   * How much of the stack the sheet is framed to. Kept while the panel is up,
+   * so a shop reading cutters does not have to say so again on every tool it
+   * clicks.
    */
-  const [view, setView] = useState<'tool' | 'stack'>('stack')
+  const [zoom, setZoom] = useState<Zoom>('assembly')
   /**
    * The number the reader is pointing at, by ISO 13399 code.
    *
@@ -189,11 +189,16 @@ export const ToolDetails = ({
    * about what is lit.
    */
   const [pointed, setPointed] = useState<string | null>(null)
+  /** The ground the panel is painted in: the drawing's own, whichever theme. */
+  const ground = useSheetGround()
   /**
-   * The stack this panel is drawing, which is the tree's and nothing else's
-   * (Paul, 2026-09-10). The panel used to offer a holder and a collet of its
-   * own when no feature was open, so a stack could be assembled in two places
-   * — the tree, and a pair of dropdowns over a tool nobody had ordered.
+   * The stack this panel draws, and the only place it can come from.
+   *
+   * **The tree is what assembles a tool** (2026-09-11). This panel used to
+   * offer a holder and a collet of its own, which made it a second way to fill
+   * a slot the tree already owns — and the two could disagree, because the
+   * dropdowns wrote to `picked` and the tree wrote to the assembly. `stack` is
+   * now the whole answer: what the tree has put in the slots, or nothing.
    */
   const chosen = {
     holderGuid: stack?.holder?.guid ?? null,
@@ -224,18 +229,39 @@ export const ToolDetails = ({
     thresholdsFrom(),
     holderChosen === undefined ? [] : [holderChosen],
   )
-  /** Whether the sheet below is the stack rather than the bare tool. */
-  const drawnAsStack = drawn.assembly !== null && view === 'stack'
+  /**
+   * Whether there is a stack to draw at all.
+   *
+   * **Not a choice any more** (2026-09-11). The panel drew the cutter alone
+   * whenever the switch said `tool`, which meant the one picture on the page
+   * could disagree with the tree about what was on the tool. The sheet is now
+   * whatever the tree assembled, and the press over it moves the frame rather
+   * than the subject.
+   */
+  const drawnAsStack = drawn.assembly !== null
 
   return (
     /*
-      **The panel is a grey wash, and everything on it floats** (Paul,
-      2026-09-01): the head, the two selections, the sheet the tool is drawn
-      on and the numbers each sit on their own surface, in the tone the table's
-      rows are. The padding is also what keeps a square-cornered band out of
-      the card's rounded corner.
+      **The panel is the sheet the tool is drawn on** (Paul, 2026-09-11). It
+      was a grey wash, and everything on it floated in the tone the table's
+      rows are (Paul, 2026-09-01) — which left the drawing reading as a white
+      rectangle inset in a card rather than as a drawing, because the sheet is
+      capped at 16 rem and the wash filled whatever the panel had either side
+      of it. Flush with the sheet, there is no inset to read: the head and the
+      numbers still float, a shade off the ground rather than onto it.
+
+      **The colour is the package's, not a zinc step** — `useSheetGround`, so
+      the two grounds turn over together. Dark is `#22252b`, a deliberate step
+      above the card, so a hard-coded white would have matched in one theme and
+      glared in the other. A runtime value, hence `style`.
+
+      The padding is also what keeps a square-cornered band out of the card's
+      rounded corner.
     */
-    <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden rounded-xl bg-zinc-900/60 p-2">
+    <div
+      className="flex h-full min-h-0 flex-col gap-2 overflow-hidden rounded-xl p-2"
+      style={{ background: ground }}
+    >
       {/*
         **What it is, then who makes it** (Paul, 2026-09-01): the number a shop
         orders by, and under it the vendor, the family it belongs to and what
@@ -315,24 +341,34 @@ export const ToolDetails = ({
         leave.
       */}
       <div className="flex min-h-0 flex-1 flex-col gap-1">
+        {/*
+          **One press, and it says which way it goes** (2026-09-11) — the same
+          rule `NoColletToggle` follows: a toggle labelled with its own state
+          leaves the reader working out which of the two they are looking at
+          from the picture, which is the thing they were looking at the picture
+          to find out. So it names the frame it would move to.
+
+          Drawn only where a holder is: the cut is the length of tool below the
+          holder, so with nothing holding the cutter the zoom has no nose face
+          to frame against and the sheet is already the tool.
+        */}
         {drawn.holder === null ? null : (
           <div className="flex justify-end gap-1">
-            <Toggle
-              value={view}
-              onValueChange={(next) => {
-                if (next === 'tool' || next === 'stack') {
-                  setView(next)
-                }
-              }}
+            <Button
+              type="button"
               size="sm"
+              variant="secondary"
+              aria-pressed={zoom === 'tool'}
+              title={
+                zoom === 'tool'
+                  ? 'The sheet is framed on the working end. Zooming out draws the whole stack, tip to the top of the holder.'
+                  : 'The sheet is framed on the whole stack. Zooming to the tool frames what stands below the holder, with a sliver of the nose above it.'
+              }
+              onClick={() => setZoom(zoom === 'tool' ? 'assembly' : 'tool')}
+              className="text-2xs rounded border border-zinc-800 px-2 py-0.5 text-zinc-300 hover:border-zinc-700"
             >
-              <Toggle.Item value="tool" className="text-2xs px-2 py-0.5">
-                Tool
-              </Toggle.Item>
-              <Toggle.Item value="stack" className="text-2xs px-2 py-0.5">
-                Tool + holder
-              </Toggle.Item>
-            </Toggle>
+              {zoom === 'tool' ? 'Zoom out' : 'Zoom to tool'}
+            </Button>
           </div>
         )}
         {/*
@@ -360,29 +396,44 @@ export const ToolDetails = ({
           the sheet, all lay the tool on its side; the first fix only gave the
           box a definite height, which left the ratio to chance.
 
-          **A capped width and a floor under the height**, rather than an
-          aspect ratio off `h-full`. That version was right two runs in three
-          and wrong in the other: `h-full` resolves against a parent whose own
-          height is not definite on the first layout pass, so `aspect-ratio`
-          derived the height from the width instead and the box came out
-          landscape — and the package reads the box once. 16 rem of width under
-          18 rem of height cannot be landscape whatever the panel is doing,
-          because neither figure waits on a percentage to resolve. A taller
-          panel only makes it more portrait.
+          **The height, and a width derived from it** (Paul, 2026-09-11: "be
+          more aggressive about adjusting the viewer panel to match the
+          available space"). It was a flat 16 rem cap on the width, which is
+          upright at any panel size and throttles the drawing at most of them:
+          the scale is the smaller of the two ratios that fit, so on a panel
+          taller than it is wide the *width* is what binds — 16 rem of sheet
+          under 56 rem of panel drew a BT40 stack a third of the height it had
+          room for, with the rest of the sheet empty above and below it.
+
+          So the box fills the height it is given and takes its width from
+          that: `width = height × 3/4`, clamped by the panel it is in. A box
+          whose width is three quarters of its own height cannot be landscape
+          whichever of the two the browser settles first, which is what the
+          16 rem cap was buying — and on a panel narrower than that it is the
+          `max-w-full` that binds, so the sheet takes the whole column.
+
+          The floor under the height is what keeps `w-auto` from collapsing:
+          the width is derived from the used height, so a height of nothing
+          would be a width of nothing. And the package re-measures — it watches
+          its own `<svg>` with a `ResizeObserver` as of 0.3.1 — so a box that
+          settles a frame late is corrected rather than fixed wrong, which is
+          what the first aspect-ratio attempt could not rely on.
         */}
-        <div className="flex min-h-0 flex-1 flex-col items-center">
-          <div className="h-full min-h-[18rem] w-full max-w-[16rem]">
+        {/* Named so a test can measure the sheet against the room it was
+            given — the rule is a ratio, and a ratio needs both numbers. */}
+        <div data-sheet-room className="flex min-h-0 flex-1 flex-col items-center">
+          <div className="aspect-[3/4] h-full min-h-[18rem] w-auto max-w-full">
             <CatalogDrawing
               tool={tool}
               unit={unit}
               curve={curve}
               margins={margins}
-              materialRoom={PANEL_MATERIAL_ROOM}
               dimensions
               dimensionSides="both"
               highlight={pointed}
               onDimensionHover={setPointed}
-              assembly={drawnAsStack ? drawn.assembly : null}
+              assembly={drawn.assembly}
+              zoom={zoom}
             />
           </div>
         </div>

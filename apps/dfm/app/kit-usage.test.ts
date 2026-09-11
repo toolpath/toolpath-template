@@ -19,8 +19,11 @@ import { describe, expect, it } from 'vitest'
  * control happens to live there today, so widening the walk did not move the
  * number — but a button written into a route module, or into a folder somebody
  * adds next year, would otherwise have been ground the ratchet never held.
+ *
+ * 78 until 2026-09-10, when the count stopped reading comments: one of the 78
+ * was `face-list.tsx` explaining itself, not a control.
  */
-const BUDGET = 78
+const BUDGET = 77
 
 const appDir = 'app'
 
@@ -34,8 +37,25 @@ const componentFiles = (dir: string): Array<string> =>
     return path.endsWith('.tsx') && !path.endsWith('.test.tsx') ? [path] : []
   })
 
+/**
+ * The file with its comments taken out.
+ *
+ * A component that explains why it reached for a kit `Button` writes the word
+ * `<button>` in prose, and a sensor reading raw text counts that as the rule
+ * being broken. `face-list.tsx` carried one such mention, so the budget below
+ * was one higher than the markup justified; the catalog's twin of this file hit
+ * the same thing five times on 2026-09-10 and failed outright, which is what
+ * found it.
+ *
+ * Scanning rather than parsing, to stay the shape the rest of this file is. The
+ * `[^:]` is what keeps `https://` from eating the rest of a line, and with it a
+ * real control written after a URL.
+ */
+const withoutComments = (source: string): string =>
+  source.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/(^|[^:])\/\/.*$/gm, '$1')
+
 const rawButtonsIn = (file: string) =>
-  readFileSync(file, 'utf8').match(/<button[\s>]/g)?.length ?? 0
+  withoutComments(readFileSync(file, 'utf8')).match(/<button[\s>]/g)?.length ?? 0
 
 describe('hand-authored controls only fall', () => {
   const counted = componentFiles(appDir)

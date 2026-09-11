@@ -46,7 +46,7 @@
   },
   "dependencies": {
     "@toolpath/part-contracts": "workspace:*",
-    "@toolpath/tool-scraper": "2.5.0",
+    "@toolpath/tool-scraper": "3.0.0",
     "@toolpath/tool-support": "0.3.0"
   },
   "devDependencies": {
