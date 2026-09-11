@@ -1,4 +1,4 @@
-import { CaretDownIcon, CaretUpIcon } from '@phosphor-icons/react'
+import { ArrowSquareOutIcon, CaretDownIcon, CaretUpIcon } from '@phosphor-icons/react'
 import { Button, cn } from '@toolpath/ui'
 import type { ReactNode } from 'react'
 import {
@@ -35,6 +35,15 @@ export interface ComponentTallyRow extends SortableComponent {
   /** What kind of thing it is, for the column that says so. */
   readonly kind: string
   readonly icon: ReactNode
+  /**
+   * The vendor's page for it, or null where the vendor published none.
+   *
+   * **On the number, the way the order-list page puts it there** (Paul,
+   * 2026-09-01: "vendor link should be in part ID cell"). The part number is
+   * what a shop orders by and looks up, so the link belongs on it rather than
+   * in a column of its own — and this view is the one a shop buys from.
+   */
+  readonly productLink: string | null
   /** The assemblies it is in, for the row to say so when asked. */
   readonly uses: ReadonlyArray<string>
 }
@@ -178,7 +187,22 @@ export const ComponentTally = ({ rows, empty, sort, descending, onSort }: Compon
               </th>
               <td className="text-2xs max-w-20 truncate px-1 py-1 text-zinc-400">{row.brand}</td>
               <td className="text-2xs min-w-0 px-1 py-1">
-                <span className="block truncate font-mono text-zinc-300">{row.catalogNumber}</span>
+                {row.productLink === null ? (
+                  <span className="block truncate font-mono text-zinc-300">
+                    {row.catalogNumber}
+                  </span>
+                ) : (
+                  <a
+                    href={row.productLink}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    title={`${row.catalogNumber} on the vendor's site`}
+                    className="text-info/90 hover:text-info focus-visible:ring-info/60 flex min-w-0 items-center gap-1 rounded font-mono underline-offset-2 hover:underline focus-visible:ring-1 focus-visible:outline-none"
+                  >
+                    <span className="min-w-0 truncate">{row.catalogNumber}</span>
+                    <ArrowSquareOutIcon aria-hidden="true" className="shrink-0" />
+                  </a>
+                )}
                 {/* What it is, under what it is ordered by: the number keeps
                     its width and the phrase takes the ellipsis. */}
                 <span className="block truncate text-zinc-500">{row.detail}</span>

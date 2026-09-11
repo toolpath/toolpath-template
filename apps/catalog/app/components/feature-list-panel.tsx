@@ -415,7 +415,19 @@ export const FeatureListPanel = ({
                   <Menu.Trigger className="block w-full min-w-0">
                     <div
                       className={cn(
-                        'flex items-center gap-1 rounded border px-1.5 py-1 text-left transition',
+                        /*
+                          **The row sits a touch left of what hangs under it**
+                          (Paul, 2026-09-11: "the tool assemblies … need to be
+                          tapped in very slightly from the feature or group row
+                          … ideally we'd move the feature or group rows left a
+                          touch"). The caret gutter already spends 16px before a
+                          row's own icon, so with the answers at the old indent
+                          the two icons landed within a few pixels of each other
+                          and the hierarchy read flat. Giving the question back
+                          its left edge and pushing the answer out one step is
+                          the whole of the difference.
+                        */
+                        'flex items-center gap-1 rounded border pr-1.5 pl-0.5 py-1 text-left transition',
                         /*
                           **Dashed, and still whatever else it is.** A row can
                           be incomplete *and* the row being worked on, so the
@@ -624,7 +636,7 @@ export const FeatureListPanel = ({
                   through to the tools that fit that one feature.
                 */}
                 {answer !== undefined && (answer.children.length === 0 || !opened) ? (
-                  <div className="mt-0.5 ml-6">
+                  <div className="mt-0.5 ml-7">
                     <Answers
                       row={answer}
                       unit={unit}
@@ -641,7 +653,7 @@ export const FeatureListPanel = ({
                     removed on its own — so it reads as contents rather than as
                     more rows, and only its answer is pressable. */}
                 {item.kind === 'group' && opened ? (
-                  <ul className="mt-0.5 ml-6 flex flex-col gap-1 border-l border-zinc-800 pl-2">
+                  <ul className="mt-0.5 ml-7 flex flex-col gap-1 border-l border-zinc-800 pl-2">
                     {(answer?.children.length ?? 0) > 0
                       ? answer?.children.map((child) => (
                           <li key={child.id} className="flex flex-col gap-0.5">

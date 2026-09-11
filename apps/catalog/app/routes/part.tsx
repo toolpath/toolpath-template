@@ -3323,7 +3323,12 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           bill that quietly lost a line would report a part as tooled when it
           is not.
         */
-        const gone = { brand: '—', catalogNumber: 'gone', detail: 'no longer in the catalog' }
+        const gone = {
+          brand: '—',
+          catalogNumber: 'gone',
+          detail: 'no longer in the catalog',
+          productLink: null,
+        }
         if (total.component === 'tool') {
           const tool = getTool(total.guid)
           return tool === null
@@ -3333,6 +3338,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                 icon: <ToolTypeIcon toolType={tool.form} />,
                 brand: tool.brand,
                 catalogNumber: tool.catalogNumber,
+                productLink: tool.productLink,
                 detail: typeLabel(tool),
               }
         }
@@ -3345,6 +3351,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                 icon: <HolderIcon />,
                 brand: holder.brand,
                 catalogNumber: holder.catalogNumber,
+                productLink: holder.productLink,
                 detail: holderTypeLabel(holder),
               }
         }
@@ -3356,6 +3363,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
               icon: <ColletIcon />,
               brand: collet.brand,
               catalogNumber: collet.catalogNumber,
+              productLink: collet.productLink,
               detail: colletTypeLabel(collet),
             }
       }),

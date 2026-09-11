@@ -11,6 +11,7 @@ const holder = (over: Partial<ComponentTallyRow> = {}): ComponentTallyRow => ({
   catalogNumber: 'BT30-ER16',
   detail: 'BT30 collet chuck',
   count: 3,
+  productLink: null,
   uses: ['4 × Through Hole', 'Facing'],
   ...over,
 })
@@ -55,6 +56,28 @@ describe('the components view over the part', () => {
     draw([holder()])
 
     expect(screen.getByTitle(/in 4 × Through Hole, Facing$/)).toBeInTheDocument()
+  })
+
+  /**
+   * **The vendor's page is on the number** (Paul, 2026-09-11), the way the
+   * order-list page has put it there since 2026-09-01: this is the view a shop
+   * buys from, so the thing it orders by is the thing that links out.
+   */
+  it("links the part number to the vendor's page, where there is one", () => {
+    draw([holder({ productLink: 'https://example.com/BT30-ER16' })])
+
+    expect(screen.getByRole('link', { name: /BT30-ER16/ })).toHaveAttribute(
+      'href',
+      'https://example.com/BT30-ER16',
+    )
+  })
+
+  /** A vendor that published none leaves the number plain rather than dead. */
+  it('leaves the number plain where the vendor published no page', () => {
+    draw([holder()])
+
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    expect(screen.getByText('BT30-ER16')).toBeInTheDocument()
   })
 
   it("says so in the page's own words when nothing is ordered", () => {
