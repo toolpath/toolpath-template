@@ -47,6 +47,14 @@ export interface ClearanceEntryProps {
   readonly boxes: ClearanceBoxes
   readonly unit: UnitSystem
   readonly edit: ClearanceEdit | null
+  /**
+   * The shortest length that would clear, for a stated one that does not.
+   *
+   * `clearingLength` in `shared/clearance-entry.ts` is the number; null both
+   * where nothing is colliding and where no length this tool can be set to
+   * clears, which the line below tells apart by what it has to say.
+   */
+  readonly clearsAt: number | null
   readonly onEdit: (edit: ClearanceEdit | null) => void
 }
 
@@ -108,6 +116,7 @@ interface Mark {
 const markForBelow = (
   boxes: ClearanceBoxes,
   edit: ClearanceEdit | null,
+  clearsAt: number | null,
   say: (millimetres: number | null) => string,
 ): Mark => {
   const { below } = boxes
@@ -118,6 +127,28 @@ const markForBelow = (
     return {
       icon: WarningIcon,
       said: `this tool cannot be set there — it holds at ${say(below.value)}`,
+      amiss: true,
+    }
+  }
+  /*
+    **A stated length that fouls the part is the length box's warning, and it
+    names the length to type** (Paul, 2026-09-11: "the messaging when I enter a
+    stickout too short isn't right — it says under 0.02 — it should say
+    collision at this stickout. Increase to <minimum stickout>").
+
+    What was said instead came off the axial box — "under the 0.02 in wanted" —
+    which is the sheet's own figure read back at somebody who had just been told
+    the stack collides, on a box they had not touched. The clearances are short
+    *because* the length is, so the length is what has something to say, and the
+    line under the row takes the first field that is amiss: `below` is first.
+  */
+  if (below.entered !== null && (boxes.axial.short || boxes.radial.short)) {
+    return {
+      icon: WarningIcon,
+      said:
+        clearsAt === null
+          ? 'collision at this stickout, and no length this tool can be set to clears'
+          : `collision at this stickout. Increase to ${say(clearsAt)}`,
       amiss: true,
     }
   }
@@ -163,7 +194,7 @@ const markFor = (box: ClearanceBox, say: (millimetres: number | null) => string)
   return { icon: RulerIcon, said: 'measured at this length', amiss: false }
 }
 
-export const ClearanceEntry = ({ boxes, unit, edit, onEdit }: ClearanceEntryProps) => {
+export const ClearanceEntry = ({ boxes, unit, edit, clearsAt, onEdit }: ClearanceEntryProps) => {
   /**
    * The box being typed in, and nothing else.
    *
@@ -242,7 +273,7 @@ export const ClearanceEntry = ({ boxes, unit, edit, onEdit }: ClearanceEntryProp
   const [open, setOpen] = useState(false)
 
   const marks = {
-    below: markForBelow(boxes, edit, say),
+    below: markForBelow(boxes, edit, clearsAt, say),
     axial: markFor(boxes.axial, say),
     radial: markFor(boxes.radial, say),
   }

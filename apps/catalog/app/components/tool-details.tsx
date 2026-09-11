@@ -16,7 +16,13 @@ import { formatGeometry } from 'shared/geometry'
 import { getFamily } from 'shared/catalog'
 import { drawnAssembly } from 'shared/drawn-assembly'
 import { roomAt } from 'shared/assembly-gaps'
-import { askFor, boxesFor, lengthFor, type ClearanceEdit } from 'shared/clearance-entry'
+import {
+  askFor,
+  boxesFor,
+  clearingLength,
+  lengthFor,
+  type ClearanceEdit,
+} from 'shared/clearance-entry'
 import { thresholdsFrom } from 'shared/holder-choice'
 import { ToolTypeIcon, formLabel } from './tool-icons'
 import { MeasurementIcon } from './feature-icons'
@@ -340,6 +346,26 @@ export const ToolDetails = ({
     room,
   )
 
+  /**
+   * The length to type instead, where the one that was typed fouls the part.
+   *
+   * Worked out only when that has happened: it is two bisections of a few dozen
+   * segments each, and every other state of this panel has nothing to say with
+   * it. Both axes rather than the one being solved for — a stated length is
+   * being held to everything the sheet asks, which is exactly why it came up
+   * short.
+   */
+  const collides = edit?.field === 'below' && (boxes.axial.short || boxes.radial.short)
+  const clearsAt = useMemo(
+    () =>
+      collides && holderChosen !== undefined && curve !== null && bracket !== null
+        ? clearingLength(margins, bracket, (stickout) =>
+            roomAt({ tool, holder: holderChosen }, stickout, curve, margins),
+          )
+        : null,
+    [collides, tool, holderChosen, curve, margins, bracket],
+  )
+
   return (
     /*
       **The panel is the sheet the tool is drawn on** (Paul, 2026-09-11). It
@@ -550,6 +576,7 @@ export const ToolDetails = ({
           boxes={boxes}
           unit={unit}
           edit={edit}
+          clearsAt={clearsAt}
           onEdit={(next) => setStated({ key: stackKey, edit: next })}
         />
       ) : null}

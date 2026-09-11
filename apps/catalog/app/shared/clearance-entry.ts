@@ -300,3 +300,50 @@ export const boxesFor = (
     radial: boxFor('radial', edit, defaults, room),
   }
 }
+
+/**
+ * The shortest length below the holder that clears on **both** axes, or null
+ * where no length this tool can be set to does.
+ *
+ * A stated length that collides is the one case where the page knows the answer
+ * and used to say only that something was wrong with the question: the axial
+ * box read "under the 0.02 in wanted", which is a restatement of the sheet
+ * rather than the number to type (Paul, 2026-09-11). This is that number.
+ *
+ * Both axes, unlike {@link askFor} — a stated *clearance* is solved alone,
+ * because the box a shop just typed into has to drive; a stated *length* is
+ * being held to everything the sheet asks, so the length that answers it is the
+ * longer of the two, each axis rising with the length independently.
+ *
+ * The candidate is measured before it is offered. {@link lengthFor} answers the
+ * far end of the bracket where nothing in it reaches — a deliberate "as close
+ * as this stack gets" for the drawing, and a lie in a sentence telling somebody
+ * to set a tool there — so a length that still does not clear comes back as
+ * nothing to suggest at all.
+ */
+export const clearingLength = (
+  asked: Margins,
+  bracket: { readonly min: number; readonly max: number },
+  roomAt: (stickout: number) => MeasuredRoom,
+): number | null => {
+  const axes = ['axial', 'radial'] as const
+  /*
+    An axis with nothing on it is no bar rather than a failure: `radial` is null
+    on every feature with no wall standing taller than the cut, and its box says
+    "nothing stands taller" instead of a number. Reading that as "no length
+    clears" would leave the ordinary hole with nothing to suggest.
+  */
+  const lengths = axes
+    .map((field) => lengthFor(asked[field], bracket, (at) => roomAt(at)[field]))
+    .filter((length): length is number => length !== null)
+  if (lengths.length === 0) {
+    return null
+  }
+  const length = Math.max(...lengths)
+  const room = roomAt(length)
+  const clears = axes.every((field) => {
+    const value = room[field]
+    return value === null || value >= asked[field] - MET
+  })
+  return clears ? length : null
+}

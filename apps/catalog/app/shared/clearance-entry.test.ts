@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { Margins } from '@toolpath/catalog-data'
-import { askFor, boxesFor, lengthFor, shownIn, type RequiredAt } from './clearance-entry'
+import {
+  askFor,
+  boxesFor,
+  clearingLength,
+  lengthFor,
+  shownIn,
+  type RequiredAt,
+} from './clearance-entry'
 
 /** The sheet's own figures, 0.020 in both ways, which is what the page opens on. */
 const SHEET: Margins = { axial: 0.508, radial: 0.508 }
@@ -263,5 +270,43 @@ describe('boxesFor', () => {
       boxesFor(null, SHEET, { stickout: 42, overLimit: true }, { axial: 0.6, radial: 0.9 }).below
         .overLimit,
     ).toBe(true)
+  })
+})
+
+/**
+ * The number the line under the row names when a stated length collides.
+ *
+ * The defect it answers is a message rather than a calculation (Paul,
+ * 2026-09-11): a stickout typed too short read "under 0.02 in wanted" off a box
+ * nobody had touched, which restates the sheet instead of saying what to set
+ * the tool to.
+ */
+describe('clearingLength', () => {
+  const BRACKET = { min: 10, max: 60 }
+  /** Axial room rises one for one; radial trails it by two and flattens early. */
+  const room = (stickout: number) => ({
+    axial: stickout - 12,
+    radial: Math.min(stickout - 14, 6),
+  })
+
+  it('gives the longer of the two axes, because both are being asked', () => {
+    // Axial clears 0.508 at 12.508, radial only at 14.508.
+    expect(clearingLength(SHEET, BRACKET, room)).toBeCloseTo(14.508, 2)
+  })
+
+  /** A length that still fouls is not a length to tell anybody to set. */
+  it('offers nothing where no length in the bracket clears', () => {
+    expect(clearingLength({ axial: 0.508, radial: 20 }, BRACKET, room)).toBeNull()
+  })
+
+  it('says nothing where there is nothing to measure', () => {
+    expect(clearingLength(SHEET, BRACKET, () => ({ axial: null, radial: null }))).toBeNull()
+  })
+
+  /** An axis nothing stands on is no bar: the other one decides alone. */
+  it('reads past an axis with nothing on it', () => {
+    expect(
+      clearingLength(SHEET, BRACKET, (stickout) => ({ axial: stickout - 12, radial: null })),
+    ).toBeCloseTo(12.508, 2)
   })
 })
