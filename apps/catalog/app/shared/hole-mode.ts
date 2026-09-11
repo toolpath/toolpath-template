@@ -153,9 +153,9 @@ export const THREADED_FORMS: ReadonlyArray<string> = [
  * **A predrill is a hole, and a hole can be interpolated** (Paul, 2026-09-02:
  * "I need to be able to use an end mill on a threaded hole in place of a
  * drill"). The rules sheet already says so — `*Hole` ranks `drill; flat end
- * mill; bull nose end mill; ball end mill` and caps a mill at the largest end
- * mill diameter, which is short of the bore because it has to helix down
- * inside it. What kept them off a threaded hole's list was this application:
+ * mill; bull nose end mill; ball end mill` and cautions a mill inside the
+ * largest end mill diameter, which is short of the bore because it has to
+ * helix down inside it. What kept them off a threaded hole's list was this application:
  * choosing a thread writes {@link THREADED_FORMS} into the filters, and the
  * list is drills-only besides.
  *

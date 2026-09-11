@@ -160,9 +160,12 @@ const sameEnd = (a: number | undefined, b: number | undefined): boolean =>
 /**
  * Whether two bounds ask the same thing, allowing for a float's last digit.
  *
- * Here rather than beside the control that draws one because `ownBounds` below
- * is the same question asked of the matcher, and `shared/` may not import
- * `components/`.
+ * **A bound is somebody's answer the moment it is not the geometry's** — the
+ * rule `overrideOffered` states in `components/column-filter.tsx`, the one
+ * `applySuggestions` tells a stale suggestion from an answer by, and the one
+ * `nearEnough` in `shared/tool-fit.ts` decides which bound a near miss may be
+ * outside by. Here rather than beside the control that draws one because
+ * `shared/` may not import `components/`.
  */
 export const sameBound = (
   a: { readonly min?: number; readonly max?: number } | undefined,
@@ -179,19 +182,16 @@ export const sameBound = (
  *
  * **A filter is somebody's answer the moment it is not the geometry's** — the
  * rule `overrideOffered` states in `components/column-filter.tsx`, and the one
- * `applySuggestions` tells a stale suggestion from an answer by. A bound still
- * reading exactly what this feature suggested is the rules speaking through a
- * control; anything else is a shop's own word about what it wants to see.
+ * `applySuggestions` tells a stale suggestion from an answer by.
  *
- * **What reads it is the near-miss stand-in** (Paul, 2026-09-10: at most three
- * flutes, then Kennametal, and four-flute tools on the list — "they should not
- * be … we should see 'no tools meet these filters'"). Nothing fits, so the
- * closest misses stand in, and they are drawn without the ranges because a tool
- * a little outside one is exactly what *closest* means. That is right for the
- * bound the geometry wrote and wrong for the bound somebody typed: the second
- * is the question, not the tolerance on it. `closeCandidates` and
- * `nearestFew` both narrow by this, so a filter is obeyed on the list and in
- * the worker that ranks what reaches it.
+ * What reads it is the way **out** of an override: forgiving a column's rules
+ * and widening its bound are one decision (`part.tsx` § `overrideFor`), so an
+ * override lasts exactly as long as the number that asked for it. Put the
+ * geometry's own number back and the rules come back with it.
+ *
+ * Which bound a near miss may be outside is a different question, asked one
+ * tool at a time rather than one column at a time: `nearEnough` in
+ * `shared/tool-fit.ts`.
  *
  * A bound holding neither end narrows nothing and is nobody's answer.
  */

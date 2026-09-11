@@ -33,7 +33,7 @@ const context: MatchContext = {
   margins: { radial: 0, axial: 0 },
   thresholds: thresholdsFrom(),
   overrides: [],
-  ownRanges: {},
+  suggestedRanges: {},
 }
 
 afterEach(() => {

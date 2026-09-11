@@ -331,6 +331,73 @@ describe('a drill against the hole it is for', () => {
   })
 })
 
+/**
+ * **An end mill close to the size of the hole is a caution, not a refusal**
+ * (Paul, 2026-09-11: a ⌀0.125 in mill under a ⌀0.136 in hole went red — "it
+ * should just allow end mills up to 10 % smaller than the hole diameter and
+ * warn with the i instead of go red").
+ *
+ * The engine's helix room is a tenth of the bore, which is what `largest end
+ * mill diameter` states, and a mill inside it can still plunge or bore the
+ * hole out. So the sheet cautions on that limit and refuses on the bore — and
+ * the caution says the room that is left rather than leaving somebody to
+ * subtract two diameters.
+ */
+describe('an end mill in the hole it has to helix down', () => {
+  /** A ⌀12 hole, and the engine's own ramp limit at ten elevenths of it. */
+  const hole: PartFeature = {
+    featureTag: 'hole-2',
+    featureType: 'ThroughHole',
+    machiningDirection: { x: 0, y: 0, z: 1 },
+    regionIdxs: [3],
+    datasheet: {
+      zMin: -20,
+      zMax: 0,
+      extendedZMax: 0,
+      facts: { kind: 'Hole', diameter: 12, maxEndmillDiameter: 10.909 },
+    },
+  } as unknown as PartFeature
+
+  const milling = (DC: number) => tool(`M${String(DC)}`, { DC, LCF: 40, LD: 4, RE: 0 })
+  const markOn = (DC: number) => {
+    const verdict = judgeTools([milling(DC)], hole, [hole])[0]!
+    return {
+      removed: verdict.removed.length > 0,
+      mark: marksFor(verdict, testedCodes(hole, [hole]), {
+        format: (value) => `${value.toFixed(2)} mm`,
+        holeDiameter: 12,
+      }).DC,
+    }
+  }
+
+  it('cautions a mill inside the helix room, and says the room it leaves', () => {
+    const { removed, mark } = markOn(11)
+
+    expect(removed).toBe(false)
+    expect(mark).toEqual({
+      ok: false,
+      level: 'should',
+      why: '0.50 mm a side to helix in',
+      detail: expect.any(String),
+    })
+  })
+
+  it('leaves a mill with the room ticked', () => {
+    const { removed, mark } = markOn(10)
+
+    expect(removed).toBe(false)
+    expect(mark).toEqual({ ok: true })
+  })
+
+  /** The bore is the refusal: a mill wider than the hole cannot enter it. */
+  it('still refuses a mill wider than the bore', () => {
+    const { removed, mark } = markOn(12.5)
+
+    expect(removed).toBe(true)
+    expect(mark?.ok === false ? mark.level : 'ok').toBe('must')
+  })
+})
+
 describe('a filleted floor', () => {
   /** A pocket the model draws with a 1 mm radius in the floor. */
   const filleted: PartFeature = {

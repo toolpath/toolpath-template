@@ -737,8 +737,25 @@ differently:
   It was a row of two — the presses and rows in one column, the card in a second
   beside it — which is two columns of chrome over a part on any screen a
   laptop's width or under, and the card is the answer to a press three pixels
-  above it. The column is `w-80`, and `w-[26rem]` while the group editor is
+  above it. The column opens at 320px, and at 416 while the group editor is
   open, because the card is what asks for the width now that it is inside it.
+- **Its right edge is a handle** (Paul, 2026-09-11: "I should have the ability to
+  make the order list (and feature/group/tool assembly) wider by clicking the
+  edge and expanding to the right"). One column carries all four of those, so
+  one drag widens all of them at once, and a width a shop has dragged to is the
+  width whatever the column is holding — the two numbers above are what a shop
+  that has never dragged it gets, not a rule about groups. Double-clicking the
+  edge forgets the stated width and puts them back; the arrow keys move it by
+  16px, because a drag target only a mouse can reach is one half the room cannot
+  use. It is held between 256px and seven tenths of the viewer, measured at the
+  press — past two fifths the camera stops moving the part aside
+  (`frame-inset.ts` § `MOST_OF_IT`) and the rows sit over the geometry, which is
+  a fair thing to ask for while reading a long list and not a reason to let the
+  part be dragged off screen. `app/shared/column-width.ts` is every number,
+  `app/components/column-resizer.tsx` the handle, and
+  `tests/on-the-part.spec.ts` § "widening the column over the part" the drag
+  itself — including that the edge takes the press so it never orbits the part
+  underneath, and that a dozen pixels off it the canvas still does.
 - **An open editor folds the rows away**, and one button under it brings them
   back (Paul, 2026-09-10: "when a dialog is active, fold up the order list.
   Provide a button to be able to expand it underneath the open feature, group,
@@ -992,6 +1009,8 @@ true of the work the worker does:
 | whether the rows are folded under the box    | `rowsShown`, `app/shared/part-chrome.ts`              |
 | whether the three presses are on screen      | `pressesShown`, same file                             |
 | where the part is framed, beside the column  | `app/shared/frame-inset.ts`                           |
+| how wide that column is, and its two ends    | `app/shared/column-width.ts`                          |
+| the handle on its right edge                 | `app/components/column-resizer.tsx`                   |
 | how tall the tool list opens                 | `TABLE_OPENS_AT`, `components/part-tool-table.tsx`    |
 | whether _+ Tool Assembly_ can be pressed     | `assemblyPressEnabled`, same file                     |
 | the row a reading already has, if any        | `rowFor`, `app/shared/feature-list.ts`                |

@@ -6,9 +6,9 @@ import {
   countsByAxis,
   cycleTerm,
   filterTools,
-  ownBounds,
   prioritise,
   queryFromSearch,
+  ownBounds,
   releasedBounds,
   searchFromQuery,
   searchWithQuery,
@@ -622,10 +622,9 @@ describe('the type and the family, as one axis each', () => {
 })
 
 /**
- * **A filter is somebody's answer the moment it is not the geometry's.** The
- * near-miss stand-in forgives the bounds the feature wrote — they are the rules
- * it is measuring "close" against — and obeys every other one (Paul,
- * 2026-09-10: at most three flutes, and four-flute tools on the list).
+ * **A filter is somebody's answer the moment it is not the geometry's**, which
+ * is how long an override lasts: putting the geometry's own number back is the
+ * way out of one.
  */
 describe('the bounds somebody set themselves', () => {
   it('leaves out a bound still reading what the feature suggested', () => {

@@ -14,7 +14,6 @@ import {
   facetsNarrowing,
   filterTools,
   FACET_AXES,
-  withinRanges,
   withoutFacets,
   withoutTerm,
   type ToolQuery,
@@ -26,6 +25,7 @@ import { closestMisses, closestPerForm, type Format, type Reason, type Verdict }
 import { sectionOf } from './section-of'
 import {
   fittingTools,
+  nearEnough,
   overridableCount,
   overridableTally,
   overridableTools,
@@ -70,18 +70,18 @@ export interface MatchContext {
    */
   readonly overrides: ReadonlyArray<string>
   /**
-   * The range bounds somebody set themselves, as against the ones this feature
-   * asked for — `ownBounds` in `shared/filter.ts`, computed where the
-   * suggestions are.
+   * The range bounds **this feature asked for**, as against the ones in
+   * `query.ranges`, which are whatever the rail now holds.
    *
    * It narrows one thing: which of the removed tools may stand in when nothing
-   * fits. A near miss is a tool a little outside the *geometry's* bounds, and
-   * never one outside a bound somebody typed (Paul, 2026-09-10). It is in the
-   * context rather than derived from `query` because only the page knows what
-   * the feature suggested, and it has to be in the key that owns the answer for
-   * the same reason `overrides` is.
+   * fits. A near miss is a tool a little outside the bound it missed on, and
+   * inside every other bound on screen — `nearEnough` in `shared/tool-fit.ts`
+   * is the rule and says what each half of it cost. It is in the context rather
+   * than derived from `query` because only the page knows what the feature
+   * suggested, and it has to be in the key that owns the answer for the same
+   * reason `overrides` is.
    */
-  readonly ownRanges: ToolQuery['ranges']
+  readonly suggestedRanges: ToolQuery['ranges']
 }
 
 /** One question in a table request or a recommendation batch. */
@@ -358,7 +358,7 @@ export const matchKey = (
     // move the removed set: a one-each pick is never drawn from it.
     context: {
       ...(kind === 'recommendations'
-        ? { ...context, unit: 'millimeters', overrides: [], ownRanges: {} }
+        ? { ...context, unit: 'millimeters', overrides: [], suggestedRanges: {} }
         : { ...context, overrides: [...context.overrides].sort() }),
       features: featuresKey(context.features),
     },
@@ -626,22 +626,24 @@ const OVERRIDABLE = 2000
  * One form, or none, is the whole removed set ranked once, which is what it
  * always was.
  *
- * **The bounds somebody typed narrow the set before it is ranked, not after**
- * (Paul, 2026-09-10). Fifty nearest misses to a rule are fifty tools chosen
- * without ever asking the flute count, so narrowing them on the far side of
- * the boundary can only empty the list: the one three-flute tool that misses
- * by a little was never among the fifty. The whole removed set is here, which
- * is the only place the question can be asked without a cap over the answer.
+ * **The bounds on screen narrow the set before it is ranked, not after** (Paul,
+ * 2026-09-10). Fifty nearest misses to a rule are fifty tools chosen without
+ * ever asking the flute count, so narrowing them on the far side of the
+ * boundary can only empty the list: the one three-flute tool that misses by a
+ * little was never among the fifty. The whole removed set is here, which is the
+ * only place the question can be asked without a cap over the answer. Which
+ * bound holds for which tool is `nearEnough` in `shared/tool-fit.ts`.
  */
 const nearestFew = (
   excluded: ReadonlyArray<Verdict>,
   forms: ReadonlyArray<string>,
-  own: ToolQuery['ranges'],
+  ranges: ToolQuery['ranges'],
+  suggested: ToolQuery['ranges'],
 ): Array<Verdict> => {
   const asked =
-    Object.keys(own).length === 0
+    Object.keys(ranges).length === 0
       ? excluded
-      : excluded.filter((verdict) => withinRanges(verdict.tool, own))
+      : excluded.filter((verdict) => nearEnough(verdict, ranges, suggested))
   const overall = closestMisses(asked, NEAR_MISSES)
   if (forms.length < 2) {
     return overall
@@ -809,9 +811,12 @@ export const detailedMatch = (
   return {
     demandKey: demand.demandKey,
     fitting: matched.fitting.map(compact),
-    nearMisses: nearestFew(matched.excluded, context.query.terms.form ?? [], context.ownRanges).map(
-      compact,
-    ),
+    nearMisses: nearestFew(
+      matched.excluded,
+      context.query.terms.form ?? [],
+      context.query.ranges,
+      context.suggestedRanges,
+    ).map(compact),
     overridable: overridableTools(
       matched.excluded,
       prepared.admittedGuids,

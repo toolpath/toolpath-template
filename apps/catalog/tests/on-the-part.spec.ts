@@ -1907,6 +1907,150 @@ test.describe('at a laptop width', () => {
 })
 
 /**
+ * **The edge of the column is a handle** (Paul, 2026-09-11: "I should have the
+ * ability to make the order list (and feature/group/tool assembly) wider by
+ * clicking the edge and expanding to the right").
+ *
+ * What a width may be is `shared/column-width.test.ts` and what the handle
+ * announces is `components/column-resizer.test.tsx`; both are cheap. What only
+ * this file can reach is the drag itself — a pointer capture over the canvas,
+ * against a viewer measured at the press — and the thing that drag must not do,
+ * which is start an orbit of the part underneath it.
+ */
+test.describe('widening the column over the part', () => {
+  const edge = (page: Page) => page.getByRole('separator', { name: 'Drag to widen the column' })
+
+  /** The column, measured through the overlay it is the only child of. */
+  const wide = async (page: Page) => {
+    const box = await page.locator('[data-questions]').boundingBox()
+    if (box === null) {
+      throw new Error('the column over the part is on screen')
+    }
+    return box.width
+  }
+
+  /**
+   * The canvas, waited for the way {@link at} waits for it and then some: the
+   * viewer is mounted, unmounted and mounted again while the mesh is on its way,
+   * so a single reading catches a canvas that is visible and has no box yet.
+   *
+   * **And a laid-out one, not the element's default.** A `<canvas>` nothing has
+   * sized yet is 300×150 — a real box, so waiting for "not null" happily returns
+   * it, and a ceiling measured as a share of 300 is 210 (2026-09-11, under a
+   * loaded runner). The viewer is most of a 1680-wide window, so anything under
+   * half of it is the default rather than the part.
+   */
+  const partBox = async (page: Page) => {
+    const canvas = page.locator('canvas')
+    await expect(canvas).toBeVisible()
+    let box = await canvas.boundingBox()
+    await expect(async () => {
+      box = await canvas.boundingBox()
+      expect(box?.width ?? 0).toBeGreaterThan(600)
+    }).toPass({ timeout: 10_000 })
+    return box!
+  }
+
+  const dragBy = async (page: Page, by: number) => {
+    const handle = await edge(page).boundingBox()
+    if (handle === null) {
+      throw new Error('the column has an edge to drag')
+    }
+    const y = handle.y + handle.height / 2
+    await page.mouse.move(handle.x + handle.width / 2, y)
+    await page.mouse.down()
+    await page.mouse.move(handle.x + handle.width / 2 + by, y, { steps: 8 })
+    await page.mouse.up()
+    await drawn(page)
+  }
+
+  test('follows the pointer, and holds the width it was let go at', async ({ page }) => {
+    const before = await wide(page)
+
+    await dragBy(page, 160)
+
+    const after = await wide(page)
+    // The edge goes where the pointer went, within the pixel the handle is
+    // grabbed off-centre by.
+    expect(after).toBeGreaterThan(before + 150)
+    expect(after).toBeLessThan(before + 170)
+
+    // And it is the column's width now, not the drag's: the box a click opens
+    // is the same width, rather than reverting to what a reading opens at.
+    await ready(page)
+    await expect(page.locator('[data-assembly-tree]')).toBeVisible()
+    expect(await wide(page)).toBeGreaterThan(before + 150)
+  })
+
+  /** Double-click is the way back, so a drag is never a one-way door. */
+  test('gives the default width back on a double-click', async ({ page }) => {
+    const before = await wide(page)
+    await dragBy(page, 200)
+    expect(await wide(page)).toBeGreaterThan(before + 150)
+
+    await edge(page).dblclick()
+    await drawn(page)
+
+    expect(await wide(page)).toBe(before)
+  })
+
+  /**
+   * The ceiling — `WIDEST_SHARE`. Past it the part is a sliver behind a panel,
+   * and the fold button is what a long list is for.
+   */
+  test('stops short of taking the viewer', async ({ page }) => {
+    const canvas = await partBox(page)
+
+    await dragBy(page, canvas.width)
+
+    expect(await wide(page)).toBeLessThanOrEqual(canvas.width * 0.7 + 1)
+  })
+
+  /**
+   * **The edge takes the press, and the canvas keeps everything beside it.**
+   *
+   * This is what stops a drag on the edge from orbiting the part underneath it:
+   * the handle is what the pointer *finds* there, so the press never reaches the
+   * canvas and the controls never see it. It is also the failure this cannot
+   * afford in the other direction — a handle wide enough to be comfortable is
+   * the curtain over the geometry that "at a laptop width" above exists for, so
+   * both points are measured: the edge, and a dozen pixels off it.
+   */
+  test('takes the press at the edge and nowhere else', async ({ page }) => {
+    await partBox(page)
+    const handle = await edge(page).boundingBox()
+    if (handle === null) {
+      throw new Error('the column has an edge to grab')
+    }
+
+    /* The handle's own hairline is what a point in the middle of it lands on,
+       so what is asked is which control the point is *in*, not what it is. */
+    const finds = async (x: number) =>
+      await page.evaluate(
+        (at) => {
+          const found = document.elementFromPoint(at.x, at.y)
+          if (found === null) {
+            return 'none'
+          }
+          return found.closest('[role="separator"]') === null
+            ? found.tagName.toLowerCase()
+            : 'separator'
+        },
+        { x, y: handle.y + handle.height / 2 },
+      )
+
+    expect(await finds(handle.x + handle.width / 2)).toBe('separator')
+    /* And it gives the pointer straight back: what is a dozen pixels off the
+       edge is whatever was there before — the part, or a box of its own — and
+       never the handle. Asked as "not the handle" rather than by naming the
+       canvas, because what is under that point depends on how far down the
+       column the drag was grabbed. */
+    expect(await finds(handle.x + handle.width + 12)).not.toBe('separator')
+    expect(handle.width).toBeLessThanOrEqual(8)
+  })
+})
+
+/**
  * The tool assembly tree — the shape this page has (Paul, 2026-09-07), behind
  * a flag until 2026-09-08 and the only shape since.
  *
@@ -2559,6 +2703,32 @@ test.describe('the tool assembly tree', () => {
     const collets = page.locator('[data-component-table="collet"]').getByRole('grid')
     await expect(collets.getByRole('row').first()).toBeVisible()
     expect(await count(/^Collets/)).toBe(String(await collets.getByRole('row').count()))
+  })
+
+  /**
+   * **A holder that grips the shank has no collet to choose** (Paul,
+   * 2026-09-11: "when a shrink fit holder is selected, the collets page should
+   * say 'no collet required for shrink fit holder'"). The list under one is
+   * empty by mechanics rather than by anything the crib is missing, and the
+   * page used to fall through to its answer about choices — "Nothing fits
+   * alongside BT30SF0600M. Clear one of them to widen the list" — which reads
+   * as a dead end and asks for a correct choice to be undone.
+   */
+  test('says a shrink fit holder needs no collet at all', async ({ page }) => {
+    await ready(page)
+    const tree = await keepFeature(page)
+
+    await tree.getByRole('button', { name: /^HOLDER for / }).click()
+    await showNoCollet(page)
+    const holders = page.locator('[data-component-table="holder"]').getByRole('grid')
+    // The fixture's one shrink fit, by its catalog number: the Type column can
+    // be turned off, and the number is the column every list opens with.
+    const shrink = holders.getByRole('row').filter({ hasText: 'BT30SF0600M' })
+    await expect(shrink).toHaveCount(1)
+    await shrink.evaluate((element) => element.click())
+
+    await tree.getByRole('button', { name: /^COLLET for / }).click()
+    await expect(page.getByText('No collet required for a shrink fit holder.')).toBeVisible()
   })
 
   /**
@@ -3935,10 +4105,10 @@ test.describe('Enter with a column filter open', () => {
  * The vendor was not the cause and could not have been: narrowing to it simply
  * emptied a list that had been answering, and an empty list is filled with the
  * closest misses to the rules — which were drawn without the ranges at all, so
- * a bound somebody typed was a bound the fill ignored. `ownBounds` in
- * `shared/filter.ts` is the rule that tells that bound from the one the
- * geometry wrote, and this is the only place both halves can be seen at once:
- * the fill still stands in, and it stands in with tools the filter admits.
+ * a bound somebody typed was a bound the fill ignored. `nearEnough` in
+ * `shared/tool-fit.ts` is the rule that says which bound a near miss may be
+ * outside, and this is the only place both halves can be seen at once: the fill
+ * still stands in, and it stands in with tools the filter admits.
  *
  * The cube's nine tools are what make the second half sharp. Its end mills have
  * four and five flutes and its drills state none, so at most three admits

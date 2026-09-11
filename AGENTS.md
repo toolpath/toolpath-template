@@ -275,6 +275,7 @@ application unless that application says otherwise.
 | the three presses over the part that add a row       | `app/components/add-bar.tsx`                         |
 | whether the presses and the rows are drawn at all    | `app/shared/part-chrome.ts`                          |
 | where the part is framed, beside the questions       | `app/shared/frame-inset.ts`                          |
+| how wide that column is, and the handle on its edge  | `app/shared/column-width.ts`                         |
 | the heading face, the label, a dialog's whole voice  | `app/shared/type.ts`                                 |
 | how tall the tool list opens                         | `TABLE_OPENS_AT`, `components/part-tool-table.tsx`   |
 | the columns a list opens with, and their order       | `TOOL_COLUMNS`, `components/part-tool-table.tsx`     |

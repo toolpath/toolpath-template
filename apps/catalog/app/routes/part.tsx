@@ -50,6 +50,7 @@ import { SelectionPanel } from 'components/selection-panel'
 import { PredrillChoice } from 'components/predrill-choice'
 import { FeatureListPanel } from 'components/feature-list-panel'
 import { AddBar } from 'components/add-bar'
+import { ColumnResizer } from 'components/column-resizer'
 import { ComponentTally, KIND_LABEL, type ComponentTallyRow } from 'components/component-tally'
 import { NoColletToggle } from 'components/no-collet-toggle'
 import { ColletIcon, HolderIcon, ToolTypeIcon } from 'components/tool-icons'
@@ -113,6 +114,7 @@ import {
 } from 'shared/catalog'
 import { columnFilterOpen, useEscape } from 'shared/use-escape'
 import { assemblyPressEnabled, pressesShown, rowsShown } from 'shared/part-chrome'
+import { columnWidth, useColumnWidth } from 'shared/column-width'
 import {
   COMPONENT_LIST,
   TOOL_LIST,
@@ -164,6 +166,7 @@ import {
 import {
   byShank,
   colletGapFor,
+  colletNotNeeded,
   holdersToOffer,
   narrowCollets,
   narrowTools,
@@ -1573,9 +1576,9 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * The bounds somebody set themselves, as against the ones this feature asked
    * for — `ownBounds` in `shared/filter.ts` is the rule.
    *
-   * Two things read it, and both are about a filter being the last word rather
-   * than a tolerance: which of the removed tools may stand in when nothing
-   * fits, and which columns still have an override to keep.
+   * One thing reads it: which columns still have an override to keep. What the
+   * near-miss stand-in may be outside is asked a tool at a time instead, and
+   * against the whole rail — `nearEnough` in `shared/tool-fit.ts`.
    */
   const own = useMemo(
     () => ownBounds(query.ranges, suggestions.ranges),
@@ -1891,7 +1894,11 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       margins,
       thresholds,
       overrides: forgiven,
-      ownRanges: own,
+      /*
+        What the geometry asked for, which the near-miss stand-in reads against
+        what the rail now holds: `nearEnough` in `shared/tool-fit.ts`.
+      */
+      suggestedRanges: suggestions.ranges,
     }),
     [
       report.features,
@@ -1903,7 +1910,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       margins,
       thresholds,
       forgiven,
-      own,
+      suggestions,
     ],
   )
   const tableDemand = useMemo<MatchDemand | null>(() => {
@@ -2143,7 +2150,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     if (!asking || (tools.length > 0 && !shortOfDrills)) {
       return []
     }
-    const admitted = closeCandidates(nearMisses, query, own)
+    const admitted = closeCandidates(nearMisses, query, suggestions.ranges)
     /**
      * **A tapped hole is drilled.** The nearest misses are drawn from what the
      * rules removed, and a mill that could interpolate the bore is a near miss
@@ -2187,7 +2194,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     shortOfDrills,
     nearMisses,
     query,
-    own,
+    suggestions,
     holeChoice.mode,
     outOfReach,
     predrillForms,
@@ -4522,6 +4529,20 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const addBarShown = pressesShown(box)
 
   /**
+   * How wide the one column over the part is (Paul, 2026-09-11: "I should have
+   * the ability to make the order list (and feature/group/tool assembly) wider
+   * by clicking the edge and expanding to the right").
+   *
+   * The presses, the box, the fold and the rows are one column, so there is one
+   * width and its right edge is the handle — `components/column-resizer.tsx`.
+   * `shared/column-width.ts` is every rule about it: the two ends it clamps to,
+   * the defaults a shop that has never dragged it gets, and why a stated width
+   * outlives the group editor's wider default.
+   */
+  const { stated: statedColumn, state: stateColumn } = useColumnWidth()
+  const columnWide = columnWidth(statedColumn, draft?.kind === 'group')
+
+  /**
    * The holders on show: what can hold what is already in the stack, narrowed
    * by the crib's own filters and then by the table's.
    */
@@ -6362,13 +6383,28 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         part.
                       */}
                       <div
-                        className={cn(
-                          'flex h-full min-h-0 shrink-0 flex-col items-start gap-2',
-                          /* The group editor asks for more room than a reading does,
-                             and the column is what carries the width now that the box
-                             is inside it. */
-                          draft?.kind === 'group' ? 'w-[26rem]' : 'w-80',
-                        )}
+                        /* `relative`, because the handle on its right edge is
+                           positioned against it — the edge is the thing being
+                           dragged, so it hangs off this box rather than sitting
+                           inside it. */
+                        className="relative flex h-full min-h-0 shrink-0 flex-col items-start gap-2"
+                        /*
+                          A runtime value, so a style rather than a class: the
+                          column opens at what the box in it asks for and is
+                          whatever a shop has dragged it to after that —
+                          `columnWidth` in `shared/column-width.ts`.
+
+                          **A width and nothing else.** The ceiling belongs to
+                          the drag, which measures the viewer at the press; a
+                          `max-width` in *percent* here is not the same rule
+                          written twice, it is a circle — the overlay this stands
+                          in is shrink-to-fit, so the percentage resolves against
+                          the column's own width and squeezes it to a share of
+                          itself. It cost the part a hundred pixels of inset
+                          before `frames the part beside the boxes drawn over it`
+                          caught it (2026-09-11).
+                        */
+                        style={{ width: columnWide }}
                       >
                         {/*
                         **The three ways to add sit over the part, above
@@ -6934,6 +6970,20 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                             </div>
                           </div>
                         ) : null}
+                        {/*
+                          **The right edge is a handle** (Paul, 2026-09-11: "I
+                          should have the ability to make the order list (and
+                          feature/group/tool assembly) wider by clicking the edge
+                          and expanding to the right"). One column carries all of
+                          them, so one handle widens all of them at once, and
+                          `shared/column-width.ts` holds every number it clamps
+                          to. Double-click puts the defaults back.
+                        */}
+                        <ColumnResizer
+                          width={columnWide}
+                          onResize={stateColumn}
+                          onReset={() => stateColumn(null)}
+                        />
                       </div>
                     </div>
                   </>
@@ -7206,17 +7256,21 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                               // for that reason rather than for an empty crib.
                               asking,
                               /*
-                                And either list can now be empty because of the
-                                collet drawer rather than because of a choice: a
-                                collet slot under a chuck nothing in the crib
-                                closes on, and a holder rack with the press in
-                                the chrome turned off. Both are more specific
-                                than the two general answers, and both name
-                                something to do.
+                                And either list can now be empty for a reason
+                                that is not a choice at all: a collet slot under
+                                a holder that grips the shank itself, a collet
+                                slot under a chuck nothing in the crib closes
+                                on, and a holder rack with the press in the
+                                chrome turned off. All three are more specific
+                                than the two general answers, and the first says
+                                the stack is finished rather than stuck.
                               */
                               {
                                 ...(componentSlot === 'collet' && treeHolder !== null
-                                  ? { gap: holderGap(treeHolder) }
+                                  ? {
+                                      gap: holderGap(treeHolder),
+                                      noneNeeded: colletNotNeeded(treeHolder),
+                                    }
                                   : {}),
                                 ...(componentSlot === 'holder' && !noCollet
                                   ? { hidden: gappedHolders }

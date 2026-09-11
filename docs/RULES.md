@@ -70,7 +70,9 @@ knob could never widen the band. It is now two rows:
 A pair like that also changes what the **filter panel** suggests. A suggested
 range may only say what is true of every form the feature considers, so it is
 worked out one form at a time and the loosest of them wins: on a hole that is
-the drill's bore-plus-oversize, not the end mill's tighter helix limit.
+the drill's bore-plus-oversize, not the end mill's cap at the bore. So the
+Diameter filter on a ⌀0.136 in hole opens at 0.140 in — the widest tool of any
+kind the hole admits, which is a drill four thousandths over.
 
 ## The three shapes of rule
 
@@ -155,6 +157,15 @@ an end mill has to helix down inside it; the Engine states the two
 separately. A rule that caps every tool type wants the first, and only the
 end mill's own row wants the second. Reading the second as the first threw
 the right-sized drill out of every hole (2026-08-31).
+
+The end mill's own row is a **`should`** since 2026-09-11, which is the one
+place in the sheet where that distinction is the whole point. The helix room is
+a tenth of the bore, and a mill inside it can still plunge or bore the hole out
+— so a ⌀0.125 in mill under a ⌀0.136 in hole is listed with a caution saying
+the room it leaves (`0.006 in a side to helix in`) rather than refused in red
+(Paul: "it should just allow end mills up to 10 % smaller than the hole
+diameter and warn with the i instead of go red"). The refusal is the bore
+itself, which row 2 already holds.
 
 **Tool fields** (numbers off the catalog): `diameter`, `flute length`,
 `flute length past the corner`, `length below holder`, `furthest below
