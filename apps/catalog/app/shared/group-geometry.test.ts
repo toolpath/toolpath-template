@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { PartFeature } from '@toolpath/part-contracts'
-import { groupReadings, sharedHoleDiameter } from './group-geometry'
+import type { PartFeature, ReachCurve } from '@toolpath/part-contracts'
+import { heightAt } from '@toolpath/catalog-data'
+import { askedCurve, groupCurve, groupReadings, sharedHoleDiameter } from './group-geometry'
 
 /**
  * A feature as the kernel reports one, cut straight down.
@@ -165,5 +166,108 @@ describe('the bore a group shares', () => {
 
   it('answers nothing for an empty group', () => {
     expect(sharedHoleDiameter([])).toBeNull()
+  })
+})
+
+/**
+ * **One tool goes into all of them**, so the material it has to get past is
+ * every feature's at once. The curve was read off the face clicked last, which
+ * made the drawing and the verdict under it depend on the order a group was
+ * picked in (Paul, 2026-09-11).
+ */
+describe('the material a group has to clear', () => {
+  const walled = (tag: string, curve: ReachCurve): PartFeature =>
+    feature(tag, 'Pocket', {
+      zMin: -10,
+      facts: { kind: 'Pocket', cd: { ignore: { min: 6 } } },
+      reachCurve: curve,
+    })
+
+  /** What every reader of a curve agrees it means, asked across a span of offsets. */
+  const sampled = (curve: ReachCurve | null): Array<number> | null =>
+    curve === null
+      ? null
+      : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 20].map((offset) => heightAt(curve, offset))
+
+  it('takes the taller of the two at every offset, not the one clicked last', () => {
+    const shallow: ReachCurve = { horizontalOffset: [2, 8], verticalOffset: [4, 6] }
+    const deep: ReachCurve = { horizontalOffset: [5, 10], verticalOffset: [12, 30] }
+    const union = groupCurve([walled('shallow', shallow), walled('deep', deep)])
+
+    const tallest = sampled(shallow)?.map((height, index) =>
+      Math.max(height, sampled(deep)?.[index] ?? 0),
+    )
+    expect(sampled(union)).toEqual(tallest)
+    // Every input knot is considered, and the two the run after them repeats
+    // come back out: the deep wall is over the shallow one's head throughout,
+    // so the answer is a staircase of two rather than of four.
+    expect(union).toEqual({ horizontalOffset: [5, 10], verticalOffset: [12, 30] })
+  })
+
+  it('answers the same whichever order the group was picked in', () => {
+    const a = walled('a', { horizontalOffset: [3, 9], verticalOffset: [7, 11] })
+    const b = walled('b', { horizontalOffset: [4], verticalOffset: [25] })
+    expect(groupCurve([a, b])).toEqual(groupCurve([b, a]))
+  })
+
+  it('drops a knot whose height the run after it repeats', () => {
+    const low = walled('low', { horizontalOffset: [1, 2, 3], verticalOffset: [5, 5, 5] })
+    const high = walled('high', { horizontalOffset: [3], verticalOffset: [9] })
+
+    expect(groupCurve([low, high])).toEqual({ horizontalOffset: [3], verticalOffset: [9] })
+  })
+
+  it("is one feature's own curve, unchanged, when it is the only one", () => {
+    const curve: ReachCurve = { horizontalOffset: [2, 8], verticalOffset: [4, 6] }
+    expect(groupCurve([walled('one', curve)])).toEqual(curve)
+  })
+
+  it('ignores a feature that states no curve rather than reading it as flat', () => {
+    const curve: ReachCurve = { horizontalOffset: [2, 8], verticalOffset: [4, 6] }
+    expect(groupCurve([walled('one', curve), hole('bare', 20, 8)])).toEqual(curve)
+  })
+
+  it('answers nothing where no feature states one', () => {
+    expect(groupCurve([hole('a', 20, 8), hole('b', 20, 8)])).toBeNull()
+    expect(groupCurve([])).toBeNull()
+  })
+})
+
+/**
+ * Which features the curve is folded over: what the page is being asked, and
+ * not one feature of it. The drawing was reading the face clicked last while
+ * the tool list beside it was judged against the whole question.
+ */
+describe('the scope the material is folded over', () => {
+  const walled = (tag: string, height: number): PartFeature =>
+    feature(tag, 'Pocket', {
+      zMin: -10,
+      facts: { kind: 'Pocket', cd: { ignore: { min: 6 } } },
+      reachCurve: { horizontalOffset: [4], verticalOffset: [height] },
+    })
+
+  const shallow = walled('shallow', 4)
+  const deep = walled('deep', 40)
+
+  it('folds every feature asked about, whichever of them is being read', () => {
+    expect(askedCurve('all', [shallow, deep], shallow, [shallow, deep])).toEqual({
+      horizontalOffset: [4],
+      verticalOffset: [40],
+    })
+  })
+
+  it('reads the feature in front of it for a group answered one tool each', () => {
+    expect(askedCurve('each', [shallow, deep], shallow, [shallow, deep])).toEqual({
+      horizontalOffset: [4],
+      verticalOffset: [4],
+    })
+  })
+
+  it('reads the feature in front of it when nothing is being asked', () => {
+    expect(askedCurve('all', [], deep, [shallow, deep])).toEqual({
+      horizontalOffset: [4],
+      verticalOffset: [40],
+    })
+    expect(askedCurve('all', [], null, [shallow, deep])).toBeNull()
   })
 })

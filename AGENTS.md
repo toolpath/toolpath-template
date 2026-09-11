@@ -304,6 +304,7 @@ application unless that application says otherwise.
 | whether the rack shows them at all, and how many     | `holdersToOffer`, same file                          |
 | the press that shows them, hidden to begin with      | `app/components/no-collet-toggle.tsx`                |
 | a group's worst case, and whose it is                | `app/shared/group-geometry.ts`                       |
+| the material a whole question has to clear           | `askedCurve`, same file                              |
 | how far below the holder a stack has to stand        | `belowHolder`, `app/shared/drawn-assembly.ts`        |
 | which slots were filled against the rules            | `overrides`, `app/shared/assembly-tree.ts`           |
 | what a stack offers, and its button's words          | `app/shared/assembly-actions.ts`                     |
