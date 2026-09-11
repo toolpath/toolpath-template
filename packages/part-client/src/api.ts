@@ -37,6 +37,13 @@ export const connect = (apiKey: string) =>
     body: JSON.stringify({ apiKey }),
   })
 
+/**
+ * Asks the server to connect with a shared demo key. Reports whether one was
+ * available; when it is not, the caller keeps asking for the user's own key.
+ */
+export const startDemoSession = () =>
+  api<{ connected: boolean }>('/api/session/demo', { method: 'POST' })
+
 export const disconnect = () => api<void>('/api/session', { method: 'DELETE' })
 
 const uploadToEngine = async (file: File, uploadUrl: string): Promise<void> => {
