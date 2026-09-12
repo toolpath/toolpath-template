@@ -318,11 +318,22 @@ describe('the shank diameters a crib can grip', () => {
 })
 
 describe('a shank a hair off the collet’s size', () => {
-  /** 3/8" is 9.525 on the collet and 9.524999999999999 on the tool: the same shank. */
+  /**
+   * 3/8" is 9.525 on the collet and 9.524999999999999 on the tool: the same
+   * shank.
+   *
+   * How wide "a hair" is belongs to `@toolpath/tool-support`, and it moved in
+   * 0.3.1: from a float-artifact's last bit to a thousandth of an inch, which
+   * is the coarsest last place the vendor catalogs print. Four Kennametal
+   * collets were refusing the shank they are sold for. So a 9.5 mm shank —
+   * 0.025 mm under a 3/8" collet, inside a thousandth — is now the same shank
+   * too, and this pins both sides of that boundary rather than only the float.
+   */
   it('is still gripped', () => {
     const inch = collet({ guid: 'c', clampMin: 9.525, clampMax: 9.525 })
     expect(gripsShank(inch, 9.524999999999999)).toBe(true)
-    expect(gripsShank(inch, 9.5)).toBe(false)
+    expect(gripsShank(inch, 9.5)).toBe(true)
+    expect(gripsShank(inch, 9.4)).toBe(false)
   })
 })
 
