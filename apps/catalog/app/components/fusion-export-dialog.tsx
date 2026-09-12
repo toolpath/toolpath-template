@@ -1,60 +1,46 @@
 import { useState } from 'react'
 import { Button, Card, Input } from '@toolpath/ui'
-import { PRETOOL_MATERIALS, type PretoolMaterial } from 'shared/pretool-presets'
-import type { FusionExportDiagnostic, FusionExportSettings } from 'shared/fusion-library'
+import type { FusionReport } from 'shared/fusion-input'
 import { useEscape } from 'shared/use-escape'
 import { SECTION_LABEL } from 'shared/type'
 
 export interface FusionExportDialogProps {
-  readonly initialMaterial: PretoolMaterial | null
   readonly initialName: string
   readonly onCancel: () => void
-  readonly onExport: (
-    settings: FusionExportSettings,
-    name: string,
-  ) => Promise<{
-    readonly exported: number
-    readonly skipped: ReadonlyArray<FusionExportDiagnostic>
-    readonly holderWarnings: ReadonlyArray<FusionExportDiagnostic>
-  }>
+  readonly onExport: (name: string) => Promise<FusionReport>
 }
 
-const labelFor = (material: PretoolMaterial): string =>
-  material === 'AluWrought'
-    ? 'Aluminum'
-    : material === 'LowCSteel'
-      ? 'Low Carbon Steel'
-      : 'Stainless Steel'
-
-/** The one last question before PreTool turns the bill into CAM starting data. */
+/**
+ * The one last question before the bill becomes a file: what to call it.
+ *
+ * It asked two more until the exporter moved to
+ * `@toolpath/tool-support/export/fusion` — a workpiece material and a maximum
+ * spindle speed, which were PreTool's inputs for the feeds and speeds it wrote
+ * into `start-values`. What goes out now is `defaultPreset`, a placeholder of
+ * 1s that exists so the library loads at all, and it needs neither answer. The
+ * two questions come back with `pretool-presets.ts`, and not before: asking a
+ * shop for its spindle ceiling and then writing a 1 would be worse than not
+ * asking.
+ */
 export const FusionExportDialog = ({
-  initialMaterial,
   initialName,
   onCancel,
   onExport,
 }: FusionExportDialogProps) => {
-  const [material, setMaterial] = useState<PretoolMaterial | null>(initialMaterial)
   const [name, setName] = useState(initialName)
-  const [maxRpm, setMaxRpm] = useState('12000')
   const [working, setWorking] = useState(false)
-  const [result, setResult] = useState<{
-    readonly exported: number
-    readonly skipped: ReadonlyArray<FusionExportDiagnostic>
-    readonly holderWarnings: ReadonlyArray<FusionExportDiagnostic>
-  } | null>(null)
-  const rpm = Number(maxRpm)
-  const canExport =
-    material !== null && name.trim() !== '' && Number.isFinite(rpm) && rpm > 0 && !working
+  const [result, setResult] = useState<FusionReport | null>(null)
+  const canExport = name.trim() !== '' && !working
 
   useEscape(true, onCancel)
 
   const submit = async () => {
-    if (!canExport || material === null) {
+    if (!canExport) {
       return
     }
     setWorking(true)
     try {
-      setResult(await onExport({ material, maxRpm: rpm }, name.trim()))
+      setResult(await onExport(name.trim()))
     } finally {
       setWorking(false)
     }
@@ -76,27 +62,10 @@ export const FusionExportDialog = ({
         <div className="border-b border-zinc-800 px-4 py-3">
           <p className="text-sm font-semibold text-zinc-100">Fusion tool library</p>
           <p className="mt-1 text-xs text-zinc-400">
-            PreTool will generate roughing and finishing presets for the chosen material.
+            Every assembly on this bill, with its holder. Feeds and speeds are left for Fusion.
           </p>
         </div>
         <div className="space-y-4 p-4">
-          <fieldset>
-            <legend className={SECTION_LABEL}>Workpiece material</legend>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {PRETOOL_MATERIALS.map((each) => (
-                <Button
-                  key={each}
-                  type="button"
-                  size="md"
-                  variant={material === each ? 'secondary' : 'muted'}
-                  aria-pressed={material === each}
-                  onClick={() => setMaterial(each)}
-                >
-                  {labelFor(each)}
-                </Button>
-              ))}
-            </div>
-          </fieldset>
           <label className="flex flex-col gap-1">
             <span className={SECTION_LABEL}>Library name</span>
             <Input
@@ -109,19 +78,6 @@ export const FusionExportDialog = ({
             <span className="text-2xs text-zinc-500">
               Fusion will use this filename for the library.
             </span>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className={SECTION_LABEL}>Maximum spindle RPM</span>
-            <Input
-              id="fusion-export-max-rpm"
-              name="fusion-export-max-rpm"
-              type="number"
-              min="1"
-              step="1"
-              value={maxRpm}
-              onChange={(event) => setMaxRpm(event.target.value)}
-              aria-label="Maximum spindle RPM"
-            />
           </label>
           {result === null ? null : (
             <div
@@ -140,7 +96,7 @@ export const FusionExportDialog = ({
               ))}
               {result.holderWarnings.map((each) => (
                 <p key={`${each.catalogNumber}:${each.reason}`} className="text-zinc-400">
-                  {each.catalogNumber} — {each.reason}; exported without its holder shape.
+                  {each.catalogNumber} — {each.reason}.
                 </p>
               ))}
             </div>

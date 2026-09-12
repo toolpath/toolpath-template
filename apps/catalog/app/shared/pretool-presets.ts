@@ -9,6 +9,33 @@
  * catalog has only vendor geometry, so this module is the one place where the
  * shop-selected material and spindle ceiling turn that geometry into CAM
  * starting values.
+ *
+ * ## Nothing calls this, on purpose
+ *
+ * The Fusion export moved to `@toolpath/tool-support/export/fusion`, which
+ * writes `defaultPreset` from `shared/fusion-input.ts` on every tool — a
+ * placeholder whose every number is 1, there because a tool carrying no preset
+ * is one Fusion refuses to load. This is kept because it is the whole model of
+ * what those numbers should actually be, and re-deriving it is the expensive
+ * part; the way back is the same argument the placeholder already travels on,
+ * `ToolRequest.presets`.
+ *
+ * **Three things to fix before wiring it back**, each found by measuring what
+ * this emits against the five preset shapes that package pins from Autodesk's
+ * schema:
+ *
+ *   * `holePreset` serves spot and centre drills as well as drills, and a
+ *     `spotting` preset requires five feedrates a `drilling` one does not —
+ *     `v_f`, `v_f_leadIn`, `v_f_leadOut`, `v_f_ramp`, `v_f_transition`. Those
+ *     presets are refused today and would be silently short otherwise.
+ *   * A tap is fed by its own pitch, so a `tapping` preset models no feedrate at
+ *     all. The `f_n`, `v_f_plunge`, `v_f_retract` and `use-feed-per-revolution`
+ *     this writes onto one are dropped, because Fusion would never show them.
+ *   * Everything here is computed in millimetres, and the export now states each
+ *     record in the unit system the vendor published in. That package converts
+ *     geometry and deliberately does not convert feeds and speeds — which unit a
+ *     preset field uses differs per field — so an inch tool needs inch feeds
+ *     from here, or its record carries two unit systems at once.
  */
 
 export const PRETOOL_MATERIALS = ['AluWrought', 'LowCSteel', 'StainlessSteel'] as const

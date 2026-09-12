@@ -175,6 +175,17 @@ application unless that application says otherwise.
   **The 2D tool drawing is not this application's** — it is
   `@toolpath/tool-drawing`, and `app/components/catalog-drawing.tsx` is the one
   file that wires it up. See `docs/TOOL-DRAWING-PLAN.md`.
+  **Neither is the Fusion export** — it is
+  `@toolpath/tool-support/export/fusion`, whose per-type rules come from
+  Autodesk's own published JSON Schema rather than from a table written here,
+  and `app/shared/fusion-input.ts` is the whole seam: this catalog's records
+  turned into what that package takes, and its `ExportNote`s read back into the
+  dialog. Every tool carries one placeholder preset, `Default Preset`, whose
+  every number is 1 — a tool with no preset is one Fusion will not load, and
+  `defaultPreset` in that file has the evidence. Real feeds and speeds are
+  `app/shared/pretool-presets.ts`, unreferenced on purpose and going back
+  through the same `ToolRequest.presets`. Do not write a second exporter here — `docs/CATALOG-SPEC.md` § 5 has what changed and
+  what is left.
   **A holder can be drawn from its own CAD model** rather than from the nine
   numbers a vendor publishes: `catalog-profiles` is a second Vite alias beside
   `catalog-dataset`, `shared/catalog.ts` `getProfile` is the only way to reach
@@ -272,6 +283,7 @@ application unless that application says otherwise.
 | what is on the order list, for both pages            | `app/shared/order-list.ts`                           |
 | whether a row has anything ordered, and what to buy  | `isIncomplete` / `componentTotals`, same file        |
 | which of four things the page is being asked         | `asked()`, same file                                 |
+| the bill as a Fusion library, and what its notes say | `app/shared/fusion-input.ts`                         |
 | the three presses over the part that add a row       | `app/components/add-bar.tsx`                         |
 | whether the presses and the rows are drawn at all    | `app/shared/part-chrome.ts`                          |
 | where the part is framed, beside the questions       | `app/shared/frame-inset.ts`                          |

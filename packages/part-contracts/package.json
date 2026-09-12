@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "@toolpath/api": "0.4.1",
-    "@toolpath/tool-support": "0.3.0",
+    "@toolpath/tool-support": "0.4.0",
     "@toolpath/viewer": "1.1.1"
   },
   "devDependencies": {

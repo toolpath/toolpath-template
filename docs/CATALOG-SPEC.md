@@ -113,9 +113,8 @@ _What all of this was for._
 2. Every component is its own row — tool, holder, collet — with its own quantity
    and its own way to the vendor's page.
 3. Type the quantities.
-4. Press **Export Fusion library**, give the library a name, choose the
-   workpiece material and the machine's maximum RPM, then save the whole bill
-   as a `.json` library Fusion can import.
+4. Press **Export Fusion library**, give the library a name, then save the
+   whole bill as a `.json` library Fusion can import.
 
 > **Open question — there is no walkthrough for "I already know the tool".**
 > Every path above starts from the part. A shop that wants to check whether a
@@ -613,11 +612,18 @@ every render, so it can never disagree with the catalog about a diameter.
 - **A line whose tool has left the catalog shows as gone**, not as a stale
   number.
 - **Export Fusion library** — the whole bill as a Fusion `.json` library. The
-  export names the file/library, asks for Aluminum, Low Carbon Steel or
-  Stainless Steel and a spindle RPM ceiling, then applies the catalog-local
-  PreTool Excel presets. It exports one record per distinct assembly, carries
-  its selected setout and published holder shape, and names every omitted tool
-  or holder shape rather than inventing vendor geometry.
+  export asks for a name and nothing else. It writes one record per distinct
+  assembly, carrying its selected setout and its holder — the silhouette
+  measured off the vendor's CAD model where the catalog has a complete one, and
+  the published dimensions otherwise — and names every omitted tool or holder
+  shape rather than inventing vendor geometry.
+
+  **The exporter is not this application's.** It is
+  `@toolpath/tool-support/export/fusion`, whose per-type rules are derived from
+  Autodesk's own published JSON Schema and held against it by a test upstream.
+  `app/shared/fusion-input.ts` is the whole seam: it turns this catalog's
+  records into what that package takes and reads its notes back into the
+  dialog. Do not write a second exporter here.
 
 > **Open questions — this page has had the least attention**
 >
@@ -627,15 +633,36 @@ every render, so it can never disagree with the catalog about a diameter.
 >   end mill" would match how the work was decided.
 > - **Nothing says what a tool is for.** A line does not name the feature it was
 >   chosen for, so the reasoning is lost the moment you leave the part page.
-> - **Fusion export uses PreTool's default Excel model.** Its feeds and speeds
->   are CAM starting values for the selected material and spindle ceiling, not a
->   substitute for a shop's own verification.
+> - **The export states no real feeds and speeds.** Every record carries one
+>   placeholder preset called `Default Preset` whose every number is 1. It is
+>   there because a tool with no preset at all is a tool Fusion will not load:
+>   the export went out as `start-values: { presets: [] }` until 2026-09-11, on
+>   the reading that the schema wants the key and not a preset in it, and the
+>   libraries were refused. Autodesk does ask for one — every `start-values`
+>   branch declares `presets: { type: 'array', minLength: 1 }` — but `minLength`
+>   is a string keyword and a no-op on an array, so no validator enforces it and
+>   nothing here caught it. Of 727 tools across seventeen libraries Fusion itself
+>   wrote, every one carries a preset and none carries zero.
+>   `app/shared/pretool-presets.ts` is still here and is deliberately
+>   unreferenced: it is the whole PreTool model, and the package takes presets
+>   back through `ToolRequest.presets` when this application is ready to answer
+>   for them. Three things need fixing first, each found by
+>   checking PreTool's output against the five preset shapes the package pins:
+>   spot and centre drills route through the drill generator and are short of
+>   the five feedrates a `spotting` preset requires; a tap states four fields a
+>   `tapping` preset does not model; and PreTool computes in millimetres while
+>   the export now states each record in the vendor's own unit system.
+> - **A face mill no longer exports.** Fusion requires `DCX`, `RE`, `TA` and
+>   `upper-radius` on one, all four of them measurements, and the catalog states
+>   none. It used to export with a fabricated `upper-radius: 0` — a record that
+>   loaded and stated dimensions nobody measured.
 
 **Where it lives**
 
 - `app/routes/order-list.tsx` — the page
 - `app/shared/setup-sheet.ts` — the sheet itself — lines, quantities, storage
-- `app/shared/fusion-library.ts` — the bill as a Fusion library
+- `app/shared/fusion-input.ts` — the bill as `@toolpath/tool-support/export/fusion`
+  takes it, and what its notes mean
 - `app/shared/save-file.ts` — saving it from the browser
 
 ---
