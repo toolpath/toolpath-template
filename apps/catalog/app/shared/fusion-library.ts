@@ -131,7 +131,10 @@ const missingGeometry = (tool: CatalogTool): Array<string> => {
   return codes.filter((code) => !validNumber(tool.geometry[code]))
 }
 
-const geometryOf = (line: LibraryLine): Record<string, number | boolean> => {
+const geometryOf = (
+  line: LibraryLine,
+  holderGaugeLength: number,
+): Record<string, number | boolean> => {
   const { tool } = line
   const setout = line.stickout ?? tool.geometry.LBH
   const geometry: Record<string, number | boolean> = {
@@ -145,7 +148,7 @@ const geometryOf = (line: LibraryLine): Record<string, number | boolean> => {
     LB: setout!,
     'shoulder-length': tool.geometry['shoulder-length'] ?? tool.geometry.LCF!,
     'shoulder-diameter': tool.geometry['shoulder-diameter'] ?? tool.geometry.SFDM!,
-    assemblyGaugeLength: setout! + (line.holder?.gaugeLength ?? 0),
+    assemblyGaugeLength: setout! + holderGaugeLength,
   }
   for (const code of ['RE', 'SIG', 'TA', 'TP', 'TPX', 'TPN', 'NT', 'tip-diameter'] as const) {
     const value = tool.geometry[code]
@@ -161,9 +164,13 @@ const geometryOf = (line: LibraryLine): Record<string, number | boolean> => {
 
 const holderOf = (holder: Holder, nextGuid: () => string): FusionHolder | null => {
   const segments = segmentsOf(holder)
-  if (segments.length === 0 || !validNumber(holder.gaugeLength)) {
+  if (segments.length === 0) {
     return null
   }
+  // Fusion measures a holder from the sum of the geometry it receives. The
+  // catalog's gaugeLength can include the spindle-side taper (BT30 B4 does),
+  // which this deliberately below-spindle silhouette does not export.
+  const gaugeLength = segments.reduce((total, segment) => total + segment.height, 0)
   return {
     guid: nextGuid(),
     type: 'holder',
@@ -171,7 +178,7 @@ const holderOf = (holder: Holder, nextGuid: () => string): FusionHolder | null =
     description: `${holder.brand} ${holder.catalogNumber}`,
     vendor: holder.brand,
     'product-id': holder.catalogNumber,
-    gaugeLength: holder.gaugeLength,
+    gaugeLength,
     segments,
   }
 }
@@ -249,7 +256,7 @@ export const fusionLibrary = (
       'product-id': line.tool.catalogNumber,
       ...(line.tool.productLink === null ? {} : { 'product-link': line.tool.productLink }),
       description: `${line.tool.brand} ${line.tool.catalogNumber}`,
-      geometry: geometryOf(line),
+      geometry: geometryOf(line, holder?.gaugeLength ?? 0),
       ...(holder === null ? {} : { holder }),
       'post-process': {
         number: at,

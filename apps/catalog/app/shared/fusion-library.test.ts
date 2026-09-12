@@ -19,14 +19,16 @@ const tool = (over: Partial<CatalogTool> = {}): CatalogTool =>
 const holder = {
   guid: '973eaa5d-4474-46c8-aaac-d89dcefcaa0f',
   brand: 'Kennametal',
-  catalogNumber: 'BT30ER16060M',
-  noseDiameter: 28,
-  noseLength: 20,
-  bodyDiameter: 34,
-  bodyLength: 15,
+  catalogNumber: 'BT 30 / PG 6 x 050',
+  // REGO-FIX's BT30 B4 gage length includes the 48.4 mm spindle-side taper.
+  // Fusion's holder gage is the sum of the below-spindle segments (B3).
+  gaugeLength: 98.4,
+  noseDiameter: 10,
+  noseLength: 10.55,
+  bodyDiameter: 12.02,
+  bodyLength: 9.6,
   flangeDiameter: 46,
-  projection: 60,
-  gaugeLength: 44,
+  projection: 50,
 } as unknown as Holder
 
 const ids = (): (() => string) => {
@@ -49,17 +51,17 @@ describe('the order list as a Fusion library', () => {
       CSP: false,
       HAND: true,
       LB: 31,
-      assemblyGaugeLength: 75,
+      assemblyGaugeLength: 81,
       'shoulder-length': 19,
       'shoulder-diameter': 8,
     })
     expect(first.holder).toMatchObject({
       type: 'holder',
-      gaugeLength: 44,
+      gaugeLength: 50,
       segments: [
-        { height: 20, 'lower-diameter': 28, 'upper-diameter': 28 },
-        { height: 15, 'lower-diameter': 34, 'upper-diameter': 34 },
-        { height: 25, 'lower-diameter': 46, 'upper-diameter': 46 },
+        { height: 10.55, 'lower-diameter': 10, 'upper-diameter': 10 },
+        { height: 9.6, 'lower-diameter': 12.02, 'upper-diameter': 12.02 },
+        { height: 29.85, 'lower-diameter': 46, 'upper-diameter': 46 },
       ],
     })
     expect(first['start-values'].presets).toHaveLength(3)
@@ -171,6 +173,7 @@ describe('the order list as a Fusion library', () => {
 
     expect(result.library.data).toHaveLength(1)
     expect(result.library.data[0]?.holder).toBeUndefined()
+    expect(result.library.data[0]?.geometry.assemblyGaugeLength).toBe(27)
     expect(result.holderWarnings[0]?.reason).toContain('no complete published Fusion shape')
   })
 })
