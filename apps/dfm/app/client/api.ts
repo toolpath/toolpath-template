@@ -13,6 +13,11 @@ export class AppApiError extends Error {
 
 export type PartUploadPhase = 'creating-part' | 'uploading-file' | 'starting-analysis'
 
+export interface SessionState {
+  connected: boolean
+  isDemo?: boolean
+}
+
 export interface UploadPartOptions {
   onPhaseChange?: (phase: PartUploadPhase) => void
 }
@@ -28,14 +33,20 @@ const api = async <T>(path: string, init?: RequestInit): Promise<T> => {
 
 /** Reads only connection state; the encrypted API key stays in the HttpOnly cookie. */
 export const getSession = () =>
-  api<{ connected: boolean }>('/api/session', { signal: AbortSignal.timeout(5_000) })
+  api<SessionState>('/api/session', { signal: AbortSignal.timeout(5_000) })
 
 export const connect = (apiKey: string) =>
-  api<{ connected: true }>('/api/session', {
+  api<SessionState>('/api/session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ apiKey }),
   })
+
+/**
+ * Asks the server to connect with a shared demo key. Reports whether one was
+ * available; when it is not, the caller keeps asking for the user's own key.
+ */
+export const startDemoSession = () => api<SessionState>('/api/session/demo', { method: 'POST' })
 
 export const disconnect = () => api<void>('/api/session', { method: 'DELETE' })
 
