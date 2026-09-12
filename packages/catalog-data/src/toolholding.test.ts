@@ -325,15 +325,35 @@ describe('a shank a hair off the collet’s size', () => {
    * How wide "a hair" is belongs to `@toolpath/tool-support`, and it moved in
    * 0.3.1: from a float-artifact's last bit to a thousandth of an inch, which
    * is the coarsest last place the vendor catalogs print. Four Kennametal
-   * collets were refusing the shank they are sold for. So a 9.5 mm shank —
-   * 0.025 mm under a 3/8" collet, inside a thousandth — is now the same shank
-   * too, and this pins both sides of that boundary rather than only the float.
+   * collets were refusing the shank they are sold for. This one keeps the
+   * float case the corridor started as; the test below pins both sides of the
+   * width it moved to.
    */
   it('is still gripped', () => {
     const inch = collet({ guid: 'c', clampMin: 9.525, clampMax: 9.525 })
     expect(gripsShank(inch, 9.524999999999999)).toBe(true)
+  })
+
+  /**
+   * The corridor is one thousandth of an inch, and it is
+   * `@toolpath/tool-support`'s number rather than this package's.
+   *
+   * It was `1e-6` mm until 0.3.1 — floating-point noise and nothing else —
+   * which refused a shank a vendor's own two unit columns disagreed about in
+   * their last printed digit. A thou is the coarsest last place these catalogs
+   * print, so it is the width of the artifact rather than a figure picked to
+   * clear it, and `holding.ts` there carries the evidence on both sides.
+   *
+   * Both halves are pinned here because the corridor has to stay a corridor: a
+   * shank inside it is the same shank spelled twice, and one outside it is a
+   * size the vendor meant. `40ERSS0312` is the real case on the far side — a
+   * sealed ER40 collet stating 7.874 mm against a 5/16 in name, 0.0635 mm
+   * undersize in both unit columns, which stays refused.
+   */
+  it('is a thousandth of an inch wide, and no wider', () => {
+    const inch = collet({ guid: 'c', clampMin: 9.525, clampMax: 9.525 })
     expect(gripsShank(inch, 9.5)).toBe(true)
-    expect(gripsShank(inch, 9.4)).toBe(false)
+    expect(gripsShank(inch, 9.46)).toBe(false)
   })
 })
 

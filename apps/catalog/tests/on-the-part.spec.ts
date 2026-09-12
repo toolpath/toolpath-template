@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { readFileSync } from 'node:fs'
 import { onThePart, openCube, openCubeWithHole, orderList } from './cube-fixture'
 
 /**
@@ -4742,4 +4743,64 @@ test('never walks the readings with the arrow keys', async ({ page }) => {
   await page.keyboard.press('ArrowUp')
 
   await expect(field(page)).toHaveText(named)
+})
+
+/**
+ * **The bill leaves as a file Fusion will load.**
+ *
+ * The export was the one shipped feature of this application with no end-to-end
+ * coverage at all: a unit test pinned the document a pure function built, and
+ * nothing checked that pressing the button produced a file. It had already
+ * failed that way once — on 2026-09-01 the download did nothing, because the
+ * page revoked the object URL before the click had used it, which is the bug
+ * `shared/save-file.ts` exists to prevent and which no unit test could see.
+ *
+ * So this asserts the two things only a browser can: that the press yields a
+ * download, and that what comes out is the document rather than a shape
+ * `JSON.stringify` flattened on the way. `LB` carries its decimal point because
+ * `fusionLibraryJson` writes dimensions as floats, and the flute count does not
+ * because a count is an integer — the pair is the whole rule, and the old
+ * exporter got it wrong in both directions by serializing with `JSON.stringify`.
+ */
+test('downloads the order list as a Fusion tool library', async ({ page }) => {
+  await ready(page)
+  const tree = await buildStack(page)
+  await tree.getByRole('button', { name: 'Add to order list' }).click()
+
+  await page.getByRole('link', { name: 'Order list' }).click()
+  await page.getByRole('button', { name: 'Export Fusion library' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Export Fusion tool library' })
+  await expect(dialog).toBeVisible()
+
+  const waiting = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Download .json' }).click()
+  const download = await waiting
+  expect(download.suggestedFilename()).toBe('tool-library.json')
+
+  const text = readFileSync(await download.path(), 'utf8')
+  const library = JSON.parse(text) as {
+    version: number
+    data: Array<Record<string, unknown>>
+  }
+  expect(library.version).toBe(33)
+  expect(library.data).toHaveLength(1)
+
+  const [written] = library.data
+  // One preset, because Fusion will not load a tool carrying none. What is in
+  // it is `defaultPreset`'s business and `shared/fusion-input.test.ts` checks
+  // it per form; what this asserts is that it survived the press.
+  const startValues = written?.['start-values'] as { presets: Array<{ name: string }> }
+  expect(startValues.presets).toHaveLength(1)
+  expect(startValues.presets[0]?.name).toBe('Default Preset')
+  // The holder travelled with the tool, and the assembly closes on it:
+  // `assemblyGaugeLength` is the holder's gauge length plus the stickout.
+  const holder = written?.holder as { gaugeLength: number }
+  const geometry = written?.geometry as Record<string, number>
+  expect(geometry.assemblyGaugeLength).toBeCloseTo(holder.gaugeLength + geometry.LB!, 6)
+
+  expect(text).toMatch(/"LB": \d+\.\d/)
+  expect(text).toMatch(/"NOF": \d+,/)
+
+  await expect(dialog.getByText(/^Downloaded 1 tool assembly\./)).toBeVisible()
 })

@@ -15,7 +15,7 @@ import type { CatalogTool, Collet, Holder } from '@toolpath/catalog-data'
 import { AppHeader } from 'components/app-header'
 import { FusionExportDialog } from 'components/fusion-export-dialog'
 import { ColletIcon, HolderIcon, ToolTypeIcon, formLabel } from './../components/tool-icons'
-import { allTools, getCollet, getHolder, getTool } from 'shared/catalog'
+import { allTools, getCollet, getHolder, getProfile, getTool } from 'shared/catalog'
 import {
   addChoice,
   lineUnder,
@@ -39,12 +39,15 @@ import {
   type ComponentTotal,
   type OrderAssembly,
 } from 'shared/order-list'
-import { fusionLibrary, type FusionExportSettings } from 'shared/fusion-library'
+import {
+  fusionLibrary,
+  fusionLibraryJson,
+  sanitizeName,
+} from '@toolpath/tool-support/export/fusion'
+import { fusionInput, fusionReport } from 'shared/fusion-input'
 import { saveInBrowser } from 'shared/save-file'
 import { recallPart } from 'shared/part-session'
 import { useUnit } from 'shared/use-unit'
-import { usePartMaterial } from 'shared/use-preferences'
-import type { PretoolMaterial } from 'shared/pretool-presets'
 import { SECTION_LABEL, TABLE_FACE, TABLE_INK } from 'shared/type'
 
 /**
@@ -106,27 +109,6 @@ const KIND: Readonly<Record<Component, string>> = {
   tool: 'Tool',
   holder: 'Holder',
   collet: 'Collet',
-}
-
-const pretoolMaterialFor = (group: string | null): PretoolMaterial | null => {
-  if (group === 'N') {
-    return 'AluWrought'
-  }
-  if (group === 'P') {
-    return 'LowCSteel'
-  }
-  if (group === 'M') {
-    return 'StainlessSteel'
-  }
-  return null
-}
-
-const libraryFileName = (name: string): string => {
-  const safe = name
-    .trim()
-    .replace(/[\\/:*?"<>|]+/g, '-')
-    .replace(/\.+$/g, '')
-  return safe === '' ? 'tool-library' : safe
 }
 
 const toolLine = (tool: CatalogTool, unit: UnitSystem): Line => {
@@ -440,7 +422,6 @@ const Bom = () => {
   const [search] = useSearchParams()
   const jobId = search.get('job')
   const [unit, setUnit] = useUnit()
-  const { materialGroup } = usePartMaterial(partId ?? '')
   const { sheet, commit } = useSetupSheet(partId ?? '')
   const remembered = partId && jobId ? recallPart(partId, jobId) : null
   const features = remembered?.report.features ?? []
@@ -530,48 +511,39 @@ const Bom = () => {
   /**
    * The whole bill as a Fusion library, saved from the browser.
    *
-   * Built here rather than on the server because everything it needs is
-   * already in this page: the sheet's guids, resolved through the catalog.
-   * `fusion-library.ts` is where the shape of the file lives, and is tested
-   * there.
+   * Built here rather than on the server because everything it needs is already
+   * in this page: the sheet's guids, resolved through the catalog. This route
+   * resolves them and nothing more — `shared/fusion-input.ts` turns the records
+   * into what the exporter takes and reads its notes back, and the exporter
+   * itself is `@toolpath/tool-support/export/fusion`, whose rules come from
+   * Autodesk's own schema rather than from anything written here.
    */
-  const downloadFusion = async (settings: FusionExportSettings, name: string) => {
-    const exported = fusionLibrary(
+  const downloadFusion = async (name: string) => {
+    const requests = fusionInput(
       assemblies.flatMap(({ key, choice }) => {
         const tool = getTool(choice.toolGuid)
-        return tool === null
-          ? []
-          : [
-              {
-                key,
-                tool,
-                holder:
-                  choice.holderGuid == null
-                    ? undefined
-                    : (getHolder(choice.holderGuid) ?? undefined),
-                collet:
-                  choice.colletGuid == null
-                    ? undefined
-                    : (getCollet(choice.colletGuid) ?? undefined),
-                stickout: choice.stickout,
-              },
-            ]
+        if (tool === null) {
+          return []
+        }
+        const holder = choice.holderGuid == null ? null : getHolder(choice.holderGuid)
+        return [
+          {
+            key,
+            tool,
+            ...(holder === null ? {} : { holder, profile: getProfile(holder.guid) }),
+            stickout: choice.stickout,
+          },
+        ]
       }),
-      settings,
     )
-    if (exported.library.data.length === 0) {
-      return { exported: 0, skipped: exported.skipped, holderWarnings: exported.holderWarnings }
+    const { document, notes } = fusionLibrary({
+      tools: requests.map((each) => each.request),
+    })
+    const report = fusionReport(requests, document, notes)
+    if (report.exported > 0) {
+      saveInBrowser(`${sanitizeName(name)}.json`, fusionLibraryJson(document), 'application/json')
     }
-    saveInBrowser(
-      `${libraryFileName(name)}.json`,
-      JSON.stringify(exported.library, null, 2),
-      'application/json',
-    )
-    return {
-      exported: exported.library.data.length,
-      skipped: exported.skipped,
-      holderWarnings: exported.holderWarnings,
-    }
+    return report
   }
 
   return (
@@ -930,7 +902,6 @@ const Bom = () => {
       </div>
       {fusionDialogOpen ? (
         <FusionExportDialog
-          initialMaterial={pretoolMaterialFor(materialGroup)}
           initialName="tool-library"
           onCancel={() => setFusionDialogOpen(false)}
           onExport={downloadFusion}
