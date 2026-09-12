@@ -11,6 +11,7 @@ import {
   type Holder,
   type HolderFilters,
 } from '@toolpath/catalog-data'
+import { clampingPhrase } from './component-columns'
 
 /**
  * Every list in the tree narrowed by every other choice in it.
@@ -271,6 +272,32 @@ export const colletGap = (
     ? null
     : gapWords(holder, collets, false)
 
+/** `a` or `an`, for a phrase only known at runtime. */
+const article = (phrase: string): string => (/^[aeiou]/i.test(phrase) ? 'an' : 'a')
+
+/**
+ * Why a collet list is empty because of what the holder **is**, or null where
+ * the holder takes a collet at all.
+ *
+ * **Not every empty list is a gap or a choice** (Paul, 2026-09-11). A shrink
+ * fit, a hydraulic chuck and an end mill holder grip the shank directly, so
+ * their collet list is empty by mechanics — there is nothing to stock and
+ * nothing to undo. Until this sentence existed the page fell through to the
+ * choices and said "Nothing fits alongside `<holder>`. Clear one of them to
+ * widen the list", which reads as a dead end and asks a shop to give up a
+ * holder that is working exactly as intended.
+ *
+ * The words for the kind are {@link clampingPhrase}'s, so the sentence names
+ * the holder the same way the Type column does.
+ */
+export const colletNotNeeded = (holder: Holder): string | null => {
+  if (holderNeedsCollet(holder)) {
+    return null
+  }
+  const phrase = clampingPhrase(holder)
+  return `No collet required for ${article(phrase)} ${phrase}.`
+}
+
 /**
  * The same question asked of the shanks a slot with no tool chosen is standing
  * in for.
@@ -398,12 +425,26 @@ export const whyEmpty = (
      * something was hidden read the same on screen and mean opposite things.
      */
     readonly hidden?: number
+    /**
+     * The sentence for a holder that takes no collet at all —
+     * {@link colletNotNeeded}.
+     *
+     * First of the three, because it is not an emptiness at all: the other two
+     * are a drawer to buy from and a press to turn on, and this one is the
+     * stack being finished. Passed in rather than read off `holder` here,
+     * because the holder list is asked the same question and an end mill holder
+     * chosen in it says nothing about why *that* list came back empty.
+     */
+    readonly noneNeeded?: string | null
   } = {},
 ): string | null => {
   if (shown > 0) {
     return null
   }
-  const { gap = null, hidden = 0 } = because
+  const { gap = null, hidden = 0, noneNeeded = null } = because
+  if (noneNeeded !== null) {
+    return noneNeeded
+  }
   if (gap !== null) {
     return `No collet fits this holder: ${gap}. Order the holder on its own, or choose another.`
   }

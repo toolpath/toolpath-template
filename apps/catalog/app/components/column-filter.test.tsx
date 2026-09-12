@@ -10,7 +10,6 @@ import {
   RangeFilter,
   TermFilter,
   compareOf,
-  menuRoom,
   optionsMatching,
   type Bound,
   type Kind,
@@ -230,29 +229,78 @@ describe('the shape a stored bound has', () => {
   })
 })
 
-/**
- * How tall a box opened off a button is, and which way it opens.
- *
- * One rule for the filter menus and the column picker both: the picker ran off
- * the bottom of the screen with its last columns unreachable (Paul,
- * 2026-09-10), which is the defect the Type filter had a day earlier.
- */
-describe('the room a menu opens into', () => {
-  it('takes the room under the button and opens downwards', () => {
-    expect(menuRoom({ top: 100, bottom: 130 }, 900)).toEqual({ upwards: false, height: 758 })
-  })
-
-  it('opens upwards where what is left under the button is a strip', () => {
-    expect(menuRoom({ top: 700, bottom: 730 }, 900)).toEqual({ upwards: true, height: 688 })
-  })
-
-  /** A strip above and a strip below still opens downwards, and overhangs. */
-  it('never squeezes itself below the least height worth reading', () => {
-    expect(menuRoom({ top: 40, bottom: 70 }, 200)).toEqual({ upwards: false, height: 220 })
-  })
-})
-
 describe('the column picker', () => {
+  /**
+   * **The drag says where the row will land before it lands** (Paul,
+   * 2026-09-11: "the list should show a blue line (2px horizontal) where the
+   * item will be dropped to help the user see where it will go").
+   *
+   * Which edge is `shared/column-order.ts` § `dropEdge`, and its own tests tie
+   * that to where `movedTo` actually puts the row. What this pins is the wire:
+   * that a drag over a row draws the line, on the edge the rule names, on that
+   * row and no other — and that letting go anywhere puts it away.
+   */
+  const picker = (order: ReadonlyArray<string>, onReorder = vi.fn()) => {
+    render(
+      <ColumnPicker
+        columns={order.map((code) => ({ code, label: code }))}
+        shown={[...order]}
+        onToggle={vi.fn()}
+        onReorder={onReorder}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Which columns to show' }))
+    const rows = screen.getByRole('group', { name: 'Columns' }).children
+    return {
+      rows,
+      lines: () => Array.from(document.querySelectorAll('[data-drop-edge]')),
+      grab: (code: string) =>
+        fireEvent.dragStart(screen.getByRole('button', { name: `Move ${code}` })),
+      release: (code: string) =>
+        fireEvent.dragEnd(screen.getByRole('button', { name: `Move ${code}` })),
+    }
+  }
+
+  it('draws one line, on the row under the pointer, while a column is dragged', () => {
+    const { rows, lines, grab } = picker(['a', 'b', 'c', 'd'])
+
+    expect(lines()).toHaveLength(0)
+
+    grab('a')
+    fireEvent.dragOver(rows[2]!)
+
+    expect(lines()).toHaveLength(1)
+    expect(rows[2]!.querySelector('[data-drop-edge]')).not.toBeNull()
+  })
+
+  /** Down lands after the row, up lands before it — `movedTo` decides which. */
+  it('puts the line under the row dragging down and over it dragging up', () => {
+    const { rows, lines, grab, release } = picker(['a', 'b', 'c', 'd'])
+
+    grab('a')
+    fireEvent.dragOver(rows[2]!)
+    expect(lines()[0]).toHaveAttribute('data-drop-edge', 'below')
+
+    release('a')
+    grab('d')
+    fireEvent.dragOver(rows[1]!)
+    expect(lines()[0]).toHaveAttribute('data-drop-edge', 'above')
+  })
+
+  it('draws nothing over the row being dragged, and nothing once it is let go', () => {
+    const { rows, lines, grab, release } = picker(['a', 'b', 'c'])
+
+    grab('b')
+    fireEvent.dragOver(rows[1]!)
+    expect(lines()).toHaveLength(0)
+
+    fireEvent.dragOver(rows[0]!)
+    expect(lines()).toHaveLength(1)
+
+    release('b')
+    expect(lines()).toHaveLength(0)
+  })
+
   it('keeps the pencil at the table header touch target size', () => {
     render(
       <ColumnPicker
@@ -268,6 +316,12 @@ describe('the column picker', () => {
   /**
    * The list scrolls inside the room the screen leaves it rather than running
    * off the bottom of the page with its last columns out of reach.
+   *
+   * `--available-height` is the kit menu's own measurement of what its
+   * positioner found, which is what replaced a height this component used to
+   * work out for itself (Paul, 2026-09-11: "why aren't these menus just using
+   * the menu component from @toolpath/ui?"). A class rather than an inline
+   * style, because the number is the positioner's to write.
    */
   it('scrolls inside a height the screen bounds', () => {
     render(
@@ -282,7 +336,59 @@ describe('the column picker', () => {
 
     const list = screen.getByRole('group', { name: 'Columns' })
     expect(list).toHaveClass('overflow-y-auto')
-    expect(list.style.maxHeight).not.toBe('')
+    expect(list).toHaveClass('max-h-[var(--available-height)]')
+  })
+
+  /**
+   * **The box is the kit's, and so is the way out of it.** A picker that drew
+   * its own absolutely-positioned box was cut off by the card it stood in, and
+   * every part of the answer — the portal, the placing, Escape, a press
+   * outside — is what `Menu.Popover` is.
+   */
+  it('opens the kit menu rather than a box of its own', () => {
+    render(
+      <ColumnPicker
+        columns={[{ code: 'DC', label: 'Diameter' }]}
+        shown={['DC']}
+        onToggle={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Which columns to show' }))
+
+    expect(
+      screen.getByRole('group', { name: 'Columns' }).closest('[data-base-ui-portal]'),
+    ).not.toBe(null)
+  })
+
+  /**
+   * The pencil stands in the bar floating at the bottom of the viewer, which is
+   * inside a panel that clips: a list positioned inside that box opened
+   * downwards into the table and was cut off at the panel's edge (Paul,
+   * 2026-09-11). It is drawn on the page instead.
+   */
+  it('draws the list on the page rather than inside the clipping panel', () => {
+    const { container } = render(
+      <ColumnPicker
+        columns={[{ code: 'DC', label: 'Diameter' }]}
+        shown={['DC']}
+        onToggle={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Which columns to show' }))
+
+    const list = screen.getByRole('group', { name: 'Columns' })
+    expect(container.contains(list)).toBe(false)
+    /*
+      The bound, rather than `fixed`. The placing is `Menu.Popover`'s as of
+      brad/table — a portal against its trigger, bounded by the window — so the
+      positioning class this used to read is the kit's business now. What is
+      still this application's, and still the thing Paul asked for, is that the
+      list scrolls inside the room the screen left rather than running off the
+      bottom with its last columns out of reach.
+    */
+    expect(list).toHaveClass('max-h-[var(--available-height)]', 'overflow-y-auto')
   })
 })
 

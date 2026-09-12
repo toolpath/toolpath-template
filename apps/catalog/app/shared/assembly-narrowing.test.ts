@@ -4,6 +4,7 @@ import {
   NOTHING_CHOSEN,
   colletGap,
   colletGapFor,
+  colletNotNeeded,
   holderTakesCollet,
   holdersToOffer,
   narrowCollets,
@@ -381,6 +382,46 @@ describe('why an offered holder cannot be built out of the crib', () => {
     ).toBe(
       'No collet fits this holder: the crib stocks no ER11 collet. Order the holder on its own, or choose another.',
     )
+  })
+
+  /**
+   * **A holder that grips the shank is not an empty list to fix** (Paul,
+   * 2026-09-11). Before this sentence, opening the collet slot under a shrink
+   * fit fell through to the choices and read "Nothing fits alongside
+   * BT30SF12060M. Clear one of them to widen the list" — a dead end, and an
+   * instruction to undo a holder that is working as intended.
+   */
+  it('says a shrink fit holder needs no collet at all', () => {
+    const shrink = holder({ clamping: 'shrink', colletSeries: null, boreDiameter: 12 })
+    expect(colletNotNeeded(shrink)).toBe('No collet required for a shrink fit holder.')
+  })
+
+  /** The kind is named the way the Type column names it, with its own article. */
+  it('names the other holders that grip the shank', () => {
+    expect(colletNotNeeded(holder({ clamping: 'bore', colletSeries: null }))).toBe(
+      'No collet required for an end mill holder.',
+    )
+    expect(colletNotNeeded(holder({ clamping: 'hydraulic', colletSeries: null }))).toBe(
+      'No collet required for a hydraulic chuck.',
+    )
+  })
+
+  it('says nothing about a chuck that does take one', () => {
+    expect(colletNotNeeded(er16Chuck)).toBeNull()
+  })
+
+  /**
+   * Over the gap as well as over the choices: a holder taking no collet is not
+   * an emptiness to do something about, and the gap is null for one anyway.
+   */
+  it('puts it over everything else when the collet list comes back empty', () => {
+    const shrink = holder({ clamping: 'shrink', colletSeries: null, boreDiameter: 12 })
+    expect(
+      whyEmpty(0, { tool: small, holder: shrink, collet: null }, {}, true, {
+        gap: null,
+        noneNeeded: colletNotNeeded(shrink),
+      }),
+    ).toBe('No collet required for a shrink fit holder.')
   })
 
   /**

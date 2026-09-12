@@ -1,4 +1,4 @@
-import { Button, Checkbox, IconButton, Input, cn } from '@toolpath/ui'
+import { Button, Checkbox, IconButton, Input, Menu, cn } from '@toolpath/ui'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -15,7 +15,8 @@ import {
   convertLength,
   decimalsFor,
 } from '@toolpath/tool-support'
-import { movedBy, movedTo } from 'shared/column-order'
+import { dropEdge, movedBy, movedTo } from 'shared/column-order'
+import { MENU_GAP, MENU_LEAST, placeMenu, type Placed } from 'shared/menu-place'
 import { sameBound } from 'shared/filter'
 import { readEntry, readRange, type Side } from 'shared/range-entry'
 import { LAYER_COLUMN_FILTER, useEscape, useKeyLayer } from 'shared/use-escape'
@@ -103,7 +104,16 @@ const says = (
   return Math.abs(meant - value) < 1e-9
 }
 
-/** What the boxes take besides a number, said in the characters a keyboard has. */
+/**
+ * What the boxes take besides a number, for the one place it is said.
+ *
+ * **On the box, not under it** (Paul, 2026-09-11: "it's a good party trick but
+ * maybe hide the note"). This stood as a line of its own while the caret was in
+ * either box, and a line of bare symbols is a line that has to be explained —
+ * `>6` and `=6` say nothing about which end they are without their words, and
+ * the boxes already say min and max on their own. So the shorthand is a
+ * shortcut somebody finds rather than a legend everybody reads past.
+ */
 const howToType = (kind: Kind): string =>
   kind === 'length' ? 'A number — or 6-12, >6, <12, =6, 1/4"' : 'A number — or 6-12, >6, <12, =6'
 
@@ -133,8 +143,6 @@ export const RangeFilter = ({
 }: RangeFilterProps) => {
   const [lower, setLower] = useState(() => toDraft(bound?.min, unit, kind))
   const [upper, setUpper] = useState(() => toDraft(bound?.max, unit, kind))
-  /** Whether the caret is in either box, which is when the shorthand is worth saying. */
-  const [typing, setTyping] = useState(false)
   const first = useRef<HTMLInputElement>(null)
 
   const min = bound?.min
@@ -250,27 +258,13 @@ export const RangeFilter = ({
   )
 
   return (
-    <div
-      className="flex flex-col gap-1"
-      onFocus={() => setTyping(true)}
-      onBlur={(event) => {
-        // Moving between the two boxes is not leaving the filter, and the hint
-        // blinking out and back in between them would be the only thing on the
-        // screen that moved.
-        if (!event.currentTarget.contains(event.relatedTarget)) {
-          setTyping(false)
-        }
-      }}
-    >
-      <div className="flex flex-wrap items-center gap-1">
-        {box('min', lower, (raw) => commit(raw, upper))}
-        <span className="text-2xs text-zinc-600">–</span>
-        {box('max', upper, (raw) => commit(lower, raw))}
-        {kind === 'length' ? (
-          <span className="text-2xs text-zinc-600">{UNIT_ABBREVIATION[unit]}</span>
-        ) : null}
-      </div>
-      {typing ? <p className="text-2xs text-zinc-500">{howToType(kind)}</p> : null}
+    <div className="flex flex-wrap items-center gap-1">
+      {box('min', lower, (raw) => commit(raw, upper))}
+      <span className="text-2xs text-zinc-600">–</span>
+      {box('max', upper, (raw) => commit(lower, raw))}
+      {kind === 'length' ? (
+        <span className="text-2xs text-zinc-600">{UNIT_ABBREVIATION[unit]}</span>
+      ) : null}
     </div>
   )
 }
@@ -406,51 +400,6 @@ export const OverrideNotice = ({
   )
 }
 
-/** Room kept between the menu and the edge of the screen. */
-const MENU_EDGE = 12
-
-/**
- * The least room worth opening downwards into.
- *
- * Below this the menu opens upwards instead. It is a floor on the height as
- * well: a menu squeezed into eighty pixels is one nobody can read, so it takes
- * this much and overhangs rather than becoming a slot.
- */
-const MENU_LEAST = 220
-
-/**
- * How tall a box opened off a button may be, and which way it opens.
- *
- * **A menu is as tall as the screen leaves it** (Paul, 2026-09-10, of the Type
- * filter and then of the column picker: "the edit columns drop down list should
- * be scrollable if it runs off the screen"). Both boxes are opened from a
- * header that can sit anywhere down the page, and both were drawn at whatever
- * height their contents came to, so the rows past the bottom edge were
- * unreachable — the column picker's last column could not be ticked at all.
- *
- * One rule for both: the room under the button is measured, the box takes it
- * and scrolls inside itself, and where what is left under the button is a strip
- * it opens upwards into the larger room instead.
- */
-export const menuRoom = (
-  button: { readonly top: number; readonly bottom: number },
-  viewport: number,
-): { readonly upwards: boolean; readonly height: number } => {
-  const below = viewport - button.bottom - MENU_EDGE
-  const above = button.top - MENU_EDGE
-  const upwards = below < MENU_LEAST && above > below
-  return { upwards, height: Math.max(MENU_LEAST, upwards ? above : below) }
-}
-
-/** Where the menu stands: by its top, or by its bottom where it opened upwards. */
-type Placed = {
-  readonly top: number | null
-  readonly bottom: number | null
-  readonly left: number
-  /** The most it may be, which is the room the screen left it. */
-  readonly height: number
-}
-
 /**
  * The box a column's funnel opens, drawn over the page and away from the table.
  *
@@ -563,23 +512,16 @@ export const FilterMenu = ({
         })
         return
       }
-      const button = anchor.getBoundingClientRect()
-      const width = box.current?.getBoundingClientRect().width ?? 0
-      const wanted = align === 'right' ? button.right - width : button.left
-      const left = Math.max(8, Math.min(wanted, window.innerWidth - width - 8))
-      /*
-        `menuRoom` is the rule — and where it says upwards the menu is anchored
-        by its bottom rather than placed by a height it has not been measured at
-        yet, which is the one way to flip a box without a frame of it in the
-        wrong place.
-      */
-      const room = menuRoom(button, window.innerHeight)
-      setAt({
-        top: room.upwards ? null : button.bottom + 4,
-        bottom: room.upwards ? window.innerHeight - button.top + 4 : null,
-        left,
-        height: room.height,
-      })
+      // `shared/menu-place` is the rule, and the same one the picker and the
+      // quick filters follow — this menu only finds its button the hard way.
+      setAt(
+        placeMenu(
+          anchor.getBoundingClientRect(),
+          box.current?.getBoundingClientRect().width ?? 0,
+          align,
+          { width: window.innerWidth, height: window.innerHeight },
+        ),
+      )
     }
 
     /**
@@ -1088,6 +1030,14 @@ export const TextFilter = ({
  * columns move with it (Paul, 2026-08-31). The handle is left of the tick
  * because the tick is the row's own control and dragging must not toggle it;
  * arrow keys on a focused handle do the same thing without a pointer.
+ *
+ * **The list is a portal, like every other menu here** (Paul, 2026-09-11: "the
+ * edit filters pencil icon is going behind the table, it needs to go in front
+ * to be usable"). The pencil moved into the bar floating at the bottom of the
+ * viewer, and that bar is inside a panel that clips — so a box positioned
+ * inside it opened downwards into the table and was cut off at the panel's own
+ * edge. Placed against the pencil and drawn on the page instead, the same way
+ * `FilterMenu` escapes the table's scroll box.
  */
 export const ColumnPicker = ({
   columns,
@@ -1104,154 +1054,178 @@ export const ColumnPicker = ({
 }) => {
   const [open, setOpen] = useState(false)
   const [held, setHeld] = useState<string | null>(null)
-  const box = useRef<HTMLDivElement>(null)
-  const pencil = useRef<HTMLButtonElement>(null)
-  const [room, setRoom] = useState({ upwards: false, height: MENU_LEAST })
+  /** Which row the pointer is over mid-drag, so the line knows where to be. */
+  const [over, setOver] = useState<number | null>(null)
   const order = columns.map((column) => column.code)
 
   const move = (code: string, index: number) => {
+    setOver(null)
     const next = movedTo(order, code, index)
     if (next.join() !== order.join()) {
       onReorder?.(next)
     }
   }
 
-  useEffect(() => {
-    if (!open) {
-      return
-    }
-    const onDown = (event: PointerEvent) => {
-      if (!box.current?.contains(event.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('pointerdown', onDown)
-    return () => document.removeEventListener('pointerdown', onDown)
-  }, [open])
-
   /*
-    The list is as long as the table has columns — twenty on the tool list — and
-    the pencil is at the top of a table that can sit anywhere down the page, so
-    the bottom of the list ran off the screen and the columns there could not be
-    ticked. `menuRoom` is the same rule the filter menus follow: take the room
-    the screen leaves and scroll inside it, or open upwards where what is under
-    the pencil is a strip.
+    **The kit's `Menu`, rather than a box drawn under the pencil** (Paul,
+    2026-09-11: "the 'which columns to show' menu is now hidden behind the table
+    when opened", then "why aren't these menus just using the menu component
+    from @toolpath/ui?"). The strip this button stands on floats over the
+    viewer, which is a card that clips, so a box positioned inside it was cut
+    off at the card's bottom edge with the tool list showing through the rest of
+    it. Every part of the answer — the portal out of the card, the placing
+    against the pencil, turning over where the room is above, the height the
+    screen leaves, Escape, and a press outside — is what `Menu.Popover` already
+    is, and this had a hand-written half of each.
   */
-  useLayoutEffect(() => {
-    if (!open) {
-      return
-    }
-    const measure = () => {
-      const button = pencil.current?.getBoundingClientRect()
-      if (button !== undefined) {
-        setRoom(menuRoom(button, window.innerHeight))
-      }
-    }
-    // A scroll inside the list is the list's own business, exactly as it is
-    // inside a filter menu.
-    const onScroll = (event: Event) => {
-      if (event.target instanceof Node && box.current?.contains(event.target) === true) {
-        return
-      }
-      measure()
-    }
-    measure()
-    window.addEventListener('resize', measure)
-    window.addEventListener('scroll', onScroll, true)
-    return () => {
-      window.removeEventListener('resize', measure)
-      window.removeEventListener('scroll', onScroll, true)
-    }
-  }, [open])
-
-  // Escape puts it away as well, without going back to find the header.
-  useEscape(open, () => setOpen(false))
-
   return (
-    <div ref={box} className="relative">
-      <IconButton
-        ref={pencil}
-        size="lg"
-        variant="muted"
-        aria-label="Which columns to show"
-        aria-expanded={open}
-        title="Which columns to show"
-        onClick={() => setOpen(!open)}
-        /* **A press keeps its own ground** (Paul, 2026-09-11: "the buttons
-           shouldn't be transparent"). The chrome this stands in floats over the
-           part now, so the pencil wears the same chip the buttons beside it
-           wear rather than sitting bare on the geometry. */
-        className="rounded border border-zinc-800 bg-zinc-900 p-1 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+    <Menu open={open} onOpenChange={setOpen}>
+      {/*
+        The pencil *is* the trigger. `Menu.Trigger` renders a `role="button"`
+        div of its own by default, and a button inside that is two controls
+        with one name — `filter-panel.tsx` says the same thing at more length.
+      */}
+      <Menu.Trigger
+        nativeButton
+        render={
+          <IconButton
+            size="lg"
+            variant="muted"
+            aria-label="Which columns to show"
+            title="Which columns to show"
+            /* **A press keeps its own ground** (Paul, 2026-09-11: "the buttons
+               shouldn't be transparent"). The chrome this stands in floats over
+               the part now, so the pencil wears the same chip the buttons
+               beside it wear rather than sitting bare on the geometry. */
+            className="rounded border border-zinc-800 bg-zinc-900 p-1 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+          >
+            <PencilSimpleIcon />
+          </IconButton>
+        }
+      />
+      {/*
+        **Under its button, not flipped above it** (Paul, 2026-09-11: "don't
+        just show the menus above, that's a lazy solution"). This strip sits two
+        thirds of the way down the page, so a menu free to pick the roomier side
+        picks *above* every time and hangs over the part rather than over the
+        list it narrows. Pinned to the bottom, it opens where a menu belongs and
+        scrolls inside `--available-height`, which is the positioner's own
+        measurement of what is left there — and a hair off the pencil, so the
+        two read as a control and its answer.
+      */}
+      <Menu.Popover
+        sideOffset={MENU_GAP}
+        side="bottom"
+        collisionAvoidance={{ side: 'none' }}
+        className="rounded-lg border-zinc-800 bg-zinc-950 py-1 shadow-xl"
       >
-        <PencilSimpleIcon />
-      </IconButton>
-      {open ? (
+        {/*
+          `--available-height` is the positioner's own measurement of the room
+          it found, so the list scrolls inside what the screen left rather than
+          running off the bottom of the page with its last columns out of reach
+          (Paul, 2026-09-10).
+        */}
         <div
           role="group"
           aria-label="Columns"
-          style={{ maxHeight: room.height }}
-          className={cn(
-            'absolute right-0 z-30 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950 py-1 shadow-xl',
-            room.upwards ? 'bottom-full mb-1' : 'top-full mt-1',
-          )}
+          className="max-h-[var(--available-height)] overflow-y-auto"
         >
-          {columns.map((column, at) => (
-            <div
-              key={column.code}
-              // The row is the drop target; the handle is what starts the
-              // drag, so a press on the tick still only ticks.
-              onDragOver={(event) => {
-                if (held !== null) {
+          {columns.map((column, at) => {
+            const edge = held === null ? null : dropEdge(order, held, over === at ? at : -1)
+            return (
+              <div
+                key={column.code}
+                // The row is the drop target; the handle is what starts the
+                // drag, so a press on the tick still only ticks.
+                onDragOver={(event) => {
+                  if (held !== null) {
+                    event.preventDefault()
+                    // Set here rather than on enter and cleared on leave: this
+                    // fires for as long as the pointer is on the row, so the
+                    // one under it is always the last to have spoken, and a
+                    // drag over a child never reads as a drag out of the row.
+                    setOver(at)
+                  }
+                }}
+                onDrop={(event) => {
                   event.preventDefault()
-                }
-              }}
-              onDrop={(event) => {
-                event.preventDefault()
-                if (held !== null) {
-                  move(held, at)
-                  setHeld(null)
-                }
-              }}
-              className={cn(
-                'text-2xs flex items-center gap-1.5 px-2 py-1 whitespace-nowrap hover:bg-zinc-900',
-                held === column.code && 'opacity-50',
-              )}
-            >
-              {onReorder === undefined ? null : (
-                <IconButton
-                  size="md"
-                  variant="muted"
-                  draggable
-                  aria-label={`Move ${column.label.toLowerCase()}`}
-                  title="Drag to reorder, or use the arrow keys"
-                  onDragStart={() => setHeld(column.code)}
-                  onDragEnd={() => setHeld(null)}
-                  onKeyDown={(event) => {
-                    const by = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0
-                    if (by !== 0) {
-                      event.preventDefault()
-                      onReorder(movedBy(order, column.code, by))
-                    }
-                  }}
-                  className="focus-visible:ring-info/60 shrink-0 cursor-grab rounded text-zinc-600 transition hover:text-zinc-300 focus-visible:ring-1 focus-visible:outline-none active:cursor-grabbing"
-                >
-                  <DotsSixVerticalIcon aria-hidden="true" />
-                </IconButton>
-              )}
-              <div className="flex flex-1 cursor-pointer items-center gap-2">
-                <Checkbox
-                  name={`column-${column.code}`}
-                  checked={shown.includes(column.code)}
-                  onChange={() => onToggle(column.code)}
-                  size="sm"
-                  aria-label={column.label}
-                />
-                <span className="text-zinc-200">{column.label}</span>
+                  if (held !== null) {
+                    move(held, at)
+                    setHeld(null)
+                  }
+                }}
+                className={cn(
+                  'text-2xs relative flex items-center gap-1.5 px-2 py-1 whitespace-nowrap hover:bg-zinc-900',
+                  held === column.code && 'opacity-50',
+                )}
+              >
+                {/*
+                  **Where it would land** (Paul, 2026-09-11), drawn on the edge
+                  `shared/column-order.ts` says the drop resolves to rather than
+                  on the one under the pointer — the two differ whenever the
+                  drag is downwards, and a line that lies about the drop is
+                  worse than none.
+
+                  Absolutely positioned, so the rows under it do not step down
+                  by two pixels as the line moves between them; `-top-px` and
+                  `-bottom-px` put it *on* the boundary rather than inside one
+                  of the two rows it divides.
+
+                  Blue, and not the `info` accent every other affordance here
+                  wears: this is a thing being carried rather than a control
+                  being answered, and the accent is teal against this ground —
+                  which is not what was asked for, and reads as one more
+                  highlighted control on a panel already full of them.
+                */}
+                {edge === null ? null : (
+                  <div
+                    aria-hidden="true"
+                    data-drop-edge={edge}
+                    className={cn(
+                      'pointer-events-none absolute inset-x-0 h-0.5 bg-blue-500',
+                      edge === 'above' ? '-top-px' : '-bottom-px',
+                    )}
+                  />
+                )}
+                {onReorder === undefined ? null : (
+                  <IconButton
+                    size="md"
+                    variant="muted"
+                    draggable
+                    aria-label={`Move ${column.label.toLowerCase()}`}
+                    title="Drag to reorder, or use the arrow keys"
+                    onDragStart={() => setHeld(column.code)}
+                    onDragEnd={() => {
+                      setHeld(null)
+                      setOver(null)
+                    }}
+                    onKeyDown={(event) => {
+                      const by = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0
+                      if (by !== 0) {
+                        event.preventDefault()
+                        onReorder(movedBy(order, column.code, by))
+                      }
+                    }}
+                    className="focus-visible:ring-info/60 shrink-0 cursor-grab rounded text-zinc-600 transition hover:text-zinc-300 focus-visible:ring-1 focus-visible:outline-none active:cursor-grabbing"
+                  >
+                    <DotsSixVerticalIcon aria-hidden="true" />
+                  </IconButton>
+                )}
+                <div className="flex flex-1 cursor-pointer items-center gap-2">
+                  <Checkbox
+                    name={`column-${column.code}`}
+                    checked={shown.includes(column.code)}
+                    onChange={() => onToggle(column.code)}
+                    size="sm"
+                    aria-label={column.label}
+                  />
+                  <span className="text-zinc-200">{column.label}</span>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
-      ) : null}
-    </div>
+      </Menu.Popover>
+    </Menu>
   )
 }

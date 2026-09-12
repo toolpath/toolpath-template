@@ -1,22 +1,51 @@
 @import 'tailwindcss';
 @import '@toolpath/ui/theme.css';
 
-/**
- * The state colours, a shade quieter.
- *
- * Tailwind's own emerald, amber and red are pitched for a white page; against
- * this ground they shouted next to `@toolpath/ui`'s palette, which is already
- * soft (its danger is #ba5b4b, its info #6bb0b3). These are the same hues at
- * lower chroma so a tick, a caution and a refusal still read apart from each
- * other at a glance without pulling the eye off the part (Paul, 2026-08-31:
- * "mute the colour palette just a touch").
- *
- * Muted, not faint: the first pass took them far enough down that a caution
- * at 12 px was a smudge, so each is a step brighter than it was and the three
- * are further apart from each other (Paul, 2026-08-31: "the orange warning
- * check is hard to read").
- */
 @theme {
+  /**
+   * One corner radius, half what it was.
+   *
+   * The page used four steps of Tailwind's scale — `sm` through `xl` here, and
+   * `sm`/`md`/`lg` inside `@toolpath/ui` — so a card, a button and a menu all
+   * rounded off by a different amount and the difference read as noise rather
+   * than as hierarchy (Paul, 2026-09-11: "make them all the same and 1/2 of
+   * what they are now"). Every step is now the one value, 4 px: half of
+   * `rounded-lg`, which is the radius this application reached for most.
+   *
+   * Redefining the scale rather than rewriting five hundred class names, which
+   * is also what makes it hold for the kit: `@toolpath/ui`'s `@source './src'`
+   * compiles its utilities in this build, against these tokens.
+   *
+   * `rounded-full` is untouched on purpose — it is `calc(infinity * 1px)`
+   * rather than a step of the scale, and a pill or a dot is a shape, not a
+   * corner.
+   */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.25rem;
+  --radius-2xl: 0.25rem;
+  --radius-3xl: 0.25rem;
+  --radius-4xl: 0.25rem;
+  /* Bare `rounded`, `rounded-t` and friends, which `@toolpath/ui` uses. */
+  --radius: 0.25rem;
+
+  /**
+   * The state colours, a shade quieter.
+   *
+   * Tailwind's own emerald, amber and red are pitched for a white page; against
+   * this ground they shouted next to `@toolpath/ui`'s palette, which is already
+   * soft (its danger is #ba5b4b, its info #6bb0b3). These are the same hues at
+   * lower chroma so a tick, a caution and a refusal still read apart from each
+   * other at a glance without pulling the eye off the part (Paul, 2026-08-31:
+   * "mute the colour palette just a touch").
+   *
+   * Muted, not faint: the first pass took them far enough down that a caution
+   * at 12 px was a smudge, so each is a step brighter than it was and the three
+   * are further apart from each other (Paul, 2026-08-31: "the orange warning
+   * check is hard to read").
+   */
   --color-emerald-300: #96d0b3;
   --color-emerald-400: #7ec4a3;
   --color-emerald-500: #63a888;
@@ -29,6 +58,27 @@
 :root {
   /** A lift off the page, the same weight either way round. */
   --row-stripe: rgba(255, 255, 255, 0.045);
+  /**
+   * The ground under a table's headings.
+   *
+   * The heading row is where a list is narrowed and sorted, and the accent is
+   * already what this page paints a set filter with, so the row that takes
+   * those answers carries the same colour (Paul, 2026-09-11: "blue is our
+   * selection color and that's a spot to make selections").
+   *
+   * **The same blue the chosen feature is drawn in** (Paul, 2026-09-11: "the
+   * blue should match the feature or group blue shown in that dialog in the
+   * upper left"). That box is `bg-info/15` on the page's own ground, so this
+   * is that composite written out: 15 % of the accent in `srgb`, which is what
+   * a 15 % alpha over `--color-zinc-950` resolves to. One blue means one
+   * thing, and two near-misses of it read as two different states.
+   *
+   * Opaque rather than an alpha, because the heading row is sticky and the
+   * rows scroll underneath it. Both halves are theme tokens, so light mode
+   * needs no second value — the same mix over the mirrored ramp is a pale
+   * blue band.
+   */
+  --table-head: color-mix(in srgb, var(--color-info) 15%, var(--color-zinc-950));
   color-scheme: dark;
   font-family: var(--font-body);
   background: var(--color-zinc-950);
@@ -150,20 +200,27 @@ html:not(.dark) body {
   .filter-off {
     background-color: var(--color-zinc-950);
   }
+}
 
-  /* The UI table hides its scrollbar by default; the part table needs its full width reachable. */
-  [data-part-tool-table] .hide-scrollbar {
-    overflow-x: auto !important;
-    scrollbar-gutter: stable;
-    scrollbar-width: auto;
+@layer utilities {
+  /**
+   * `hide-scrollbar`, which the kit asks for and nothing defined.
+   *
+   * `@toolpath/ui`'s table draws its scroll box as `overflow-x-scroll
+   * hide-scrollbar` and leaves the class to the application; with no rule
+   * behind it Chromium reserved a classic scrollbar anyway, which is the 16px
+   * of dead ground down the right of the tool list (Paul, 2026-09-11: "a
+   * padding on the container element that is the size of a scrollbar").
+   *
+   * Defining it rather than fighting it: the columns divide the panel now —
+   * `shared/column-width` — so a list has nothing to scroll sideways to, and
+   * this application's own overrides that widened the table past its box and
+   * reserved a gutter for the overflow came out with it.
+   */
+  .hide-scrollbar {
+    scrollbar-width: none;
   }
-  [data-part-tool-table] .hide-scrollbar::-webkit-scrollbar {
-    display: block;
-    height: 0.75rem;
-  }
-
-  /* The UI table's fixed tracks must be wider than the viewport, not clipped to it. */
-  [data-part-tool-table] [data-table-library_table] {
-    min-width: max-content;
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 }

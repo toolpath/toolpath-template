@@ -181,18 +181,36 @@ describe('PartToolTable', () => {
     expect(screen.queryByText('holder needs')).not.toBeInTheDocument()
   })
 
-  it('keeps the table grid wider than its scroll container', () => {
+  /**
+   * **The grid is never wider than the box it is read in** (Paul, 2026-09-11).
+   * It used to be, by `min-w-max` here and a `min-width: max-content` in
+   * `app/styles.css`, and under max-content sizing every `1fr` track came out
+   * at the widest floor in the map — thirteen 192px columns in a 1169px panel.
+   */
+  it('lets the scroll container size the table grid', () => {
     show({
       columns: TOOL_COLUMNS,
       hiddenColumns: [],
       columnOrder: TOOL_COLUMNS.map((column) => column.code),
     })
 
-    expect(document.querySelector('[data-table-library_table]')).toHaveClass('min-w-max')
+    expect(document.querySelector('[data-table-library_table]')).not.toHaveClass('min-w-max')
   })
 
-  it('uses flexible tracks for initial column widths', () => {
-    expect(flexibleColumnWidth('10rem')).toBe('minmax(10rem, 1fr)')
+  /**
+   * **A dragged width is remembered, and only for the columns it was about.**
+   * The kit stores its track list under the `id` it is given, positionally, so
+   * the id is the column set — `shared/column-width.ts` says why at length, and
+   * `shared/column-width.test.ts` pins the id itself.
+   *
+   * Nothing here can check the id reaches the kit: it is hung on no DOM node,
+   * and the write happens on a `mouseup` inside the kit that jsdom cannot
+   * produce. `tests/on-the-part.spec.ts` § "keeps a dragged column width" is
+   * where that is answered, with a real pointer.
+   */
+
+  it('asks for tracks that divide the panel rather than floors under it', () => {
+    expect(flexibleColumnWidth('10rem')).toBe('minmax(0, 10fr)')
   })
 })
 
@@ -337,11 +355,12 @@ describe('the filters a heading asks', () => {
   })
 
   /**
-   * **The tap list asks two of them** (Paul, 2026-09-09: "when I am in the TAPs
-   * row or table, it should be filtering to taps"). Its rows are the thread's
-   * rather than the query's, so its numbers and its vendor are not questions it
-   * can answer — but which kind of tap is, because that is the tap half of the
-   * `form` filter a threaded hole writes.
+   * **The tap list asks what it can answer** (Paul, 2026-09-09: "when I am in
+   * the TAPs row or table, it should be filtering to taps"). Its rows are the
+   * thread's rather than the query's, so its numbers are not questions it can
+   * answer — but which kind of tap is, because that is the tap half of the
+   * `form` filter a threaded hole writes, and so are the vendor and the family
+   * the page narrows the swept pool on (Paul, 2026-09-11).
    */
   it('asks what the list it is drawn for says it asks', () => {
     const onTerm = vi.fn()
@@ -363,8 +382,8 @@ describe('the filters a heading asks', () => {
       'Filtered by Type',
     )
     expect(screen.getByRole('button', { name: 'Filter by Catalog number' })).toBeVisible()
-    // A vendor and a number are the thread's, so no funnel offers to change them.
-    expect(screen.queryByRole('button', { name: 'Filter by Vendor' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter by Vendor' })).toBeVisible()
+    // A number is the thread's, so no funnel offers to change it.
     expect(screen.queryByRole('button', { name: 'Filter by Diameter' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Filter by Type' }))

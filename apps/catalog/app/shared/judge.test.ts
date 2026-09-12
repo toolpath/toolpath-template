@@ -296,7 +296,14 @@ describe('closest of each form', () => {
     tool(name, 'flat end mill', { DC, RE: 0, LCF: 20, LD: 4, LBH: 40, 'shoulder-diameter': DC })
   const near = drilling('DRILL-NEAR', 4.3)
   const far = drilling('DRILL-FAR', 5)
-  const mill = milling('MILL-NEAR', 4.5)
+  /*
+    Wider than the bore, because that is now the only thing that refuses a mill
+    in a hole: the helix room is a `should` since 2026-09-11, so a mill's
+    distance is measured from the ⌀4 bore rather than from the ⌀3.6 ramp limit.
+    The case needs mills that miss by more than the drills do, which is what it
+    has always been about and what a real catalog does.
+  */
+  const mill = milling('MILL-NEAR', 5.2)
   const wide = milling('MILL-FAR', 8)
   const asked = ['drill', 'flat end mill']
   const verdicts = judgeTools([near, far, mill, wide], hole, [hole], { asked })

@@ -722,7 +722,7 @@ things follow from that wording.
   unticking one phrase of a form narrows to the other rather than dropping the
   form the geometry asked for.
 
-### The tap list asks two of them
+### What the tap list asks
 
 The tap list was outside all of this and it was the sharpest case of the same
 defect (Paul, 2026-09-09: "when I change a hole to threaded — when I am in the
@@ -731,14 +731,31 @@ the catalog by the thread — `makersFor` — rather than narrowed by the tool
 query, so it carried no funnels at all while the chrome over it counted three
 filters.
 
-`askOfTapColumn` is what it answers, and it is two questions: the catalog
-number, which every list of tools searches, and **Type**, because a threaded
-hole's `form` filter is the drill _and_ the taps and this list is the tap half
-of it. Everything else about a tap — its vendor, its thread length, its flutes —
-is the thread's, and a funnel over one would be a control that changes nothing.
-`ToolColumnFiltering.ask` is how a list says which rule it is under, and an
-absent `onRange` says the same thing from the other side: a range column with
-nowhere to send its answer asks nothing.
+`askOfTapColumn` is what it answers, and it is four questions: the catalog
+number, which every list of tools searches; **Type**, because a threaded hole's
+`form` filter is the drill _and_ the taps and this list is the tap half of it;
+and **Vendor** and **Family** (Paul, 2026-09-11: "I don't see the filter option
+for vendor when I am selecting a tap for a tool assembly. Why is that? I should,
+and if vendors don't have taps, it should simply show zero. Same thing for
+family").
+
+Those last two were the rule overshooting. Where the rows come from is a fact
+about the sweep; what a row _says_ is a fact about the tool, and the swept pool
+is a list of tools like any other — so the page narrows it on the two term axes
+itself (`routes/part.tsx` § `tapPool`, `tapTerms`, `tapRows`), against the same
+`query.terms` the drill list reads, and counts them with `countsByAxis` the way
+the tool list counts its own facets. A vendor holding no tap for this thread is
+then a nought behind the `…` row — the answer every other contextual list gives
+a value it is not holding — rather than a question the header refuses to ask.
+What is left is the thread's own numbers: a tap's thread length and its flutes
+are not somebody's to type, and a funnel over one would be a control that
+changes nothing. `ToolColumnFiltering.ask` is how a list says which rule it is
+under, and an absent `onRange` says the same thing from the other side: a range
+column with nowhere to send its answer asks nothing.
+
+`tests/threaded-hole.spec.ts` § _narrows the taps by vendor_ and § _by family_
+are the sensors, over the sample catalog's one tap vendor and the one that holds
+none.
 
 A tick there writes `formsAskingTaps` (`shared/hole-mode.ts`) — **the tap half
 of the `form` axis moves and the drill half never does.** That is the whole
@@ -801,7 +818,10 @@ Each list counts its own: the holder and collet racks their own queries, the tap
 list what `askOfTapColumn` asks and states, the tool list the whole query. Clearing
 follows the same split — the tap list's clear puts every kind of tap back and
 leaves the drill half alone, because clearing the list somebody is looking at
-must not silently widen the one on the tab beside it.
+must not silently widen the one on the tab beside it. It does clear the vendor
+and the family, which narrow the taps as of 2026-09-11: a press that says it
+clears the filters and leaves one vendor ticked is the same disagreement between
+the button and the funnels from the other end.
 
 `tests/on-the-part.spec.ts` § _says in the headings what the feature narrowed
 the list by_ is the sensor: it counts the filled funnels on the page and

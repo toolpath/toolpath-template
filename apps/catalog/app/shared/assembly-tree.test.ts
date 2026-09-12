@@ -17,6 +17,7 @@ import {
   isOverride,
   linesOf,
   nextAssemblyId,
+  orderedAs,
   readTrees,
   groupOf,
   removeAssembly,
@@ -306,6 +307,32 @@ describe('where the tree opens', () => {
       false,
     )
     expect(sameNode(null, { assemblyId: 'a', slot: 'tool' })).toBe(false)
+  })
+})
+
+describe('the stack a line of the bill stands for', () => {
+  const second: TreeAssembly = {
+    id: 'assembly-2',
+    role: 'cut',
+    toolGuid: 'tool-b',
+    holderGuid: null,
+    colletGuid: null,
+  }
+
+  it("finds the stack holding the line's tool", () => {
+    expect(orderedAs([filled, second], 'tool-b')?.id).toBe('assembly-2')
+  })
+
+  it('answers by what the stack was ordered as, not what stands in it now', () => {
+    // The cutter was swapped after the line was written; the line still belongs
+    // to this stack, which is what keeps a press on it opening that stack.
+    const swapped: TreeAssembly = { ...filled, toolGuid: 'tool-c', orderedTool: 'tool-a' }
+    expect(orderedAs([swapped, second], 'tool-a')?.id).toBe('assembly-1')
+    expect(orderedAs([swapped, second], 'tool-c')).toBeNull()
+  })
+
+  it('has no stack for a line no tree holds', () => {
+    expect(orderedAs([filled], 'tool-z')).toBeNull()
   })
 })
 

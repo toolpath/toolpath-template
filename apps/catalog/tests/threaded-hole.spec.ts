@@ -368,3 +368,67 @@ test('leaves the group at one hole when the offer is turned down', async ({ page
   await expect(chips).toHaveCount(1)
   await expect(page.getByRole('button', { name: /^Add all \d+ to the group$/ })).toHaveCount(0)
 })
+
+/**
+ * **A tap list narrows on its vendor and its family like every other list**
+ * (Paul, 2026-09-11: "I don't see the filter option for vendor when I am
+ * selecting a tap for a tool assembly. Why is that? I should, and if vendors
+ * don't have taps, it should simply show zero. Same thing for family").
+ *
+ * The taps are swept out of the catalog by the thread rather than narrowed by
+ * the tool query, and both headings carried no funnel at all because of it —
+ * a rule about where the rows come from, answering a question about what a row
+ * says. The pool is a list of tools, so the page narrows it on the two term
+ * axes itself; a vendor with no tap for this thread is a nought behind the `…`
+ * row rather than a question the header refuses to ask.
+ */
+test('narrows the taps by vendor, and offers the vendors with none at nought', async ({ page }) => {
+  await open(page, 'TAP')
+  await expect(table(page).getByText('VTSFT0250')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Filter by Vendor', exact: true }).click()
+  const picker = page.getByRole('group', { name: 'Vendor' })
+
+  // The one vendor holding a tap for this thread, counted.
+  await expect(picker.locator('[data-term-option="WIDIA"] [data-term-count]')).toHaveText('1')
+
+  // And the vendor that holds none, behind the `…` row at nought — the catalog
+  // has it, this list does not, and pressing it is how the question widens.
+  await picker.locator('[data-expand-filter]').click()
+  await expect(picker.locator('[data-term-option="Kennametal"] [data-term-count]')).toHaveText('0')
+
+  // The tick is the truth in both directions: the vendor with no tap empties
+  // the list, and the one with a tap brings it back.
+  await picker.getByRole('checkbox', { name: /^Kennametal/ }).click()
+  await expect(table(page).getByText('VTSFT0250')).toBeHidden()
+  await picker.getByRole('checkbox', { name: /^Kennametal/ }).click()
+  await expect(table(page).getByText('VTSFT0250')).toBeVisible()
+})
+
+/**
+ * **And on its family, which is the same question about the other column**
+ * (Paul, 2026-09-11: "Same thing for family"). Separate because the family is
+ * read out under the vendor's own title rather than as the stored id, so a
+ * funnel that offered the id would be a filter nobody could match to a row.
+ */
+test('narrows the taps by family, under the name the column shows', async ({ page }) => {
+  await open(page, 'TAP')
+  await expect(table(page).getByText('VTSFT0250')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Filter by Family', exact: true }).click()
+  const picker = page.getByRole('group', { name: 'Family' })
+  /*
+    The family's **title**, not the `sample-inch-taps` id the row stores — a
+    funnel offering the id would be a filter nobody could match to a column.
+  */
+  const family = 'Sample inch spiral-flute taps'
+  await expect(picker.locator('[data-term-option="sample-inch-taps"]')).toContainText(family)
+
+  await picker.getByRole('checkbox', { name: family, exact: true }).click()
+  await expect(table(page).getByText('VTSFT0250')).toBeVisible()
+  // The press that clears says which filters it is clearing, this one included.
+  await expect(page.getByRole('button', { name: /^Clear \d+ filters?$/ })).toHaveAttribute(
+    'title',
+    /Family/,
+  )
+})

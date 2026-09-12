@@ -3,7 +3,6 @@ import { act, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Assembly, CatalogTool, Collet, Holder } from '@toolpath/catalog-data'
 import { assemblyOutline } from '@toolpath/tool-drawing/geometry'
-import { formatLength } from '@toolpath/tool-support'
 import { toViewerAssembly } from 'shared/tool-drawing-input'
 import { CatalogDrawing, MATERIAL_ROOM } from './catalog-drawing'
 
@@ -148,19 +147,26 @@ describe('the catalog drawing', () => {
   })
 
   /**
-   * The drawing stopped writing its own figures in `@toolpath/tool-drawing`
-   * 0.2.0 — it draws the lines and the panel's table carries the numbers — so
-   * the unit no longer reaches it through a dimension. It still reaches the
-   * sentences the package prints and does not compose: the clearance gaps,
-   * which is why this asks for a stack and a feature rather than a bare tool.
+   * **The sheet carries no number of its own at all**, as of 2026-09-11.
+   *
+   * It stopped writing its figures in `@toolpath/tool-drawing` 0.2.0 — the
+   * lines are drawn and the panel's table has the numbers — and the last thing
+   * left that did was the clearance sentence under the verdict, which the three
+   * boxes under the sheet replaced. So the unit no longer reaches the drawing
+   * through anything, which is worth pinning in the direction it now runs: a
+   * unit in the sheet means a number has come back onto it.
+   *
+   * The invariant itself did not go anywhere. `clearance-entry.test.tsx` is
+   * where "the page's unit, because the package owns none" lives now.
    */
-  it('writes the clearance in the unit the page is set to, because the package owns no unit', () => {
+  it('writes no number and so no unit on the sheet, whatever the page is set to', () => {
     const container = drawn(
       <CatalogDrawing tool={tool} assembly={assembly} unit="inches" curve={curve} dimensions />,
     )
 
-    expect(container.textContent).toMatch(/0\.276 in/)
+    expect(container.textContent).not.toMatch(/\bin\b/)
     expect(container.textContent).not.toMatch(/\bmm\b/)
+    expect(container.textContent).not.toMatch(/tightest/)
   })
 
   /**
@@ -180,7 +186,16 @@ describe('the catalog drawing', () => {
     expect(none.querySelectorAll('[data-lit="true"]')).toHaveLength(0)
   })
 
-  it('draws the material and the verdict this application reached, not one of its own', () => {
+  /**
+   * **The material and the collisions, and no verdict written over them.**
+   *
+   * The collisions are still this application's own — the package paints what
+   * it is handed rather than deciding anything — and they are what says a stack
+   * fouls, in the place it fouls. The sentence over the drawing went on
+   * 2026-09-11; `catalog-drawing.tsx`'s own note has the reading that made it
+   * a correctness matter rather than a layout one.
+   */
+  it('draws the material this application swept, and writes no verdict over it', () => {
     const container = drawn(
       <CatalogDrawing
         tool={tool}
@@ -193,7 +208,7 @@ describe('the catalog drawing', () => {
 
     expect(container.querySelector('[data-clearance]')).not.toBeNull()
     expect(container.querySelector('[data-part="material"]')).not.toBeNull()
-    expect(container.querySelector('[data-verdict]')).not.toBeNull()
+    expect(container.querySelector('[data-verdict]')).toBeNull()
   })
 
   it('says an undrawable form in words rather than drawing a plausible cylinder', () => {
@@ -264,33 +279,34 @@ describe('the overlay this application draws', () => {
    * there is nothing to letter. Both halves matter: the leaders gone, and the
    * sentence still carrying the number.
    */
-  it('letters neither gap on the sheet, and still says both in the caption', () => {
+  it('letters neither gap on the sheet, and no longer says them under it either', () => {
     const container = drawn(
       <CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" curve={curve} />,
     )
 
     expect(container.querySelectorAll('[data-clearance-dimension]')).toHaveLength(0)
-    // The material it would have been lettered against is still drawn.
+    // The material both readouts were about is still drawn.
     expect(container.querySelector('[data-part="material"]')).not.toBeNull()
-    expect(container.textContent).toMatch(/tightest: .*(above|into) the wall at the/)
+    expect(container.textContent).not.toMatch(/tightest/)
   })
 
   /**
-   * **A verdict with no length on it is a verdict about nothing in
-   * particular** (Paul, 2026-09-08: "it's not clear what length below holder
-   * this applies to"). The same stack clears at one stickout and fouls at
-   * another, so the sentence under "clears the part" has to name the one it
-   * was reached at — and it is the length the sheet is drawn at and the list's
-   * column prints, not a third number.
+   * **Nothing is written over the drawing** (Paul, 2026-09-11, pointing at the
+   * verdict line: "remove the stuff outlined in red").
+   *
+   * The sentence named the length the verdict was reached at; that length is an
+   * editable box now. The verdict over it said "clears the part" from a sweep
+   * that, on a holder publishing no parametric dimensions, had checked the
+   * tool's shank and nothing else — so it was a claim the data did not support,
+   * printed in the same words as one that did.
    */
-  it('says the length below the holder the verdict was reached at', () => {
+  it('writes neither a verdict nor a sentence over the sheet', () => {
     const container = drawn(
       <CatalogDrawing tool={tool} assembly={assembly} unit="millimeters" curve={curve} />,
     )
 
-    expect(container.textContent).toContain(
-      `at ${formatLength(assembly.stickout ?? 0, 'millimeters')} below the holder`,
-    )
+    expect(container.textContent).not.toMatch(/clears|collides/)
+    expect(container.textContent).not.toContain('below the holder')
   })
 
   it('draws the tool alone when there is no feature to clear', () => {

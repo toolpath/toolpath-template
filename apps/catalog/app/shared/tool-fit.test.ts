@@ -264,10 +264,11 @@ describe('how many questions a group actually asks', () => {
  * fits, so the closest misses stand in, and they were drawn without the ranges
  * at all: a bound somebody typed was a bound the fill ignored.
  *
- * The bounds the geometry wrote are still forgiven, and have to be — they are
- * the same `must` rows that removed these tools, so obeying them would leave
- * the fill empty in exactly the case it exists for. `ownBounds` in
- * `shared/filter.ts` is what tells the two apart.
+ * The one bound a near miss may be outside is **the bound it missed on**, and
+ * only while that bound still reads what the geometry asked for. Forgiving
+ * every suggested bound instead put ⌀0.750 in cutters on a group capped at
+ * ⌀0.286 in (Paul, 2026-09-11): those tools were removed for reach, so the
+ * diameter question was never put to them at all. `nearEnough` is the rule.
  */
 describe('the misses that may stand in when nothing fits', () => {
   const miss = (guid: string, brand: string, geometry: Readonly<Record<string, number>>): Verdict =>
@@ -293,21 +294,67 @@ describe('the misses that may stand in when nothing fits', () => {
   })
 
   it('obeys a bound somebody set themselves', () => {
+    const kept = closeCandidates(excluded, asking({ NOF: { max: 3 } }), {})
+
+    expect(kept.map((each) => each.tool.guid)).toEqual(['THREE'])
+  })
+
+  /**
+   * The bound the rules wrote on the column these tools missed on is what
+   * "close" is measured against, not a filter: every one of them is a flute
+   * length short, which is the whole of what the list is standing in to say.
+   */
+  it("forgives the geometry's bound on the column the tool missed on", () => {
+    const kept = closeCandidates(excluded, asking({ LCF: { min: 50 } }), { LCF: { min: 50 } })
+
+    expect(kept.map((each) => each.tool.guid)).toEqual(['THREE', 'FOUR'])
+  })
+
+  /**
+   * **And obeys it everywhere else** (Paul, 2026-09-11). A tool removed before
+   * anything asked about its flutes is not close to a question it was never
+   * put.
+   */
+  it("obeys the geometry's bound on a column the tool did not miss on", () => {
     const kept = closeCandidates(excluded, asking({ NOF: { max: 3 } }), { NOF: { max: 3 } })
 
     expect(kept.map((each) => each.tool.guid)).toEqual(['THREE'])
   })
 
-  /** The bound the rules wrote is what "close" is measured against, not a filter. */
-  it('forgives the bound the geometry asked for', () => {
-    const kept = closeCandidates(excluded, asking({ LCF: { min: 50 } }), {})
+  /**
+   * A widened bound is somebody's own answer, on the missed column like any
+   * other — the override beside it is what says how far the rules bend, and the
+   * number is the last word on what is listed.
+   */
+  it('obeys a bound widened past what the geometry asked for', () => {
+    const kept = closeCandidates(excluded, asking({ LCF: { min: 20 } }), { LCF: { min: 50 } })
 
-    expect(kept.map((each) => each.tool.guid)).toEqual(['THREE', 'FOUR'])
+    expect(kept.map((each) => each.tool.guid)).toEqual([])
   })
 
   it('still leaves out what the discrete filters do not admit', () => {
     const kept = closeCandidates(excluded, asking({}), {})
 
     expect(kept.map((each) => each.tool.guid)).not.toContain('OTHER')
+  })
+
+  /**
+   * **The reach rules are no column's question at all** (Paul, 2026-09-11), so
+   * nothing about a tool they removed is forgiven: it is as far outside the
+   * feature's diameter as it ever was, and `furthest below holder` is
+   * deliberately on no column — `suggest-filters.ts` § `CODES` says why.
+   */
+  it('forgives nothing for a tool removed by a rule no column asks', () => {
+    const reach = [
+      miss('SMALL', 'Kennametal', { NOF: 3, LCF: 10, DC: 6 }),
+      miss('WIDE', 'Kennametal', { NOF: 3, LCF: 10, DC: 19 }),
+    ].map((verdict) => ({
+      ...verdict,
+      removed: [{ rule: bound('furthest below holder'), text: 'too short', shortfall: 1 }],
+    })) as unknown as Array<Verdict>
+
+    const kept = closeCandidates(reach, asking({ DC: { max: 7.264 } }), { DC: { max: 7.264 } })
+
+    expect(kept.map((each) => each.tool.guid)).toEqual(['SMALL'])
   })
 })

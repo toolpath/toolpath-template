@@ -1,8 +1,9 @@
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { ArrowSquareOutIcon } from '@phosphor-icons/react'
 import { Badge, Button, cn } from '@toolpath/ui'
 import {
   NO_MARGINS,
+  stickoutLimits,
   type CatalogTool,
   type Collet,
   type Holder,
@@ -14,10 +15,20 @@ import type { Zoom } from '@toolpath/tool-drawing'
 import { formatGeometry } from 'shared/geometry'
 import { getFamily } from 'shared/catalog'
 import { drawnAssembly } from 'shared/drawn-assembly'
+import { roomAt } from 'shared/assembly-gaps'
+import {
+  askFor,
+  boxesFor,
+  clearingLength,
+  lengthFor,
+  type ClearanceEdit,
+} from 'shared/clearance-entry'
 import { thresholdsFrom } from 'shared/holder-choice'
 import { ToolTypeIcon, formLabel } from './tool-icons'
 import { MeasurementIcon } from './feature-icons'
 import { CatalogDrawing, useSheetGround } from './catalog-drawing'
+import { ClearanceEntry } from './clearance-entry'
+import { CatalogComboboxButton } from './catalog-combobox-button'
 
 /**
  * The tool being read, beside the part.
@@ -221,11 +232,75 @@ export const ToolDetails = ({
    * the rail asks for, and a holder that has dropped off that list is one the
    * panel has always drawn nothing for.
    */
+  /**
+   * The one of the three clearance numbers a shop has stated, if any.
+   *
+   * **Kept against the stack it was stated about**, rather than reset from an
+   * effect: a length below the holder typed for one assembly means nothing on
+   * the next tool or under a different holder, and an effect would leave it on
+   * screen for the render in between. Reading it through the key is how it
+   * cannot outlive what it was about.
+   */
+  const stackKey = `${tool.guid}:${chosen.holderGuid ?? ''}:${chosen.colletGuid ?? ''}`
+  const [stated, setStated] = useState<{
+    readonly key: string
+    readonly edit: ClearanceEdit | null
+  }>({ key: stackKey, edit: null })
+  const edit = stated.key === stackKey ? stated.edit : null
+
+  /**
+   * The least this stack can stand out and still leave the room asked for.
+   *
+   * **Solved on the holder that is drawn, not the one the vendor tabulated.**
+   * `clearance().requiredStickout` was the obvious answer and is the wrong one:
+   * it sweeps the parametric nose, body and flange, and most holders publish
+   * none of those — `RequiredAt` in `shared/clearance-entry.ts` has the reading
+   * off `BT30-ER11-110DT` that settled it. `lengthFor` halves its way down the
+   * same measurement the other two boxes are read from, so the three of them
+   * describe one stack rather than two.
+   *
+   * Memoised on what it depends on, because a solve is forty sweeps and an
+   * entry that stands must not re-run them on every keystroke elsewhere.
+   */
+  /*
+    The ends to search between. `StickoutRange.max` is null where the tool
+    states no overall length — an unbounded range rather than a bound of
+    nothing — and a search needs a far end, so the tool's own length stands in
+    and the ends collapse onto the floor where there is not even that.
+  */
+  const bracket = useMemo(() => {
+    const range = stickoutLimits(tool, stack?.collet ?? null)
+    return range === null
+      ? null
+      : { min: range.min, max: range.max ?? tool.geometry.OAL ?? range.min }
+  }, [tool, stack?.collet])
+  const requiredAt = useMemo(
+    () =>
+      (field: 'axial' | 'radial', wanted: number): number | null => {
+        if (holderChosen === undefined || curve === null || bracket === null) {
+          return null
+        }
+        return lengthFor(
+          wanted,
+          bracket,
+          (stickout) => roomAt({ tool, holder: holderChosen }, stickout, curve, margins)[field],
+        )
+      },
+    [tool, holderChosen, curve, margins, bracket],
+  )
+  /*
+    The ask is memoised, not just the search behind it: `askFor` calls the
+    search, the search is forty sweeps of the outline, and this panel re-renders
+    on anything the page does. Without this, every keystroke in a filter on the
+    other side of the screen would re-solve a length nobody had touched.
+  */
+  const ask = useMemo(() => askFor(edit, margins, requiredAt), [edit, margins, requiredAt])
+
   const drawn = drawnAssembly(
     tool,
-    { holder: chosen.holderGuid, collet: chosen.colletGuid, stickout: null },
+    { holder: chosen.holderGuid, collet: chosen.colletGuid, stickout: ask.stickout },
     curve,
-    margins,
+    ask.margins,
     thresholdsFrom(),
     holderChosen === undefined ? [] : [holderChosen],
   )
@@ -239,6 +314,57 @@ export const ToolDetails = ({
    * than the subject.
    */
   const drawnAsStack = drawn.assembly !== null
+
+  /**
+   * The room this stack actually leaves, at the length it is actually drawn at.
+   *
+   * Measured after the stack has had the ask, because the stack floors and caps
+   * a stated length — a box showing the room at a length nobody is looking at
+   * would be worse than no box. Memoised on the stack and the length: the sweep
+   * is a loop over a few dozen segments, but it is one the panel would otherwise
+   * run on every keystroke anywhere on the page.
+   */
+  const room = useMemo(
+    () =>
+      drawnAsStack
+        ? roomAt({ tool, holder: drawn.holder }, drawn.stickout, curve, ask.margins)
+        : { axial: null, radial: null },
+    [
+      drawnAsStack,
+      tool,
+      drawn.holder,
+      drawn.stickout,
+      curve,
+      ask.margins.axial,
+      ask.margins.radial,
+    ],
+  )
+  const boxes = boxesFor(
+    edit,
+    margins,
+    { stickout: drawn.stickout, overLimit: drawn.overLimit },
+    room,
+  )
+
+  /**
+   * The length to type instead, where the one that was typed fouls the part.
+   *
+   * Worked out only when that has happened: it is two bisections of a few dozen
+   * segments each, and every other state of this panel has nothing to say with
+   * it. Both axes rather than the one being solved for — a stated length is
+   * being held to everything the sheet asks, which is exactly why it came up
+   * short.
+   */
+  const collides = edit?.field === 'below' && (boxes.axial.short || boxes.radial.short)
+  const clearsAt = useMemo(
+    () =>
+      collides && holderChosen !== undefined && curve !== null && bracket !== null
+        ? clearingLength(margins, bracket, (stickout) =>
+            roomAt({ tool, holder: holderChosen }, stickout, curve, margins),
+          )
+        : null,
+    [collides, tool, holderChosen, curve, margins, bracket],
+  )
 
   return (
     /*
@@ -438,6 +564,22 @@ export const ToolDetails = ({
           </div>
         </div>
       </div>
+
+      {/*
+        **The three numbers that decide each other**, under the sheet they are
+        about (Paul, 2026-09-11). Only with a stack and a feature: a clearance
+        is room between something and something else, and a cutter drawn on its
+        own has neither.
+      */}
+      {drawnAsStack && curve !== null ? (
+        <ClearanceEntry
+          boxes={boxes}
+          unit={unit}
+          edit={edit}
+          clearsAt={clearsAt}
+          onEdit={(next) => setStated({ key: stackKey, edit: next })}
+        />
+      ) : null}
 
       {/* The numbers it is chosen on, at the bottom: two columns, big enough
           to read across the desk, each saying what it is rather than only its

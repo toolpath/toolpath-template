@@ -20,7 +20,7 @@
     "@react-three/drei": "10.7.8",
     "@react-three/fiber": "9.7.0",
     "@toolpath/api": "0.4.1",
-    "@toolpath/app-support": "0.1.3",
+    "@toolpath/app-support": "0.1.4",
     "@toolpath/tool-support": "0.4.0",
     "@toolpath/ui": "1.0.0",
     "@toolpath/viewer": "1.1.1",

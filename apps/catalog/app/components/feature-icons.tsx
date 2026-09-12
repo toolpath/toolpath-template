@@ -322,6 +322,35 @@ const DepthIcon = () => (
   </MeasurementFrame>
 )
 
+/**
+ * Axial clearance: the room over the material, up to the holder's nose face.
+ *
+ * The rails run the full width where {@link DepthIcon}'s stop short, because
+ * this measures the gap between two *faces* rather than the extent of one
+ * thing — and it is deliberately {@link RadialClearanceIcon} stood up, which is
+ * what the two measurements are.
+ */
+const AxialClearanceIcon = () => (
+  <MeasurementFrame>
+    <path d="M2 2.5h12" />
+    <path d="M2 13.5h12" />
+    <path d="M8 4.5v7" />
+    <path d="M6.5 6 8 4.5 9.5 6" />
+    <path d="M6.5 10 8 11.5 9.5 10" />
+  </MeasurementFrame>
+)
+
+/** Radial clearance: the room sideways, out to a wall standing taller. */
+const RadialClearanceIcon = () => (
+  <MeasurementFrame>
+    <path d="M2.5 2v12" />
+    <path d="M13.5 2v12" />
+    <path d="M4.5 8h7" />
+    <path d="M6 6.5 4.5 8 6 9.5" />
+    <path d="M10 6.5 11.5 8 10 9.5" />
+  </MeasurementFrame>
+)
+
 /** Radius: an inside corner, and the arc the cutter leaves in it. */
 const RadiusIcon = () => (
   <MeasurementFrame>
@@ -421,6 +450,11 @@ const MEASUREMENT_ICONS: Record<string, (props: { className?: string }) => React
   OAL: DepthIcon,
   SFDM: ShankIcon,
   NOF: FlutesIcon,
+  // The two clearances, which are not geometry a vendor states but room a shop
+  // wants — read beside `LBH` on the panel's clearance row, so they are drawn
+  // in the same hand as the numbers they sit with.
+  axialClearance: AxialClearanceIcon,
+  radialClearance: RadialClearanceIcon,
 }
 
 /**
