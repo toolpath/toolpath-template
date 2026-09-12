@@ -19,13 +19,7 @@ import {
   type ViewerAssembly,
   type Zoom,
 } from '@toolpath/tool-drawing'
-import { assemblyOutline } from '@toolpath/tool-drawing/geometry'
-import {
-  ClearanceOverlay,
-  describeGaps,
-  tightestGaps,
-  type Gaps,
-} from '@toolpath/tool-drawing/clearance'
+import { ClearanceOverlay, type Gaps } from '@toolpath/tool-drawing/clearance'
 import { useEffect, useRef } from 'react'
 import { assemblyLabel } from 'shared/assemblies'
 import {
@@ -34,8 +28,7 @@ import {
   type ClearanceCase,
   type ClearanceDebugInput,
 } from 'shared/clearance-debug'
-import { getProfile } from 'shared/catalog'
-import { toViewerAssembly } from 'shared/tool-drawing-input'
+import { cuttingRadiusOf, gapsFor, viewerFor } from 'shared/assembly-gaps'
 import { useTheme } from 'shared/use-theme'
 
 /**
@@ -177,32 +170,27 @@ export interface CatalogDrawingProps {
 }
 
 /**
- * The verdict's sentence, and **the length below the holder it is about**.
+ * **Nothing is written over the drawing any more** (Paul, 2026-09-11).
  *
- * The package writes "clears the part"; this writes what follows it. It used
- * to be the two tightest gaps alone, which left the reading unanswerable
- * (Paul, 2026-09-08: "it's not clear what length below holder this applies
- * to"): a stack clears at one stickout and fouls at another, so a verdict with
- * no length on it is a verdict about nothing in particular. The number is the
- * one the sheet is drawn at and the one the list's column now prints — the
- * same `drawnAssembly` stickout in all three places.
+ * Two things used to be. The sentence went first: "at 47.00 mm below the
+ * holder · tightest: 24.80 mm into the wall at the shank — 0.51 mm up and
+ * 0.51 mm sideways wanted", five lines saying what the three clearance boxes
+ * under the sheet now say in three, and say editably.
  *
- * On a tool drawn alone there is no holder and so no such length, and the
- * sentence is the gaps by themselves as before.
+ * The verdict over it went with it, and that one was not only a layout call.
+ * "clears the part" is reached by `clearance()`, which sweeps the holder's
+ * *parametric* nose, body and flange — and most holders publish none of those.
+ * Asked about `BT30-ER11-110DT` + `11ERSS0250` + `V2160617` it answers
+ * `clears: true` with `checked: ["shank"]`: a pass for the tool's own shank and
+ * nothing whatever about what holds it, printed in the same words as a pass
+ * that checked a whole stack. The clearance boxes read the measured silhouette
+ * instead, so they answer the same question about the holder that is actually
+ * drawn — and a gap that has gone into the material reads as a negative number
+ * there, which is the honest version of the same warning.
+ *
+ * The collisions are still handed down, so the part that fouls is still painted
+ * on the drawing. That is the verdict in the place it is about.
  */
-const verdictNote = (
-  stickout: number | null,
-  gaps: Gaps | null,
-  margins: Margins,
-  format: (millimetres: number) => string,
-): string | null => {
-  const said = gaps === null ? null : describeGaps(gaps, margins, format)
-  if (stickout === null) {
-    return said
-  }
-  const at = `at ${format(stickout)} below the holder`
-  return said === null ? at : `${at} · ${said}`
-}
 
 /**
  * What the clearance wall was drawn from, in the console, while it is wrong.
@@ -306,15 +294,7 @@ export const CatalogDrawing = ({
   const [theme] = useTheme()
   const format = (millimetres: number) => formatLength(millimetres, unit)
   const holder = assembly?.holder ?? null
-  const holderProfile = measured && holder !== null ? getProfile(holder.guid) : null
-  const viewer = toViewerAssembly(
-    {
-      tool,
-      holder,
-      stickout: assembly?.stickout ?? null,
-    },
-    holderProfile,
-  )
+  const viewer = viewerFor({ tool, holder, stickout: assembly?.stickout ?? null }, measured)
   const caption = assembly === null ? tool.catalogNumber : assemblyLabel(assembly)
 
   /**
@@ -324,7 +304,6 @@ export const CatalogDrawing = ({
    * answer this application's own engine already gave, so the number under the
    * drawing is the number the tool list sorted on.
    */
-  const outline = curve === null ? null : assemblyOutline(viewer)
   const verdict = curve !== null && assembly !== null ? clearance(assembly, curve, margins) : null
   /**
    * The flank the material stands beside, and `null` where the tool has none.
@@ -335,30 +314,30 @@ export const CatalogDrawing = ({
    * tool stating no cutting diameter, and the guard beside it —
    * `DC !== undefined` — let one through: a `DC` of `null` or `0` is not
    * `undefined`, so the wall was drawn, from `r = 0`, straight through the
-   * tool it was supposed to stand clear of (Paul, 2026-09-11). The hatch
-   * covered the tool's whole `+r` flank and the drawing said the cutter was
-   * buried in the part.
+   * tool it was supposed to stand clear of (Paul, 2026-09-11).
    *
-   * `typeof` rather than `!== undefined`, because the type says
-   * `Record<string, number>` and a catalog built from a vendor that published
-   * no cutting diameter carries `null` at runtime — which is the case the old
-   * guard was written for and the one it missed.
-   *
-   * A tool with no cutting diameter has no flank, so there is nothing to
-   * measure a gap from either: `gaps` goes with it, `overlaid` turns off, and
-   * the sheet is the tool on its own. That is the honest picture — the
-   * alternative is a wall drawn from a radius nobody stated.
+   * The guard is `cuttingRadiusOf` rather than this expression, because the
+   * three boxes under this sheet measure off the same radius: a fix applied
+   * to the drawing alone would leave a box reading a gap taken from `r = 0`
+   * while the picture beside it had stopped drawing one.
    */
-  const stated = tool.geometry.DC
-  const cuttingRadius = typeof stated === 'number' && stated > 0 ? stated / 2 : null
+  const cuttingRadius = cuttingRadiusOf(tool)
   const profile =
     curve !== null && cuttingRadius !== null ? materialProfile(curve, cuttingRadius) : null
-  const gaps =
-    curve !== null && outline !== null && cuttingRadius !== null
-      ? tightestGaps(outline.segments, curve, cuttingRadius, margins)
-      : null
+  /**
+   * The gaps, measured where every other reader of them measures them.
+   *
+   * `shared/assembly-gaps` and not an outline of its own: the three boxes under
+   * this sheet show the same two numbers the caption below writes out, and two
+   * measurements of one gap is the divergence-with-a-delay this repository has
+   * paid for once already.
+   *
+   * A tool with no flank has nothing to measure from, so the gaps go with it,
+   * `overlaid` turns off, and the sheet is the tool on its own.
+   */
+  const gaps = gapsFor(viewer, curve, cuttingRadius, margins)
 
-  const overlaid = profile !== null && gaps !== null && outline !== null
+  const overlaid = profile !== null && gaps !== null
   const padding: Partial<Padding> = overlaid ? { plus: MATERIAL_ROOM } : {}
 
   return (
@@ -373,21 +352,10 @@ export const CatalogDrawing = ({
       {...(onDimensionHover === undefined ? {} : { onDimensionHover })}
       padding={padding}
       collisions={verdict?.collisions}
-      verdict={
-        verdict === null
-          ? null
-          : {
-              clears: verdict.clears,
-              note: verdictNote(viewer.stickout, gaps, margins, format),
-            }
-      }
+      verdict={null}
       className="size-full"
     >
-      {overlaid &&
-      profile !== null &&
-      gaps !== null &&
-      outline !== null &&
-      cuttingRadius !== null ? (
+      {overlaid && profile !== null && gaps !== null && cuttingRadius !== null ? (
         <>
           <ClearanceOverlay
             profile={profile}

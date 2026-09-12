@@ -4,7 +4,7 @@ import { allTools } from './catalog.js'
 import { foldOnto, judgeTools, orderVerdicts, type Format, type Verdict } from './judge'
 import type { Knob } from './rules'
 import { sheetOf } from './feature-defaults'
-import { filterTools, type ToolQuery } from './filter'
+import { filterTools, sameBound, withinRanges, type ToolQuery } from './filter'
 import { holdableTools, splitHolding } from './holding'
 import { columnOfRule } from './tool-marks'
 
@@ -133,30 +133,79 @@ export const fittingTools = (
 }
 
 /**
- * The removed tools still inside the person's discrete choices — brand, type,
- * shank, the crib — so the list's fill never shows a tool they filtered out.
+ * Whether a removed tool is near enough to stand in, **under the bounds on
+ * screen**.
  *
- * The **geometry's** bounds are left aside: they are the rules' own numbers
- * written into a control, and "close" is exactly a tool a little outside them.
- * A bound somebody typed is not one of those, and is obeyed — `ownBounds` in
- * `shared/filter.ts` is the rule and says what it cost not to have it.
+ * A near miss is a tool a little outside the bound it *missed on*, and nothing
+ * more. Every other bound in the filter rail holds, whoever wrote it:
+ *
+ * - **A bound somebody typed is absolute** (Paul, 2026-09-10: at most three
+ *   flutes, then Kennametal, and four-flute tools on the list — "they should
+ *   not be … we should see 'no tools meet these filters'"). It is the question,
+ *   not a tolerance on one, so it is never set aside — not even on the column
+ *   the tool missed on, which is what a widened bound and its override already
+ *   say in full.
+ * - **The geometry's own bound holds on every column but the one that removed
+ *   the tool** (Paul, 2026-09-11: a group capped at ⌀0.286 in listing ⌀0.438 in
+ *   to ⌀0.750 in cutters). Those tools were removed for reach, so nobody ever
+ *   asked them the diameter question — `fittingTools` stops judging a tool at
+ *   the first feature that removes it — and they came back as "the closest"
+ *   under a Diameter filter no part of them was near. A cutter twice the width
+ *   of the pocket is not close to cutting it.
+ *
+ * Which leaves the case the stand-in exists for intact: nothing reaches the
+ * bottom of a 50.8 mm face, so every tool misses on flute length, and the
+ * geometry's own flute-length bound is the one bound each of them may be
+ * outside. The list still answers "nothing fits, and here is the nearest".
+ *
+ * `suggested` is what the geometry asked for. A bound that no longer reads
+ * exactly what it suggested is somebody's own answer, which is the same rule
+ * `overrideOffered` in `components/column-filter.tsx` draws the dialog by.
+ */
+export const nearEnough = (
+  verdict: Verdict,
+  ranges: ToolQuery['ranges'],
+  suggested: ToolQuery['ranges'],
+): boolean => {
+  const missed = new Set(
+    verdict.removed
+      .map((reason) => columnOfRule(reason.rule))
+      .filter((code): code is string => code !== null),
+  )
+  const held: Record<string, { min?: number; max?: number }> = {}
+  for (const [code, bound] of Object.entries(ranges)) {
+    if (missed.has(code) && sameBound(bound, suggested[code])) {
+      continue
+    }
+    held[code] = bound
+  }
+  return withinRanges(verdict.tool, held)
+}
+
+/**
+ * The removed tools still inside the person's discrete choices — brand, type,
+ * shank, the crib — so the list's fill never shows a tool they filtered out,
+ * and inside every bound {@link nearEnough} says holds.
  */
 export const closeCandidates = (
   excluded: ReadonlyArray<Verdict>,
   query: ToolQuery,
-  own: ToolQuery['ranges'],
+  suggested: ToolQuery['ranges'],
 ): Array<Verdict> => {
   const { tools: toolQuery, holding } = splitHolding(query)
+  const inside = excluded.filter((verdict) => nearEnough(verdict, toolQuery.ranges, suggested))
   const kept = new Set(
     holdableTools(
       filterTools(
-        excluded.map((verdict) => verdict.tool),
-        { ...toolQuery, ranges: own },
+        inside.map((verdict) => verdict.tool),
+        // The bounds are {@link nearEnough}'s, one verdict at a time; this pass
+        // is the discrete half of the same query.
+        { ...toolQuery, ranges: {} },
       ),
       holding,
     ).map((each) => each.guid),
   )
-  return excluded.filter((verdict) => kept.has(verdict.tool.guid))
+  return inside.filter((verdict) => kept.has(verdict.tool.guid))
 }
 
 /**

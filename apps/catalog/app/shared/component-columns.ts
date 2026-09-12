@@ -126,6 +126,24 @@ const CLAMPING_NOUN: Readonly<Record<string, string>> = {
   hydraulic: 'hydraulic chuck',
 }
 
+/**
+ * The same kinds as a noun a sentence can take.
+ *
+ * `shrink fit` is the whole answer in a cell headed Type and an adjective in a
+ * sentence — "no collet required for a shrink fit" names nothing — so it is the
+ * one kind that needs the word attaching. Derived from {@link CLAMPING_NOUN}
+ * rather than written out again, so a clamping mode added to one is never
+ * missing from the other.
+ */
+const CLAMPING_PHRASE: Readonly<Record<string, string>> = {
+  ...CLAMPING_NOUN,
+  shrink: 'shrink fit holder',
+}
+
+/** How a holder grips, as something a sentence can name: `a shrink fit holder`. */
+export const clampingPhrase = (holder: Pick<Holder, 'clamping'>): string =>
+  CLAMPING_PHRASE[holder.clamping] ?? 'holder'
+
 /** What a holder is, in the words a shop uses for it: `BT30 collet chuck`. */
 export const holderTypeLabel = (holder: Holder): string =>
   [

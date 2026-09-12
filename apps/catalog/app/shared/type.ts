@@ -22,7 +22,16 @@
  *   carry the emphasis instead; if a real bold mono is ever wanted, the weight
  *   goes in the font request first and this comment comes out.
  *
- * `app/type-scale.test.ts` is the sensor for all three, in the same file that
+ * **A dialog says a thing one way.** The three boxes over the part — a feature,
+ * a group, a tool assembly — had fifteen recipes between them: three sizes, two
+ * faces, two weights and six greys, with the same job done differently in each
+ * (Paul, 2026-09-11: "can we get less text sizes and types in the feature,
+ * group, and tool assembly dialogs?"). `DIALOG_*` below is the whole vocabulary
+ * they are allowed, and `type-scale.test.ts` § "names no type of its own" is the
+ * sensor: those components write no `text-*` or `font-*` class at all, so a
+ * sixteenth recipe cannot be typed into one of them.
+ *
+ * `app/type-scale.test.ts` is the sensor for all of it, in the same file that
  * pins the scale — a rule about type without a check on it is how this drifted.
  */
 
@@ -92,3 +101,67 @@ export const TABLE_FACE = 'font-body tabular-nums'
  * dimmed merely for being prose.
  */
 export const TABLE_INK = 'text-zinc-300'
+
+/**
+ * The heading row's ground — the accent, because that row is where the
+ * answering happens.
+ *
+ * Every column heading sorts the list and opens the filter that narrows it, so
+ * the row of them is the one strip of a table a shop presses rather than reads
+ * (Paul, 2026-09-11: "blue is our selection color and that's a spot to make
+ * selections"). `--table-head` in `styles.css` is the colour and carries the
+ * reasoning; this is the pair of classes that reaches it.
+ *
+ * **Both halves, and both with `!`.** `@toolpath/ui`'s `HeaderRow` paints
+ * itself `!bg-white dark:!bg-zinc-900`, and the table library sets a third
+ * background through its own theme. `cn` is `twMerge`, so naming the same two
+ * variants takes the kit's pair off — one of them alone would leave the other
+ * theme's white or zinc standing.
+ */
+export const TABLE_HEAD = '!bg-(--table-head) dark:!bg-(--table-head)'
+
+/**
+ * The title of a dialog: the one thing the box is about.
+ *
+ * The reading's name in the feature box, and nothing else — a box has one
+ * subject, so a second thing set this way is a second subject.
+ */
+export const DIALOG_TITLE = 'text-sm font-semibold text-zinc-100'
+
+/**
+ * An answer inside a dialog: a measured value, a catalog number, a thing chosen.
+ *
+ * Add `font-mono` where it is a number or an identifier; the face is the only
+ * thing a value ever varies by. The ink is the page's brightest because a value
+ * is what somebody opened the box to read.
+ */
+export const DIALOG_VALUE = 'text-xs text-zinc-100'
+
+/**
+ * A sentence the box says to somebody — an offer, a caution, an explanation.
+ *
+ * Distinct from {@link DIALOG_NOTE} by ink alone, and the distinction is the
+ * job: this is prose addressed to a reader, that is a caption attached to a
+ * value. Prose is the brighter of the two because it is read rather than
+ * glanced at, and because both of the boxes it sits in have a ground of their
+ * own under it.
+ */
+export const DIALOG_TEXT = 'text-2xs text-zinc-300'
+
+/**
+ * A caption, a hint or a status: whatever names or qualifies an answer.
+ *
+ * The label under a measurement, the machining direction beside a name, the
+ * line saying what is still missing before a stack can be ordered.
+ */
+export const DIALOG_NOTE = 'text-2xs text-zinc-500'
+
+/**
+ * Where there is no value at all — **an ink, over one of the recipes above**.
+ *
+ * The same rule the tables keep (`TABLE_INK`): colour in a dialog means
+ * something happened to that value, and the one thing that happens most often
+ * is that there is nothing there yet. An empty slot and an empty group are the
+ * same fact, so they are the same grey.
+ */
+export const DIALOG_EMPTY = 'text-zinc-600'

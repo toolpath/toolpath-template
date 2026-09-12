@@ -50,6 +50,7 @@ import { SelectionPanel } from 'components/selection-panel'
 import { PredrillChoice } from 'components/predrill-choice'
 import { FeatureListPanel } from 'components/feature-list-panel'
 import { AddBar } from 'components/add-bar'
+import { PanelResizer } from 'components/panel-resizer'
 import { ComponentTally, KIND_LABEL, type ComponentTallyRow } from 'components/component-tally'
 import { NoColletToggle } from 'components/no-collet-toggle'
 import { ColletIcon, HolderIcon, ToolTypeIcon } from 'components/tool-icons'
@@ -98,6 +99,7 @@ import {
 import { ColumnPicker } from 'components/column-filter'
 import { BUTTON_FILTERS } from 'components/filter-panel'
 import { orderedCodes } from 'shared/column-order'
+import { COLUMN_KEY, useColumnLayout } from 'shared/column-layout'
 import { hiddenAfterAuto } from 'shared/auto-columns'
 import { capRows, firstBy, keptFirst, oneEach } from 'shared/tool-order'
 import {
@@ -114,6 +116,7 @@ import {
 } from 'shared/catalog'
 import { columnFilterOpen, useEscape } from 'shared/use-escape'
 import { assemblyPressEnabled, pressesShown, rowsShown } from 'shared/part-chrome'
+import { panelWidth, usePanelWidth } from 'shared/panel-width'
 import {
   COMPONENT_LIST,
   TOOL_LIST,
@@ -141,6 +144,7 @@ import {
   groupOf as groupWith,
   stacksOf,
   markOrdered,
+  orderedAs,
   removeAssembly,
   renameAssembly,
   restoreAssembly,
@@ -164,6 +168,7 @@ import {
 import {
   byShank,
   colletGapFor,
+  colletNotNeeded,
   holdersToOffer,
   narrowCollets,
   narrowTools,
@@ -201,6 +206,7 @@ import {
   askOfToolColumn,
   narrowingNames,
   sayBound,
+  type ColumnAsk,
 } from 'shared/column-filters'
 import {
   DERIVED_AXES,
@@ -529,9 +535,14 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     at: DOMRect
     featureTag?: string
   } | null>(null)
-  const [hiddenColumns, setHiddenColumns] = useState<ReadonlyArray<string>>(
-    hiddenByDefault(TOOL_COLUMNS),
-  )
+  /**
+   * The tool list's columns — which are shown, in what order, remembered.
+   *
+   * `shared/column-layout.ts` owns the storing and, more to the point, what a
+   * stored answer means once the catalog's columns have moved under it.
+   */
+  const toolLayout = useColumnLayout(COLUMN_KEY.tools, TOOL_COLUMNS)
+  const { hidden: hiddenColumns, order: columnOrder, setHidden: setHiddenColumns } = toolLayout
   /**
    * The tap list's columns, kept apart from the tool list's.
    *
@@ -539,25 +550,10 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * point angle — so they cannot share one hidden set: a code hidden in one
    * would mean nothing in the other, and the picker in the corner edits
    * whichever list is open (Paul, 2026-09-02: "allow me to use those columns
-   * if I edit the tap table").
+   * if I edit the tap table"). A separate key, for the same reason.
    */
-  const [hiddenTapColumns, setHiddenTapColumns] = useState<ReadonlyArray<string>>(
-    hiddenByDefault(TAP_COLUMNS),
-  )
-  const [tapColumnOrder, setTapColumnOrder] = useState<ReadonlyArray<string>>(() =>
-    TAP_COLUMNS.map((column) => column.code),
-  )
-  /**
-   * The columns somebody has decided for themselves.
-   *
-   * Tip angle and corner radius follow the list — `shared/auto-columns.ts` is
-   * the rule — and a code in here is one the list stops deciding about.
-   */
-  const touchedColumns = useRef(new Set<string>())
-  /** The order the columns are drawn in, dragged in the column picker. */
-  const [columnOrder, setColumnOrder] = useState<ReadonlyArray<string>>(() =>
-    TOOL_COLUMNS.map((column) => column.code),
-  )
+  const tapLayout = useColumnLayout(COLUMN_KEY.taps, TAP_COLUMNS)
+  const { hidden: hiddenTapColumns, order: tapColumnOrder } = tapLayout
   /** Narrowing the list by catalog number, as typed into the first column. */
   const [numberSearch, setNumberSearch] = useState('')
 
@@ -1588,9 +1584,9 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * The bounds somebody set themselves, as against the ones this feature asked
    * for — `ownBounds` in `shared/filter.ts` is the rule.
    *
-   * Two things read it, and both are about a filter being the last word rather
-   * than a tolerance: which of the removed tools may stand in when nothing
-   * fits, and which columns still have an override to keep.
+   * One thing reads it: which columns still have an override to keep. What the
+   * near-miss stand-in may be outside is asked a tool at a time instead, and
+   * against the whole rail — `nearEnough` in `shared/tool-fit.ts`.
    */
   const own = useMemo(
     () => ownBounds(query.ranges, suggestions.ranges),
@@ -1731,18 +1727,11 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    * pressed it does not want it undone by clearing a taper.
    */
   const [noCollet, setNoCollet] = useState(false)
-  const [hiddenHolderColumns, setHiddenHolderColumns] = useState<ReadonlyArray<string>>(() =>
-    hiddenComponentColumns(HOLDER_COLUMNS),
-  )
-  const [holderColumnOrder, setHolderColumnOrder] = useState<ReadonlyArray<string>>(() =>
-    HOLDER_COLUMNS.map((column) => column.code),
-  )
-  const [hiddenColletColumns, setHiddenColletColumns] = useState<ReadonlyArray<string>>(() =>
-    hiddenComponentColumns(COLLET_COLUMNS),
-  )
-  const [colletColumnOrder, setColletColumnOrder] = useState<ReadonlyArray<string>>(() =>
-    COLLET_COLUMNS.map((column) => column.code),
-  )
+  /** The holder and collet lists' columns, each remembered under its own key. */
+  const holderLayout = useColumnLayout(COLUMN_KEY.holders, HOLDER_COLUMNS)
+  const { hidden: hiddenHolderColumns, order: holderColumnOrder } = holderLayout
+  const colletLayout = useColumnLayout(COLUMN_KEY.collets, COLLET_COLUMNS)
+  const { hidden: hiddenColletColumns, order: colletColumnOrder } = colletLayout
 
   /**
    * Whose tree is on screen.
@@ -1906,7 +1895,11 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       margins,
       thresholds,
       overrides: forgiven,
-      ownRanges: own,
+      /*
+        What the geometry asked for, which the near-miss stand-in reads against
+        what the rail now holds: `nearEnough` in `shared/tool-fit.ts`.
+      */
+      suggestedRanges: suggestions.ranges,
     }),
     [
       report.features,
@@ -1918,7 +1911,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       margins,
       thresholds,
       forgiven,
-      own,
+      suggestions,
     ],
   )
   const tableDemand = useMemo<MatchDemand | null>(() => {
@@ -2158,7 +2151,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     if (!asking || (tools.length > 0 && !shortOfDrills)) {
       return []
     }
-    const admitted = closeCandidates(nearMisses, query, own)
+    const admitted = closeCandidates(nearMisses, query, suggestions.ranges)
     /**
      * **A tapped hole is drilled.** The nearest misses are drawn from what the
      * rules removed, and a mill that could interpolate the bore is a near miss
@@ -2202,7 +2195,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     shortOfDrills,
     nearMisses,
     query,
-    own,
+    suggestions,
     holeChoice.mode,
     outOfReach,
     predrillForms,
@@ -2383,8 +2376,13 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    */
   const listedForms = useMemo(() => listed.map((each) => each.form), [listed])
   useEffect(() => {
-    setHiddenColumns((current) => hiddenAfterAuto(current, listedForms, touchedColumns.current))
-  }, [listedForms])
+    // Both halves off one layout: what is hidden, and what somebody has already
+    // decided for themselves. `shared/column-layout.ts` § `setHidden` says what
+    // reading those two out of two different states cost.
+    setHiddenColumns((layout) =>
+      hiddenAfterAuto(layout.hidden, listedForms, new Set(layout.touched)),
+    )
+  }, [listedForms, setHiddenColumns])
   /**
    * The list narrowed by what was typed into the catalog number column.
    *
@@ -2671,21 +2669,14 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   )
 
   /**
-   * The taps narrow on their catalog number and which kind of tap they are.
+   * What narrows a tap list, which is not what narrows the tool list.
    *
-   * **Everything else about them is the thread's** (Paul, 2026-09-09: "when I
-   * am in the TAPs row or table, it should be filtering to taps"). They are
-   * swept out of the whole catalog by the thread — the tool filters never reach
-   * `makersFor` — so a funnel on the tap list's Vendor or Flute length heading
-   * would be a control that changes nothing, and the list carried none at all
-   * while the chrome over it counted three filters. `askOfTapColumn` is the
-   * pair it does answer.
-   *
-   * Offered only while the `form` axis is saying something, which on a threaded
-   * hole is always: choosing a thread writes `THREADED_FORMS`. With the filters
-   * cleared the list is genuinely unconstrained, the column has no answer to
-   * show, and a tick would then be the only form in the filter — which is the
-   * one shape that would empty the drills.
+   * The taps are swept out of the whole catalog by the thread — the tool query
+   * never reaches `makersFor` — so every narrowing on them is one this route
+   * applies itself over that pool: the catalog number, which kind of tap, and
+   * **the vendor and the family** (Paul, 2026-09-11). The rest of the columns
+   * are the thread's own numbers, stated rather than asked.
+   * `shared/column-filters.ts` § `askOfTapColumn` is the list.
    */
   /**
    * The two numbers the thread and the depth put on this list, as bounds.
@@ -2699,45 +2690,130 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     [threadSpec, threadReach],
   )
 
+  /**
+   * The vendor and the family this list is being narrowed on.
+   *
+   * The **same** `query.terms` every other list reads, rather than a second
+   * set of ticks for the taps: a shop that has asked for one vendor has asked
+   * for it, and a tap list quietly ignoring the question was the defect here
+   * (Paul, 2026-09-11). Read out as their own object because the pool, the
+   * counts and the rows are three readers of one answer.
+   */
+  const tapTerms = useMemo(
+    () => ({ brand: query.terms.brand ?? [], family: query.terms.family ?? [] }),
+    [query.terms.brand, query.terms.family],
+  )
+
+  /**
+   * Every tap the thread turned up, of the kinds the filter is asking for.
+   *
+   * The pool the vendor and family columns are counted over and the rows are
+   * drawn from — measured before those two axes are applied, so that an axis
+   * never narrows itself and the counts beside the other vendors still say
+   * what each would bring back.
+   */
+  const tapPool = useMemo(() => {
+    const forms = query.terms.form ?? []
+    return forms.length === 0
+      ? makers.made
+      : makers.made.filter((each) => forms.includes(each.form))
+  }, [makers.made, query.terms.form])
+
+  /**
+   * What the vendor and the family columns count, each against the other.
+   *
+   * `shared/filter.ts` § `countsByAxis` is the rule the tool list's own facets
+   * follow: an axis is counted over the pool narrowed by every term but its
+   * own, so choosing one vendor does not take the rest off the list.
+   */
+  const tapFacets = useMemo(
+    () => countsByAxis(tapPool, { ...EMPTY_QUERY, terms: tapTerms }, ['brand', 'family']),
+    [tapPool, tapTerms],
+  )
+
+  /**
+   * What the catalog has that this thread's taps do not — behind the `…` row,
+   * greyed at nought.
+   *
+   * **A vendor with no tap for this thread reads zero rather than vanishing**
+   * (Paul, 2026-09-11: "if vendors don't have taps, it should simply show
+   * zero"). {@link hiddenOn} is the same answer for the tool list; this is its
+   * tap half, measured against the swept pool rather than against the matcher.
+   */
+  const tapHidden = useCallback(
+    (axis: string): ReadonlyArray<{ value: string; label: string }> => {
+      const offered = tapFacets.get(axis)
+      return [...(everyValue.get(axis) ?? new Map<string, number>()).keys()]
+        .filter((value) => !(offered?.has(value) ?? false))
+        .map((value) => ({ value, label: axis === 'family' ? familyName(value) : value }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true }))
+    },
+    [tapFacets, everyValue],
+  )
+
+  /**
+   * The Type column asks nothing while the `form` axis is silent.
+   *
+   * With the filters cleared the list is genuinely unconstrained, the column
+   * has no answer to show, and a tick would then be the only form in the
+   * filter — which is the one shape that would empty the drills on the stack
+   * beside it. The vendor and the family have no such coupling: they narrow
+   * this pool and the drill list the same way, whatever the forms say.
+   */
+  const askOfTapHeading = useCallback(
+    (code: string): ColumnAsk | null =>
+      code === 'type' && (query.terms.form ?? []).length === 0 ? null : askOfTapColumn(code),
+    [query.terms.form],
+  )
+
   const tapFiltering = useMemo(
     () => ({
       search: { value: numberSearch, onChange: setNumberSearch },
-      ask: askOfTapColumn,
-      ...((query.terms.form ?? []).length === 0
-        ? {}
-        : {
-            catalog: {
-              query: {
-                ...EMPTY_QUERY,
-                terms: { type: shownTapTypes },
-                ranges: tapRanges,
-              },
-              onTerm: applyTapTerm,
-              options: () => tapTypes,
-              /*
+      ask: askOfTapHeading,
+      catalog: {
+        query: {
+          ...EMPTY_QUERY,
+          terms: { ...tapTerms, type: shownTapTypes },
+          ranges: tapRanges,
+        },
+        onTerm: applyTapTerm,
+        options: (axis: string) =>
+          axis === 'type'
+            ? tapTypes
+            : [...(tapFacets.get(axis) ?? new Map<string, number>())]
+                .map(([value, count]) => ({
+                  value,
+                  label: axis === 'family' ? familyName(value) : value,
+                  count,
+                }))
+                .sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true })),
+        hidden: (axis: string) => (axis === 'type' ? [] : tapHidden(axis)),
+        /*
                 Stated, not asked: `onRange` is absent, so the two headings say
                 the number and where it came from instead of offering boxes.
                 The list is swept on them — and a short list's near misses are
                 the very rows that break them, which a filter would hide along
                 with the reason it was showing them.
               */
-              stated: (code: string) =>
-                threadSpec === null
-                  ? undefined
-                  : code === 'DC'
-                    ? `Every tap the ${threadSpec.name} thread takes. The list is swept on it rather than filtered, so there is nothing to change here.`
-                    : code === 'LCF' && threadReach !== null
-                      ? `The thread has to cover the ${formatLength(threadReach.depth, unit)} depth of what is selected. A tap that falls short is on the list only when nothing reaches, and its length is painted red.`
-                      : undefined,
-            },
-          }),
+        stated: (code: string) =>
+          threadSpec === null
+            ? undefined
+            : code === 'DC'
+              ? `Every tap the ${threadSpec.name} thread takes. The list is swept on it rather than filtered, so there is nothing to change here.`
+              : code === 'LCF' && threadReach !== null
+                ? `The thread has to cover the ${formatLength(threadReach.depth, unit)} depth of what is selected. A tap that falls short is on the list only when nothing reaches, and its length is painted red.`
+                : undefined,
+      },
     }),
     [
       numberSearch,
-      query.terms.form,
+      askOfTapHeading,
+      tapTerms,
       shownTapTypes,
       applyTapTerm,
       tapTypes,
+      tapFacets,
+      tapHidden,
       tapRanges,
       threadSpec,
       threadReach,
@@ -2759,13 +2835,25 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
    */
   const clearTapFilters = useCallback(() => {
     setNumberSearch('')
-    applyTerm(
-      'form',
-      formsAskingTaps(query.terms.form ?? [], [
-        ...new Set(tapTypes.flatMap((each) => formOfTypeLabel(each.value) ?? [])),
-      ]),
-    )
-  }, [applyTerm, query.terms.form, tapTypes])
+    /*
+      **The vendor and the family go with it** (Paul, 2026-09-11). They are
+      narrowing this list now, so a press that says it clears the filters and
+      leaves one vendor ticked is the same disagreement between the button and
+      the funnels that the count above was fixed for. Cleared on the shared
+      query, because that is where the ticks are.
+    */
+    apply({
+      ...query,
+      terms: {
+        ...query.terms,
+        brand: [],
+        family: [],
+        form: formsAskingTaps(query.terms.form ?? [], [
+          ...new Set(tapTypes.flatMap((each) => formOfTypeLabel(each.value) ?? [])),
+        ]),
+      },
+    })
+  }, [apply, query, tapTypes])
 
   /**
    * What the rules said about each tool, column by column — a tick on what
@@ -2944,18 +3032,18 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const tapRows = useMemo(() => {
     const wanted = numberSearch.trim().toLowerCase()
     /*
-      **And by which kind of tap the filter is asking for** (Paul, 2026-09-09).
-      The whole `form` axis rather than its tap half: a filter naming forms and
-      no tap among them is a question this list has no answer to, where an empty
-      axis is nobody asking. `hole-mode.ts` § `formsAskingTaps` is what writes it.
+      **By which kind of tap the filter is asking for** (Paul, 2026-09-09) —
+      {@link tapPool} is that half, the whole `form` axis rather than its tap
+      half — **and by the vendor and the family** (Paul, 2026-09-11), which are
+      the two term axes this list can answer over a pool the tool query never
+      reaches. `filterTools` so that the rows are narrowed by the same rule the
+      counts in their headings were measured with.
     */
-    const forms = query.terms.form ?? []
-    const asked =
-      forms.length === 0 ? makers.made : makers.made.filter((each) => forms.includes(each.form))
+    const asked = filterTools(tapPool, { ...EMPTY_QUERY, terms: tapTerms })
     return wanted === ''
       ? asked
       : asked.filter((each) => `${each.catalogNumber} ${each.brand}`.toLowerCase().includes(wanted))
-  }, [makers.made, numberSearch, query.terms.form])
+  }, [tapPool, tapTerms, numberSearch])
 
   /**
    * What is wrong with a tap, in the column it is about — the red the tap
@@ -3670,13 +3758,32 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const pressRow = useCallback(
     (id: string | null, tag: string | null, toolGuid?: string) => {
       const item = itemNamed(list, id)
+      /*
+        **A press on a line opens the stack that line came from** (Paul,
+        2026-09-11: "when I click on a specific tool assembly row in the order
+        list, focus should go to the top line component of the specific assembly
+        I clicked"). The line names its tool and `orderedAs` names its stack, so
+        the tree beside the box can open on it — without this it opened on
+        `firstNode`, which is the first *unanswered* slot, so pressing the third
+        assembly of a row landed on the first one's empty collet and the stack
+        somebody pressed was not on screen.
+
+        Its top line is the tool slot: the stack is a tool with its holding
+        under it, and the tool is what the line stands for.
+      */
+      if (item !== null && toolGuid !== undefined) {
+        const stack = orderedAs(trees[item.id] ?? [], toolGuid)
+        if (stack !== null) {
+          setNodeHeld({ itemId: item.id, node: { assemblyId: stack.id, slot: 'tool' } })
+        }
+      }
       if (item?.kind === 'group' && tag === null) {
         startEdit(item.id)
         return
       }
       selectRow(id, tag, toolGuid)
     },
-    [list, startEdit, selectRow],
+    [list, trees, startEdit, selectRow],
   )
 
   /**
@@ -3766,6 +3873,38 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       commit(clearKeys(sheet, keys))
     },
     [commit, sheet],
+  )
+
+  /**
+   * One row off the list, with its lines and its tree.
+   *
+   * The whole of what removing a row means, in one place, because there are two
+   * presses that mean it: right-click → *Remove* on the list, and the press
+   * under an emptied tree (`assembly-actions` § `drop`, Paul, 2026-09-11). They
+   * were one press and one handler inside the list's JSX, so the second one
+   * would have been a second reading of what *gone* includes — and a row
+   * removed without `unbill` goes on being ordered by a bill nobody can see any
+   * more.
+   *
+   * **And its tree with it.** Ids are arithmetic, so a part emptied of rows
+   * starts again at `feature-1`; a tree left behind would attach itself to
+   * whatever row took that id next.
+   */
+  const removeRow = useCallback(
+    (id: string) => {
+      const going = itemNamed(list, id)
+      if (going !== null) {
+        // Its features, or — for a part-level assembly — the key its own lines
+        // are kept under.
+        unbill(sheetKeysOf(going))
+      }
+      forgetTree(id)
+      setList((current) => removeItem(current, id))
+      if (selectedId === id) {
+        selectRow(null)
+      }
+    },
+    [list, unbill, forgetTree, setList, selectedId, selectRow],
   )
 
   /**
@@ -4339,6 +4478,20 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const addBarShown = pressesShown(box)
 
   /**
+   * How wide the one panel over the part is (Paul, 2026-09-11: "I should have
+   * the ability to make the order list (and feature/group/tool assembly) wider
+   * by clicking the edge and expanding to the right").
+   *
+   * The presses, the box, the fold and the rows are one panel, so there is one
+   * width and its right edge is the handle — `components/panel-resizer.tsx`.
+   * `shared/panel-width.ts` is every rule about it: the two ends it clamps to,
+   * the defaults a shop that has never dragged it gets, and why a stated width
+   * outlives the group editor's wider default.
+   */
+  const { stated: statedPanel, state: statePanel } = usePanelWidth()
+  const panelWide = panelWidth(statedPanel, draft?.kind === 'group')
+
+  /**
    * The holders on show: what can hold what is already in the stack, narrowed
    * by the crib's own filters and then by the table's.
    */
@@ -4835,7 +4988,13 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         stacks,
         treeLines,
         activeItem !== null,
-        draft?.kind === 'group' ? 'group' : draft?.kind === 'assembly' ? 'assembly' : 'feature',
+        /*
+          **What the press is about is the row, where there is one.** A draft
+          names what it would create; an existing row names itself — the drop
+          press says *Remove group from list* over a group, and saying *feature*
+          there names something the list does not hold (Paul, 2026-09-11).
+        */
+        draft?.kind ?? activeItem?.kind ?? 'feature',
         componentName,
       ).map((action) => ({
         key: `${stacks[0]?.id ?? 'assembly'}-${action.kind}`,
@@ -4864,6 +5023,21 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           ? { disabled: true }
           : {}),
         onClick: () => {
+          /*
+            **The row itself goes, and the box goes with it** (Paul,
+            2026-09-11). Offered only under a tree with no tool in it at all —
+            `assembly-actions` § `drop` is the rule — so there is nothing in the
+            tree left to write; `removeRow` takes the row's lines and its tree,
+            and what is left on screen is an editor for a row that no longer
+            exists.
+          */
+          if (action.kind === 'drop') {
+            if (activeItem !== null) {
+              removeRow(activeItem.id)
+            }
+            putDown()
+            return
+          }
           /*
             **Backing out touches the tree, not the bill.** The change was never
             written, so there is nothing to undo on the sheet — what is put back
@@ -4901,6 +5075,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
       componentName,
       writeTree,
       putDown,
+      removeRow,
     ],
   )
 
@@ -5463,7 +5638,16 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
         follow: the controls take a click and the strip between them does not,
         so a drag that starts on the sky still turns the part.
       */
-      className="pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 gap-y-1 rounded-lg bg-zinc-950/75 px-2 py-1 text-sm"
+      /*
+        **Flush with the table under it** (Paul, 2026-09-11: "move the tools,
+        holders, collets, etc buttons left so they are in line with the left
+        edge of the table"). The buttons and the list are one control and one
+        answer, and the bar standing 20px in from the table's edge — the
+        viewer's inset plus this padding — read as a second, narrower thing
+        floating above it. No horizontal padding here and none in the viewer's
+        slot, so the first press starts where the first column does.
+      */
+      className="pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 gap-y-1 rounded-lg bg-zinc-950/75 px-0 py-1 text-sm"
     >
       {/*
         **One row, always** (Paul, 2026-09-11: "all information we show there
@@ -5554,10 +5738,20 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
           of the buttons"). Ellipsising every note to keep one line turned the
           heading into "Cuts the bl…" and each note into three words and a dot,
           which is a bar that says nothing. So the text takes a box of its own
-          beside the buttons and wraps inside it, two lines of `text-2xs` being
-          about the height of the presses it stands beside.
+          beside the buttons and wraps inside it.
+
+          **And nothing here is clipped** (Paul, 2026-09-11: "this text can't
+          cut off"). It was capped at the height of the presses and cut what
+          did not fit — but the cut-tap and form-tap buttons stand on the first
+          line of this very box, so the second line of a two-line note started
+          below the cap and was sliced in half: `matched on ⌀0.089 in — the cut
+          tap's predrill for #4-40 UNC` read as a row of half-letters. The box
+          asks for the height of the presses (`min-h-8`) and takes another line
+          where the words need one; the bar is measured, so the column of
+          questions above it moves up by that line rather than the words
+          disappearing under it.
         */}
-        <div className="flex max-h-8 min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 overflow-hidden leading-tight">
+        <div className="flex min-h-8 min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 leading-tight">
           {/*
           The heading of whichever list is on screen. A threaded
           hole used to put two tabs here — taps, then drills —
@@ -5842,7 +6036,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                 ? narrowingNames(
                     {
                       text: numberSearch,
-                      terms: { type: shownTapTypes },
+                      terms: { ...tapTerms, type: shownTapTypes },
                       /*
                         **The bounds the part set count too**
                         (Paul, 2026-09-09: "button should show to
@@ -5938,16 +6132,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                     ).includes(column.code),
                 )
                 .map((column) => column.code)}
-              onToggle={(code) => {
-                const set =
-                  componentSlot === 'holder' ? setHiddenHolderColumns : setHiddenColletColumns
-                set((current) =>
-                  current.includes(code)
-                    ? current.filter((each) => each !== code)
-                    : [...current, code],
-                )
-              }}
-              onReorder={componentSlot === 'holder' ? setHolderColumnOrder : setColletColumnOrder}
+              onToggle={componentSlot === 'holder' ? holderLayout.toggle : colletLayout.toggle}
+              onReorder={componentSlot === 'holder' ? holderLayout.reorder : colletLayout.reorder}
             />
           ) : (
             <ColumnPicker
@@ -5965,23 +6151,8 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                     !(tappingNow ? hiddenTapColumns : hiddenColumns).includes(column.code),
                 )
                 .map((column) => column.code)}
-              onToggle={(code) => {
-                if (tappingNow) {
-                  setHiddenTapColumns((current) =>
-                    current.includes(code)
-                      ? current.filter((each) => each !== code)
-                      : [...current, code],
-                  )
-                  return
-                }
-                touchedColumns.current.add(code)
-                setHiddenColumns((current) =>
-                  current.includes(code)
-                    ? current.filter((each) => each !== code)
-                    : [...current, code],
-                )
-              }}
-              onReorder={tappingNow ? setTapColumnOrder : setColumnOrder}
+              onToggle={tappingNow ? tapLayout.toggle : toolLayout.toggle}
+              onReorder={tappingNow ? tapLayout.reorder : toolLayout.reorder}
             />
           )
         }
@@ -6183,13 +6354,28 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         part.
                       */}
                       <div
-                        className={cn(
-                          'flex h-full min-h-0 shrink-0 flex-col items-start gap-2',
-                          /* The group editor asks for more room than a reading does,
-                             and the column is what carries the width now that the box
-                             is inside it. */
-                          draft?.kind === 'group' ? 'w-[26rem]' : 'w-80',
-                        )}
+                        /* `relative`, because the handle on its right edge is
+                           positioned against it — the edge is the thing being
+                           dragged, so it hangs off this box rather than sitting
+                           inside it. */
+                        className="relative flex h-full min-h-0 shrink-0 flex-col items-start gap-2"
+                        /*
+                          A runtime value, so a style rather than a class: the
+                          panel opens at what the box in it asks for and is
+                          whatever a shop has dragged it to after that —
+                          `panelWidth` in `shared/panel-width.ts`.
+
+                          **A width and nothing else.** The ceiling belongs to
+                          the drag, which measures the viewer at the press; a
+                          `max-width` in *percent* here is not the same rule
+                          written twice, it is a circle — the overlay this stands
+                          in is shrink-to-fit, so the percentage resolves against
+                          the panel's own width and squeezes it to a share of
+                          itself. It cost the part a hundred pixels of inset
+                          before `frames the part beside the boxes drawn over it`
+                          caught it (2026-09-11).
+                        */
+                        style={{ width: panelWide }}
                       >
                         {/*
                         **The three ways to add sit over the part, above
@@ -6727,9 +6913,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                 */
                                   assemblyOf={(itemId, toolGuid) => {
                                     const stacks = trees[itemId] ?? []
-                                    const stack = stacks.find(
-                                      (each) => (each.orderedTool ?? each.toolGuid) === toolGuid,
-                                    )
+                                    const stack = orderedAs(stacks, toolGuid)
                                     if (stack?.name === undefined) {
                                       return null
                                     }
@@ -6751,30 +6935,26 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                                     setRenamingId(null)
                                   }}
                                   onRenameCancel={() => setRenamingId(null)}
-                                  onRemove={(id) => {
-                                    const going = itemNamed(list, id)
-                                    if (going !== null) {
-                                      // Its features, or — for a part-level assembly
-                                      // — the key its own lines are kept under.
-                                      unbill(sheetKeysOf(going))
-                                    }
-                                    /*
-                                  **And its tree with it.** Ids are arithmetic, so
-                                  a part emptied of rows starts again at
-                                  `feature-1` — a tree left behind would attach
-                                  itself to whatever row took that id next.
-                                */
-                                    forgetTree(id)
-                                    setList((current) => removeItem(current, id))
-                                    if (selectedId === id) {
-                                      selectRow(null)
-                                    }
-                                  }}
+                                  onRemove={removeRow}
                                 />
                               )}
                             </div>
                           </div>
                         ) : null}
+                        {/*
+                          **The right edge is a handle** (Paul, 2026-09-11: "I
+                          should have the ability to make the order list (and
+                          feature/group/tool assembly) wider by clicking the edge
+                          and expanding to the right"). One panel carries all of
+                          them, so one handle widens all of them at once, and
+                          `shared/panel-width.ts` holds every number it clamps
+                          to. Double-click puts the defaults back.
+                        */}
+                        <PanelResizer
+                          width={panelWide}
+                          onResize={statePanel}
+                          onReset={() => statePanel(null)}
+                        />
                       </div>
                     </div>
                   </>
@@ -7047,17 +7227,21 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                               // for that reason rather than for an empty crib.
                               asking,
                               /*
-                                And either list can now be empty because of the
-                                collet drawer rather than because of a choice: a
-                                collet slot under a chuck nothing in the crib
-                                closes on, and a holder rack with the press in
-                                the chrome turned off. Both are more specific
-                                than the two general answers, and both name
-                                something to do.
+                                And either list can now be empty for a reason
+                                that is not a choice at all: a collet slot under
+                                a holder that grips the shank itself, a collet
+                                slot under a chuck nothing in the crib closes
+                                on, and a holder rack with the press in the
+                                chrome turned off. All three are more specific
+                                than the two general answers, and the first says
+                                the stack is finished rather than stuck.
                               */
                               {
                                 ...(componentSlot === 'collet' && treeHolder !== null
-                                  ? { gap: holderGap(treeHolder) }
+                                  ? {
+                                      gap: holderGap(treeHolder),
+                                      noneNeeded: colletNotNeeded(treeHolder),
+                                    }
                                   : {}),
                                 ...(componentSlot === 'holder' && !noCollet
                                   ? { hidden: gappedHolders }

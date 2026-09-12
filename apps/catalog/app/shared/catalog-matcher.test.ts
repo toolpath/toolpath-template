@@ -55,7 +55,7 @@ const context = (features: ReadonlyArray<PartFeature>): MatchContext => ({
   margins: { radial: 0, axial: 0 },
   thresholds: thresholdsFrom(),
   overrides: [],
-  ownRanges: {},
+  suggestedRanges: {},
 })
 
 const catalog = { tools: [tool('SMALL', 6), tool('LARGE', 10)], holders: [], collets: [] }
@@ -238,11 +238,15 @@ describe('catalog matcher protocol', () => {
 
     expect(prepared.considered.map((each) => each.guid)).toEqual(['SMALL', 'MID', 'WIDE'])
     expect(prepared.admitted.map((each) => each.guid)).toEqual(['MID'])
-    // The rules were run over all three, so the one the range hides is still a
-    // near miss the panel can offer rather than a tool nobody ever judged.
+    // The rules were run over all three, so the one the range hides is judged
+    // rather than unjudged: it is in the removed set with its reason, ready to
+    // stand in the moment the bound that hides it is not somebody's own.
     expect(result.fitting.map((each) => each.toolGuid).sort()).toEqual(['MID', 'SMALL'])
     expect(result.narrowedGuids).toEqual(['MID'])
-    expect(result.nearMisses.map((each) => each.toolGuid)).toEqual(['WIDE'])
+    expect(result.excludedCount).toBe(1)
+    // Nobody suggested this bound, so it is the question and WIDE is not close
+    // to it — `nearEnough` in `shared/tool-fit.ts`.
+    expect(result.nearMisses.map((each) => each.toolGuid)).toEqual([])
   })
 
   /**
@@ -337,11 +341,11 @@ describe('catalog matcher protocol', () => {
     const result = detailedMatch(input, { demandKey: 'one', tags: [feature.featureTag] }, wide)
 
     // MID fits, so there is nothing being kept from the person by the rules —
-    // WIDE is outside their own range and is a near miss rather than an
-    // override.
+    // and WIDE is outside a range they typed themselves, which is neither an
+    // override nor a near miss.
     expect(result.overridable).toEqual([])
     expect(result.overridableByCode).toEqual({})
-    expect(result.nearMisses.map((each) => each.toolGuid)).toEqual(['WIDE'])
+    expect(result.nearMisses.map((each) => each.toolGuid)).toEqual([])
   })
 
   /**
@@ -673,11 +677,31 @@ describe('the misses a typed bound leaves standing', () => {
 
   it('narrows to the bound before the nearest are taken', () => {
     const result = detailedMatch(
-      { ...context([feature]), ownRanges: { NOF: { max: 3 } } },
+      { ...context([feature]), query: { ...EMPTY_QUERY, ranges: { NOF: { max: 3 } } } },
       demand,
       crib,
     )
 
+    expect(result.nearMisses.map((each) => each.toolGuid)).toEqual(['three'])
+  })
+
+  /**
+   * **The geometry's own bound is narrowed on too, everywhere but the column
+   * the tool missed on** (Paul, 2026-09-11). Every one of these misses the
+   * pocket on its *diameter*, so the diameter bound the pocket wrote is the one
+   * they may be outside — and the flute count the shop's sheet wrote is not.
+   */
+  it("forgives the geometry's bound only on the column that removed the tool", () => {
+    const bounded = {
+      ...context([feature]),
+      query: { ...EMPTY_QUERY, ranges: { DC: { max: 10 }, NOF: { max: 3 } } },
+      suggestedRanges: { DC: { max: 10 }, NOF: { max: 3 } },
+    }
+
+    const result = detailedMatch(bounded, demand, crib)
+
+    // Wider than the bound and forgiven for it; four flutes against a bound of
+    // three, which nothing removed them for, and gone.
     expect(result.nearMisses.map((each) => each.toolGuid)).toEqual(['three'])
   })
 })

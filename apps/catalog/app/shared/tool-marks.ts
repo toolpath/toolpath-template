@@ -188,11 +188,29 @@ const cautionSays = (
     readonly leaves: number | null
     readonly point: number | null
     readonly bottom: number | null
+    readonly bore: number | null
+    readonly across: number | null
   },
   format: Format,
 ): string | null => {
   if (rule?.test.kind !== 'bound') {
     return null
+  }
+  /**
+   * **An end mill close to the size of the hole is a caution, not a refusal**
+   * (Paul, 2026-09-11: a ⌀0.125 in mill under a ⌀0.136 in hole "should just
+   * allow end mills up to 10 % smaller than the hole diameter and warn with
+   * the i instead of go red").
+   *
+   * The engine's helix room is a tenth of the bore — the ramp a mill needs to
+   * take itself down — and a mill inside that can still plunge or bore the
+   * hole out, so the sheet cautions on it and the bore itself refuses. What is
+   * worth saying is the room that is actually left: a tenth of a ⌀0.136 in
+   * hole is 0.006 in a side and nobody reads that off two diameters.
+   */
+  if (rule.test.field === 'diameter' && said.bore !== null && said.across !== null) {
+    const room = (said.bore - said.across) / 2
+    return room <= 0 ? null : `${format(room, 'mm')} a side to helix in`
   }
   if (rule.test.field === 'corner radius' && said.leaves !== null && said.leaves > 0) {
     return `leaves ${format(said.leaves, 'mm')} floor radius`
@@ -400,7 +418,13 @@ export const marksFor = (
     const code = field === null ? undefined : CODES[field]
     const says = cautionSays(
       reason.rule,
-      { leaves: leaves ?? null, point: verdict.tool.geometry.SIG ?? null, bottom: tipAngle },
+      {
+        leaves: leaves ?? null,
+        point: verdict.tool.geometry.SIG ?? null,
+        bottom: tipAngle,
+        bore: holeDiameter,
+        across: verdict.tool.geometry.DC ?? null,
+      },
       format,
     )
     if (code === undefined || says === null) {

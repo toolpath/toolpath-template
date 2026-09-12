@@ -19,6 +19,8 @@ import type { ToolQuery } from 'shared/filter'
 import { markWords, type Mark } from 'shared/tool-marks'
 import type { BelowHolder } from 'shared/drawn-assembly'
 import { orderedCodes } from 'shared/column-order'
+import { DEFAULT_COLUMN_WIDTH, fillingWidth, widthId } from 'shared/column-width'
+import { useFittedColumns } from 'shared/use-fitted-columns'
 import { ToolTypeIcon } from './tool-icons'
 import {
   ColumnFilterMenu,
@@ -27,7 +29,7 @@ import {
   type ColumnHeadingProps,
 } from './column-heading'
 import type { Bound, ColumnOverride } from './column-filter'
-import { TABLE_FACE, TABLE_INK } from 'shared/type'
+import { TABLE_FACE, TABLE_HEAD, TABLE_INK } from 'shared/type'
 
 export interface PartToolColumn {
   readonly code: string
@@ -101,7 +103,13 @@ export const TAP_COLUMNS: ReadonlyArray<PartToolColumn> = [
 export const hiddenByDefault = (columns: ReadonlyArray<PartToolColumn>): Array<string> =>
   columns.filter((column) => !column.default).map((column) => column.code)
 
-export const flexibleColumnWidth = (width: string): string => `minmax(${width}, 1fr)`
+/**
+ * The grid track a column asks for — `shared/column-width` owns the rule.
+ *
+ * Kept as a name here because the header reads as a column asking for a width,
+ * and `components/component-table.tsx` asks the same module the same thing.
+ */
+export const flexibleColumnWidth = fillingWidth
 
 /**
  * A row of the list, in pixels — `@toolpath/ui`'s compact `Table`.
@@ -168,14 +176,14 @@ export const isStack = (code: string): boolean => code === 'LBH'
 export const isIdentity = (code: string): boolean => IDENTITY.some((column) => column.code === code)
 
 /**
- * How wide a column starts, by what it holds rather than by its numbers.
+ * How wide a column is, by what it holds rather than by its numbers.
  *
- * **Only the largest of these is doing anything.** `@toolpath/ui`'s table gives
- * every column the width of the widest `minmax()` floor it is handed, so
- * raising one entry here raises all thirteen — measured on 2026-09-11 by
- * setting `type` to `20rem` and watching each column become 320px. The map
- * reads as a per-column decision and is not one. Left as it was rather than
- * tuned around, because the column sizing is the kit's to fix.
+ * **Read as a share of the panel, not as a floor under it** — the rem is a
+ * weight and `shared/column-width` is the rule. Until 2026-09-11 only the
+ * largest entry here did anything: every column came out at the width of the
+ * widest `minmax()` floor in the map, so the list opened 2120px wide inside a
+ * 1169px panel with thirteen 192px columns. Raising one entry now widens that
+ * column and narrows the rest.
  */
 const WIDTH: Readonly<Record<string, string>> = {
   catalogNumber: '10rem',
@@ -468,6 +476,18 @@ export const PartToolTable = ({
   /** The open column, or nothing where it has since been hidden. */
   const openColumn = shown.find((column) => column.code === openFilter) ?? null
   const inside = useRef<HTMLDivElement>(null)
+  const codes = useMemo(() => shown.map((column) => column.code), [shown])
+  /**
+   * Where the kit keeps what somebody dragged — named after these columns.
+   *
+   * A stored track list is positional, so it is only ever an answer about the
+   * column set it was dragged on: `shared/column-width.ts` says why that is the
+   * id rather than a fixed one.
+   */
+  const widths = widthId('part-tools', codes)
+  // The columns divide the panel; anything the kit's resizer froze onto it goes
+  // when the panel or the column set changes.
+  useFittedColumns(inside, codes.join(' '))
   const selectionCameFromTable = useRef(false)
   const setSelection = useCallback((next: SetStateAction<Selection>) => {
     setSelectedRows((current) => {
@@ -560,7 +580,7 @@ export const PartToolTable = ({
   )
 
   const header = (
-    <Table.HeaderRow>
+    <Table.HeaderRow className={TABLE_HEAD}>
       {shown.map((column) => (
         <Table.HeaderCell
           key={column.code}
@@ -583,7 +603,7 @@ export const PartToolTable = ({
                 : String(a).localeCompare(String(b), 'en', { numeric: true })
             })
           }
-          width={flexibleColumnWidth(WIDTH[column.code] ?? '6rem')}
+          width={flexibleColumnWidth(WIDTH[column.code] ?? DEFAULT_COLUMN_WIDTH)}
         >
           {heading(column.code, column.label)}
         </Table.HeaderCell>
@@ -598,8 +618,16 @@ export const PartToolTable = ({
       className={cn(TABLE_FACE, TABLE_INK, 'flex min-h-0 min-w-0 flex-1 flex-col')}
     >
       <div className="min-h-0 flex-1">
+        {/*
+          **An id named after the columns, and no `min-w-max`** (Paul,
+          2026-09-11). The kit stores a dragged layout under its `id` and hands
+          it back on the next visit — which is worth keeping, and is only ever
+          an answer about the columns it was dragged on, so the column set *is*
+          the id. `min-w-max` was half of what made the list open wider than its
+          panel; `shared/column-width` is the whole story on both.
+        */}
         <Table
-          id="part-tools"
+          id={widths}
           data={data}
           header={header}
           select
@@ -607,7 +635,6 @@ export const PartToolTable = ({
           setSelectedRows={setSelection}
           scrollable
           virtualized={virtualized}
-          className="min-w-max"
           empty={
             <Table.Empty
               emptyButtonLabel={

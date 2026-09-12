@@ -171,7 +171,7 @@ export const AssemblyPanel = ({
         about, so what is left here is the reading and, where a stack cannot be
         confirmed at all, why.
       */}
-      {notice === null ? null : (
+      {notice === null || tool === null ? null : (
         <p className="shrink-0 rounded border border-zinc-800 px-2 py-1 text-xs text-zinc-500">
           {notice}
         </p>
@@ -194,8 +194,14 @@ export const AssemblyPanel = ({
               tool and what holds it, and a holder on its own is a picture the
               package does not offer. Saying so beats an empty frame — and the
               component's own numbers are still read below.
+
+              **Said once** (Paul, 2026-09-11). `nothingToConfirm` asks for the
+              same tool in the same words, so a holder with no cutter carried
+              two notices stacked on each other — the reason the frame is empty
+              and the reason nothing can be ordered are one sentence. Where
+              there is a notice it fills this frame and the strip above goes.
             */}
-            Choose a tool to draw the assembly.
+            {notice ?? 'Choose a tool to draw the assembly.'}
           </p>
           <div className="min-h-0 flex-1 overflow-auto">{facts}</div>
         </>

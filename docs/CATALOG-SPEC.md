@@ -459,12 +459,23 @@ the order the rules rank them, with a mark on every number the rules read.
 
 - **Nothing fits is never an empty table.** The closest misses are shown
   instead, each with the number that stopped it painted red — and never a tool
-  a filter turned down. What "close" is measured against is the bound the
-  _geometry_ wrote into a column; a bound somebody typed themselves is the
-  question rather than a tolerance on it, so at most three flutes is at most
-  three flutes and the table says so when nothing answers it (Paul,
-  2026-09-10). `ownBounds` in `app/shared/filter.ts` is the rule that tells the
-  two apart.
+  a filter turned down. A near miss may be outside **the one bound it missed
+  on**, and no other:
+  - A bound somebody typed themselves is the question rather than a tolerance on
+    it, so at most three flutes is at most three flutes and the table says so
+    when nothing answers it (Paul, 2026-09-10).
+  - The bound the _geometry_ wrote holds on every column but the one that
+    removed the tool. A group capped at ⌀0.286 in listed ⌀0.438 in to ⌀0.750 in
+    cutters (Paul, 2026-09-11): they were removed for reach, so the diameter
+    question was never put to them — judging stops at the first feature that
+    rules a tool out — and they came back as "the closest" under a filter no
+    part of them was near.
+  - So a face nothing reaches still lists the deepest cutters in the crib: they
+    miss on flute length, which is the bound they are allowed to be outside.
+
+  `nearEnough` in `app/shared/tool-fit.ts` is the rule, applied a tool at a time
+  in the worker before the fifty nearest are taken.
+
 - **The first row is always highlighted** and the panel is already assembling
   that tool, so confirming takes it without a second click.
 - **Notes beside the heading** say what the rules removed, what the filters hid,

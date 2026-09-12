@@ -541,6 +541,27 @@ export const assemblyNamed = (
 ): TreeAssembly | null => (id === null ? null : (assemblies.find((each) => each.id === id) ?? null))
 
 /**
+ * The stack a line of the bill stands for, by the tool it was ordered as.
+ *
+ * `orderedTool` is what a stack stands as on the order list, so it is asked
+ * first; a tree written before that field existed answers by the tool standing
+ * in it. Swapping the cutter therefore keeps the line pointing at its own
+ * stack — which is what lets a press on a line of the order list reach the
+ * assembly it came from.
+ *
+ * One rule in one place: the order list names a line's assembly with it
+ * ({@link assemblyName}), the badges say where a component is already spoken
+ * for (`component-usage.ts`), and a press on that line opens it. Three answers
+ * to "which stack is this line" is how a badge and a tree come to name the same
+ * stack differently.
+ */
+export const orderedAs = (
+  assemblies: ReadonlyArray<TreeAssembly>,
+  toolGuid: string,
+): TreeAssembly | null =>
+  assemblies.find((each) => (each.orderedTool ?? each.toolGuid) === toolGuid) ?? null
+
+/**
  * The first slot worth opening on a tree nobody has clicked into.
  *
  * The first empty slot of the first assembly that has one, so selecting a

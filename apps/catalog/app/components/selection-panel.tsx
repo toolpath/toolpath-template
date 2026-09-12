@@ -13,6 +13,7 @@ import { defaultsFor, readingText, readingsFor } from 'shared/feature-defaults'
 import { featureRow } from 'shared/feature-rows'
 import { KindIcon, MeasurementIcon } from './feature-icons'
 import { CatalogComboboxButton } from './catalog-combobox-button'
+import { DIALOG_NOTE, DIALOG_TEXT, DIALOG_TITLE, DIALOG_VALUE } from 'shared/type'
 
 export interface SelectionPanelProps {
   /** The reading on screen, or nothing while the part is untouched. */
@@ -223,7 +224,7 @@ export const SelectionPanel = ({
                         <Combobox.Item key={each.featureTag} value={each}>
                           <Swatch colour={colourOf?.(each) ?? null} />
                           <span className="min-w-0 flex-1 truncate">{named(each)}</span>
-                          <span className="text-2xs shrink-0 font-mono text-zinc-500">
+                          <span className={cn(DIALOG_NOTE, 'shrink-0 font-mono')}>
                             {featureRow({ feature: each, features, regions, unit }).direction}
                           </span>
                           <Combobox.ItemIndicator />
@@ -234,19 +235,17 @@ export const SelectionPanel = ({
                 </Combobox>
               </div>
             ) : (
-              <span className="truncate text-sm font-semibold text-zinc-100">{named(feature)}</span>
+              <span className={cn('truncate', DIALOG_TITLE)}>{named(feature)}</span>
             )}
             {siblings > 1 ? (
               <span
-                className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 font-semibold text-zinc-300"
+                className={cn(DIALOG_NOTE, 'shrink-0 rounded bg-zinc-800 px-1 py-0.5')}
                 title={`${String(siblings)} identical holes on this part — same diameter, depth and way up. This is one of them.`}
               >
                 ×{siblings}
               </span>
             ) : null}
-            <span className="text-2xs ml-auto shrink-0 font-mono text-zinc-500">
-              {row.direction}
-            </span>
+            <span className={cn(DIALOG_NOTE, 'ml-auto shrink-0 font-mono')}>{row.direction}</span>
             <IconButton
               size="md"
               variant="muted"
@@ -259,7 +258,7 @@ export const SelectionPanel = ({
             </IconButton>
           </>
         ) : (
-          <span className="text-xs text-zinc-500">
+          <span className={DIALOG_NOTE}>
             Click a face on the part — again to cycle its readings
           </span>
         )}
@@ -286,7 +285,7 @@ export const SelectionPanel = ({
       */}
       {identical ? (
         <div className="border-info/40 bg-info/10 flex flex-col gap-1.5 rounded border px-2 py-1.5">
-          <p className="text-2xs text-zinc-300">
+          <p className={DIALOG_TEXT}>
             {identical.count - 1 === 1
               ? 'One other hole on this part is identical'
               : `${String(identical.count - 1)} other holes on this part are identical`}{' '}
@@ -334,8 +333,8 @@ export const SelectionPanel = ({
               <span className="shrink-0 text-zinc-600">
                 <MeasurementIcon measurement={each.icon} />
               </span>
-              <dd className="font-mono text-xs text-zinc-100">{readingText(each, unit)}</dd>
-              <dt className="text-2xs text-zinc-500">{each.name}</dt>
+              <dd className={cn(DIALOG_VALUE, 'font-mono')}>{readingText(each, unit)}</dd>
+              <dt className={DIALOG_NOTE}>{each.name}</dt>
             </div>
           ))}
         </dl>
@@ -352,8 +351,8 @@ export const SelectionPanel = ({
               <span className="shrink-0 text-zinc-600">
                 <MeasurementIcon measurement={each.key} />
               </span>
-              <dd className="font-mono text-xs text-zinc-100">{each.value}</dd>
-              <dt className="text-2xs text-zinc-500">{STRIP_LABELS[each.key] ?? each.label}</dt>
+              <dd className={cn(DIALOG_VALUE, 'font-mono')}>{each.value}</dd>
+              <dt className={DIALOG_NOTE}>{STRIP_LABELS[each.key] ?? each.label}</dt>
             </div>
           ))}
         </dl>

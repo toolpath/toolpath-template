@@ -19,7 +19,7 @@ import {
   type TreeNode,
 } from 'shared/assembly-tree'
 import { NameField } from './name-field'
-import { SECTION_LABEL } from 'shared/type'
+import { DIALOG_EMPTY, DIALOG_NOTE, DIALOG_VALUE, SECTION_LABEL } from 'shared/type'
 
 /**
  * The stacks a feature is answered with, as a tree beside the tool table.
@@ -157,7 +157,7 @@ const SlotRow = ({
 }) => (
   <div
     className={cn(
-      'group flex items-center gap-2 rounded px-2 py-1 text-left text-xs',
+      'group flex items-center gap-2 rounded px-2 py-1 text-left',
       selected ? 'bg-primary/15 ring-1 ring-primary/50' : 'hover:bg-zinc-900',
     )}
   >
@@ -168,7 +168,7 @@ const SlotRow = ({
       aria-current={selected ? 'true' : undefined}
       aria-label={`${slotLabel(assembly, slot)} for ${assembly.id}`}
       onClick={onSelect}
-      className="flex min-w-0 flex-1 items-center justify-start gap-2 border-0 bg-transparent px-0 py-0 text-xs hover:bg-transparent"
+      className="flex min-w-0 flex-1 items-center justify-start gap-2 border-0 bg-transparent px-0 py-0 hover:bg-transparent"
     >
       {/*
         Filled or not, in one glyph. A slot nobody has answered is the question
@@ -183,18 +183,15 @@ const SlotRow = ({
         )}
       />
       {/*
-        The row that heads a stack is the tool, and it reads as the head: the
-        holding under it is what it is held by, not two more things of the same
-        rank (Paul, 2026-09-08).
+        **Every slot name is the one section label** (Paul, 2026-09-11). The
+        tool's used to be a half-step brighter than the holding's, to say that
+        the row heading a stack is the tool and the two under it are what it is
+        held by (Paul, 2026-09-08) — but the indent and the rule down the left of
+        `StackRows` were added the same day for exactly that, and say it without
+        spending a grey on it. Two inks meaning one thing is what this pass took
+        out of these boxes.
       */}
-      <span
-        className={cn(
-          'w-14 shrink-0 font-semibold tracking-wide',
-          slot === 'tool' ? 'text-zinc-300' : 'text-zinc-500',
-        )}
-      >
-        {slotLabel(assembly, slot)}
-      </span>
+      <span className={cn(SECTION_LABEL, 'w-14 shrink-0')}>{slotLabel(assembly, slot)}</span>
       {/*
         **A change shows on the row it is a change to** (Paul, 2026-09-07: "when
         I make changes, they should show in the respective component rows (like
@@ -204,7 +201,7 @@ const SlotRow = ({
       */}
       {ordered === null ? null : (
         <>
-          <span className="truncate font-mono text-zinc-500 line-through" title={ordered}>
+          <span className={cn(DIALOG_NOTE, 'truncate font-mono line-through')} title={ordered}>
             {ordered}
           </span>
           <span aria-hidden="true" className="shrink-0 text-zinc-600">
@@ -214,8 +211,9 @@ const SlotRow = ({
       )}
       <span
         className={cn(
+          DIALOG_VALUE,
           'truncate font-mono',
-          label === null ? 'text-zinc-600' : ordered === null ? 'text-zinc-200' : 'text-amber-300',
+          label === null ? DIALOG_EMPTY : ordered === null ? '' : 'text-amber-300',
         )}
         title={label ?? undefined}
       >
@@ -256,7 +254,7 @@ const SlotRow = ({
       */}
       {shared === null ? null : (
         <span
-          className="text-2xs shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-zinc-400"
+          className={cn(DIALOG_NOTE, 'shrink-0 rounded bg-zinc-800 px-1 py-0.5')}
           title={`This component stands in more than one assembly here — ${shared}`}
         >
           {shared}
@@ -444,12 +442,13 @@ export const AssemblyTreePanel = ({
                   title="Rename this assembly"
                   onClick={() => setNaming(group.root.id)}
                   className={cn(
+                    SECTION_LABEL,
                     // `w-full` so the box inside the button is the width of the
                     // button rather than of the name — where the ellipsis happens.
-                    'text-2xs w-full min-w-0 flex-1 truncate text-left font-semibold tracking-wide text-zinc-400',
+                    'w-full min-w-0 flex-1 truncate text-left',
                     /* A name is somebody's words, so it is left as typed; a
                      number is a heading, and headings here are upper case. */
-                    group.root.name === undefined ? 'uppercase' : '',
+                    group.root.name === undefined ? '' : 'normal-case',
                   )}
                 >
                   {/*
@@ -560,7 +559,7 @@ export const AssemblyTreePanel = ({
                   }}
                   /* Drawn as a slot row is drawn — same height, same padding,
                      same hover — so it sits in the list rather than on it. */
-                  className="flex w-full items-center gap-2 rounded border-0 bg-transparent px-2 py-1 text-left text-xs text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300"
+                  className="flex w-full items-center gap-2 rounded border-0 bg-transparent px-2 py-1 text-left hover:bg-zinc-900"
                   full
                 >
                   {/* Centred where the slot rows wear their dot, and a size up
@@ -572,7 +571,7 @@ export const AssemblyTreePanel = ({
                   >
                     <PlusIcon className="size-4" />
                   </span>
-                  <span className="font-semibold tracking-wide">Add assembly</span>
+                  <span className={SECTION_LABEL}>Add assembly</span>
                 </Button>
               )}
             </div>
@@ -598,14 +597,13 @@ export const AssemblyTreePanel = ({
         <div key={action.key} className="flex flex-col gap-0.5">
           <Button
             type="button"
-            size="sm"
+            /* `md` is the kit's own `text-xs`: the one press that finishes the
+               box is not set in the 10px a `sm` button would give it. */
+            size="md"
             variant={action.danger === true || action.quiet === true ? 'secondary' : 'primary'}
             disabled={action.disabled === true}
             onClick={action.onClick}
-            className={cn(
-              'w-full justify-center text-xs',
-              action.danger === true ? 'text-danger' : '',
-            )}
+            className={cn('w-full justify-center', action.danger === true ? 'text-danger' : '')}
             full
           >
             {action.label}
@@ -616,7 +614,7 @@ export const AssemblyTreePanel = ({
             chose without a word is the defect this line exists to prevent.
           */}
           {action.note === undefined ? null : (
-            <p className="text-2xs text-amber-300">{action.note}</p>
+            <p className={cn(DIALOG_NOTE, 'text-amber-300')}>{action.note}</p>
           )}
         </div>
       ))}

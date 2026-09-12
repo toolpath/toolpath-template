@@ -1,4 +1,4 @@
-import { assemblyName, type TreeAssembly } from './assembly-tree'
+import { assemblyName, orderedAs, type TreeAssembly } from './assembly-tree'
 import type { Choice } from './setup-sheet'
 
 /**
@@ -43,8 +43,8 @@ export interface UsedRow {
  * off, or a tree the browser has since forgotten — is still a use, and it takes
  * the tool's own name rather than inventing a stack that is not there.
  */
-const stackFor = (stacks: ReadonlyArray<TreeAssembly>, line: Choice): TreeAssembly | undefined =>
-  stacks.find((each) => (each.orderedTool ?? each.toolGuid) === line.toolGuid)
+const stackFor = (stacks: ReadonlyArray<TreeAssembly>, line: Choice): TreeAssembly | null =>
+  orderedAs(stacks, line.toolGuid)
 
 /**
  * Every component on the bill, by guid, with where it is used.
@@ -59,7 +59,7 @@ export const usesByGuid = (rows: ReadonlyArray<UsedRow>): Map<string, Array<Use>
       const stack = stackFor(row.stacks, line)
       const use: Use = {
         feature: row.name,
-        assembly: stack === undefined ? '' : assemblyName(row.stacks, stack),
+        assembly: stack === null ? '' : assemblyName(row.stacks, stack),
         itemId: row.itemId,
       }
       for (const guid of [line.toolGuid, line.holderGuid, line.colletGuid]) {
