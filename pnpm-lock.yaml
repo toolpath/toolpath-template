@@ -278,8 +278,8 @@ importers:
         specifier: workspace:*
         version: link:../part-contracts
       '@toolpath/tool-scraper':
-        specifier: 3.0.1
-        version: 3.0.1
+        specifier: 3.0.2
+        version: 3.0.2
       '@toolpath/tool-support':
         specifier: 0.4.0
         version: 0.4.0
@@ -1315,13 +1315,17 @@ packages:
       react: ^19.0.0
       react-dom: ^19.0.0
 
-  '@toolpath/tool-scraper@3.0.1':
-    resolution: {integrity: sha512-JuSLGX8cSXWXFP/qvoZu6CDWRljmKA5ViM6VVhOOKV8fArlERInHP33nZM7DN5Vkd1aEFL/seDWfrQC3ukJIQw==}
+  '@toolpath/tool-scraper@3.0.2':
+    resolution: {integrity: sha512-v/hW3v1fBgFydjKRbNo6veXvycyNSyCGUg7+shV4XLr10XnHeoj6s6hDYyahwbpsjxq+75tV9aVOVCC6UhYAHQ==}
     engines: {node: '>=20'}
     hasBin: true
 
   '@toolpath/tool-support@0.4.0':
     resolution: {integrity: sha512-LVyh/qwcV8izuzKgdfbnUdgGcCPZzxnfFqYlHGF18WO6tAETb/NB7jVgi9idA+13lWM2WFZoq4O/A+apWMuvbA==}
+    engines: {node: '>=20'}
+
+  '@toolpath/tool-support@0.5.0':
+    resolution: {integrity: sha512-dfZ+VUVnjxSheOBdP9BPKqSYXLjzYTD5kyzctVSCzhbfGfuRWgDM7s8x6q0yBJF+UDBfKzzv1nwQpp35fhQQZA==}
     engines: {node: '>=20'}
 
   '@toolpath/ui@1.0.0':
@@ -3982,12 +3986,14 @@ snapshots:
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
 
-  '@toolpath/tool-scraper@3.0.1':
+  '@toolpath/tool-scraper@3.0.2':
     dependencies:
-      '@toolpath/tool-support': 0.4.0
+      '@toolpath/tool-support': 0.5.0
       htmlparser2: 12.0.0
 
   '@toolpath/tool-support@0.4.0': {}
+
+  '@toolpath/tool-support@0.5.0': {}
 
   '@toolpath/ui@1.0.0(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.0))(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.3.3)':
     dependencies:

@@ -31,6 +31,7 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 
+import { ScraperConfigError } from '@toolpath/tool-scraper'
 import { describeApi } from '@toolpath/tool-scraper/node'
 
 import { ingestProfiles } from '../dist/index.js'
@@ -103,11 +104,27 @@ const stepFor = async (record) => {
 
 const OPTIONS = { tolerance: 0.05, fillBays: false, flipped: false }
 
+/**
+ * PSC is ISO 26623's polygonal coupling, not a 7:24 cone or an HSK interface.
+ * The scraper deliberately refuses to validate its measured interface against
+ * either of those two families. Keep that exclusion explicit: it is a partial
+ * profiles document, not a reason to discard every profile that did validate.
+ *
+ * Other configuration, vendor, API, or model failures remain fatal below.
+ */
+const UNSUPPORTED_PROFILE_TAPERS = new Set(['PSC50', 'PSC63'])
+
+const isUnsupportedProfileInterface = (error) =>
+  error instanceof ScraperConfigError &&
+  UNSUPPORTED_PROFILE_TAPERS.has(error.subject) &&
+  error.message.includes('is not a taper designation this package can read a size out of')
+
 let kernelVersion = ''
 let measuredCount = 0
 let skippedCount = 0
 let alreadyMeasured = 0
 const failed = []
+const unsupported = []
 
 for (const name of families) {
   // Resumable, like `scrape.mjs` and `scrape-holding.mjs`: a family already
@@ -155,6 +172,11 @@ for (const name of families) {
     })
   } catch (error) {
     const why = error instanceof Error ? error.message : String(error)
+    if (isUnsupportedProfileInterface(error)) {
+      unsupported.push(`${name}: ${why}`)
+      console.log(`  UNSUPPORTED: ${why}`)
+      continue
+    }
     failed.push(`${name}: ${why}`)
     console.log(`  FAILED: ${why}`)
     continue
@@ -187,6 +209,13 @@ console.log(
     `${merged.holders} holders across ${merged.families} families in total, ` +
     `${merged.complete} agreeing with the vendor's published gauge length -> ${merged.path}`,
 )
+
+if (unsupported.length > 0) {
+  console.log(`\n${unsupported.length} family/families have an unsupported profile interface:`)
+  for (const note of unsupported) {
+    console.log(`  ${note}`)
+  }
+}
 
 if (failed.length > 0) {
   console.log(`\n${failed.length} family/families failed:`)
