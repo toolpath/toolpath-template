@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { getSession, uploadPart } from './api'
+import { getSession, startDemoSession, uploadPart } from './api'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -11,6 +11,17 @@ describe('direct CAD upload', () => {
     })
 
     await expect(getSession()).resolves.toEqual({ connected: false })
+  })
+
+  test('asks the server for a demo session', async () => {
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(new URL(String(input), 'http://part-viewer.test'), init)
+      expect(request.method).toBe('POST')
+      expect(request.url).toBe('http://part-viewer.test/api/session/demo')
+      return Response.json({ connected: true })
+    })
+
+    await expect(startDemoSession()).resolves.toEqual({ connected: true })
   })
 
   test('creates a part, PUTs the file directly, then starts analysis', async () => {

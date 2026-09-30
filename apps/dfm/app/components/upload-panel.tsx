@@ -22,12 +22,14 @@ export const UploadPanel = ({
   onUpload,
   onDisconnect,
   isDisconnecting,
+  showDisconnect,
 }: {
   error: string | null
   status: UploadStatus
   onUpload: (file: File) => Promise<void>
   onDisconnect: () => Promise<void>
   isDisconnecting: boolean
+  showDisconnect: boolean
 }) => {
   const [file, setFile] = useState<File | null>(null)
   const isUploading = status !== 'idle'
@@ -71,15 +73,17 @@ export const UploadPanel = ({
           {uploadLabel(status)}
         </Button>
       </div>
-      <Button
-        type="button"
-        variant="muted"
-        isLoading={isDisconnecting}
-        disabled={isBusy}
-        onClick={() => void onDisconnect()}
-      >
-        Disconnect API key
-      </Button>
+      {showDisconnect ? (
+        <Button
+          type="button"
+          variant="muted"
+          isLoading={isDisconnecting}
+          disabled={isBusy}
+          onClick={() => void onDisconnect()}
+        >
+          Disconnect API key
+        </Button>
+      ) : null}
     </div>
   )
 }

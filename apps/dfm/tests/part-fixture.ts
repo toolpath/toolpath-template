@@ -239,7 +239,7 @@ export const richHole = (
 export const uploadTo = async (
   page: Page,
   part: unknown,
-  { key = 'tp_key' }: { key?: string } = {},
+  { key = 'tp_key', demo = false }: { key?: string; demo?: boolean } = {},
 ): Promise<void> => {
   let connected = false
 
@@ -247,6 +247,13 @@ export const uploadTo = async (
     const request = route.request()
     const url = new URL(request.url())
 
+    if (url.pathname === '/api/session/demo') {
+      if (demo) {
+        connected = true
+        return route.fulfill({ status: 201, json: { connected: true, isDemo: true } })
+      }
+      return route.fulfill({ json: { connected: false } })
+    }
     if (url.pathname === '/api/session') {
       if (request.method() === 'GET') {
         return route.fulfill({ json: { connected } })
@@ -281,9 +288,16 @@ export const uploadTo = async (
   await page.route('https://upload.test/source', (route) => route.fulfill({ status: 200 }))
 
   await page.goto('/')
-  await page.getByLabel('Toolpath Engine API key').fill(key)
-  await page.getByRole('button', { name: 'Connect' }).click()
+  if (!demo) {
+    await page.getByLabel('Toolpath Engine API key').fill(key)
+    await page.getByRole('button', { name: 'Connect' }).click()
+  }
   await expect(page.getByLabel('CAD file')).toBeVisible()
+  if (demo) {
+    await expect(page.getByRole('button', { name: 'Disconnect API key' })).toHaveCount(0)
+  } else {
+    await expect(page.getByRole('button', { name: 'Disconnect API key' })).toBeVisible()
+  }
 
   await page.getByLabel('CAD file').setInputFiles({
     name: 'fixture.step',

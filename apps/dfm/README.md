@@ -1,7 +1,8 @@
 # DFM
 
-A public, bring-your-own-key reference application for inspecting Toolpath Engine part features
-and meshes. It keeps the `@toolpath/api` workflow visible and delegates HTTP,
+A public reference application for inspecting Toolpath Engine part features and meshes. It tries a
+short-lived shared demo key first and falls back to bring-your-own-key when a demo key is unavailable.
+It keeps the `@toolpath/api` workflow visible and delegates HTTP,
 validation, sessions, and SSE plumbing to Hono while React renders a conventional SPA. SSE monitors
 the part-analysis job's queued and running progress until it succeeds or fails without polling.
 
@@ -21,8 +22,8 @@ to `https://api.toolpath.com`; change it in `apps/dfm/.env` when using another E
 
 - `app/` is a client-rendered React SPA. It calls only app-owned `/api/*`
   routes; it never receives the API key or raw artifact URLs.
-- `server/` is Hono-only. It serves the built SPA, seals the BYOK connection cookie with `jose`,
-  validates requests with Zod, and is the sole location that uses the Toolpath SDK.
+- `server/` is Hono-only. It serves the built SPA, seals demo and BYOK connection cookies with
+  `jose`, validates requests with Zod, and is the sole location that uses the Toolpath SDK.
 - `server/routes/parts.ts` is the core SDK example: it creates a part through the SDK, returns its
   short-lived presigned PUT URL, then starts analysis through the SDK. The browser uploads the CAD
   file directly to object storage; The server never receives or buffers CAD bytes.
@@ -34,9 +35,11 @@ to `https://api.toolpath.com`; change it in `apps/dfm/.env` when using another E
 ## Request flow
 
 1. The SPA calls `GET /api/session` when it starts. Hono reads the encrypted `HttpOnly` cookie and
-   returns only whether a connection exists.
-2. `POST /api/session` seals a submitted API key in an encrypted, eight-hour `HttpOnly`, `Secure`,
-   `SameSite=Lax` cookie.
+   returns whether a connection exists plus its non-secret demo/BYOK kind. If it is disconnected, the SPA calls
+   `POST /api/session/demo`; Hono requests a short-lived demo key from `POST /v1/demo/session` and
+   reports whether one was available.
+2. `POST /api/session/demo` or `POST /api/session` seals the received demo or submitted API key in
+   an encrypted, eight-hour `HttpOnly`, `Secure`, `SameSite=Lax` cookie.
 3. `POST /api/parts` calls `POST /v1/parts?filename=...` and returns its short-lived,
    single-object PUT URL. The browser uploads directly to that URL, then
    `PATCH /api/parts/:partId?featureDetails=true` calls

@@ -34,9 +34,18 @@ const clearConnection = (c: Context<AppEnv>): void => {
   deleteCookie(c, CONNECTION_COOKIE, cookieOptions)
 }
 
-/** Encrypts the BYOK API key into an eight-hour HttpOnly connection cookie. */
-export const setConnection = async (c: Context<AppEnv>, apiKey: string): Promise<void> => {
-  const token = await new EncryptJWT({ apiKey })
+export interface Connection {
+  apiKey: string
+  isDemo: boolean
+}
+
+/** Encrypts an API key and its non-secret connection kind into an eight-hour HttpOnly cookie. */
+export const setConnection = async (
+  c: Context<AppEnv>,
+  apiKey: string,
+  isDemo = false,
+): Promise<void> => {
+  const token = await new EncryptJWT({ apiKey, isDemo })
     .setProtectedHeader({ alg: 'dir', enc: 'A256GCM', typ: 'JWT' })
     .setIssuedAt()
     .setIssuer(ISSUER)
@@ -47,10 +56,10 @@ export const setConnection = async (c: Context<AppEnv>, apiKey: string): Promise
 }
 
 /**
- * Returns the server-only API key for this request. Expired, tampered, or rotated-secret cookies
+ * Returns the server-only connection for this request. Expired, tampered, or rotated-secret cookies
  * are simply cleared: they are not application errors and never reach React.
  */
-export const readApiKey = async (c: Context<AppEnv>): Promise<string | null> => {
+export const readConnection = async (c: Context<AppEnv>): Promise<Connection | null> => {
   const token = getCookie(c, CONNECTION_COOKIE)
   if (!token) {
     return null
@@ -64,7 +73,9 @@ export const readApiKey = async (c: Context<AppEnv>): Promise<string | null> => 
       contentEncryptionAlgorithms: ['A256GCM'],
     })
     if (typeof payload.apiKey === 'string' && payload.apiKey) {
-      return payload.apiKey
+      // Cookies sealed before demo access existed have no kind; they were all
+      // BYOK connections, so retain the disconnect control for them.
+      return { apiKey: payload.apiKey, isDemo: payload.isDemo === true }
     }
     clearConnection(c)
     return null
@@ -73,6 +84,9 @@ export const readApiKey = async (c: Context<AppEnv>): Promise<string | null> => 
     return null
   }
 }
+
+export const readApiKey = async (c: Context<AppEnv>): Promise<string | null> =>
+  (await readConnection(c))?.apiKey ?? null
 
 export { clearConnection }
 

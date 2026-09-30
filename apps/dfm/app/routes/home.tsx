@@ -7,7 +7,9 @@ import { useSession } from 'client/use-session'
 import { Card } from '@toolpath/ui'
 
 const HomeRoute = () => {
-  const session = useSession()
+  // Try a shared demo key first, so DFM can be used without one; the manual
+  // key form below is the fallback when no demo key is available.
+  const session = useSession({ demoFallback: true })
   const partUpload = usePartUpload()
 
   return (
@@ -28,7 +30,9 @@ const HomeRoute = () => {
         </AppHeader>
 
         {session.status === 'checking' ? (
-          <p className="mt-8 text-sm text-ink-muted">Checking local session…</p>
+          // A demo key is being tried; hold the page rather than flash the
+          // manual key form on the way to the uploader.
+          <p className="mt-8 text-sm text-ink-muted">Connecting…</p>
         ) : session.status === 'connected' ? (
           <UploadPanel
             error={partUpload.error ?? session.error}
@@ -36,6 +40,7 @@ const HomeRoute = () => {
             onUpload={partUpload.upload}
             onDisconnect={session.disconnectSession}
             isDisconnecting={session.action === 'disconnecting'}
+            showDisconnect={!session.isDemo}
           />
         ) : (
           <ConnectionPanel

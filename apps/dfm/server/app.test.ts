@@ -152,13 +152,71 @@ describe('DFM Hono API', () => {
     expect(cookie).not.toContain('tp_secret_key')
 
     const status = await app.request('/api/session', { headers: { Cookie: cookie } })
-    await expect(status.json()).resolves.toEqual({ connected: true })
+    await expect(status.json()).resolves.toEqual({ connected: true, isDemo: false })
     const cleared = await app.request('/api/session', {
       method: 'DELETE',
       headers: { Cookie: cookie, 'Sec-Fetch-Site': 'same-origin' },
     })
     expect(cleared.status).toBe(204)
     expect(cleared.headers.getSetCookie()[0]).toContain('Max-Age=0')
+  })
+
+  test('seals a demo key from the Engine into a session', async () => {
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      expect(request.method).toBe('POST')
+      expect(new URL(request.url).pathname).toBe('/v1/demo/session')
+      return Response.json({
+        apiKey: 'tp_demo_key',
+        expiresAt: '2026-09-26T13:48:03.172Z',
+        orgId: 'org-1',
+      })
+    })
+    const app = createApp()
+    const connected = await app.request('/api/session/demo', {
+      method: 'POST',
+      headers: { 'Sec-Fetch-Site': 'same-origin' },
+    })
+
+    expect(connected.status).toBe(201)
+    await expect(connected.json()).resolves.toEqual({ connected: true, isDemo: true })
+    const cookie = connected.headers.getSetCookie()[0]
+    expect(cookie).toContain('part-viewer-connection=')
+    expect(cookie).toContain('HttpOnly')
+    // The demo key is as private as any other; it never reaches the browser.
+    expect(cookie).not.toContain('tp_demo_key')
+
+    const status = await app.request('/api/session', { headers: { Cookie: cookie } })
+    await expect(status.json()).resolves.toEqual({ connected: true, isDemo: true })
+  })
+
+  test('falls back to disconnected when no demo key is available', async () => {
+    vi.stubGlobal('fetch', async () =>
+      Response.json({ error: 'demo_unavailable' }, { status: 503 }),
+    )
+    const response = await createApp().request('/api/session/demo', {
+      method: 'POST',
+      headers: { 'Sec-Fetch-Site': 'same-origin' },
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ connected: false })
+    expect(response.headers.getSetCookie()).toEqual([])
+  })
+
+  test('keeps an existing session rather than replacing it with a demo one', async () => {
+    const fetchSpy = vi.fn<() => Promise<Response>>()
+    vi.stubGlobal('fetch', fetchSpy)
+    const response = await createApp().request('/api/session/demo', {
+      method: 'POST',
+      headers: { Cookie: await cookieFor(), 'Sec-Fetch-Site': 'same-origin' },
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ connected: true, isDemo: false })
+    // A live session is not spent on a demo key it does not need.
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(response.headers.getSetCookie()).toEqual([])
   })
 
   test('rejects an invalid API key without creating a session', async () => {

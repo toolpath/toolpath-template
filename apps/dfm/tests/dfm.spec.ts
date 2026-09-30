@@ -39,3 +39,7 @@ test('connects, uploads, opens a redacted inspector, and focuses a feature', asy
   await page.getByRole('link', { name: 'Upload another part' }).click()
   await expect(page.getByLabel('CAD file')).toBeVisible()
 })
+
+test('uses a demo key without offering its disconnect control', async ({ page }) => {
+  await uploadTo(page, part, { demo: true })
+})
