@@ -12,7 +12,7 @@ import {
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Badge, Button, Card, IconButton, cn, Panels } from '@toolpath/ui'
 import { toolCollisions, type CatalogTool, type Holder, type Margins } from '@toolpath/catalog-data'
-import { useAnalysisEvents } from '@toolpath/part-client'
+import { useAnalysisEvents, useSession } from '@toolpath/part-client'
 import type { PartFeature, PublicInspectionReport } from '@toolpath/part-contracts'
 import { heldRegions } from '@toolpath/part-contracts/selection'
 import { asNumber, asRecord } from '@toolpath/part-contracts/datasheet'
@@ -20,6 +20,7 @@ import { partTop } from '@toolpath/part-contracts/measurements'
 import { directionColor, directionIndexOf } from '@toolpath/viewer'
 import { formatLength } from '@toolpath/tool-support'
 import { AppHeader } from 'components/app-header'
+import { ConnectForm } from 'components/connect-form'
 import { PartUploadOverlay, type ReplacementAnalysis } from 'components/part-upload-overlay'
 import { FeatureDetails } from 'components/feature-details'
 import { KindIcon } from 'components/feature-icons'
@@ -71,7 +72,7 @@ import {
   type Results,
 } from 'shared/feature-list'
 import { recommendationRows, type RecommendationAnswer } from 'shared/recommendations'
-import { SECTION_LABEL } from 'shared/type'
+import { HEADING, SECTION_LABEL } from 'shared/type'
 import {
   clearKeys,
   componentTotals,
@@ -351,12 +352,13 @@ const TablePlaceholder = ({ error }: { error: string | null }) => (
   </div>
 )
 
-const Failed = ({ message }: { message: string }) => (
+const Failed = ({ message, children }: { message: string; children?: ReactNode }) => (
   <Shell>
     <div className="p-6">
       <p role="alert" className="text-danger text-sm">
         {message}
       </p>
+      {children}
       <Link to="/parts" className="mt-2 inline-block text-sm text-zinc-200 hover:underline">
         Upload another part
       </Link>
@@ -7387,14 +7389,32 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   )
 }
 
-const Analysing = ({ partId, jobId }: { partId: string; jobId: string }) => {
+const Analysing = ({
+  partId,
+  jobId,
+  onOtherKey,
+}: {
+  partId: string
+  jobId: string
+  /** Drops the connection, so that a key from another account can be given. */
+  onOtherKey: () => void
+}) => {
   const state = useAnalysisEvents(partId, jobId)
 
   if (state.status === 'ready') {
     return <Inspecting report={state.report} jobId={jobId} />
   }
   if (state.status === 'failed') {
-    return <Failed message={state.message} />
+    return (
+      <Failed message={state.message}>
+        <p className="mt-4 text-sm text-zinc-400">
+          If this part is in a different Toolpath account, connect with a key from that account.
+        </p>
+        <Button variant="secondary" size="sm" className="mt-2" onClick={onOtherKey}>
+          Use a different key
+        </Button>
+      </Failed>
+    )
   }
   return (
     <Shell>
@@ -7407,6 +7427,63 @@ const Analysing = ({ partId, jobId }: { partId: string; jobId: string }) => {
             <p className="mt-2 font-mono text-xs text-zinc-500">
               {Math.round(state.progress * 100)}%
             </p>
+          )}
+        </Card>
+      </div>
+    </Shell>
+  )
+}
+
+/**
+ * A part opened by its address rather than straight after its upload here — a
+ * link from another Toolpath application, a bookmark, a link somebody sent, a
+ * reload.
+ *
+ * Its analysis is read with the key this application's connection holds, so
+ * with no connection the stream is refused and the page had nothing to show.
+ * The connection is checked first, and with none the key is asked for here, on
+ * the part's own page, with the start page's form; the part loads the moment it
+ * connects. No shared demo key, unlike the start page: a demo session is a
+ * throwaway account of its own, which cannot see a part another key uploaded.
+ *
+ * A key can connect and still not see this part — a key from another account.
+ * The Engine answers that as a failed analysis this cannot tell from any other,
+ * so a failure here offers to connect a different key.
+ */
+const OpenedByLink = ({ partId, jobId }: { partId: string; jobId: string }) => {
+  const session = useSession()
+
+  if (session.status === 'connected') {
+    return (
+      <Analysing
+        partId={partId}
+        jobId={jobId}
+        onOtherKey={() => void session.disconnectSession()}
+      />
+    )
+  }
+  return (
+    <Shell>
+      <div className="p-6">
+        <Card className="max-w-md p-6">
+          {session.status === 'checking' ? (
+            <p role="status" className="text-sm text-zinc-200">
+              Checking the connection…
+            </p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <h2 className={HEADING}>Connect to open this part</h2>
+                <p className="text-sm text-zinc-400">
+                  Enter an API key from the Toolpath account this part was uploaded to.
+                </p>
+              </div>
+              <ConnectForm
+                action={session.action}
+                error={session.error}
+                onConnect={session.connectWithKey}
+              />
+            </div>
           )}
         </Card>
       </div>
@@ -7432,13 +7509,17 @@ const Analysing = ({ partId, jobId }: { partId: string; jobId: string }) => {
  * Deciding at mount keeps one component for the whole visit. The key sees to
  * the one case where the answer must change: another part, which is another
  * page and should be built new.
+ *
+ * A remembered part was uploaded here a moment ago, under a connection that is
+ * known to exist, so it opens at once with nothing checked; any other part was
+ * opened by its address, and checks for a connection first (`OpenedByLink`).
  */
 const Working = ({ partId, jobId }: { partId: string; jobId: string }) => {
   const [remembered] = useState(() => recallPart(partId, jobId))
   return remembered ? (
     <Inspecting report={remembered.report} jobId={jobId} />
   ) : (
-    <Analysing partId={partId} jobId={jobId} />
+    <OpenedByLink partId={partId} jobId={jobId} />
   )
 }
 

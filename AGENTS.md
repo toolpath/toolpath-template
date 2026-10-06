@@ -195,6 +195,13 @@ application unless that application says otherwise.
   space the viewer fills. The former standalone catalog, tool-detail, family,
   and holder-browsing routes were removed because the part screen owns that
   workflow.
+  **A part opened by its link asks for the key itself** (2026-10-06): opened
+  from another Toolpath application, a bookmark or a reload with no connection,
+  `/parts/:partId?job=` shows the start page's form (`components/connect-form.tsx`)
+  and opens the part once it connects — never a demo key, whose throwaway
+  account cannot see the part — and a failure there offers a different key
+  (`OpenedByLink` in `routes/part.tsx`; `tests/opened-by-link.spec.ts`). A part
+  just uploaded here is remembered and opens with nothing checked.
   See `docs/TOOL-CATALOG-PLAN.md`, including _Taken out on 2026-09-01_ for what
   is parked and where to restore it from, and _The filter panel_ for the one
   rule saying which values a picker offers — an empty answer stays and is

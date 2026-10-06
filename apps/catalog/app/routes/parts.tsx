@@ -1,7 +1,7 @@
-import { useRef, type FormEvent } from 'react'
-import { Button, Card, Input } from '@toolpath/ui'
+import { Button, Card } from '@toolpath/ui'
 import { useSession } from '@toolpath/part-client'
 import { AppHeader } from 'components/app-header'
+import { ConnectForm } from 'components/connect-form'
 import { usePartUpload } from 'client/use-part-upload'
 import { PartUploadOverlay } from 'components/part-upload-overlay'
 import { allTools } from 'shared/catalog'
@@ -17,9 +17,10 @@ import { useUnit } from 'shared/use-unit'
  * application's front door now that the catalog browser is hidden.
  *
  * The tool data on every other page is bundled and public. A part is neither:
- * uploading one needs the shop's own Toolpath API key, which is why this is the
- * only page in the application that asks for a connection, and why the key is
- * handed to this application's server and never held in the browser.
+ * uploading one needs the shop's own Toolpath API key, which is why this page
+ * asks for a connection, and why the key is handed to this application's server
+ * and never held in the browser. The only other page that asks is a part opened
+ * by its link with no connection yet, with the same form (`ConnectForm`).
  */
 const Parts = () => {
   const [unit, setUnit] = useUnit()
@@ -27,21 +28,6 @@ const Parts = () => {
   // manual key form below is the fallback when no demo key is available.
   const session = useSession({ demoFallback: true })
   const upload = usePartUpload()
-  const form = useRef<HTMLFormElement>(null)
-
-  const connect = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const apiKey = new FormData(event.currentTarget).get('apiKey')
-    if (typeof apiKey !== 'string') {
-      return
-    }
-    try {
-      await session.connectWithKey(apiKey)
-      form.current?.reset()
-    } catch {
-      // useSession exposes the request error for rendering below.
-    }
-  }
 
   return (
     <main className="flex h-screen flex-col overflow-hidden">
@@ -81,43 +67,11 @@ const Parts = () => {
           ) : (
             <Card className="flex size-full min-h-0 items-center justify-center overflow-auto p-6">
               <div>
-                <form ref={form} onSubmit={connect} className="flex flex-col gap-4">
-                  <label className="text-sm font-semibold text-zinc-100" htmlFor="apiKey">
-                    Toolpath API key
-                  </label>
-                  <Input
-                    id="apiKey"
-                    name="apiKey"
-                    type="text"
-                    required
-                    autoComplete="off"
-                    autoCapitalize="off"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    data-1p-ignore="true"
-                    data-lpignore="true"
-                    variant="ghost"
-                    size="xl"
-                    className="api-key-input mt-2 w-full rounded-lg border border-zinc-700 font-mono text-sm text-zinc-100"
-                  />
-                  <p className="text-xs text-zinc-500">
-                    The key is sent to this application's server, sealed into an encrypted session
-                    cookie, and never stored in the browser.
-                  </p>
-                  {session.error ? (
-                    <p role="alert" className="text-danger text-sm">
-                      {session.error}
-                    </p>
-                  ) : null}
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    className="self-start"
-                    disabled={session.action !== 'idle'}
-                  >
-                    {session.action === 'connecting' ? 'Connecting…' : 'Connect'}
-                  </Button>
-                </form>
+                <ConnectForm
+                  action={session.action}
+                  error={session.error}
+                  onConnect={session.connectWithKey}
+                />
               </div>
             </Card>
           )}

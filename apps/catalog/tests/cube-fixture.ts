@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import type { Page } from '@playwright/test'
+import type { Page, Route } from '@playwright/test'
 
 /**
  * The cube, with its mesh — the one fixture that mounts geometry.
@@ -132,22 +132,104 @@ export const openCubeWithHole = async (
 }
 
 /**
+ * The keys the stand-in part server knows, for a spec that signs in. The
+ * owner's key is in the account the cube was uploaded under; the other one
+ * connects, as any valid key does, and cannot see the cube. Any other key is
+ * refused, as an invalid one is.
+ */
+export const OWNER_KEY = 'tp_owner_key'
+export const OTHER_ACCOUNT_KEY = 'tp_other_account_key'
+
+/**
+ * What the stand-in part server knows of the connection: whose key it holds,
+ * if any, and every request the page made to it — so a spec can say not only
+ * that the part opened but what was asked for before it did.
+ */
+export interface Connection {
+  account: 'owner' | 'other' | null
+  readonly requests: Array<string>
+}
+
+/**
+ * `/api/session` as the part server answers it: a posted key connects if it is
+ * one it knows, a delete disconnects, and a read says which. A demo session is
+ * never available, so a page that asks for one is told no — and the request is
+ * on the record for a spec to refuse.
+ */
+const answerSession = (route: Route, connection: Connection) => {
+  const request = route.request()
+  if (new URL(request.url()).pathname === '/api/session/demo') {
+    return route.fulfill({ json: { connected: false } })
+  }
+  if (request.method() === 'POST') {
+    const { apiKey } = request.postDataJSON() as { apiKey: string }
+    const account = apiKey === OWNER_KEY ? 'owner' : apiKey === OTHER_ACCOUNT_KEY ? 'other' : null
+    if (account === null) {
+      return route.fulfill({
+        status: 401,
+        json: {
+          error: 'invalid_api_key',
+          message: 'This API key is not valid. Check it and try again.',
+        },
+      })
+    }
+    connection.account = account
+    return route.fulfill({ status: 201, json: { connected: true } })
+  }
+  if (request.method() === 'DELETE') {
+    connection.account = null
+    return route.fulfill({ status: 204, body: '' })
+  }
+  return route.fulfill({ json: { connected: connection.account !== null } })
+}
+
+/**
+ * The analysis as the part server streams it to this connection: refused with
+ * none, a failure for a key whose account cannot see the part — the Engine's
+ * 404, in the server's own words — and the report for the owner's.
+ */
+const analysisFor = (connection: Connection | null, served: Record<string, unknown>) =>
+  connection?.account === 'other'
+    ? { status: 'failed', message: 'Toolpath Engine request failed (HTTP 404).' }
+    : { status: 'ready', report: served }
+
+/**
  * The four routes the page calls, answered from one report.
  *
  * Taken out of {@link openCube} when {@link openCubeWithHole} arrived: the two
  * differ in what the analysis event carries and in nothing else, and a second
  * copy of the route table is a second place for the mesh path to go stale.
+ *
+ * Connected throughout unless a {@link Connection} is given, which is what
+ * {@link openCubeSignedOut} adds and nothing else needs.
  */
-const serve = async (page: Page, served: Record<string, unknown>): Promise<void> => {
+const serve = async (
+  page: Page,
+  served: Record<string, unknown>,
+  connection: Connection | null = null,
+): Promise<void> => {
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url())
-    if (url.pathname === '/api/session') {
-      return route.fulfill({ json: { connected: true } })
+    connection?.requests.push(`${route.request().method()} ${url.pathname}`)
+    if (url.pathname === '/api/session' || url.pathname === '/api/session/demo') {
+      if (connection) {
+        return answerSession(route, connection)
+      }
+      if (url.pathname === '/api/session') {
+        return route.fulfill({ json: { connected: true } })
+      }
+      return route.fallback()
     }
     if (url.pathname === '/api/parts/part-1/events') {
+      if (connection?.account === null) {
+        return route.fulfill({
+          status: 401,
+          json: { error: 'not_connected', message: 'Connect a Toolpath API key first.' },
+        })
+      }
       return route.fulfill({
         contentType: 'text/event-stream',
-        body: `event: analysis\ndata: ${JSON.stringify({ status: 'ready', report: served })}\n\n`,
+        body: `event: analysis\ndata: ${JSON.stringify(analysisFor(connection, served))}\n\n`,
       })
     }
     if (url.pathname === '/api/parts/part-1/mesh') {
@@ -160,6 +242,19 @@ const serve = async (page: Page, served: Record<string, unknown>): Promise<void>
 export const openCube = async (page: Page, query = ''): Promise<void> => {
   await serve(page, report)
   await page.goto(`/parts/part-1?job=job-1${query}`)
+}
+
+/**
+ * The cube opened by its link with no connection yet — what a part opened from
+ * another Toolpath application meets. The part server holds no key until one
+ * is posted; see {@link OWNER_KEY} for which keys it takes and what each sees.
+ * Returns the {@link Connection}, so a spec can say what the page asked for.
+ */
+export const openCubeSignedOut = async (page: Page): Promise<Connection> => {
+  const connection: Connection = { account: null, requests: [] }
+  await serve(page, report, connection)
+  await page.goto('/parts/part-1?job=job-1')
+  return connection
 }
 
 /**
