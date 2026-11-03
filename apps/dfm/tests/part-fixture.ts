@@ -223,33 +223,43 @@ export const richHole = (
   },
 })
 
+const box = { lower: { x: 0, y: 0, z: 0 }, upper: { x: 40, y: 15, z: 8 } }
+
+/** A body of an uploaded file, as its inspection lists it. */
+export const fileBody = (index: number, name: string | null = null) => ({
+  index,
+  name,
+  faceCount: 6,
+  boundingBox: box,
+})
+
+export interface UploadRoutes {
+  /** Every `{ bodyIndex }` the page made a part of, in order. */
+  readonly made: Array<unknown>
+}
+
 /**
- * The whole way in: connect, upload, analyze, and land on the inspector.
+ * The upload's routes: connect, create a file, PUT it straight to storage,
+ * inspect it, make a part of a body, and follow that part's analysis.
  *
- * {@link openPart} deliberately skips all of this — most specs want a report on
- * screen and nothing else. The two that do not are testing the path itself, and
- * they had a copy each of the same route table: the same four endpoints, the
- * same presigned upload, the same STEP buffer.
- *
- * `key` is worth passing where the point is that it must not reach the page.
+ * `inspection` is what the file's inspection streams — one event, or several in
+ * order — ending by default in one body, so the part opens without a choice. `analysis` is what the part's analysis says.
  */
-export const uploadTo = async (
+export const serveUpload = async (
   page: Page,
   part: unknown,
   {
-    key = 'tp_key',
+    inspection = { status: 'ready', bodies: [fileBody(0)] },
     analysis = { status: 'ready', report: part },
-  }: {
-    key?: string
-    /** What the analysis says instead of `ready` with `part` — a body-choice failure, say. */
-    analysis?: unknown
-  } = {},
-): Promise<void> => {
+  }: { inspection?: unknown; analysis?: unknown } = {},
+): Promise<UploadRoutes> => {
   let connected = false
+  const made: Array<unknown> = []
 
   await page.route('**/api/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
+    const at = `${request.method()} ${url.pathname}`
 
     if (url.pathname === '/api/session') {
       if (request.method() === 'GET') {
@@ -262,14 +272,27 @@ export const uploadTo = async (
       connected = false
       return route.fulfill({ status: 204 })
     }
-    if (url.pathname === '/api/parts' && request.method() === 'POST') {
+    if (at === 'POST /api/files') {
       return route.fulfill({
         status: 201,
-        json: { partId: 'part-1', uploadUrl: 'https://upload.test/source' },
+        json: { fileId: 'file-1', uploadUrl: 'https://upload.test/source' },
       })
     }
-    if (url.pathname === '/api/parts/part-1' && request.method() === 'PATCH') {
-      return route.fulfill({ status: 202, json: { partId: 'part-1', jobId: 'job-1' } })
+    if (at === 'PATCH /api/files/file-1') {
+      return route.fulfill({ status: 202, json: { fileId: 'file-1', jobId: 'job-9' } })
+    }
+    if (at === 'GET /api/files/file-1/events' && url.searchParams.get('jobId') === 'job-9') {
+      return route.fulfill({
+        contentType: 'text/event-stream',
+        body: [inspection]
+          .flat()
+          .map((event) => `event: inspection\ndata: ${JSON.stringify(event)}\n\n`)
+          .join(''),
+      })
+    }
+    if (at === 'POST /api/files/file-1/parts') {
+      made.push(request.postDataJSON())
+      return route.fulfill({ status: 201, json: { partId: 'part-1', jobId: 'job-1' } })
     }
     if (url.pathname === '/api/parts/part-1/events' && url.searchParams.get('jobId') === 'job-1') {
       return route.fulfill({
@@ -283,7 +306,11 @@ export const uploadTo = async (
   // The browser uploads CAD straight to object storage; nothing large goes
   // through the app's own server.
   await page.route('https://upload.test/source', (route) => route.fulfill({ status: 200 }))
+  return { made }
+}
 
+/** Connects with `key` and sends the fixture's STEP file, from the start page. */
+export const sendFile = async (page: Page, key = 'tp_key'): Promise<void> => {
   await page.goto('/')
   await page.getByLabel('Toolpath Engine API key').fill(key)
   await page.getByRole('button', { name: 'Connect' }).click()
@@ -297,5 +324,24 @@ export const uploadTo = async (
   const analyze = page.getByRole('button', { name: 'Analyze part' })
   await expect(analyze).toBeEnabled()
   await analyze.click()
+}
+
+/**
+ * The whole way in: connect, upload a one-body file, analyze, and land on the
+ * inspector.
+ *
+ * {@link openPart} deliberately skips all of this — most specs want a report on
+ * screen and nothing else. The few that do not are testing the path itself.
+ *
+ * `key` is worth passing where the point is that it must not reach the page.
+ */
+export const uploadTo = async (
+  page: Page,
+  part: unknown,
+  { key = 'tp_key' }: { key?: string } = {},
+): Promise<void> => {
+  const { made } = await serveUpload(page, part)
+  await sendFile(page, key)
   await expect(page).toHaveURL(/\/parts\/part-1\?job=job-1/)
+  expect(made).toEqual([{ bodyIndex: 0 }])
 }

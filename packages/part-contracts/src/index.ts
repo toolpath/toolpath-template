@@ -8,13 +8,15 @@
  * takes.
  */
 export {
-  bodyChoiceEvent,
+  MAX_BODY_INDEX,
   isPartBodies,
   isReachCurve,
   parseAnalysisEvent,
+  parseInspectionEvent,
   toPublicInspectionReport,
   type AnalysisEvent,
   type ApiProblem,
+  type InspectionEvent,
   type PartBody,
   type PartFeature,
   type PartReport,

@@ -5,8 +5,8 @@ import { secureHeaders } from 'hono/secure-headers'
 import { createConnection } from './connection.js'
 import { EngineError, publicEngineErrorMessage } from './engine.js'
 import { registerAnalysisRoutes } from './routes/analysis.js'
+import { registerFileRoutes } from './routes/files.js'
 import { registerMeshRoutes } from './routes/mesh.js'
-import { registerPartRoutes } from './routes/parts.js'
 import { registerSessionRoutes } from './routes/session.js'
 import type { PartApiContext } from './context.js'
 import type { AppEnv } from './types.js'
@@ -22,7 +22,7 @@ export interface PartApiOptions {
 /**
  * The Toolpath part API every application in this workspace serves.
  *
- * Upload a part, start an analysis, follow its events, read the mesh — none of
+ * Upload a file, make a part of one of its bodies, start an analysis, follow its events, read the mesh — none of
  * which differs between applications, because none of it is a product decision.
  * What differs is what an application does with a finished report, and that
  * stays in the application.
@@ -45,7 +45,7 @@ export const createPartApi = ({ appName }: PartApiOptions): Hono<AppEnv> => {
   app.use('/api/*', csrf({ secFetchSite: 'same-origin' }))
 
   registerSessionRoutes(app, context)
-  registerPartRoutes(app, context)
+  registerFileRoutes(app, context)
   registerAnalysisRoutes(app, context)
   registerMeshRoutes(app, context)
 

@@ -1,4 +1,4 @@
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import { asNumber, directionKey, directionLabel, facts } from './report'
 
 /**

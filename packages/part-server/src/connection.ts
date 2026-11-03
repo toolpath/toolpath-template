@@ -7,18 +7,15 @@ import type { AppEnv } from './types.js'
 
 const CONNECTION_SECONDS = 60 * 60 * 8
 
-const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1'])
+// `URL.hostname` keeps an IPv6 literal's brackets, so `[::1]` is its only spelling.
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
 
 /**
- * Whether a request reached this server as plain HTTP on the loopback host —
- * the one case the connection cookie is set without `Secure`.
+ * Whether a request reached this server as plain HTTP on the loopback host.
  *
  * Chrome and Firefox treat `http://localhost` as a secure context and keep a
  * `Secure` cookie there; WebKit does not, so Safari dropped the connection on
- * every local run. Loopback over HTTP never leaves the machine, so it is the
- * only exception: any other host, and any HTTPS, keeps `Secure` — and so does
- * any request under `NODE_ENV=production`, checked where the cookie is set.
- * `apps/dfm/server/connection.ts` carries a one-line twin of this.
+ * every local dev run. Any other host, and any HTTPS, keeps `Secure`.
  */
 export const isPlainLocalhost = (url: string): boolean => {
   const { protocol, hostname } = new URL(url)
@@ -28,8 +25,10 @@ export const isPlainLocalhost = (url: string): boolean => {
 const cookieOptions = (c: Context<AppEnv>) => ({
   httpOnly: true,
   sameSite: 'lax' as const,
-  // Production is always `Secure`, whatever URL the server itself was reached on.
-  secure: process.env.NODE_ENV === 'production' || !isPlainLocalhost(c.req.url),
+  // The exception is opt-in: only a development server on plain-HTTP loopback goes without
+  // `Secure`. `react-router dev` gets `NODE_ENV=development` from Vite, which sets it when unset;
+  // `pnpm start` (`tsx server/prod.ts`) and the tests set none, so they keep `Secure`.
+  secure: !(process.env.NODE_ENV === 'development' && isPlainLocalhost(c.req.url)),
   path: '/',
 })
 

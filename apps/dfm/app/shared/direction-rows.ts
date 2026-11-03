@@ -1,4 +1,4 @@
-import type { PartFeature, PartReport } from './contracts'
+import type { PartFeature, PartReport } from '@toolpath/part-contracts'
 
 /** What a direction row reads: the faces, the ways up, and the features. */
 export type PartDirections = Pick<PartReport, 'regions' | 'candidateDirections' | 'features'>

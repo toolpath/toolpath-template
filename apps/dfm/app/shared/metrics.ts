@@ -1,5 +1,5 @@
 import type { CdData, FeatureDatasheet, FeatureFacts } from '@toolpath/api'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import { directionKey } from './report'
 
 /** Three sides, in millimetres. */

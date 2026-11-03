@@ -43,7 +43,7 @@ import type { Pass } from 'shared/setups'
 import { Button } from '@toolpath/ui'
 import { ToolButton } from './tool-button'
 import { barButtonClass } from './panel-button'
-import type { PartReport, PublicInspectionReport } from 'shared/contracts'
+import type { PartReport, PublicInspectionReport } from '@toolpath/part-contracts'
 import { usePartView } from './part-view'
 
 class MeshErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {

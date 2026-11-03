@@ -10,7 +10,8 @@ counting test files. Use this repository's actual test layout and commands:
 
 - `apps/dfm/app/**/*.test.{ts,tsx}` covers client contracts, components, and
   pure shared-domain logic through Vitest.
-- `apps/dfm/server/**/*.test.ts` covers Hono server behavior through Vitest.
+- `packages/part-server/src/**/*.test.ts` covers the Hono part API both
+  applications serve, through Vitest.
 - `apps/dfm/tests/*.spec.ts` covers browser flows through Playwright.
 - `pnpm test` runs the setup-script test and all workspace unit tests.
 - `pnpm test:e2e` runs Playwright against the production app build.

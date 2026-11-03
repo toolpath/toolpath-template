@@ -7,7 +7,7 @@ import type { Band, FeatureVerdict, Rule, RuleResult } from 'shared/rules'
 import { bandName, readEveryRule, scoreFeature } from 'shared/rules'
 import type { MetricId, PartContext } from 'shared/metrics'
 import { PART_METRICS, metricFormula, metricQuantity, metricSources } from 'shared/metrics'
-import type { PartFeature } from 'shared/contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 
 /**
  * Where a number came from: the arithmetic, then the datasheet fields behind it

@@ -1,12 +1,12 @@
 import { type Page, expect, test } from '@playwright/test'
-import { analysisEvent, openStream, uploadTo } from './part-fixture'
+import { analysisEvent, fileBody, openStream, sendFile, serveUpload } from './part-fixture'
 
 /**
  * What the part page says while it is not a part yet.
  *
  * Every other spec here opens on a `ready` report, because that is where the
  * app is. The three states before it — waiting, refused, and asked for without
- * a job — had no coverage at any level: `server/app.test.ts` proves the server
+ * a job — had no coverage at any level: part-server's `app.test.ts` proves the server
  * *maps* a queued or failed Engine job onto the wire, and then nothing asserted
  * that the browser draws anything at all when it receives one.
  *
@@ -130,48 +130,60 @@ test('says the session expired when the stream will not open', async ({ page }) 
 })
 
 /**
- * A file holding several solid bodies is not a dead end: the Engine lists them,
- * and the part is made again of the one chosen — the file this tab just
- * uploaded, sent again with that body's index, landing on the new part as any
- * upload does.
+ * A file holding several solid bodies is not a dead end: its inspection lists
+ * them on the start page, and the part is made of the one chosen — by its
+ * index, without the file being sent again.
  */
-test('offers the bodies of a multi-body file, and uploads it again for the one chosen', async ({
+test('offers the bodies of a multi-body file, and makes a part of the one chosen', async ({
   page,
 }) => {
-  const box = { lower: { x: 0, y: 0, z: 0 }, upper: { x: 40, y: 15, z: 8 } }
-  await uploadTo(page, null, {
-    analysis: {
-      status: 'failed',
-      message: 'This file holds 2 solid bodies. Choose the one to machine.',
-      bodies: [
-        { index: 0, name: null, faceCount: 6, boundingBox: box },
-        { index: 1, name: 'Bracket', faceCount: 24, boundingBox: box },
-      ],
-    },
+  const { made } = await serveUpload(page, null, {
+    inspection: { status: 'ready', bodies: [fileBody(0), fileBody(1, 'Bracket')] },
   })
+  await sendFile(page)
 
   await expect(page.getByRole('heading', { name: /holds 2 solid bodies/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /Body 1/ })).toBeVisible()
-
-  const created: Array<unknown> = []
-  await page.route('**/api/parts**', async (route) => {
-    const request = route.request()
-    const url = new URL(request.url())
-    if (url.pathname === '/api/parts' && request.method() === 'POST') {
-      created.push(request.postDataJSON())
-      return route.fulfill({
-        status: 201,
-        json: { partId: 'part-2', uploadUrl: 'https://upload.test/source' },
-      })
-    }
-    if (url.pathname === '/api/parts/part-2' && request.method() === 'PATCH') {
-      return route.fulfill({ status: 202, json: { partId: 'part-2', jobId: 'job-2' } })
-    }
-    return route.fallback()
-  })
+  expect(made).toEqual([])
 
   await page.getByRole('button', { name: /Bracket/ }).click()
 
-  await expect(page).toHaveURL(/\/parts\/part-2\?job=job-2/)
-  expect(created).toEqual([{ filename: 'fixture.step', bodyIndex: 1 }])
+  await expect(page).toHaveURL(/\/parts\/part-1\?job=job-1/)
+  expect(made).toEqual([{ bodyIndex: 1 }])
+})
+
+test('goes back from the bodies to choosing a different file', async ({ page }) => {
+  await serveUpload(page, null, {
+    inspection: { status: 'ready', bodies: [fileBody(0), fileBody(1, 'Bracket')] },
+  })
+  await sendFile(page)
+
+  await page.getByRole('button', { name: 'Choose a different file' }).click()
+
+  await expect(page.getByLabel('CAD file')).toBeVisible()
+  await expect(page.getByRole('heading', { name: /solid bodies/ })).toHaveCount(0)
+})
+
+test('says why a file could not be read, on the start page', async ({ page }) => {
+  // Streamed as the server streams it, `pending` before it settles, and read
+  // where a person reads it: `toHaveText` alone passes on text nobody can see.
+  const { made } = await serveUpload(page, null, {
+    inspection: [
+      { status: 'pending', progress: null, message: 'Inspection is queued…' },
+      {
+        status: 'failed',
+        message: 'Could not follow the inspection of this file. Upload it again.',
+      },
+    ],
+  })
+  await sendFile(page)
+
+  const alert = page.getByRole('alert')
+  await expect(alert).toHaveText('Could not follow the inspection of this file. Upload it again.')
+  await expect(alert).toBeInViewport()
+  await expect(page.getByLabel('CAD file')).toBeVisible()
+  await page.waitForTimeout(500)
+  await expect(alert).toBeInViewport()
+  await expect(page).toHaveURL(/\/$/)
+  expect(made).toEqual([])
 })

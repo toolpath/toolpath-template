@@ -1,6 +1,6 @@
 import type { Vec3 } from '@toolpath/api'
 
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import { coverFaces, inferable } from './infer'
 import type { Infer } from './infer'
 import type { SetupPlan } from './setups'

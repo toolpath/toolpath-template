@@ -26,7 +26,7 @@ substituting a different tool or treating its absence as a passing result.
 Run it, and if it is clean, say so and move on:
 
 - browser code under `app/` importing `server/`, by alias or by relative path;
-- a runtime (non-type) Toolpath SDK import outside `apps/dfm/server`;
+- a runtime (non-type) Toolpath SDK import outside `packages/part-server`;
 - `app/shared/` importing any other layer;
 - the style rules listed in the AGENTS.md table.
 

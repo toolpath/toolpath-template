@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PublicInspectionReport } from './contracts'
+import type { PublicInspectionReport } from '@toolpath/part-contracts'
 import { partSummary, pluralLabel, typeLabel } from './part-summary'
 
 const PZ = { x: 0, y: 0, z: 1 }

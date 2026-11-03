@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { groupAcrossPart, groupHoles, holeKey, isHole, sameHoles } from './hole-groups'
 import { TEST_DIRECTIONS } from './test-part'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 
 const UP = TEST_DIRECTIONS[0]!
 const DOWN = TEST_DIRECTIONS[1]!

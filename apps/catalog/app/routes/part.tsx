@@ -13,14 +13,14 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Badge, Button, Card, IconButton, cn, Panels } from '@toolpath/ui'
 import { toolCollisions, type CatalogTool, type Holder, type Margins } from '@toolpath/catalog-data'
 import { useAnalysisEvents, useSession } from '@toolpath/part-client'
-import type { PartBody, PartFeature, PublicInspectionReport } from '@toolpath/part-contracts'
+import type { PartFeature, PublicInspectionReport } from '@toolpath/part-contracts'
 import { heldRegions } from '@toolpath/part-contracts/selection'
 import { asNumber, asRecord } from '@toolpath/part-contracts/datasheet'
 import { partTop } from '@toolpath/part-contracts/measurements'
 import { directionColor, directionIndexOf } from '@toolpath/viewer'
 import { formatLength } from '@toolpath/tool-support'
 import { AppHeader } from 'components/app-header'
-import { BodyChoice, BodyPicker } from 'components/body-picker'
+import { BodyPicker } from 'components/body-picker'
 import { ConnectForm } from 'components/connect-form'
 import { PartUploadOverlay, type ReplacementAnalysis } from 'components/part-upload-overlay'
 import { FeatureDetails } from 'components/feature-details'
@@ -367,11 +367,10 @@ const Failed = ({ message, children }: { message: string; children?: ReactNode }
   </Shell>
 )
 
-/** Why a replacement did not open, and — for a file of several bodies — which to choose from. */
+/** Why a replacement did not open. */
 interface ReplacementFailure {
   readonly partId: string
   readonly message: string
-  readonly bodies?: ReadonlyArray<PartBody>
 }
 
 /** Follows a replacement job without taking the current part off screen. */
@@ -392,7 +391,7 @@ const ReplacementProgress = ({
       return
     }
     if (state.status === 'failed') {
-      onFailed({ partId: part.partId, message: state.message, bodies: state.bodies })
+      onFailed({ partId: part.partId, message: state.message })
     }
   }, [onFailed, onReady, part.jobId, part.partId, state])
 
@@ -451,14 +450,16 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const {
     status: uploadStatus,
     error: uploadError,
+    bodies: uploadBodies,
     upload: uploadPart,
+    choose: chooseBody,
     reset: resetUpload,
   } = usePartUpload({
-    onStarted: (part) => setReplacement(part),
+    onStarted: setReplacement,
   })
-  const startReplacement = (file: File, bodyIndex?: number) => {
+  const startReplacement = (file: File) => {
     setFailure(null)
-    void uploadPart(file, { bodyIndex })
+    void uploadPart(file)
   }
   const finishReplacement = useCallback(
     (next: PublicInspectionReport, nextJobId: string) => {
@@ -6310,14 +6311,13 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         onReady={finishReplacement}
                         onFailed={failReplacement}
                       />
-                    ) : failure?.bodies ? (
+                    ) : uploadBodies ? (
                       <BodyPicker
-                        partId={failure.partId}
-                        message={failure.message}
-                        bodies={failure.bodies}
+                        bodies={uploadBodies}
                         status={uploadStatus}
                         error={uploadError}
-                        onUpload={startReplacement}
+                        onChoose={(bodyIndex) => void chooseBody(bodyIndex)}
+                        onBack={resetUpload}
                         onClose={closeUpload}
                       />
                     ) : (
@@ -6326,7 +6326,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         status={uploadStatus}
                         error={failure?.message ?? uploadError}
                         analysis={null}
-                        onUpload={(file) => startReplacement(file)}
+                        onUpload={startReplacement}
                         onClose={closeUpload}
                       />
                     )
@@ -7421,24 +7421,6 @@ const Analysing = ({
 
   if (state.status === 'ready') {
     return <Inspecting report={state.report} jobId={jobId} />
-  }
-  if (state.status === 'failed' && state.bodies) {
-    return (
-      <Shell>
-        <div className="relative min-h-0 flex-1">
-          <BodyChoice
-            partId={partId}
-            message={state.message}
-            bodies={state.bodies}
-            footer={
-              <Link to="/parts" className="text-sm text-zinc-200 hover:underline">
-                Upload another part
-              </Link>
-            }
-          />
-        </div>
-      </Shell>
-    )
   }
   if (state.status === 'failed') {
     return (

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { missedBy, setupOffers } from './setup-offers'
 import { TEST_DIRECTIONS, testFeature, testPart } from './test-part'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 
 /**
  * What each way up would be worth holding, before anything is chosen.

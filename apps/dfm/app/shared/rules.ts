@@ -1,6 +1,6 @@
 import type { FeatureType } from '@toolpath/viewer'
 
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import { readExpression } from './expression'
 import {
   type FeatureMetrics,

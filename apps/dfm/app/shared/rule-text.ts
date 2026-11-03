@@ -8,7 +8,7 @@ import {
 import { METRICS, type MetricId, metricQuantity } from './metrics'
 import type { Band, FeatureVerdict, Rule } from './rules'
 import { bandName, bandRank, bandRanges, rangeSpectrum } from './rules'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import { directionLabel, featureSummary } from './report'
 
 /**

@@ -12,7 +12,7 @@ import {
 import type { Proposal } from './proposal'
 import { EMPTY_PLAN } from './setups'
 import { TEST_DIRECTIONS, testFeature } from './test-part'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 
 const UP = TEST_DIRECTIONS[0]!
 const wall = testFeature('wall', 'wall', UP, [0, 1, 2])

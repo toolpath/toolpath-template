@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import type { PartFeature, PublicInspectionReport } from 'shared/contracts'
+import type { PartFeature, PublicInspectionReport } from '@toolpath/part-contracts'
 import { KindIcon } from './feature-icons'
 import { partSummary } from 'shared/part-summary'
 import { directionLabel } from 'shared/report'

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import {
   blockedBy,
   disturbsLocked,

@@ -1,4 +1,4 @@
-import type { PublicInspectionReport } from './contracts'
+import type { PublicInspectionReport } from '@toolpath/part-contracts'
 import { directionLabel } from './report'
 
 /**

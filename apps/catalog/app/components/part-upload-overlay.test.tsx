@@ -51,6 +51,9 @@ describe('replacement part upload', () => {
     )
 
     expect(container.firstElementChild).toHaveClass('absolute', 'inset-0')
-    expect(screen.getByText('Choose or drop a CAD file').parentElement).toHaveClass('min-h-72')
+    const dropzone = screen.getByText('Choose or drop a CAD file').parentElement!
+    expect(dropzone).toHaveClass('flex-1')
+    // A short stage scrolls rather than clipping the heading and the error.
+    expect(dropzone.parentElement).toHaveClass('overflow-y-auto', 'justify-center-safe')
   })
 })

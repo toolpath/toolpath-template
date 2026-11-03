@@ -1,4 +1,4 @@
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import type { Pass, SetupPlan } from './setups'
 import { coveredRegions, cutRegions, givenUp } from './setups'
 

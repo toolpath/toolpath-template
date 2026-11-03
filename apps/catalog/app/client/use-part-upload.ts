@@ -1,18 +1,9 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import { useNavigate } from 'react-router'
-import {
-  errorMessage,
-  rememberUpload,
-  uploadPart,
-  type PartUploadPhase,
-} from '@toolpath/part-client'
+import { useFileUpload, type StartedPart } from '@toolpath/part-client'
 
-export type UploadStatus = 'idle' | PartUploadPhase
-
-export interface StartedPartUpload {
-  readonly partId: string
-  readonly jobId: string
-}
+export type { UploadStatus } from '@toolpath/part-client'
+export type StartedPartUpload = StartedPart
 
 export interface UsePartUploadOptions {
   /**
@@ -23,39 +14,23 @@ export interface UsePartUploadOptions {
 }
 
 /**
- * Owns the create → direct upload → analyse workflow for one CAD file.
- *
- * It stays in the application rather than in `@toolpath/part-client` because it
- * ends in a route, and the route is this application's own.
+ * One CAD file to its part: `@toolpath/part-client` runs the upload, the
+ * inspection and the choice of body; this decides where a started part goes,
+ * since the route is this application's own.
  */
 export const usePartUpload = ({ onStarted }: UsePartUploadOptions = {}) => {
   const navigate = useNavigate()
-  const [status, setStatus] = useState<UploadStatus>('idle')
-  const [error, setError] = useState<string | null>(null)
-
-  const upload = useCallback(
-    async (file: File, { bodyIndex }: { bodyIndex?: number } = {}) => {
-      setError(null)
-      try {
-        const { partId, jobId } = await uploadPart(file, { onPhaseChange: setStatus, bodyIndex })
-        rememberUpload(partId, file)
-        if (onStarted) {
-          onStarted({ partId, jobId })
-          return
-        }
-        await navigate(`/parts/${encodeURIComponent(partId)}?job=${encodeURIComponent(jobId)}`)
-      } catch (reason) {
-        setStatus('idle')
-        setError(errorMessage(reason))
+  const open = useCallback(
+    async (part: StartedPart) => {
+      if (onStarted) {
+        onStarted(part)
+        return
       }
+      await navigate(
+        `/parts/${encodeURIComponent(part.partId)}?job=${encodeURIComponent(part.jobId)}`,
+      )
     },
     [navigate, onStarted],
   )
-
-  const reset = useCallback(() => {
-    setStatus('idle')
-    setError(null)
-  }, [])
-
-  return { status, error, upload, reset }
+  return useFileUpload(open)
 }

@@ -6,7 +6,7 @@ import { type PaintMode, loadPaintMode, savePaintMode } from 'shared/paint'
 import { Panels, Tabs } from '@toolpath/ui'
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import type { PublicInspectionReport } from 'shared/contracts'
+import type { PublicInspectionReport } from '@toolpath/part-contracts'
 import {
   NOTHING_SELECTED,
   focusWithin,
@@ -79,7 +79,7 @@ import {
   holdDirection as holdPickDirection,
   switchMode,
 } from 'shared/pick-mode'
-import type { PartFeature } from 'shared/contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import { escapeStep } from 'shared/escape'
 import { useStable } from 'shared/stable'
 import { isTyping, keyIntent } from 'shared/keys'

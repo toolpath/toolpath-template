@@ -1,8 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { rememberUpload } from '@toolpath/part-client'
 import type { PartBody } from '@toolpath/part-contracts'
 import { BodyPicker, type BodyPickerProps } from './body-picker'
 
@@ -24,25 +22,16 @@ const bodies: Array<PartBody> = [
 ]
 
 const renderPicker = (overrides: Partial<BodyPickerProps> = {}) => {
-  const onUpload = vi.fn<BodyPickerProps['onUpload']>(async () => {})
-  render(
-    <MemoryRouter>
-      <BodyPicker
-        partId="part-1"
-        message="This file holds 2 solid bodies. Choose the one to machine."
-        bodies={bodies}
-        status="idle"
-        error={null}
-        onUpload={onUpload}
-        {...overrides}
-      />
-    </MemoryRouter>,
-  )
-  return onUpload
+  const props = {
+    onChoose: vi.fn<BodyPickerProps['onChoose']>(),
+    onBack: vi.fn<BodyPickerProps['onBack']>(),
+  }
+  render(<BodyPicker bodies={bodies} status="idle" error={null} {...props} {...overrides} />)
+  return props
 }
 
 describe('choosing a body of a multi-body file', () => {
-  it('offers every body under the failure, by name or by place, with its size', () => {
+  it('offers every body of the file, by name or by place, with its size', () => {
     renderPicker()
 
     expect(screen.getByRole('heading', { name: /holds 2 solid bodies/ })).toBeTruthy()
@@ -54,37 +43,30 @@ describe('choosing a body of a multi-body file', () => {
     ).toBeTruthy()
   })
 
-  it('sends the file this tab uploaded again, for the body chosen', () => {
-    const file = new File(['STEP'], 'bodies.step')
-    rememberUpload('part-held', file)
-    const onUpload = renderPicker({ partId: 'part-held' })
+  it('names the body chosen by its index', () => {
+    const { onChoose } = renderPicker()
 
     fireEvent.click(screen.getByRole('button', { name: /Bracket/ }))
 
-    expect(onUpload).toHaveBeenCalledWith(file, 1)
+    expect(onChoose).toHaveBeenCalledWith(1)
   })
 
-  it('asks for the file again when this tab holds none, then sends it for that body', () => {
-    const onUpload = renderPicker({ partId: 'part-opened-by-link' })
+  it('goes back to choosing a file', () => {
+    const { onBack } = renderPicker()
 
-    fireEvent.click(screen.getByRole('button', { name: /Bracket/ }))
-    expect(onUpload).not.toHaveBeenCalled()
-    expect(screen.getByText('Choose the file again to open Bracket.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Choose a different file' }))
 
-    const file = new File(['STEP'], 'bodies.step')
-    fireEvent.change(screen.getByLabelText('CAD file'), {
-      target: { files: { 0: file, length: 1, item: () => file } },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Analyze part' }))
-
-    expect(onUpload).toHaveBeenCalledWith(file, 1)
+    expect(onBack).toHaveBeenCalled()
   })
 
-  it('says how far the upload has got, and what went wrong with it', () => {
-    renderPicker({ status: 'uploading-file', error: 'Could not upload the CAD file.' })
+  it('says how far the part has got, and what went wrong with it', () => {
+    renderPicker({ status: 'starting-analysis', error: 'Toolpath Engine request failed.' })
 
-    expect(screen.getByRole('status').textContent).toBe('Uploading file…')
-    expect(screen.getByRole('alert').textContent).toBe('Could not upload the CAD file.')
+    expect(screen.getByRole('status').textContent).toBe('Starting analysis…')
+    expect(screen.getByRole('alert').textContent).toBe('Toolpath Engine request failed.')
     expect(screen.getByRole('button', { name: /Bracket/ }).hasAttribute('disabled')).toBe(true)
+    expect(
+      screen.getByRole('button', { name: 'Choose a different file' }).hasAttribute('disabled'),
+    ).toBe(true)
   })
 })

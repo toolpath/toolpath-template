@@ -12,13 +12,14 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/dfm/package.json apps/dfm/package.json
 COPY packages/part-client/package.json packages/part-client/package.json
 COPY packages/part-contracts/package.json packages/part-contracts/package.json
+COPY packages/part-server/package.json packages/part-server/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 
 FROM deps AS build
 COPY . .
 # The SDK runs on the server and the UI/viewer packages are bundled by Vite.
-# DFM imports the two workspace packages above, so Turbo builds that
+# DFM imports the three workspace packages above, so Turbo builds that
 # dependency closure first.
 RUN pnpm turbo run build --filter=@toolpath/dfm
 # A self-contained production dependency closure keeps the runtime image independent of pnpm.

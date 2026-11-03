@@ -1,8 +1,8 @@
 import type { FeatureFacts, Vec3 } from '@toolpath/api'
 import { sameDirection } from '@toolpath/viewer'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 
-export type { PartFeature } from './contracts'
+export type { PartFeature } from '@toolpath/part-contracts'
 
 export interface FeatureSummary {
   tag: string

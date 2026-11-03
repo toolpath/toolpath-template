@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { FeatureType as EngineFeatureType } from '@toolpath/api'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import { DEFAULT_RULES, DEFAULT_RULE_SET, PRESET_SETS } from './rule-presets'
 import { evaluateFeature, evaluatePart, scoreFeature, scorePart } from './rules'
 

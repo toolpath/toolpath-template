@@ -207,7 +207,6 @@ const serve = async (
   page: Page,
   served: Record<string, unknown>,
   connection: Connection | null = null,
-  analysis: Record<string, unknown> | null = null,
 ): Promise<void> => {
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url())
@@ -230,7 +229,7 @@ const serve = async (
       }
       return route.fulfill({
         contentType: 'text/event-stream',
-        body: `event: analysis\ndata: ${JSON.stringify(analysis ?? analysisFor(connection, served))}\n\n`,
+        body: `event: analysis\ndata: ${JSON.stringify(analysisFor(connection, served))}\n\n`,
       })
     }
     if (url.pathname === '/api/parts/part-1/mesh') {
@@ -240,13 +239,73 @@ const serve = async (
   })
 }
 
+/** The cube's routes, connected, with nothing navigated — so a spec can arrive by upload. */
+export const serveCube = (page: Page): Promise<void> => serve(page, report)
+
+/** A body of an uploaded file, as its inspection lists it. */
+export const fileBody = (index: number, name: string | null = null) => ({
+  index,
+  name,
+  faceCount: 6,
+  boundingBox: { lower: { x: 0, y: 0, z: 0 }, upper: { x: 40, y: 15, z: 8 } },
+})
+
 /**
- * The cube's analysis answered with `analysis` instead — a file of several
- * bodies, say — and nothing navigated, so a spec can arrive by upload or by
- * link.
+ * The upload's routes, over whatever {@link serve} answers: a file created and
+ * PUT straight to storage, its inspection streaming `inspection` (one event, or
+ * several in order — the server sends `pending` before it settles), and a part
+ * `partId` made of whichever body is named — the cube, analysed. Returns every
+ * `{ bodyIndex }` a part was made of, in order.
+ *
+ * Registered after `serve`, so these routes are asked first.
  */
-export const serveAnalysis = (page: Page, analysis: Record<string, unknown>): Promise<void> =>
-  serve(page, report, null, analysis)
+export const serveUpload = async (
+  page: Page,
+  inspection: Record<string, unknown> | Array<Record<string, unknown>>,
+  partId = 'part-1',
+): Promise<Array<unknown>> => {
+  const made: Array<unknown> = []
+  const jobId = partId.replace('part', 'job')
+  await page.route('**/api/**', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    const at = `${request.method()} ${url.pathname}`
+    if (at === 'POST /api/files') {
+      return route.fulfill({
+        status: 201,
+        json: { fileId: 'file-1', uploadUrl: 'https://upload.test/source' },
+      })
+    }
+    if (at === 'PATCH /api/files/file-1') {
+      return route.fulfill({ status: 202, json: { fileId: 'file-1', jobId: 'job-9' } })
+    }
+    if (at === 'GET /api/files/file-1/events') {
+      return route.fulfill({
+        contentType: 'text/event-stream',
+        body: [inspection]
+          .flat()
+          .map((event) => `event: inspection\ndata: ${JSON.stringify(event)}\n\n`)
+          .join(''),
+      })
+    }
+    if (at === 'POST /api/files/file-1/parts') {
+      made.push(request.postDataJSON())
+      return route.fulfill({ status: 201, json: { partId, jobId } })
+    }
+    if (partId !== 'part-1' && url.pathname === `/api/parts/${partId}/events`) {
+      return route.fulfill({
+        contentType: 'text/event-stream',
+        body: `event: analysis\ndata: ${JSON.stringify({ status: 'ready', report: { ...report, partId, jobId } })}\n\n`,
+      })
+    }
+    if (partId !== 'part-1' && url.pathname === `/api/parts/${partId}/mesh`) {
+      return route.fulfill({ contentType: 'model/gltf-binary', body: mesh })
+    }
+    return route.fallback()
+  })
+  await page.route('https://upload.test/source', (route) => route.fulfill({ status: 200 }))
+  return made
+}
 
 export const openCube = async (page: Page, query = ''): Promise<void> => {
   await serve(page, report)

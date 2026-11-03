@@ -1,14 +1,16 @@
 import { Button } from '@toolpath/ui'
 import { useState } from 'react'
 import type { UploadStatus } from 'client/use-part-upload'
-import { CAD_EXTENSIONS } from 'shared/cad'
+import { CAD_EXTENSIONS } from '@toolpath/part-contracts'
 
 export const uploadLabel = (status: UploadStatus): string => {
   switch (status) {
-    case 'creating-part':
-      return 'Creating part…'
+    case 'creating-file':
+      return 'Preparing upload…'
     case 'uploading-file':
       return 'Uploading file…'
+    case 'inspecting-file':
+      return 'Reading the file…'
     case 'starting-analysis':
       return 'Starting analysis…'
     default:
@@ -26,8 +28,7 @@ export const UploadPanel = ({
   error: string | null
   status: UploadStatus
   onUpload: (file: File) => Promise<void>
-  /** Absent where the panel is asking for a file again rather than standing on the start page. */
-  onDisconnect?: () => Promise<void>
+  onDisconnect: () => Promise<void>
   isDisconnecting?: boolean
 }) => {
   const [file, setFile] = useState<File | null>(null)
@@ -72,17 +73,15 @@ export const UploadPanel = ({
           {uploadLabel(status)}
         </Button>
       </div>
-      {onDisconnect ? (
-        <Button
-          type="button"
-          variant="muted"
-          isLoading={isDisconnecting}
-          disabled={isBusy}
-          onClick={() => void onDisconnect()}
-        >
-          Disconnect API key
-        </Button>
-      ) : null}
+      <Button
+        type="button"
+        variant="muted"
+        isLoading={isDisconnecting}
+        disabled={isBusy}
+        onClick={() => void onDisconnect()}
+      >
+        Disconnect API key
+      </Button>
     </div>
   )
 }

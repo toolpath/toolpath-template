@@ -1,5 +1,4 @@
 import type { ApiProblem } from '@toolpath/part-contracts'
-import { validateCadFile } from '@toolpath/part-contracts'
 
 export class AppApiError extends Error {
   constructor(
@@ -11,15 +10,8 @@ export class AppApiError extends Error {
   }
 }
 
-export type PartUploadPhase = 'creating-part' | 'uploading-file' | 'starting-analysis'
-
-export interface UploadPartOptions {
-  onPhaseChange?: (phase: PartUploadPhase) => void
-  /** Which body of a multi-body file to make the part of, by the index its failed analysis listed. */
-  bodyIndex?: number
-}
-
-const api = async <T>(path: string, init?: RequestInit): Promise<T> => {
+/** A request to this application's own server, its failure worded by the server. */
+export const api = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(path, { credentials: 'same-origin', ...init })
   if (!response.ok) {
     const problem = (await response.json().catch(() => null)) as ApiProblem | null
@@ -47,52 +39,3 @@ export const startDemoSession = () =>
   api<{ connected: boolean }>('/api/session/demo', { method: 'POST' })
 
 export const disconnect = () => api<void>('/api/session', { method: 'DELETE' })
-
-const uploadToEngine = async (file: File, uploadUrl: string): Promise<void> => {
-  let response: Response
-  try {
-    response = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: file.type ? { 'Content-Type': file.type } : undefined,
-      body: file,
-    })
-  } catch {
-    throw new AppApiError(
-      'Could not upload the CAD file. Check your connection and try again.',
-      502,
-    )
-  }
-  if (!response.ok) {
-    throw new AppApiError(
-      `Could not upload the CAD file (HTTP ${response.status}).`,
-      response.status,
-    )
-  }
-}
-
-/** Creates an Engine part, uploads directly to its short-lived PUT URL, then starts analysis. */
-export const uploadPart = async (
-  file: File,
-  { onPhaseChange, bodyIndex }: UploadPartOptions = {},
-): Promise<{ partId: string; jobId: string }> => {
-  const validationError = validateCadFile(file)
-  if (validationError) {
-    throw new AppApiError(validationError, 400)
-  }
-
-  onPhaseChange?.('creating-part')
-  const { partId, uploadUrl } = await api<{ partId: string; uploadUrl: string }>('/api/parts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filename: file.name, bodyIndex }),
-  })
-  onPhaseChange?.('uploading-file')
-  await uploadToEngine(file, uploadUrl)
-  onPhaseChange?.('starting-analysis')
-  return api<{ partId: string; jobId: string }>(
-    `/api/parts/${encodeURIComponent(partId)}?featureDetails=true`,
-    {
-      method: 'PATCH',
-    },
-  )
-}

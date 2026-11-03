@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { toPublicInspectionReport } from './contracts'
-import type { PartReport } from './contracts'
+import { toPublicInspectionReport } from '@toolpath/part-contracts'
+import type { PartReport } from '@toolpath/part-contracts'
 
 /**
  * That the redaction covers the whole type, and not the three fields somebody

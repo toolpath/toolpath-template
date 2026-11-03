@@ -1,7 +1,7 @@
 import { DIRECTION_COLORS } from '@toolpath/viewer'
 import type { Vec3 } from '@toolpath/api'
 
-import type { PartFeature, PartReport } from './contracts'
+import type { PartFeature, PartReport } from '@toolpath/part-contracts'
 
 /**
  * What the plan actually needs from a report: its faces, and nothing else.

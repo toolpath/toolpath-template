@@ -1,6 +1,6 @@
 import type {
   FeatureDatasheet,
-  JobDetail,
+  FileBody,
   PartFeature as ApiPartFeature,
   PartResponse,
   Vec3,
@@ -101,22 +101,29 @@ export const toPublicInspectionReport = (report: PartReport): PublicInspectionRe
 }
 
 /**
- * One solid body of a CAD file holding several, as the Engine lists them on a
- * job it failed for that reason. A part is one body, so the file is created
- * again with this `index` as its `bodyIndex`. The box is in millimetres.
+ * One solid body of an uploaded CAD file, as its inspection lists it: the SDK's
+ * `FileBody`, with `name` stated as `null` where the file gives none — the
+ * server normalises it at the boundary — and without the experimental `shape`,
+ * which nothing here reads. A part is one body, made by its `index`. The box
+ * is in millimetres.
  */
-export interface PartBody {
-  index: number
+export type PartBody = Pick<FileBody, 'index' | 'faceCount' | 'boundingBox'> & {
   name: string | null
-  faceCount: number
-  boundingBox: { lower: Vec3; upper: Vec3 }
 }
 
-export type AnalysisEvent =
+/** The largest body index the server accepts, which the Engine's own clients use too. */
+export const MAX_BODY_INDEX = 999_999
+
+/** A job the browser is following: waiting, refused, or done with what it became. */
+type JobEvent<Ready> =
   | { status: 'pending'; progress: number | null; message: string }
-  /** `bodies` is present only when the failure is a choice of body to make. */
-  | { status: 'failed'; message: string; bodies?: Array<PartBody> }
-  | { status: 'ready'; report: PublicInspectionReport }
+  | { status: 'failed'; message: string }
+  | ({ status: 'ready' } & Ready)
+
+export type AnalysisEvent = JobEvent<{ report: PublicInspectionReport }>
+
+/** The inspection of an uploaded file, which ends in the bodies it holds. */
+export type InspectionEvent = JobEvent<{ bodies: Array<PartBody> }>
 
 const isCount = (value: unknown): value is number => Number.isInteger(value) && Number(value) >= 0
 
@@ -126,68 +133,48 @@ const isVec3 = (value: unknown): value is Vec3 =>
 const isPartBody = (value: unknown): value is PartBody =>
   isRecord(value) &&
   isCount(value.index) &&
+  value.index <= MAX_BODY_INDEX &&
   (typeof value.name === 'string' || value.name === null) &&
   isCount(value.faceCount) &&
   isRecord(value.boundingBox) &&
   isVec3(value.boundingBox.lower) &&
   isVec3(value.boundingBox.upper)
 
-/** Whether a value is a non-empty list of well-formed bodies. */
-export const isPartBodies = (value: unknown): value is Array<PartBody> =>
-  Array.isArray(value) && value.length > 0 && value.every(isPartBody)
-
-const BODY_CHOICE_ERROR = /^(multiple_bodies|body_not_found):/
-
 /**
- * The failed event for a job the Engine refused because its file holds several
- * bodies (or a chosen `bodyIndex` is past the last), carrying the bodies to
- * choose from; `null` for every other job. The Engine's own error text stays
- * out of the message.
+ * Whether a value is a non-empty list of well-formed bodies, each named once:
+ * an index is what a part is made of, so two bodies under one would make the
+ * choice between them meaningless.
  */
-export const bodyChoiceEvent = (
-  job: Pick<JobDetail, 'status' | 'error' | 'bodies'>,
-): AnalysisEvent | null => {
-  if (job.status !== 'failed' || !job.error || !BODY_CHOICE_ERROR.test(job.error)) {
-    return null
-  }
-  if (!job.bodies || job.bodies.length === 0) {
-    return null
-  }
-  const bodies = job.bodies.map(({ index, name, faceCount, boundingBox }) => ({
-    index,
-    name: name ?? null,
-    faceCount,
-    boundingBox: { lower: boundingBox.lower, upper: boundingBox.upper },
-  }))
-  const count = bodies.length === 1 ? '1 solid body' : `${bodies.length} solid bodies`
-  return {
-    status: 'failed',
-    message: `This file holds ${count}. Choose the one to machine.`,
-    bodies,
-  }
-}
+export const isPartBodies = (value: unknown): value is Array<PartBody> =>
+  Array.isArray(value) &&
+  value.length > 0 &&
+  value.every(isPartBody) &&
+  new Set(value.map((body) => body.index)).size === value.length
 
-// Validate the event envelope before it affects UI state. Keep this small and dependency-free:
-// the full report has already been validated by Engine and redacted by the server.
-export const parseAnalysisEvent = (value: unknown): AnalysisEvent => {
-  if (!isRecord(value) || typeof value.status !== 'string') {
-    throw new Error('Invalid analysis event')
-  }
-
+/** The two statuses every job event shares, or `null` for anything else. */
+const parseUnsettled = (value: Record<string, unknown>) => {
   if (
     value.status === 'pending' &&
     (typeof value.progress === 'number' || value.progress === null) &&
     typeof value.message === 'string'
   ) {
-    return { status: 'pending', progress: value.progress, message: value.message }
+    return { status: 'pending' as const, progress: value.progress, message: value.message }
   }
   if (value.status === 'failed' && typeof value.message === 'string') {
-    if (value.bodies === undefined) {
-      return { status: 'failed', message: value.message }
-    }
-    if (isPartBodies(value.bodies)) {
-      return { status: 'failed', message: value.message, bodies: value.bodies }
-    }
+    return { status: 'failed' as const, message: value.message }
+  }
+  return null
+}
+
+// Validate the event envelope before it affects UI state. Keep this small and dependency-free:
+// the full report has already been validated by Engine and redacted by the server.
+export const parseAnalysisEvent = (value: unknown): AnalysisEvent => {
+  if (!isRecord(value)) {
+    throw new Error('Invalid analysis event')
+  }
+  const unsettled = parseUnsettled(value)
+  if (unsettled) {
+    return unsettled
   }
   if (
     value.status === 'ready' &&
@@ -200,6 +187,20 @@ export const parseAnalysisEvent = (value: unknown): AnalysisEvent => {
     return { status: 'ready', report: value.report as PublicInspectionReport }
   }
   throw new Error('Invalid analysis event')
+}
+
+export const parseInspectionEvent = (value: unknown): InspectionEvent => {
+  if (!isRecord(value)) {
+    throw new Error('Invalid inspection event')
+  }
+  const unsettled = parseUnsettled(value)
+  if (unsettled) {
+    return unsettled
+  }
+  if (value.status === 'ready' && isPartBodies(value.bodies)) {
+    return { status: 'ready', bodies: value.bodies }
+  }
+  throw new Error('Invalid inspection event')
 }
 
 export interface ApiProblem {

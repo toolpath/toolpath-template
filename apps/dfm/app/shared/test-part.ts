@@ -1,4 +1,4 @@
-import type { PartFeature, PartReport, PublicInspectionReport } from './contracts'
+import type { PartFeature, PartReport, PublicInspectionReport } from '@toolpath/part-contracts'
 
 /**
  * A part built the way this app's other tests build one — by hand, in the

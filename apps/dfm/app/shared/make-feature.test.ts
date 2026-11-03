@@ -18,7 +18,7 @@ import {
 import { TEST_DIRECTIONS, testFeature } from './test-part'
 import { EMPTY_PLAN, PASSES, withoutEmptied } from './setups'
 import { setPassFor, setupForReading } from './plan-actions'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 
 const UP = TEST_DIRECTIONS[0]!
 const DOWN = TEST_DIRECTIONS[1]!

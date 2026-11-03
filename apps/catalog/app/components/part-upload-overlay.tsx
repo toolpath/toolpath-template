@@ -45,13 +45,15 @@ export const PartUploadOverlay = ({
   const busy = status !== 'idle' || analysis !== null
   const message =
     analysis?.message ??
-    (status === 'creating-part'
+    (status === 'creating-file'
       ? 'Preparing the upload…'
       : status === 'uploading-file'
         ? 'Uploading the file…'
-        : status === 'starting-analysis'
-          ? 'Starting analysis…'
-          : null)
+        : status === 'inspecting-file'
+          ? 'Reading the file…'
+          : status === 'starting-analysis'
+            ? 'Starting analysis…'
+            : null)
 
   // Escape backs out of the uploader wherever Cancel would — never mid-upload,
   // where there is nothing to go back to yet.
@@ -82,7 +84,20 @@ export const PartUploadOverlay = ({
               : 'p-5 shadow-xl'
           }
         >
-          <div className={full ? 'flex size-full max-w-2xl flex-col justify-center' : undefined}>
+          {/*
+            The stage can be short — the replace-part overlay is drawn in the
+            viewer panel, under 300px tall at 1280×720 — so the column scrolls
+            rather than clips, and is centred only while it fits: a plain
+            `justify-center` overflowed both ways and cut off the heading above
+            and the error below, which is how a failed upload went silent.
+          */}
+          <div
+            className={
+              full
+                ? 'flex size-full max-w-2xl flex-col justify-center-safe overflow-y-auto'
+                : undefined
+            }
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className={HEADING}>{title}</h2>
@@ -99,7 +114,7 @@ export const PartUploadOverlay = ({
               <div
                 className={
                   full
-                    ? 'mt-6 grid min-h-72 place-items-center rounded-xl border border-zinc-800 bg-zinc-950/70 p-6 text-center'
+                    ? 'mt-6 grid min-h-24 flex-1 place-items-center rounded-xl border border-zinc-800 bg-zinc-950/70 p-6 text-center'
                     : 'mt-5 rounded-lg border border-zinc-800 bg-zinc-950/70 p-4'
                 }
               >
@@ -128,7 +143,7 @@ export const PartUploadOverlay = ({
                   choose(event.dataTransfer.files[0])
                 }}
                 className={`mt-6 flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center transition ${
-                  full ? 'min-h-72 flex-1' : ''
+                  full ? 'min-h-24 flex-1' : ''
                 } ${
                   dragging
                     ? 'border-info bg-info/10 text-zinc-100'

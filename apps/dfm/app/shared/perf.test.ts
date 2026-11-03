@@ -5,7 +5,7 @@ import type { SetupPlan } from './setups'
 import { testFeature } from './test-part'
 import type { FeatureVerdict, RuleResult } from './rules'
 import type { PartFaces } from './setups'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 
 const DIRS = [
   { x: 0, y: 0, z: 1 },
