@@ -1,4 +1,4 @@
-import type { PartFeature, PartReport, PublicInspectionReport } from './contracts'
+import type { PartFeature, PartReport, PublicInspectionReport } from '@toolpath/part-contracts'
 
 /**
  * A part built the way this app's other tests build one — by hand, in the
@@ -58,10 +58,6 @@ export const testPart = (): PartReport =>
     thumbnailUrl: null,
     meshStlUrl: null,
     meshGlbUrl: null,
-    downloadMs: 1,
-    recognitionMs: 1,
-    enrichmentMs: 1,
-    totalMs: 3,
     features: [
       testFeature('up-face', 'face', UP, [0]),
       testFeature('up-wall', 'wall', UP, [2, 3]),

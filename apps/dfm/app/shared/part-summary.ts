@@ -1,4 +1,4 @@
-import type { PublicInspectionReport } from './contracts'
+import type { PublicInspectionReport } from '@toolpath/part-contracts'
 import { directionLabel } from './report'
 
 /**
@@ -35,7 +35,6 @@ export interface PartSummary {
   readonly points: number
   readonly directions: ReadonlyArray<DirectionCount>
   readonly types: ReadonlyArray<TypeCount>
-  readonly timing: { readonly download: number; readonly analysis: number; readonly total: number }
 }
 
 /**
@@ -79,8 +78,6 @@ export const pluralLabel = (value: string): string => {
   return `${value}s`
 }
 
-const asMs = (value: unknown): number => (typeof value === 'number' && value >= 0 ? value : 0)
-
 export const partSummary = (
   report: PublicInspectionReport,
   activeDirection: number | null = null,
@@ -121,16 +118,5 @@ export const partSummary = (
         inDirection: held ? (perTypeHeld.get(type) ?? 0) : null,
       }))
       .sort((a, b) => b.features - a.features || a.label.localeCompare(b.label)),
-    timing: {
-      download: asMs(report.downloadMs),
-      // The API split analysis into recognition and enrichment; summing them
-      // keeps this meaning what it always meant rather than reading zero.
-      analysis: asMs(report.recognitionMs) + asMs(report.enrichmentMs),
-      total: asMs(report.totalMs),
-    },
   }
 }
-
-/** Milliseconds while they are small, seconds once they stop being. */
-export const duration = (ms: number): string =>
-  ms >= 1000 ? `${(ms / 1000).toFixed(2)} s` : `${Math.round(ms)} ms`

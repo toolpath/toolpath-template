@@ -7,14 +7,30 @@ import type { AppEnv } from './types.js'
 
 const CONNECTION_SECONDS = 60 * 60 * 8
 
-const cookieOptions = {
+// `URL.hostname` keeps an IPv6 literal's brackets, so `[::1]` is its only spelling.
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
+
+/**
+ * Whether a request reached this server as plain HTTP on the loopback host.
+ *
+ * Chrome and Firefox treat `http://localhost` as a secure context and keep a
+ * `Secure` cookie there; WebKit does not, so Safari dropped the connection on
+ * every local dev run. Any other host, and any HTTPS, keeps `Secure`.
+ */
+export const isPlainLocalhost = (url: string): boolean => {
+  const { protocol, hostname } = new URL(url)
+  return protocol === 'http:' && LOOPBACK_HOSTS.has(hostname)
+}
+
+const cookieOptions = (c: Context<AppEnv>) => ({
   httpOnly: true,
   sameSite: 'lax' as const,
-  // `Secure` is required in every environment. Browsers make an exception for localhost, so
-  // local development keeps working without ever demonstrating an insecure BYOK cookie.
-  secure: true,
+  // The exception is opt-in: only a development server on plain-HTTP loopback goes without
+  // `Secure`. `react-router dev` gets `NODE_ENV=development` from Vite, which sets it when unset;
+  // `pnpm start` (`tsx server/prod.ts`) and the tests set none, so they keep `Secure`.
+  secure: !(process.env.NODE_ENV === 'development' && isPlainLocalhost(c.req.url)),
   path: '/',
-}
+})
 
 /** The BYOK connection for one application: its cookie, and the key that seals it. */
 export interface Connection {
@@ -49,7 +65,7 @@ export const createConnection = (appName: string): Connection => {
   )
 
   const clearConnection = (c: Context<AppEnv>): void => {
-    deleteCookie(c, cookieName, cookieOptions)
+    deleteCookie(c, cookieName, cookieOptions(c))
   }
 
   /** Encrypts the BYOK API key into an eight-hour HttpOnly connection cookie. */
@@ -61,7 +77,7 @@ export const createConnection = (appName: string): Connection => {
       .setAudience(issuer)
       .setExpirationTime(`${CONNECTION_SECONDS}s`)
       .encrypt(connectionKey)
-    setCookie(c, cookieName, token, { ...cookieOptions, maxAge: CONNECTION_SECONDS })
+    setCookie(c, cookieName, token, { ...cookieOptions(c), maxAge: CONNECTION_SECONDS })
   }
 
   /**

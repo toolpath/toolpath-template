@@ -1,8 +1,8 @@
-import type { FeatureDatasheetFacts, Vec3 } from '@toolpath/api'
+import type { FeatureFacts, Vec3 } from '@toolpath/api'
 import { sameDirection } from '@toolpath/viewer'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 
-export type { PartFeature } from './contracts'
+export type { PartFeature } from '@toolpath/part-contracts'
 
 export interface FeatureSummary {
   tag: string
@@ -56,8 +56,7 @@ export const directionKey = ({ x, y, z }: Vec3): string =>
 
 const millimeters = (value: number): string => `${value.toFixed(value < 10 ? 2 : 1)} mm`
 
-export const facts = (feature: PartFeature): FeatureDatasheetFacts | null =>
-  feature.datasheet?.facts ?? null
+export const facts = (feature: PartFeature): FeatureFacts | null => feature.datasheet?.facts ?? null
 
 /** The Engine's own family for a feature, for the drawing that stands for it. */
 export const kindOf = (feature: PartFeature): string => {

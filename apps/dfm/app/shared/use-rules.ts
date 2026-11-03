@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 
 import { DEFAULT_RULE_SET, PRESET_SETS } from './rule-presets'
 import type { FeatureVerdict, PartScore, PlanLimits, Rule, RuleSet } from './rules'

@@ -38,9 +38,6 @@ const report = (meshGlbUrl: string | null = null) => ({
   thumbnailUrl: null,
   meshStlUrl: null,
   meshGlbUrl,
-  downloadMs: 1,
-  analysisMs: 2,
-  totalMs: 3,
 })
 
 const analysisJob = (status: JobDetail['status'], error: string | null = null): JobDetail => ({
@@ -49,13 +46,17 @@ const analysisJob = (status: JobDetail['status'], error: string | null = null): 
   // Engine API 1.3.1 states both, nullable. This job holds no tool and came
   // from no import.
   holderUuid: null,
+  fileUuid: null,
   importId: null,
   productType: 'analyze-part',
   status,
   progress: status === 'queued' ? null : 100,
+  retriesRemaining: null,
   error,
   reportId: status === 'succeeded' ? 'report-1' : null,
   createdAt: new Date('2026-08-13T00:00:00.000Z'),
+  updatedAt: new Date('2026-08-13T00:00:01.000Z'),
+  durationMs: 1000,
 })
 
 const analysisStream = (job: JobDetail): Response =>
@@ -70,6 +71,7 @@ const analysisStream = (job: JobDetail): Response =>
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
 })
 
 describe('DFM Hono API', () => {
@@ -121,7 +123,7 @@ describe('DFM Hono API', () => {
      * every other test makes are protected by the preflight instead, which is
      * why they are not refused here.
      */
-    const forged = await app.request('/api/parts', {
+    const forged = await app.request('/api/files', {
       method: 'POST',
       headers: {
         Cookie: await cookieFor(),
@@ -151,6 +153,7 @@ describe('DFM Hono API', () => {
     expect(connected.status).toBe(201)
     expect(cookie).toContain('part-viewer-connection=')
     expect(cookie).toContain('HttpOnly')
+    // Plain HTTP to localhost, but under `NODE_ENV=test` rather than a dev server.
     expect(cookie).toContain('Secure')
     expect(cookie).toContain('SameSite=Lax')
     expect(cookie).not.toContain('tp_secret_key')
@@ -163,6 +166,34 @@ describe('DFM Hono API', () => {
     })
     expect(cleared.status).toBe(204)
     expect(cleared.headers.getSetCookie()[0]).toContain('Max-Age=0')
+  })
+
+  /**
+   * WebKit drops a `Secure` cookie on http://localhost, where Chrome and Firefox
+   * keep it, so a dev server there leaves it off. Nothing else does: `pnpm start`
+   * sets no `NODE_ENV`, and must not lose `Secure` by being reached on localhost.
+   */
+  test('leaves Secure off only for a development server on plain-HTTP localhost', async () => {
+    vi.stubGlobal('fetch', async () => Response.json({ valid: true, status: 'active' }))
+    const connectAt = async (nodeEnv: string | undefined, origin: string) => {
+      vi.stubEnv('NODE_ENV', nodeEnv)
+      const response = await createApp().request(`${origin}/api/session`, {
+        method: 'POST',
+        headers: sameOrigin,
+        body: JSON.stringify({ apiKey: 'tp_secret_key' }),
+      })
+      expect(response.status).toBe(201)
+      return response.headers.getSetCookie()[0]
+    }
+
+    expect(await connectAt('development', 'http://localhost:5174')).not.toContain('Secure')
+    expect(await connectAt('development', 'http://[::1]:5173')).not.toContain('Secure')
+    for (const nodeEnv of [undefined, 'test', 'production']) {
+      expect(await connectAt(nodeEnv, 'http://localhost:5174')).toContain('Secure')
+    }
+    expect(await connectAt('development', 'https://localhost:5174')).toContain('Secure')
+    expect(await connectAt('development', 'http://192.168.1.20:5174')).toContain('Secure')
+    expect(await connectAt('development', 'https://catalog.example.com')).toContain('Secure')
   })
 
   test('seals a demo key from the Engine into a session', async () => {
@@ -263,60 +294,9 @@ describe('DFM Hono API', () => {
     expect(consoleError).not.toHaveBeenCalled()
   })
 
-  test('uses the SDK only to create a direct upload and start analysis', async () => {
-    const requests: Array<Request> = []
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      const request = new Request(input, init)
-      requests.push(request)
-      const url = new URL(request.url)
-      if (request.method === 'POST' && url.pathname === '/v1/parts') {
-        expect(request.headers.get('Authorization')).toBe('Bearer tp_secret_key')
-        return Response.json(
-          {
-            partId: 'part-1',
-            uploadUrl: 'https://upload.test/source',
-            sourceBucket: 'parts',
-            sourceS3Key: 'source',
-          },
-          { status: 201 },
-        )
-      }
-      if (request.method === 'PATCH' && url.pathname === '/v1/parts/part-1') {
-        expect(request.headers.get('Idempotency-Key')).toMatch(/.+/)
-        expect(url.searchParams.get('featureDetails')).toBe('true')
-        return Response.json(
-          { partId: 'part-1', jobId: 'job-1', status: 'queued' },
-          { status: 202 },
-        )
-      }
-      throw new Error(`Unexpected request ${request.method} ${request.url}`)
-    })
-
-    const app = createApp()
-    const created = await app.request('/api/parts', {
-      method: 'POST',
-      headers: { Cookie: await cookieFor(), ...sameOrigin },
-      body: JSON.stringify({ filename: 'fixture.step' }),
-    })
-    expect(created.status).toBe(201)
-    await expect(created.json()).resolves.toEqual({
-      partId: 'part-1',
-      uploadUrl: 'https://upload.test/source',
-    })
-    expect(requests).toHaveLength(1)
-
-    const analysis = await app.request('/api/parts/part-1?featureDetails=true', {
-      method: 'PATCH',
-      headers: { Cookie: await cookieFor(), 'Sec-Fetch-Site': 'same-origin' },
-    })
-    expect(analysis.status).toBe(202)
-    await expect(analysis.json()).resolves.toEqual({ partId: 'part-1', jobId: 'job-1' })
-    expect(requests).toHaveLength(2)
-  })
-
   test('rejects an expired session and unsupported CAD upload before contacting Engine', async () => {
     const app = createApp()
-    const expired = await app.request('/api/parts', {
+    const expired = await app.request('/api/files', {
       method: 'POST',
       headers: sameOrigin,
       body: JSON.stringify({ filename: 'fixture.step' }),
@@ -324,7 +304,7 @@ describe('DFM Hono API', () => {
     expect(expired.status).toBe(401)
 
     const invalidFilename = JSON.stringify({ filename: 'fixture.txt' })
-    const unsupported = await app.request('/api/parts', {
+    const unsupported = await app.request('/api/files', {
       method: 'POST',
       headers: { Cookie: await cookieFor(), ...sameOrigin },
       body: invalidFilename,
@@ -335,10 +315,10 @@ describe('DFM Hono API', () => {
     })
   })
 
-  test('rejects an unsupported filename before creating an Engine part', async () => {
+  test('rejects an unsupported filename before creating an Engine file', async () => {
     const fetchSpy = vi.fn<() => Promise<Response>>()
     vi.stubGlobal('fetch', fetchSpy)
-    const response = await createApp().request('/api/parts', {
+    const response = await createApp().request('/api/files', {
       method: 'POST',
       headers: {
         Cookie: await cookieFor(),
@@ -359,7 +339,7 @@ describe('DFM Hono API', () => {
         { status: 504 },
       ),
     )
-    const response = await createApp().request('/api/parts', {
+    const response = await createApp().request('/api/files', {
       method: 'POST',
       headers: { Cookie: await cookieFor(), ...sameOrigin },
       body: JSON.stringify({ filename: 'fixture.step' }),
@@ -372,7 +352,7 @@ describe('DFM Hono API', () => {
     })
     expect(consoleError).toHaveBeenCalledWith(
       '[part-viewer] Engine request failed',
-      expect.objectContaining({ operation: 'create part upload', status: 504 }),
+      expect.objectContaining({ operation: 'create file upload', status: 504 }),
     )
   })
 
@@ -389,7 +369,7 @@ describe('DFM Hono API', () => {
         { status: 402 },
       ),
     )
-    const response = await createApp().request('/api/parts', {
+    const response = await createApp().request('/api/files', {
       method: 'POST',
       headers: { Cookie: await cookieFor(), ...sameOrigin },
       body: JSON.stringify({ filename: 'fixture.step' }),
@@ -616,6 +596,34 @@ describe('DFM Hono API', () => {
       status: 'failed',
       message: 'Invalid geometry',
     })
+  })
+
+  test('says a part no longer matches its file without the Engine’s own text', async () => {
+    const job = analysisJob('failed', 'body_mismatch: body 1 now reads as 412 faces')
+
+    await expect(readAnalysis('tp_secret_key', 'part-1', job)).resolves.toStrictEqual({
+      status: 'failed',
+      message:
+        'Toolpath reads this file’s bodies differently now. Upload the file again to choose its body.',
+    })
+  })
+
+  test('refuses a job that is another part’s, rather than reading its report', async () => {
+    const requests: Array<string> = []
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+      const url = new URL(String(input))
+      requests.push(url.pathname)
+      if (url.pathname === '/v1/jobs/job-1/events') {
+        return analysisStream({ ...analysisJob('succeeded'), partUuid: 'part-2' })
+      }
+      throw new Error(`Unexpected request ${String(input)}`)
+    })
+    const response = await createApp().request('/api/parts/part-1/events?jobId=job-1', {
+      headers: { Cookie: await cookieFor() },
+    })
+
+    await expect(response.text()).resolves.toContain('This analysis is not for this part.')
+    expect(requests).toEqual(['/v1/jobs/job-1/events'])
   })
 
   test('says so when a succeeded job has no report behind it', async () => {
@@ -848,5 +856,296 @@ describe('DFM Hono API', () => {
     await expect(response.text()).resolves.toBe('mesh bytes')
     // An unread, uncancelled body holds its socket until the response is collected.
     expect(cancelled).toBe(true)
+  })
+})
+
+describe('uploading through a file', () => {
+  const box = { lower: { x: 0, y: 0, z: 0 }, upper: { x: 10, y: 20, z: 5 } }
+  const fileBodies = [
+    { index: 0, faceCount: 6, boundingBox: box, shape: 0 },
+    { index: 1, name: 'Bracket', faceCount: 24, boundingBox: box, shape: 1 },
+  ]
+  const inspectionJob = (
+    status: JobDetail['status'],
+    error: string | null = null,
+    fileUuid = 'file-1',
+  ): JobDetail => ({
+    ...analysisJob(status, error),
+    partUuid: null,
+    fileUuid,
+    jobUuid: 'job-9',
+    productType: 'inspect-file',
+    reportId: null,
+  })
+  const fileResponse = (bodies: Array<unknown>) => ({
+    fileId: 'file-1',
+    filename: 'fixture.step',
+    createdAt: '2026-08-13T00:00:00.000Z',
+    bodies,
+    shapes: [],
+    hasMesh: false,
+    inspectJobId: 'job-9',
+  })
+  /** The one `data:` line of a single-event stream, parsed. */
+  const eventOf = (body: string): unknown =>
+    JSON.parse(
+      body
+        .split('\n')
+        .find((line) => line.startsWith('data: '))!
+        .slice('data: '.length),
+    )
+
+  /** Stubs the Engine's file endpoints; returns every request it saw. */
+  const engine = (
+    { bodies = fileBodies, job = inspectionJob('succeeded') } = {} as {
+      bodies?: Array<unknown>
+      job?: JobDetail
+    },
+  ) => {
+    const requests: Array<Request> = []
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      requests.push(request.clone())
+      const url = new URL(request.url)
+      const route = `${request.method} ${url.pathname}`
+      expect(request.headers.get('Authorization')).toBe('Bearer tp_secret_key')
+      if (route === 'POST /v1/files') {
+        return Response.json(
+          {
+            fileId: 'file-1',
+            uploadUrl: 'https://upload.test/source?signature=secret',
+            sourceBucket: 'files',
+            sourceS3Key: 'source',
+          },
+          { status: 201 },
+        )
+      }
+      if (route === 'PATCH /v1/files/file-1') {
+        return Response.json(
+          { jobId: 'job-9', fileId: 'file-1', status: 'queued' },
+          { status: 202 },
+        )
+      }
+      if (route === 'GET /v1/jobs/job-9/events') {
+        return analysisStream(job)
+      }
+      if (route === 'GET /v1/files/file-1') {
+        return Response.json(fileResponse(bodies))
+      }
+      if (route === 'POST /v1/files/file-1/parts') {
+        const { bodies: named } = (await request.json()) as { bodies: Array<number> }
+        return Response.json(
+          {
+            fileId: 'file-1',
+            parts: named.map((bodyIndex) => ({
+              partId: `part-${bodyIndex + 7}`,
+              bodyIndex,
+              created: true,
+              shape: { index: bodyIndex, bodies: [bodyIndex], count: 1 },
+            })),
+          },
+          { status: 201 },
+        )
+      }
+      if (route === 'PATCH /v1/parts/part-8') {
+        return Response.json(
+          { partId: 'part-8', jobId: 'job-8', status: 'queued' },
+          { status: 202 },
+        )
+      }
+      throw new Error(`Unexpected request ${route}`)
+    })
+    return requests
+  }
+
+  test('creates a file for a direct upload, then starts its inspection', async () => {
+    const requests = engine()
+    const app = createApp()
+    const created = await app.request('/api/files', {
+      method: 'POST',
+      headers: { Cookie: await cookieFor(), ...sameOrigin },
+      body: JSON.stringify({ filename: 'fixture.step' }),
+    })
+
+    expect(created.status).toBe(201)
+    // The upload URL is the browser's to PUT to, and nothing else reaches it.
+    await expect(created.json()).resolves.toEqual({
+      fileId: 'file-1',
+      uploadUrl: 'https://upload.test/source?signature=secret',
+    })
+    expect(new URL(requests[0].url).searchParams.get('filename')).toBe('fixture.step')
+
+    const inspected = await app.request('/api/files/file-1', {
+      method: 'PATCH',
+      headers: { Cookie: await cookieFor(), 'Sec-Fetch-Site': 'same-origin' },
+    })
+    expect(inspected.status).toBe(202)
+    await expect(inspected.json()).resolves.toEqual({ fileId: 'file-1', jobId: 'job-9' })
+    expect(requests[1].headers.get('Idempotency-Key')).toMatch(/.+/)
+  })
+
+  test('ends the inspection in every body the file holds, a missing name as null', async () => {
+    engine()
+    const response = await createApp().request('/api/files/file-1/events?jobId=job-9', {
+      headers: { Cookie: await cookieFor() },
+    })
+    const body = await response.text()
+
+    expect(body).toContain('event: inspection')
+    expect(eventOf(body)).toStrictEqual({
+      status: 'ready',
+      bodies: [
+        { index: 0, name: null, faceCount: 6, boundingBox: box },
+        { index: 1, name: 'Bracket', faceCount: 24, boundingBox: box },
+      ],
+    })
+  })
+
+  /**
+   * Engine API 1.34.1 lists a file with no `shapes` and no `hasMesh`, which
+   * `@toolpath/api` 0.12.0's `FileResponseFromJSON` cannot read: it threw, and
+   * every inspection failed after its job had succeeded. Only `bodies` is read.
+   */
+  test('reads the bodies of a file listed without the fields it does not use', async () => {
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (new URL(request.url).pathname === '/v1/files/file-1') {
+        return Response.json({
+          fileId: 'file-1',
+          filename: 'fixture.step',
+          createdAt: '2026-08-13T00:00:00.000Z',
+          bodies: fileBodies,
+          inspectJobId: 'job-9',
+        })
+      }
+      return analysisStream(inspectionJob('succeeded'))
+    })
+    const response = await createApp().request('/api/files/file-1/events?jobId=job-9', {
+      headers: { Cookie: await cookieFor() },
+    })
+
+    expect(eventOf(await response.text())).toMatchObject({
+      status: 'ready',
+      bodies: [
+        { index: 0, name: null },
+        { index: 1, name: 'Bracket' },
+      ],
+    })
+  })
+
+  test('fails an inspection whose bodies it cannot read, in public words', async () => {
+    engine({ bodies: [{ ...fileBodies[0], index: -1 }, 'a body'] })
+    const response = await createApp().request('/api/files/file-1/events?jobId=job-9', {
+      headers: { Cookie: await cookieFor() },
+    })
+    const body = await response.text()
+
+    expect(eventOf(body)).toStrictEqual({
+      status: 'failed',
+      message: 'The Toolpath Engine could not read this file.',
+    })
+    expect(body).not.toContain('a body')
+  })
+
+  test('ends the inspection of a one-body file in that one body', async () => {
+    engine({ bodies: [fileBodies[1]] })
+    const response = await createApp().request('/api/files/file-1/events?jobId=job-9', {
+      headers: { Cookie: await cookieFor() },
+    })
+
+    expect(eventOf(await response.text())).toMatchObject({
+      status: 'ready',
+      bodies: [{ index: 1, name: 'Bracket' }],
+    })
+  })
+
+  test('says a file holds no solid body in words, not the Engine’s', async () => {
+    engine({ job: inspectionJob('failed', 'no_solid_bodies: 0 solids among 3 shells') })
+    const response = await createApp().request('/api/files/file-1/events?jobId=job-9', {
+      headers: { Cookie: await cookieFor() },
+    })
+    const body = await response.text()
+
+    expect(eventOf(body)).toStrictEqual({
+      status: 'failed',
+      message:
+        'This file holds no solid body to machine. Export the part as a solid and upload it again.',
+    })
+    expect(body).not.toContain('no_solid_bodies')
+  })
+
+  test('refuses an inspection that is another file’s, rather than reading its bodies', async () => {
+    const requests = engine({ job: inspectionJob('succeeded', null, 'file-2') })
+    const response = await createApp().request('/api/files/file-1/events?jobId=job-9', {
+      headers: { Cookie: await cookieFor() },
+    })
+
+    expect(eventOf(await response.text())).toStrictEqual({
+      status: 'failed',
+      message: 'This inspection is not for this file. Upload the file again.',
+    })
+    expect(requests.map((each) => new URL(each.url).pathname)).toEqual(['/v1/jobs/job-9/events'])
+  })
+
+  test('says how the inspection is going while it runs', async () => {
+    engine({ job: { ...inspectionJob('running'), progress: 40 } })
+    const response = await createApp().request('/api/files/file-1/events?jobId=job-9', {
+      headers: { Cookie: await cookieFor() },
+    })
+    const body = await response.text()
+
+    expect(body).toContain('"status":"pending"')
+    expect(body).toContain('Reading the file’s bodies…')
+    // The Engine closed the stream before the job settled; the browser is told.
+    expect(body).toContain('Could not follow the inspection of this file. Upload it again.')
+  })
+
+  test('makes a part of the chosen body and starts its analysis', async () => {
+    const requests = engine()
+    const response = await createApp().request('/api/files/file-1/parts', {
+      method: 'POST',
+      headers: { Cookie: await cookieFor(), ...sameOrigin },
+      body: JSON.stringify({ bodyIndex: 1 }),
+    })
+
+    expect(response.status).toBe(201)
+    await expect(response.json()).resolves.toEqual({ partId: 'part-8', jobId: 'job-8' })
+    await expect(requests[0].json()).resolves.toEqual({ bodies: [1] })
+    const analysis = new URL(requests[1].url)
+    expect(analysis.pathname).toBe('/v1/parts/part-8')
+    expect(analysis.searchParams.get('featureDetails')).toBe('true')
+    expect(requests[1].headers.get('Idempotency-Key')).toMatch(/.+/)
+  })
+
+  test('refuses a body index that is not a whole number a part can name', async () => {
+    const fetchSpy = vi.fn<() => Promise<Response>>()
+    vi.stubGlobal('fetch', fetchSpy)
+    const app = createApp()
+
+    for (const bodyIndex of [-1, 1.5, '1', 1_000_000, null]) {
+      const response = await app.request('/api/files/file-1/parts', {
+        method: 'POST',
+        headers: { Cookie: await cookieFor(), ...sameOrigin },
+        body: JSON.stringify({ bodyIndex }),
+      })
+      expect(response.status).toBe(400)
+    }
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  test('no longer serves the part-upload routes the file flow replaced', async () => {
+    const app = createApp()
+    const created = await app.request('/api/parts', {
+      method: 'POST',
+      headers: { Cookie: await cookieFor(), ...sameOrigin },
+      body: JSON.stringify({ filename: 'fixture.step' }),
+    })
+    const started = await app.request('/api/parts/part-1', {
+      method: 'PATCH',
+      headers: { Cookie: await cookieFor(), 'Sec-Fetch-Site': 'same-origin' },
+    })
+
+    expect(created.status).toBe(404)
+    expect(started.status).toBe(404)
   })
 })

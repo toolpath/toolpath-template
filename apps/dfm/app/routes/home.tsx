@@ -2,8 +2,9 @@ import { ToolpathIcon } from 'components/panel-icons'
 import { AppHeader } from 'components/app-header'
 import { ConnectionPanel } from 'components/connection-panel'
 import { UploadPanel } from 'components/upload-panel'
+import { BodyPicker } from 'components/body-picker'
 import { usePartUpload } from 'client/use-part-upload'
-import { useSession } from 'client/use-session'
+import { useSession } from '@toolpath/part-client'
 import { Card } from '@toolpath/ui'
 
 const HomeRoute = () => {
@@ -29,6 +30,14 @@ const HomeRoute = () => {
 
         {session.status === 'checking' ? (
           <p className="mt-8 text-sm text-ink-muted">Checking local session…</p>
+        ) : session.status === 'connected' && partUpload.bodies ? (
+          <BodyPicker
+            bodies={partUpload.bodies}
+            status={partUpload.status}
+            error={partUpload.error}
+            onChoose={(bodyIndex) => void partUpload.choose(bodyIndex)}
+            onBack={partUpload.reset}
+          />
         ) : session.status === 'connected' ? (
           <UploadPanel
             error={partUpload.error ?? session.error}

@@ -1,12 +1,12 @@
 import { type Page, expect, test } from '@playwright/test'
-import { analysisEvent, openStream } from './part-fixture'
+import { analysisEvent, fileBody, openStream, sendFile, serveUpload } from './part-fixture'
 
 /**
  * What the part page says while it is not a part yet.
  *
  * Every other spec here opens on a `ready` report, because that is where the
  * app is. The three states before it — waiting, refused, and asked for without
- * a job — had no coverage at any level: `server/app.test.ts` proves the server
+ * a job — had no coverage at any level: part-server's `app.test.ts` proves the server
  * *maps* a queued or failed Engine job onto the wire, and then nothing asserted
  * that the browser draws anything at all when it receives one.
  *
@@ -127,4 +127,63 @@ test('says the session expired when the stream will not open', async ({ page }) 
 
   await expect(page.getByRole('heading', { name: 'This part could not be opened' })).toBeVisible()
   await expect(page.getByText(/session expired or the connection was interrupted/)).toBeVisible()
+})
+
+/**
+ * A file holding several solid bodies is not a dead end: its inspection lists
+ * them on the start page, and the part is made of the one chosen — by its
+ * index, without the file being sent again.
+ */
+test('offers the bodies of a multi-body file, and makes a part of the one chosen', async ({
+  page,
+}) => {
+  const { made } = await serveUpload(page, null, {
+    inspection: { status: 'ready', bodies: [fileBody(0), fileBody(1, 'Bracket')] },
+  })
+  await sendFile(page)
+
+  await expect(page.getByRole('heading', { name: /holds 2 solid bodies/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Body 1/ })).toBeVisible()
+  expect(made).toEqual([])
+
+  await page.getByRole('button', { name: /Bracket/ }).click()
+
+  await expect(page).toHaveURL(/\/parts\/part-1\?job=job-1/)
+  expect(made).toEqual([{ bodyIndex: 1 }])
+})
+
+test('goes back from the bodies to choosing a different file', async ({ page }) => {
+  await serveUpload(page, null, {
+    inspection: { status: 'ready', bodies: [fileBody(0), fileBody(1, 'Bracket')] },
+  })
+  await sendFile(page)
+
+  await page.getByRole('button', { name: 'Choose a different file' }).click()
+
+  await expect(page.getByLabel('CAD file')).toBeVisible()
+  await expect(page.getByRole('heading', { name: /solid bodies/ })).toHaveCount(0)
+})
+
+test('says why a file could not be read, on the start page', async ({ page }) => {
+  // Streamed as the server streams it, `pending` before it settles, and read
+  // where a person reads it: `toHaveText` alone passes on text nobody can see.
+  const { made } = await serveUpload(page, null, {
+    inspection: [
+      { status: 'pending', progress: null, message: 'Inspection is queued…' },
+      {
+        status: 'failed',
+        message: 'Could not follow the inspection of this file. Upload it again.',
+      },
+    ],
+  })
+  await sendFile(page)
+
+  const alert = page.getByRole('alert')
+  await expect(alert).toHaveText('Could not follow the inspection of this file. Upload it again.')
+  await expect(alert).toBeInViewport()
+  await expect(page.getByLabel('CAD file')).toBeVisible()
+  await page.waitForTimeout(500)
+  await expect(alert).toBeInViewport()
+  await expect(page).toHaveURL(/\/$/)
+  expect(made).toEqual([])
 })

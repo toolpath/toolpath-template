@@ -1,6 +1,6 @@
 import type { Vec3 } from '@toolpath/api'
 
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import { directionKey } from './report'
 import { isUndercut, requiredDirections, scoreIn, skipUndercut, undercutOnly } from './reach'
 import type { Assignment, PartFaces, Setup, SetupPlan } from './setups'

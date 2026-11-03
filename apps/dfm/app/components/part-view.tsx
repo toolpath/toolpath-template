@@ -3,7 +3,7 @@ import { createContext, useContext, type ReactNode } from 'react'
 
 import type { Vec3 } from '@toolpath/api'
 
-import type { PublicInspectionReport } from 'shared/contracts'
+import type { PublicInspectionReport } from '@toolpath/part-contracts'
 import type { FeatureScore } from 'shared/feature-score'
 import type { FeatureVerdict } from 'shared/rules'
 import type { Pass, SetupPlan } from 'shared/setups'

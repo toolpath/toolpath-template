@@ -1,5 +1,5 @@
-import type { CdData, FeatureDatasheet, FeatureDatasheetFacts } from '@toolpath/api'
-import type { PartFeature } from './contracts'
+import type { CdData, FeatureDatasheet, FeatureFacts } from '@toolpath/api'
+import type { PartFeature } from '@toolpath/part-contracts'
 import { directionKey } from './report'
 
 /** Three sides, in millimetres. */
@@ -365,7 +365,7 @@ const ratio = (top: number | null, bottom: number | null): number | null => {
   return top / bottom
 }
 
-const factsOf = (datasheet: FeatureDatasheet): FeatureDatasheetFacts => datasheet.facts
+const factsOf = (datasheet: FeatureDatasheet): FeatureFacts => datasheet.facts
 
 /**
  * Where this feature's cutter-diameter facts live, and what they are.
@@ -682,13 +682,11 @@ const nested = (
   }
 }
 
-type FactsKind = FeatureDatasheetFacts['kind']
-type FactsByKind = { [K in FactsKind]: Extract<FeatureDatasheetFacts, { kind: K }> }
+type FactsKind = FeatureFacts['kind']
+type FactsByKind = { [K in FactsKind]: Extract<FeatureFacts, { kind: K }> }
 
-const isFactsKind = <K extends FactsKind>(
-  facts: FeatureDatasheetFacts,
-  kind: K,
-): facts is FactsByKind[K] => facts.kind === kind
+const isFactsKind = <K extends FactsKind>(facts: FeatureFacts, kind: K): facts is FactsByKind[K] =>
+  facts.kind === kind
 
 const nestedBoolean = (datasheet: FeatureDatasheet, key: 'hasSharpCorner'): boolean | null => {
   const found = nested(datasheet, key)

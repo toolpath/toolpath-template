@@ -4,6 +4,7 @@ import { AppHeader } from 'components/app-header'
 import { ConnectForm } from 'components/connect-form'
 import { usePartUpload } from 'client/use-part-upload'
 import { PartUploadOverlay } from 'components/part-upload-overlay'
+import { BodyPicker } from 'components/body-picker'
 import { allTools } from 'shared/catalog'
 import { useUnit } from 'shared/use-unit'
 
@@ -44,6 +45,14 @@ const Parts = () => {
                 Connecting…
               </p>
             </Card>
+          ) : session.status === 'connected' && upload.bodies ? (
+            <BodyPicker
+              bodies={upload.bodies}
+              status={upload.status}
+              error={upload.error}
+              onChoose={(bodyIndex) => void upload.choose(bodyIndex)}
+              onBack={upload.reset}
+            />
           ) : session.status === 'connected' ? (
             <PartUploadOverlay
               full

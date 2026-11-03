@@ -4,7 +4,7 @@ import { INFER_SCOPES, coverFaces, inferable, readingsFor } from './infer'
 import { EMPTY_PLAN } from './setups'
 import { setPassFor } from './plan-actions'
 import { TEST_DIRECTIONS, testFeature, testPart } from './test-part'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 
 /**
  * Inference — the app volunteering work, and every rule that keeps it honest.

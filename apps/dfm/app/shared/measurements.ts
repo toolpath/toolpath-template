@@ -1,5 +1,5 @@
 import { formatArea, formatLength, type UnitSystem } from '@toolpath/tool-support'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import { asNumber, facts } from './report'
 
 /**

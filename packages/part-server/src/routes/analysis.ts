@@ -1,22 +1,31 @@
 import { zValidator } from '@hono/zod-validator'
-import { createParser } from 'eventsource-parser'
 import type { Hono } from 'hono'
-import { streamSSE, type SSEStreamingApi } from 'hono/streaming'
 import { z } from 'zod'
-import { instanceOfJobDetail, JobDetailFromJSON, type JobDetail } from '@toolpath/api'
+import type { JobDetail } from '@toolpath/api'
 import { toPublicInspectionReport, type AnalysisEvent } from '@toolpath/part-contracts'
-import {
-  EngineError,
-  createEngineClient,
-  getWholePartReport,
-  publicEngineErrorMessage,
-  requireData,
-} from '../engine.js'
+import { getWholePartReport } from '../engine.js'
+import { jobEvents } from '../job-events.js'
 import type { PartApiContext } from '../context.js'
 import type { AppEnv } from '../types.js'
 
 const paramsSchema = z.object({ partId: z.string().min(1) })
 const querySchema = z.object({ jobId: z.string().min(1) })
+
+/**
+ * A part made of a file's body is checked against that body when it is
+ * analysed; this is the Engine saying the file reads differently now. The part
+ * cannot be fixed from here — the file has to be uploaded and its body chosen
+ * again — and the Engine's own text says nothing a person can act on.
+ */
+const BODY_MISMATCH =
+  'Toolpath reads this file’s bodies differently now. Upload the file again to choose its body.'
+
+const failedAnalysis = (error: string | null | undefined): string => {
+  if (error?.startsWith('body_mismatch:')) {
+    return BODY_MISMATCH
+  }
+  return error ?? 'The Toolpath Engine could not analyze this part.'
+}
 
 const readAnalysis = async (
   apiKey: string,
@@ -24,10 +33,7 @@ const readAnalysis = async (
   job: JobDetail,
 ): Promise<AnalysisEvent> => {
   if (job.status === 'failed') {
-    return {
-      status: 'failed',
-      message: job.error ?? 'The Toolpath Engine could not analyze this part.',
-    }
+    return { status: 'failed', message: failedAnalysis(job.error) }
   }
   if (job.status !== 'succeeded') {
     return {
@@ -46,64 +52,6 @@ const readAnalysis = async (
   return { status: 'ready', report: toPublicInspectionReport(report) }
 }
 
-/** Forwards Engine job SSE events as the app-owned, redacted analysis stream. */
-const streamAnalysis = async (
-  apiKey: string,
-  appName: string,
-  partId: string,
-  jobId: string,
-  stream: SSEStreamingApi,
-): Promise<void> => {
-  const response = await requireData(
-    createEngineClient(apiKey, appName).jobs.streamJobEventsRaw({ id: jobId }),
-    'open analysis events',
-  )
-  if (!response.raw.body) {
-    throw new Error('The Toolpath Engine returned an empty event stream.')
-  }
-
-  const jobs: Array<JobDetail> = []
-  const parser = createParser({
-    onEvent: (event) => {
-      if (event.event !== 'job') {
-        return
-      }
-      const payload: unknown = JSON.parse(event.data)
-      if (!payload || typeof payload !== 'object' || !instanceOfJobDetail(payload)) {
-        throw new Error('The Toolpath Engine returned an invalid job event.')
-      }
-      jobs.push(JobDetailFromJSON(payload))
-    },
-    onError: (error) => {
-      throw new Error(`The Toolpath Engine returned an invalid SSE event: ${error.message}`, {
-        cause: error,
-      })
-    },
-  })
-
-  const textStream = response.raw.body.pipeThrough(new TextDecoderStream())
-  try {
-    for await (const chunk of textStream) {
-      parser.feed(chunk)
-      while (jobs.length > 0) {
-        const job = jobs.shift()!
-        const analysis = await readAnalysis(apiKey, partId, job)
-        if (stream.aborted) {
-          return
-        }
-        await stream.writeSSE({ event: 'analysis', data: JSON.stringify(analysis) })
-        if (analysis.status !== 'pending') {
-          return
-        }
-      }
-    }
-  } finally {
-    await textStream.cancel()
-  }
-
-  throw new Error('The Toolpath Engine closed the event stream before analysis completed.')
-}
-
 export const registerAnalysisRoutes = (
   app: Hono<AppEnv>,
   { appName, connection }: PartApiContext,
@@ -117,22 +65,15 @@ export const registerAnalysisRoutes = (
       const { partId } = c.req.valid('param')
       const { jobId } = c.req.valid('query')
 
-      return streamSSE(c, async (stream) => {
-        try {
-          await streamAnalysis(apiKey, appName, partId, jobId, stream)
-        } catch (error) {
-          if (stream.aborted) {
-            return
-          }
-          const message =
-            error instanceof EngineError
-              ? publicEngineErrorMessage(error.status)
-              : 'Could not monitor this analysis. Try opening the part again.'
-          await stream.writeSSE({
-            event: 'analysis',
-            data: JSON.stringify({ status: 'failed', message } satisfies AnalysisEvent),
-          })
-        }
+      return jobEvents(c, {
+        apiKey,
+        appName,
+        jobId,
+        event: 'analysis',
+        belongs: (job) => job.partUuid === partId,
+        read: (job) => readAnalysis(apiKey, partId, job),
+        foreign: 'This analysis is not for this part. Try opening the part again.',
+        lost: 'Could not monitor this analysis. Try opening the part again.',
       })
     },
   )

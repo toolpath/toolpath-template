@@ -4,7 +4,7 @@ import { GENERATORS, PICKS_WAYS_UP, generate, planForChosen } from './generate'
 import { forcedRegions, isUndercut, requiredDirections } from './reach'
 import { EMPTY_PLAN, coverageOf, cutRegions } from './setups'
 import { TEST_DIRECTIONS, testFeature, testPart } from './test-part'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 
 /** The arrangement and its ledger, for the tests that are about what was decided. */
 const offerBoth = (how: Parameters<typeof generate>[0]) =>

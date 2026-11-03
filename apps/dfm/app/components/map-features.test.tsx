@@ -8,7 +8,7 @@ import { EMPTY_PLAN } from 'shared/setups'
 import { lockSetup, setPassFor } from 'shared/plan-actions'
 import { TEST_DIRECTIONS, testFeature, testPart, testReport } from 'shared/test-part'
 import type { FeatureScore } from 'shared/feature-score'
-import type { PartFeature } from 'shared/contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import type { UncutFace } from 'shared/plan-summary'
 
 /**

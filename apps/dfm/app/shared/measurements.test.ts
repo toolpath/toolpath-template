@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import type { UnitSystem } from '@toolpath/tool-support'
 import { measurements, partTop, stripMeasurements } from './measurements'
 import { METRIC_BY_ID, partContext, readMetrics, sharpCorner } from './metrics'

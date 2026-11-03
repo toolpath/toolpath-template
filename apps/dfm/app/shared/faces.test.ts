@@ -11,7 +11,7 @@ import {
 import { EMPTY_PLAN, PASSES, coveredRegions, cutRegions, takenOn, type SetupPlan } from './setups'
 import { setPassFor } from './plan-actions'
 import { TEST_DIRECTIONS, testFeature, testPart } from './test-part'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 
 const UP = TEST_DIRECTIONS[0]!
 const DOWN = TEST_DIRECTIONS[1]!

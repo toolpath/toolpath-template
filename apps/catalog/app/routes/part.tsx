@@ -20,6 +20,7 @@ import { partTop } from '@toolpath/part-contracts/measurements'
 import { directionColor, directionIndexOf } from '@toolpath/viewer'
 import { formatLength } from '@toolpath/tool-support'
 import { AppHeader } from 'components/app-header'
+import { BodyPicker } from 'components/body-picker'
 import { ConnectForm } from 'components/connect-form'
 import { PartUploadOverlay, type ReplacementAnalysis } from 'components/part-upload-overlay'
 import { FeatureDetails } from 'components/feature-details'
@@ -366,6 +367,12 @@ const Failed = ({ message, children }: { message: string; children?: ReactNode }
   </Shell>
 )
 
+/** Why a replacement did not open. */
+interface ReplacementFailure {
+  readonly partId: string
+  readonly message: string
+}
+
 /** Follows a replacement job without taking the current part off screen. */
 const ReplacementProgress = ({
   part,
@@ -374,7 +381,7 @@ const ReplacementProgress = ({
 }: {
   part: StartedPartUpload
   onReady: (report: PublicInspectionReport, jobId: string) => void
-  onFailed: (message: string) => void
+  onFailed: (failure: ReplacementFailure) => void
 }) => {
   const state = useAnalysisEvents(part.partId, part.jobId)
 
@@ -384,9 +391,9 @@ const ReplacementProgress = ({
       return
     }
     if (state.status === 'failed') {
-      onFailed(state.message)
+      onFailed({ partId: part.partId, message: state.message })
     }
-  }, [onFailed, onReady, part.jobId, state])
+  }, [onFailed, onReady, part.jobId, part.partId, state])
 
   const analysis: ReplacementAnalysis =
     state.status === 'pending'
@@ -439,17 +446,19 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const navigate = useNavigate()
   const [uploadOpen, setUploadOpen] = useState(() => search.get('upload') === '1')
   const [replacement, setReplacement] = useState<StartedPartUpload | null>(null)
-  const [analysisError, setAnalysisError] = useState<string | null>(null)
+  const [failure, setFailure] = useState<ReplacementFailure | null>(null)
   const {
     status: uploadStatus,
     error: uploadError,
+    bodies: uploadBodies,
     upload: uploadPart,
+    choose: chooseBody,
     reset: resetUpload,
   } = usePartUpload({
-    onStarted: (part) => setReplacement(part),
+    onStarted: setReplacement,
   })
   const startReplacement = (file: File) => {
-    setAnalysisError(null)
+    setFailure(null)
     void uploadPart(file)
   }
   const finishReplacement = useCallback(
@@ -460,16 +469,16 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     [navigate],
   )
   const failReplacement = useCallback(
-    (message: string) => {
+    (next: ReplacementFailure) => {
       setReplacement(null)
-      setAnalysisError(message)
+      setFailure(next)
       resetUpload()
     },
     [resetUpload],
   )
   const closeUpload = () => {
     resetUpload()
-    setAnalysisError(null)
+    setFailure(null)
     setUploadOpen(false)
     if (search.has('upload')) {
       const next = new URLSearchParams(search)
@@ -6302,11 +6311,20 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         onReady={finishReplacement}
                         onFailed={failReplacement}
                       />
+                    ) : uploadBodies ? (
+                      <BodyPicker
+                        bodies={uploadBodies}
+                        status={uploadStatus}
+                        error={uploadError}
+                        onChoose={(bodyIndex) => void chooseBody(bodyIndex)}
+                        onBack={resetUpload}
+                        onClose={closeUpload}
+                      />
                     ) : (
                       <PartUploadOverlay
                         full
                         status={uploadStatus}
-                        error={analysisError ?? uploadError}
+                        error={failure?.message ?? uploadError}
                         analysis={null}
                         onUpload={startReplacement}
                         onClose={closeUpload}

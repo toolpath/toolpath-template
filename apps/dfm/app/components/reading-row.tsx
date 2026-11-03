@@ -3,7 +3,7 @@ import { ScoreBadge } from './score-badge'
 import { directionLabel, kindOf } from 'shared/report'
 import { isMade } from 'shared/make-feature'
 import { typeLabel } from 'shared/part-summary'
-import type { PartFeature } from 'shared/contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import type { FeatureScore } from 'shared/feature-score'
 
 /**

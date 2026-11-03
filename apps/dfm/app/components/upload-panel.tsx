@@ -1,14 +1,16 @@
 import { Button } from '@toolpath/ui'
 import { useState } from 'react'
 import type { UploadStatus } from 'client/use-part-upload'
-import { CAD_EXTENSIONS } from 'shared/cad'
+import { CAD_EXTENSIONS } from '@toolpath/part-contracts'
 
-const uploadLabel = (status: UploadStatus): string => {
+export const uploadLabel = (status: UploadStatus): string => {
   switch (status) {
-    case 'creating-part':
-      return 'Creating part…'
+    case 'creating-file':
+      return 'Preparing upload…'
     case 'uploading-file':
       return 'Uploading file…'
+    case 'inspecting-file':
+      return 'Reading the file…'
     case 'starting-analysis':
       return 'Starting analysis…'
     default:
@@ -21,13 +23,13 @@ export const UploadPanel = ({
   status,
   onUpload,
   onDisconnect,
-  isDisconnecting,
+  isDisconnecting = false,
 }: {
   error: string | null
   status: UploadStatus
   onUpload: (file: File) => Promise<void>
   onDisconnect: () => Promise<void>
-  isDisconnecting: boolean
+  isDisconnecting?: boolean
 }) => {
   const [file, setFile] = useState<File | null>(null)
   const isUploading = status !== 'idle'

@@ -8,7 +8,7 @@ import { TEST_DIRECTIONS, testFeature, testPart } from './test-part'
 import type { FeatureVerdict, RuleResult } from './rules'
 import type { PartFaces, SetupPlan } from './setups'
 import { bandRank } from './rules'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import type { PlanLimits, Rule } from './rules'
 
 /**

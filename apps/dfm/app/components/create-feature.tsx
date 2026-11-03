@@ -22,7 +22,7 @@ import {
   type Draft,
   type Touching,
 } from 'shared/make-feature'
-import type { PartFeature } from 'shared/contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 import type { PartFaces } from 'shared/setups'
 import type { FeatureScore } from 'shared/feature-score'
 import { rowAttributes } from 'shared/row-nav'

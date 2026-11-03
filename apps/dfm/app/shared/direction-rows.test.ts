@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { PartReport } from './contracts'
+import type { PartReport } from '@toolpath/part-contracts'
 import { directionRows } from './direction-rows'
 import { testPart } from './test-part'
 

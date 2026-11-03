@@ -1,6 +1,9 @@
 import {
+  Configuration,
   createToolpathClient,
+  FilesApi,
   ResponseError,
+  UpdatePartOperationFeatureDetailsEnum,
   type KeyValidationResponseStatusEnum,
 } from '@toolpath/api'
 import type { PartFeature, PartReport } from '@toolpath/part-contracts'
@@ -105,9 +108,39 @@ const engineFetch =
  *
  * `appName` only names the application in transport logs. Everything else about
  * a client comes from the request's own BYOK key.
+ *
+ * `files` is built here because `createToolpathClient` in `@toolpath/api`
+ * 0.12.0 has no Files API on it yet; it is configured exactly as the rest.
  */
-export const createEngineClient = (apiKey: string, appName = 'toolpath') =>
-  createToolpathClient({ apiKey, baseUrl: apiBaseUrl(), fetch: engineFetch(appName) })
+export const createEngineClient = (apiKey: string, appName = 'toolpath') => {
+  const baseUrl = apiBaseUrl()
+  const fetch = engineFetch(appName)
+  return {
+    ...createToolpathClient({ apiKey, baseUrl, fetch }),
+    files: new FilesApi(
+      new Configuration({ basePath: baseUrl, accessToken: apiKey, fetchApi: fetch }),
+    ),
+  }
+}
+
+export type EngineClient = ReturnType<typeof createEngineClient>
+
+/**
+ * Starts a part's analysis, asking for its feature details: reports no longer
+ * embed those measurements, so the ready report reads them from the
+ * part-scoped features endpoint.
+ */
+export const startAnalysis = async (engine: EngineClient, partId: string): Promise<string> => {
+  const analysis = await requireData(
+    engine.parts.updatePart({
+      id: partId,
+      featureDetails: UpdatePartOperationFeatureDetailsEnum.True,
+      idempotencyKey: crypto.randomUUID(),
+    }),
+    'start analysis',
+  )
+  return analysis.jobId
+}
 
 export const requireData = async <T>(
   operationResult: Promise<T>,

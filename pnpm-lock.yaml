@@ -159,9 +159,6 @@ importers:
       '@hono/node-server':
         specifier: 1.19.15
         version: 1.19.15(hono@4.13.0)
-      '@hono/zod-validator':
-        specifier: 0.9.0
-        version: 0.9.0(hono@4.13.0)(zod@4.4.3)
       '@phosphor-icons/react':
         specifier: 2.1.10
         version: 2.1.10(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -175,11 +172,20 @@ importers:
         specifier: 9.7.0
         version: 9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)
       '@toolpath/api':
-        specifier: 0.4.1
-        version: 0.4.1
+        specifier: 0.12.0
+        version: 0.12.0
       '@toolpath/app-support':
         specifier: 0.1.6
         version: 0.1.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@toolpath/part-client':
+        specifier: workspace:*
+        version: link:../../packages/part-client
+      '@toolpath/part-contracts':
+        specifier: workspace:*
+        version: link:../../packages/part-contracts
+      '@toolpath/part-server':
+        specifier: workspace:*
+        version: link:../../packages/part-server
       '@toolpath/tool-support':
         specifier: 0.6.0
         version: 0.6.0
@@ -189,18 +195,12 @@ importers:
       '@toolpath/viewer':
         specifier: 1.1.1
         version: 1.1.1(@react-three/drei@10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@types/react@19.2.18)(@types/three@0.185.4)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(three@0.185.1)
-      eventsource-parser:
-        specifier: 4.0.0
-        version: 4.0.0
       hono:
         specifier: 4.13.0
         version: 4.13.0
       isbot:
         specifier: ^5
         version: 5.2.1
-      jose:
-        specifier: 6.2.8
-        version: 6.2.8
       react:
         specifier: 19.2.0
         version: 19.2.0
@@ -216,9 +216,6 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.23.12
-      zod:
-        specifier: 4.4.3
-        version: 4.4.3
     devDependencies:
       '@playwright/test':
         specifier: 1.59.1
@@ -319,8 +316,8 @@ importers:
   packages/part-contracts:
     dependencies:
       '@toolpath/api':
-        specifier: 0.4.1
-        version: 0.4.1
+        specifier: 0.12.0
+        version: 0.12.0
       '@toolpath/tool-support':
         specifier: 0.6.0
         version: 0.6.0
@@ -347,8 +344,8 @@ importers:
         specifier: 0.9.0
         version: 0.9.0(hono@4.13.0)(zod@4.4.3)
       '@toolpath/api':
-        specifier: 0.4.1
-        version: 0.4.1
+        specifier: 0.12.0
+        version: 0.12.0
       '@toolpath/part-contracts':
         specifier: workspace:*
         version: link:../part-contracts
@@ -1297,8 +1294,8 @@ packages:
       '@types/react-dom':
         optional: true
 
-  '@toolpath/api@0.4.1':
-    resolution: {integrity: sha512-SJbwQWSJoYQextAdJXHQQMCIFZ/OB+PijLDuhQqQPqy95TOApSpT5emXHhHPRghHQLwdSlKCXz5aQ7lv6nPFYg==}
+  '@toolpath/api@0.12.0':
+    resolution: {integrity: sha512-amBj781LqRec3rrKC2CkgL7ZD7Gpp+TNSzKmdHQgkYWjYprd+mL4YW0eVO4nu5aL0RkQM7c4lGIUlq11v03eWA==}
     engines: {node: '>=20'}
 
   '@toolpath/app-support@0.1.6':
@@ -3968,7 +3965,7 @@ snapshots:
       '@types/react': 19.2.18
       '@types/react-dom': 19.2.7(@types/react@19.2.18)
 
-  '@toolpath/api@0.4.1': {}
+  '@toolpath/api@0.12.0': {}
 
   '@toolpath/app-support@0.1.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:

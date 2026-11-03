@@ -4,7 +4,7 @@ import { addedFrom, asPlanned, isDerived, withEngineDatasheet, worstDatasheet } 
 import { EMPTY_PLAN, PASSES } from './setups'
 import { TEST_DIRECTIONS, testFeature } from './test-part'
 import { setFaceCut } from './faces'
-import type { PartFeature } from './contracts'
+import type { PartFeature } from '@toolpath/part-contracts'
 
 /**
  * A reading as the plan has it, rather than as the Engine reported it.
