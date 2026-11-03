@@ -21,17 +21,28 @@ const connectionKey = new Uint8Array(
   hkdfSync('sha256', connectionSecret, 'toolpath-part-viewer', 'byok connection cookie', 32),
 )
 
-const cookieOptions = {
-  httpOnly: true,
-  sameSite: 'lax' as const,
-  // `Secure` is required in every environment. Browsers make an exception for localhost, so
-  // local development keeps working without ever demonstrating an insecure BYOK cookie.
-  secure: true,
-  path: '/',
+/**
+ * Plain HTTP on the loopback host is the one case the cookie goes without `Secure`: Chrome and
+ * Firefox treat `http://localhost` as secure and keep it, WebKit does not and dropped it. Any
+ * other host, any HTTPS, and anything under `NODE_ENV=production` keeps `Secure`. Twin of `isPlainLocalhost` in
+ * `@toolpath/part-server`'s `connection.ts`, kept here because DFM does not depend on that
+ * package — change one and change the other.
+ */
+export const isPlainLocalhost = (url: string): boolean => {
+  const { protocol, hostname } = new URL(url)
+  return protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]', '::1'].includes(hostname)
 }
 
+const cookieOptions = (c: Context<AppEnv>) => ({
+  httpOnly: true,
+  sameSite: 'lax' as const,
+  // Production is always `Secure`, whatever URL the server itself was reached on.
+  secure: process.env.NODE_ENV === 'production' || !isPlainLocalhost(c.req.url),
+  path: '/',
+})
+
 const clearConnection = (c: Context<AppEnv>): void => {
-  deleteCookie(c, CONNECTION_COOKIE, cookieOptions)
+  deleteCookie(c, CONNECTION_COOKIE, cookieOptions(c))
 }
 
 /** Encrypts the BYOK API key into an eight-hour HttpOnly connection cookie. */
@@ -43,7 +54,7 @@ export const setConnection = async (c: Context<AppEnv>, apiKey: string): Promise
     .setAudience(AUDIENCE)
     .setExpirationTime(`${CONNECTION_SECONDS}s`)
     .encrypt(connectionKey)
-  setCookie(c, CONNECTION_COOKIE, token, { ...cookieOptions, maxAge: CONNECTION_SECONDS })
+  setCookie(c, CONNECTION_COOKIE, token, { ...cookieOptions(c), maxAge: CONNECTION_SECONDS })
 }
 
 /**

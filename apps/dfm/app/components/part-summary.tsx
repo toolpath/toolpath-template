@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import type { PartFeature, PublicInspectionReport } from 'shared/contracts'
 import { KindIcon } from './feature-icons'
-import { duration, partSummary } from 'shared/part-summary'
+import { partSummary } from 'shared/part-summary'
 import { directionLabel } from 'shared/report'
 import { directionCss } from 'shared/direction-colors'
 import { groupHoles } from 'shared/hole-groups'
@@ -241,11 +241,6 @@ const PartSummaryView = ({
           )
         })}
       </ul>
-
-      <Heading>Timing</Heading>
-      <Count label="Download" value={duration(summary.timing.download)} />
-      <Count label="Analysis" value={duration(summary.timing.analysis)} />
-      <Count label="Total" value={duration(summary.timing.total)} />
     </div>
   )
 }

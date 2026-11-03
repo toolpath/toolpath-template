@@ -110,9 +110,6 @@ export const report = ({
   hasMeshGlb: false,
   hasMeshStl: false,
   hasThumbnail: false,
-  downloadMs: 1,
-  analysisMs: 2,
-  totalMs: 3,
   features,
 })
 
@@ -239,7 +236,14 @@ export const richHole = (
 export const uploadTo = async (
   page: Page,
   part: unknown,
-  { key = 'tp_key' }: { key?: string } = {},
+  {
+    key = 'tp_key',
+    analysis = { status: 'ready', report: part },
+  }: {
+    key?: string
+    /** What the analysis says instead of `ready` with `part` — a body-choice failure, say. */
+    analysis?: unknown
+  } = {},
 ): Promise<void> => {
   let connected = false
 
@@ -270,7 +274,7 @@ export const uploadTo = async (
     if (url.pathname === '/api/parts/part-1/events' && url.searchParams.get('jobId') === 'job-1') {
       return route.fulfill({
         contentType: 'text/event-stream',
-        body: analysisEvent({ status: 'ready', report: part }),
+        body: analysisEvent(analysis),
       })
     }
 

@@ -1,5 +1,5 @@
 import { type Page, expect, test } from '@playwright/test'
-import { analysisEvent, openStream } from './part-fixture'
+import { analysisEvent, openStream, uploadTo } from './part-fixture'
 
 /**
  * What the part page says while it is not a part yet.
@@ -127,4 +127,51 @@ test('says the session expired when the stream will not open', async ({ page }) 
 
   await expect(page.getByRole('heading', { name: 'This part could not be opened' })).toBeVisible()
   await expect(page.getByText(/session expired or the connection was interrupted/)).toBeVisible()
+})
+
+/**
+ * A file holding several solid bodies is not a dead end: the Engine lists them,
+ * and the part is made again of the one chosen — the file this tab just
+ * uploaded, sent again with that body's index, landing on the new part as any
+ * upload does.
+ */
+test('offers the bodies of a multi-body file, and uploads it again for the one chosen', async ({
+  page,
+}) => {
+  const box = { lower: { x: 0, y: 0, z: 0 }, upper: { x: 40, y: 15, z: 8 } }
+  await uploadTo(page, null, {
+    analysis: {
+      status: 'failed',
+      message: 'This file holds 2 solid bodies. Choose the one to machine.',
+      bodies: [
+        { index: 0, name: null, faceCount: 6, boundingBox: box },
+        { index: 1, name: 'Bracket', faceCount: 24, boundingBox: box },
+      ],
+    },
+  })
+
+  await expect(page.getByRole('heading', { name: /holds 2 solid bodies/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Body 1/ })).toBeVisible()
+
+  const created: Array<unknown> = []
+  await page.route('**/api/parts**', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    if (url.pathname === '/api/parts' && request.method() === 'POST') {
+      created.push(request.postDataJSON())
+      return route.fulfill({
+        status: 201,
+        json: { partId: 'part-2', uploadUrl: 'https://upload.test/source' },
+      })
+    }
+    if (url.pathname === '/api/parts/part-2' && request.method() === 'PATCH') {
+      return route.fulfill({ status: 202, json: { partId: 'part-2', jobId: 'job-2' } })
+    }
+    return route.fallback()
+  })
+
+  await page.getByRole('button', { name: /Bracket/ }).click()
+
+  await expect(page).toHaveURL(/\/parts\/part-2\?job=job-2/)
+  expect(created).toEqual([{ filename: 'fixture.step', bodyIndex: 1 }])
 })

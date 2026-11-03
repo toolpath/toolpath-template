@@ -1,4 +1,10 @@
-import type { FeatureDatasheet, PartFeature as ApiPartFeature, PartResponse } from '@toolpath/api'
+import type {
+  FeatureDatasheet,
+  JobDetail,
+  PartFeature as ApiPartFeature,
+  PartResponse,
+  Vec3,
+} from '@toolpath/api'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -94,10 +100,72 @@ export const toPublicInspectionReport = (report: PartReport): PublicInspectionRe
   }
 }
 
+/**
+ * One solid body of a CAD file holding several, as the Engine lists them on a
+ * job it failed for that reason. A part is one body, so the file is created
+ * again with this `index` as its `bodyIndex`. The box is in millimetres.
+ */
+export interface PartBody {
+  index: number
+  name: string | null
+  faceCount: number
+  boundingBox: { lower: Vec3; upper: Vec3 }
+}
+
 export type AnalysisEvent =
   | { status: 'pending'; progress: number | null; message: string }
-  | { status: 'failed'; message: string }
+  /** `bodies` is present only when the failure is a choice of body to make. */
+  | { status: 'failed'; message: string; bodies?: Array<PartBody> }
   | { status: 'ready'; report: PublicInspectionReport }
+
+const isCount = (value: unknown): value is number => Number.isInteger(value) && Number(value) >= 0
+
+const isVec3 = (value: unknown): value is Vec3 =>
+  isRecord(value) && [value.x, value.y, value.z].every(Number.isFinite)
+
+const isPartBody = (value: unknown): value is PartBody =>
+  isRecord(value) &&
+  isCount(value.index) &&
+  (typeof value.name === 'string' || value.name === null) &&
+  isCount(value.faceCount) &&
+  isRecord(value.boundingBox) &&
+  isVec3(value.boundingBox.lower) &&
+  isVec3(value.boundingBox.upper)
+
+/** Whether a value is a non-empty list of well-formed bodies. */
+export const isPartBodies = (value: unknown): value is Array<PartBody> =>
+  Array.isArray(value) && value.length > 0 && value.every(isPartBody)
+
+const BODY_CHOICE_ERROR = /^(multiple_bodies|body_not_found):/
+
+/**
+ * The failed event for a job the Engine refused because its file holds several
+ * bodies (or a chosen `bodyIndex` is past the last), carrying the bodies to
+ * choose from; `null` for every other job. The Engine's own error text stays
+ * out of the message.
+ */
+export const bodyChoiceEvent = (
+  job: Pick<JobDetail, 'status' | 'error' | 'bodies'>,
+): AnalysisEvent | null => {
+  if (job.status !== 'failed' || !job.error || !BODY_CHOICE_ERROR.test(job.error)) {
+    return null
+  }
+  if (!job.bodies || job.bodies.length === 0) {
+    return null
+  }
+  const bodies = job.bodies.map(({ index, name, faceCount, boundingBox }) => ({
+    index,
+    name: name ?? null,
+    faceCount,
+    boundingBox: { lower: boundingBox.lower, upper: boundingBox.upper },
+  }))
+  const count = bodies.length === 1 ? '1 solid body' : `${bodies.length} solid bodies`
+  return {
+    status: 'failed',
+    message: `This file holds ${count}. Choose the one to machine.`,
+    bodies,
+  }
+}
 
 // Validate the event envelope before it affects UI state. Keep this small and dependency-free:
 // the full report has already been validated by Engine and redacted by the server.
@@ -114,7 +182,12 @@ export const parseAnalysisEvent = (value: unknown): AnalysisEvent => {
     return { status: 'pending', progress: value.progress, message: value.message }
   }
   if (value.status === 'failed' && typeof value.message === 'string') {
-    return { status: 'failed', message: value.message }
+    if (value.bodies === undefined) {
+      return { status: 'failed', message: value.message }
+    }
+    if (isPartBodies(value.bodies)) {
+      return { status: 'failed', message: value.message, bodies: value.bodies }
+    }
   }
   if (
     value.status === 'ready' &&

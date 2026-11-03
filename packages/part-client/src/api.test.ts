@@ -58,6 +58,24 @@ describe('direct CAD upload', () => {
     expect(phases).toEqual(['creating-part', 'uploading-file', 'starting-analysis'])
   })
 
+  test('names the chosen body of a multi-body file when creating the part', async () => {
+    const created: Array<unknown> = []
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(new URL(String(input), 'http://part-viewer.test'), init)
+      if (request.url === 'http://part-viewer.test/api/parts') {
+        created.push(await request.json())
+        return Response.json({ partId: 'part-2', uploadUrl: 'https://upload.test/source' })
+      }
+      if (request.url === 'https://upload.test/source') {
+        return new Response(null, { status: 200 })
+      }
+      return Response.json({ partId: 'part-2', jobId: 'job-2' }, { status: 202 })
+    })
+
+    await uploadPart(new File(['STEP fixture'], 'fixture.step'), { bodyIndex: 0 })
+    expect(created).toEqual([{ filename: 'fixture.step', bodyIndex: 0 }])
+  })
+
   test('rejects an invalid file before creating a part', async () => {
     const fetchSpy = vi.fn()
     vi.stubGlobal('fetch', fetchSpy)

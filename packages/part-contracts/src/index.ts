@@ -8,14 +8,18 @@
  * takes.
  */
 export {
+  bodyChoiceEvent,
+  isPartBodies,
   isReachCurve,
   parseAnalysisEvent,
   toPublicInspectionReport,
   type AnalysisEvent,
   type ApiProblem,
+  type PartBody,
   type PartFeature,
   type PartReport,
   type PublicInspectionReport,
   type ReachCurve,
 } from './contracts.js'
 export { CAD_EXTENSIONS, MAX_UPLOAD_BYTES, isSupportedCadFilename, validateCadFile } from './cad.js'
+export { bodyDescription, bodyLabel, bodySize } from './bodies.js'

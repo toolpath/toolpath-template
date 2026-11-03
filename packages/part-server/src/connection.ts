@@ -7,14 +7,31 @@ import type { AppEnv } from './types.js'
 
 const CONNECTION_SECONDS = 60 * 60 * 8
 
-const cookieOptions = {
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1'])
+
+/**
+ * Whether a request reached this server as plain HTTP on the loopback host —
+ * the one case the connection cookie is set without `Secure`.
+ *
+ * Chrome and Firefox treat `http://localhost` as a secure context and keep a
+ * `Secure` cookie there; WebKit does not, so Safari dropped the connection on
+ * every local run. Loopback over HTTP never leaves the machine, so it is the
+ * only exception: any other host, and any HTTPS, keeps `Secure` — and so does
+ * any request under `NODE_ENV=production`, checked where the cookie is set.
+ * `apps/dfm/server/connection.ts` carries a one-line twin of this.
+ */
+export const isPlainLocalhost = (url: string): boolean => {
+  const { protocol, hostname } = new URL(url)
+  return protocol === 'http:' && LOOPBACK_HOSTS.has(hostname)
+}
+
+const cookieOptions = (c: Context<AppEnv>) => ({
   httpOnly: true,
   sameSite: 'lax' as const,
-  // `Secure` is required in every environment. Browsers make an exception for localhost, so
-  // local development keeps working without ever demonstrating an insecure BYOK cookie.
-  secure: true,
+  // Production is always `Secure`, whatever URL the server itself was reached on.
+  secure: process.env.NODE_ENV === 'production' || !isPlainLocalhost(c.req.url),
   path: '/',
-}
+})
 
 /** The BYOK connection for one application: its cookie, and the key that seals it. */
 export interface Connection {
@@ -49,7 +66,7 @@ export const createConnection = (appName: string): Connection => {
   )
 
   const clearConnection = (c: Context<AppEnv>): void => {
-    deleteCookie(c, cookieName, cookieOptions)
+    deleteCookie(c, cookieName, cookieOptions(c))
   }
 
   /** Encrypts the BYOK API key into an eight-hour HttpOnly connection cookie. */
@@ -61,7 +78,7 @@ export const createConnection = (appName: string): Connection => {
       .setAudience(issuer)
       .setExpirationTime(`${CONNECTION_SECONDS}s`)
       .encrypt(connectionKey)
-    setCookie(c, cookieName, token, { ...cookieOptions, maxAge: CONNECTION_SECONDS })
+    setCookie(c, cookieName, token, { ...cookieOptions(c), maxAge: CONNECTION_SECONDS })
   }
 
   /**

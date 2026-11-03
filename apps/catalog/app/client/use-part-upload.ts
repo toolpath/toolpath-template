@@ -1,6 +1,11 @@
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { errorMessage, uploadPart, type PartUploadPhase } from '@toolpath/part-client'
+import {
+  errorMessage,
+  rememberUpload,
+  uploadPart,
+  type PartUploadPhase,
+} from '@toolpath/part-client'
 
 export type UploadStatus = 'idle' | PartUploadPhase
 
@@ -29,10 +34,11 @@ export const usePartUpload = ({ onStarted }: UsePartUploadOptions = {}) => {
   const [error, setError] = useState<string | null>(null)
 
   const upload = useCallback(
-    async (file: File) => {
+    async (file: File, { bodyIndex }: { bodyIndex?: number } = {}) => {
       setError(null)
       try {
-        const { partId, jobId } = await uploadPart(file, { onPhaseChange: setStatus })
+        const { partId, jobId } = await uploadPart(file, { onPhaseChange: setStatus, bodyIndex })
+        rememberUpload(partId, file)
         if (onStarted) {
           onStarted({ partId, jobId })
           return

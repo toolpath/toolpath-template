@@ -13,17 +13,16 @@ describe('public inspection report', () => {
       regions: [],
       features: [],
       candidateDirections: [],
+      discoveredDirections: null,
+      addedDirections: null,
       directionZBounds: null,
       turnability: null,
+      turning: null,
       meshPointCount: 0,
       meshTriangleCount: 0,
       thumbnailUrl: 'https://engine.test/thumbnail?signature=secret',
       meshStlUrl: 'https://engine.test/mesh.stl?signature=secret',
       meshGlbUrl: 'https://engine.test/mesh.glb?signature=secret',
-      downloadMs: 1,
-      recognitionMs: 1,
-      enrichmentMs: 1,
-      totalMs: 3,
     } as PartReport
 
     const safe = toPublicInspectionReport(report)
@@ -40,5 +39,21 @@ describe('public inspection report', () => {
       status: 'failed',
       message: 'Analysis failed',
     })
+  })
+})
+
+describe('a failure that is a choice of body', () => {
+  const body = {
+    index: 1,
+    name: null,
+    faceCount: 6,
+    boundingBox: { lower: { x: 0, y: 0, z: 0 }, upper: { x: 10, y: 20, z: 5 } },
+  }
+
+  test('carries well-formed bodies and rejects malformed ones', () => {
+    const failed = (bodies: unknown) => ({ status: 'failed', message: 'Choose one', bodies })
+    expect(parseAnalysisEvent(failed([body]))).toEqual(failed([body]))
+    expect(() => parseAnalysisEvent(failed([]))).toThrow()
+    expect(() => parseAnalysisEvent(failed([{ ...body, index: -1 }]))).toThrow()
   })
 })

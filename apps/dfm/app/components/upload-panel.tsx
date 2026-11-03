@@ -3,7 +3,7 @@ import { useState } from 'react'
 import type { UploadStatus } from 'client/use-part-upload'
 import { CAD_EXTENSIONS } from 'shared/cad'
 
-const uploadLabel = (status: UploadStatus): string => {
+export const uploadLabel = (status: UploadStatus): string => {
   switch (status) {
     case 'creating-part':
       return 'Creating part…'
@@ -21,13 +21,14 @@ export const UploadPanel = ({
   status,
   onUpload,
   onDisconnect,
-  isDisconnecting,
+  isDisconnecting = false,
 }: {
   error: string | null
   status: UploadStatus
   onUpload: (file: File) => Promise<void>
-  onDisconnect: () => Promise<void>
-  isDisconnecting: boolean
+  /** Absent where the panel is asking for a file again rather than standing on the start page. */
+  onDisconnect?: () => Promise<void>
+  isDisconnecting?: boolean
 }) => {
   const [file, setFile] = useState<File | null>(null)
   const isUploading = status !== 'idle'
@@ -71,15 +72,17 @@ export const UploadPanel = ({
           {uploadLabel(status)}
         </Button>
       </div>
-      <Button
-        type="button"
-        variant="muted"
-        isLoading={isDisconnecting}
-        disabled={isBusy}
-        onClick={() => void onDisconnect()}
-      >
-        Disconnect API key
-      </Button>
+      {onDisconnect ? (
+        <Button
+          type="button"
+          variant="muted"
+          isLoading={isDisconnecting}
+          disabled={isBusy}
+          onClick={() => void onDisconnect()}
+        >
+          Disconnect API key
+        </Button>
+      ) : null}
     </div>
   )
 }

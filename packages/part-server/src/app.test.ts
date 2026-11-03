@@ -38,9 +38,6 @@ const report = (meshGlbUrl: string | null = null) => ({
   thumbnailUrl: null,
   meshStlUrl: null,
   meshGlbUrl,
-  downloadMs: 1,
-  analysisMs: 2,
-  totalMs: 3,
 })
 
 const analysisJob = (status: JobDetail['status'], error: string | null = null): JobDetail => ({
@@ -49,13 +46,17 @@ const analysisJob = (status: JobDetail['status'], error: string | null = null): 
   // Engine API 1.3.1 states both, nullable. This job holds no tool and came
   // from no import.
   holderUuid: null,
+  fileUuid: null,
   importId: null,
   productType: 'analyze-part',
   status,
   progress: status === 'queued' ? null : 100,
+  retriesRemaining: null,
   error,
   reportId: status === 'succeeded' ? 'report-1' : null,
   createdAt: new Date('2026-08-13T00:00:00.000Z'),
+  updatedAt: new Date('2026-08-13T00:00:01.000Z'),
+  durationMs: 1000,
 })
 
 const analysisStream = (job: JobDetail): Response =>
@@ -70,6 +71,7 @@ const analysisStream = (job: JobDetail): Response =>
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
 })
 
 describe('DFM Hono API', () => {
@@ -151,7 +153,8 @@ describe('DFM Hono API', () => {
     expect(connected.status).toBe(201)
     expect(cookie).toContain('part-viewer-connection=')
     expect(cookie).toContain('HttpOnly')
-    expect(cookie).toContain('Secure')
+    // `app.request` speaks plain HTTP to localhost, the one place `Secure` is left off.
+    expect(cookie).not.toContain('Secure')
     expect(cookie).toContain('SameSite=Lax')
     expect(cookie).not.toContain('tp_secret_key')
 
@@ -163,6 +166,37 @@ describe('DFM Hono API', () => {
     })
     expect(cleared.status).toBe(204)
     expect(cleared.headers.getSetCookie()[0]).toContain('Max-Age=0')
+  })
+
+  test('keeps the connection cookie Secure on localhost in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubGlobal('fetch', async () => Response.json({ valid: true, status: 'active' }))
+    const response = await createApp().request('http://localhost:5174/api/session', {
+      method: 'POST',
+      headers: sameOrigin,
+      body: JSON.stringify({ apiKey: 'tp_secret_key' }),
+    })
+
+    expect(response.status).toBe(201)
+    expect(response.headers.getSetCookie()[0]).toContain('Secure')
+  })
+
+  test('marks the connection cookie Secure everywhere but plain HTTP on localhost', async () => {
+    vi.stubGlobal('fetch', async () => Response.json({ valid: true, status: 'active' }))
+    const app = createApp()
+    const connectAt = async (origin: string) => {
+      const response = await app.request(`${origin}/api/session`, {
+        method: 'POST',
+        headers: sameOrigin,
+        body: JSON.stringify({ apiKey: 'tp_secret_key' }),
+      })
+      expect(response.status).toBe(201)
+      return response.headers.getSetCookie()[0]
+    }
+
+    // WebKit drops a `Secure` cookie on http://localhost, where Chrome and Firefox keep it.
+    expect(await connectAt('http://localhost:5174')).not.toContain('Secure')
+    expect(await connectAt('https://catalog.example.com')).toContain('Secure')
   })
 
   test('seals a demo key from the Engine into a session', async () => {
@@ -616,6 +650,117 @@ describe('DFM Hono API', () => {
       status: 'failed',
       message: 'Invalid geometry',
     })
+  })
+
+  test('offers the bodies of a multi-body file instead of the Engine error', async () => {
+    const bodies = [
+      {
+        index: 0,
+        faceCount: 6,
+        boundingBox: { lower: { x: 0, y: 0, z: 0 }, upper: { x: 10, y: 10, z: 10 } },
+      },
+      {
+        index: 1,
+        name: 'Bracket',
+        faceCount: 24,
+        boundingBox: { lower: { x: 20, y: 0, z: 0 }, upper: { x: 60, y: 15, z: 8 } },
+      },
+    ]
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+      if (new URL(String(input)).pathname === '/v1/jobs/job-1/events') {
+        return analysisStream({
+          ...analysisJob('failed', 'multiple_bodies: the file holds 2 solid bodies'),
+          bodies,
+        })
+      }
+      throw new Error(`Unexpected request ${String(input)}`)
+    })
+    const response = await createApp().request('/api/parts/part-1/events?jobId=job-1', {
+      headers: { Cookie: await cookieFor() },
+    })
+    const body = await response.text()
+    const data = body.split('\n').find((line) => line.startsWith('data: '))
+
+    expect(JSON.parse(data!.slice('data: '.length))).toStrictEqual({
+      status: 'failed',
+      message: 'This file holds 2 solid bodies. Choose the one to machine.',
+      bodies: [{ ...bodies[0], name: null }, bodies[1]],
+    })
+    expect(body).not.toContain('multiple_bodies')
+  })
+
+  test('offers the bodies again when the chosen one is past the last', async () => {
+    const bodies = [
+      {
+        index: 0,
+        name: 'Only',
+        faceCount: 6,
+        boundingBox: { lower: { x: 0, y: 0, z: 0 }, upper: { x: 1, y: 1, z: 1 } },
+      },
+    ]
+    const job = { ...analysisJob('failed', 'body_not_found: bodyIndex 3 of 1'), bodies }
+
+    await expect(readAnalysis('tp_secret_key', 'part-1', job)).resolves.toStrictEqual({
+      status: 'failed',
+      message: 'This file holds 1 solid body. Choose the one to machine.',
+      bodies,
+    })
+  })
+
+  test('keeps any other failure to its message, bodies or not', async () => {
+    const bodies = [
+      {
+        index: 0,
+        faceCount: 6,
+        boundingBox: { lower: { x: 0, y: 0, z: 0 }, upper: { x: 1, y: 1, z: 1 } },
+      },
+    ]
+    const job = { ...analysisJob('failed', 'Invalid geometry'), bodies }
+
+    await expect(readAnalysis('tp_secret_key', 'part-1', job)).resolves.toStrictEqual({
+      status: 'failed',
+      message: 'Invalid geometry',
+    })
+  })
+
+  test('forwards a chosen body to the Engine when creating the part', async () => {
+    const created: Array<URL> = []
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      created.push(new URL(request.url))
+      return Response.json(
+        { partId: 'part-2', uploadUrl: 'https://upload.test/source' },
+        { status: 201 },
+      )
+    })
+
+    const response = await createApp().request('/api/parts', {
+      method: 'POST',
+      headers: { Cookie: await cookieFor(), ...sameOrigin },
+      body: JSON.stringify({ filename: 'fixture.step', bodyIndex: 0 }),
+    })
+
+    expect(response.status).toBe(201)
+    expect(created).toHaveLength(1)
+    expect(created[0].pathname).toBe('/v1/parts')
+    expect(created[0].searchParams.get('bodyIndex')).toBe('0')
+    expect(created[0].searchParams.get('filename')).toBe('fixture.step')
+  })
+
+  test('refuses a body index that is not a whole, non-negative number', async () => {
+    const fetchSpy = vi.fn<() => Promise<Response>>()
+    vi.stubGlobal('fetch', fetchSpy)
+    const app = createApp()
+
+    for (const bodyIndex of [-1, 1.5, '1', 1_000_000]) {
+      const response = await app.request('/api/parts', {
+        method: 'POST',
+        headers: { Cookie: await cookieFor(), ...sameOrigin },
+        body: JSON.stringify({ filename: 'fixture.step', bodyIndex }),
+      })
+      expect(response.status).toBe(400)
+    }
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 
   test('says so when a succeeded job has no report behind it', async () => {

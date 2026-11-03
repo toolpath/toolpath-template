@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PublicInspectionReport } from './contracts'
-import { duration, partSummary, pluralLabel, typeLabel } from './part-summary'
+import { partSummary, pluralLabel, typeLabel } from './part-summary'
 
 const PZ = { x: 0, y: 0, z: 1 }
 const NY = { x: 0, y: -1, z: 0 }
@@ -20,10 +20,6 @@ const report = {
   candidateDirections: [PZ, NY],
   meshTriangleCount: 59844,
   meshPointCount: 29894,
-  downloadMs: 92,
-  recognitionMs: 40000,
-  enrichmentMs: 2160,
-  totalMs: 42780,
 } as unknown as PublicInspectionReport
 
 describe('partSummary', () => {
@@ -69,24 +65,11 @@ describe('partSummary', () => {
     ])
   })
 
-  it('sums the analysis phases the API reports separately', () => {
-    // Recognition and enrichment were one number once; adding them keeps this
-    // meaning what it always meant rather than reading zero on a newer report.
-    expect(partSummary(report).timing.analysis).toBe(42160)
-  })
-
   it('keeps a direction no feature is cut from', () => {
     const unused = { ...report, features: [feature('wall')] } as unknown as PublicInspectionReport
 
     // A way up nothing uses is still a way up the part can be held.
     expect(partSummary(unused).directions[1]).toEqual({ index: 1, label: '−Y', features: 0 })
-  })
-})
-
-describe('duration', () => {
-  it('stays in milliseconds until they stop being readable', () => {
-    expect(duration(92)).toBe('92 ms')
-    expect(duration(42780)).toBe('42.78 s')
   })
 })
 

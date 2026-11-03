@@ -4,6 +4,7 @@ import type { Hono } from 'hono'
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming'
 import { z } from 'zod'
 import { instanceOfJobDetail, JobDetailFromJSON, type JobDetail } from '@toolpath/api'
+import { bodyChoiceEvent } from '@toolpath/part-contracts'
 import { toPublicInspectionReport, type AnalysisEvent } from '../../app/shared/contracts'
 import {
   EngineError,
@@ -24,10 +25,12 @@ const readAnalysis = async (
   job: JobDetail,
 ): Promise<AnalysisEvent> => {
   if (job.status === 'failed') {
-    return {
-      status: 'failed',
-      message: job.error ?? 'The Toolpath Engine could not analyze this part.',
-    }
+    return (
+      bodyChoiceEvent(job) ?? {
+        status: 'failed',
+        message: job.error ?? 'The Toolpath Engine could not analyze this part.',
+      }
+    )
   }
   if (job.status !== 'succeeded') {
     return {

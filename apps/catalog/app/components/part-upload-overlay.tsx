@@ -21,6 +21,8 @@ export interface PartUploadOverlayProps {
   readonly title?: string
   readonly description?: string
   readonly footer?: ReactNode
+  /** What the stage offers in place of the file chooser while nothing is uploading. */
+  readonly children?: ReactNode
 }
 
 /**
@@ -37,6 +39,7 @@ export const PartUploadOverlay = ({
   title = 'Upload another part',
   description = 'The current part stays here while the new one is analysed.',
   footer,
+  children,
 }: PartUploadOverlayProps) => {
   const [dragging, setDragging] = useState(false)
   const busy = status !== 'idle' || analysis !== null
@@ -111,6 +114,8 @@ export const PartUploadOverlay = ({
                   )}
                 </div>
               </div>
+            ) : children ? (
+              <div className="mt-6">{children}</div>
             ) : (
               <label
                 htmlFor="replacement-cad"

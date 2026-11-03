@@ -202,6 +202,11 @@ application unless that application says otherwise.
   account cannot see the part — and a failure there offers a different key
   (`OpenedByLink` in `routes/part.tsx`; `tests/opened-by-link.spec.ts`). A part
   just uploaded here is remembered and opens with nothing checked.
+  **A file of several solid bodies is answered by choosing one** (2026-11-02):
+  the Engine fails its analysis listing the bodies, `components/body-picker.tsx`
+  offers them, and the file goes up again with that `bodyIndex` — the one this
+  tab uploaded, from `rememberUpload` in `@toolpath/part-client`, or asked for
+  again where there is none (`tests/multi-body.spec.ts`; DFM does the same).
   See `docs/TOOL-CATALOG-PLAN.md`, including _Taken out on 2026-09-01_ for what
   is parked and where to restore it from, and _The filter panel_ for the one
   rule saying which values a picker offers — an empty answer stays and is
@@ -294,15 +299,19 @@ application unless that application says otherwise.
   `docs/FEATURE-LIST.md` is the spec, including _Where the rules live_ for
   which file owns which rule and _Not built_ for what is deliberately absent.
 - `packages/part-contracts/` (`@toolpath/part-contracts`) is the app-owned shape
-  of a part report, the datasheet readers, and the feature-selection model. Its
-  root export is server-safe; `/report`, `/picks` and `/selection` reach
+  of a part report, the datasheet readers, and the feature-selection model,
+  including a multi-body file's `PartBody` list (`bodyChoiceEvent`, and
+  `bodyLabel`/`bodyDescription` in `bodies.ts`). Its root export is server-safe; `/report`, `/picks` and `/selection` reach
   `@toolpath/viewer` and are browser-only, and `/datasheet` is the viewer-free
   half a server or a data package can read.
 - `packages/part-server/` (`@toolpath/part-server`) is `createPartApi`: the BYOK
   connection cookie, part upload, analysis events, and the mesh relay. **This is
   the only place any application's API key is handled.**
 - `packages/part-client/` (`@toolpath/part-client`) is the browser half of that
-  API: typed fetches and the session and analysis-event hooks.
+  API: typed fetches and the session and analysis-event hooks, and
+  `upload-memory.ts`, the last few uploaded `File`s held in memory by part so
+  a body can be chosen without asking for the file again. The DFM application
+  depends on it for that module alone.
 - **`@toolpath/tool-drawing` is not in this repository.** It is developed in
   `toolpath-ui-packages` and consumed here, like `@toolpath/ui`,
   `@toolpath/viewer` and `@toolpath/tool-scraper`. It draws a cutting tool and
@@ -400,6 +409,7 @@ application unless that application says otherwise.
 | the form behind a Type phrase, and what it asks       | `app/shared/tool-type.ts`                            |
 | the list, its answers and its right-click             | `app/components/feature-list-panel.tsx`              |
 | building a group                                      | `app/components/group-editor.tsx`                    |
+| which body of a multi-body file the part is made of   | `app/components/body-picker.tsx`                     |
 | the reading, its numbers and its thread               | `app/components/selection-panel.tsx`                 |
 | the tool table and its marks                          | `app/components/part-tool-table.tsx`                 |
 

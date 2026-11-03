@@ -207,6 +207,7 @@ const serve = async (
   page: Page,
   served: Record<string, unknown>,
   connection: Connection | null = null,
+  analysis: Record<string, unknown> | null = null,
 ): Promise<void> => {
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url())
@@ -229,7 +230,7 @@ const serve = async (
       }
       return route.fulfill({
         contentType: 'text/event-stream',
-        body: `event: analysis\ndata: ${JSON.stringify(analysisFor(connection, served))}\n\n`,
+        body: `event: analysis\ndata: ${JSON.stringify(analysis ?? analysisFor(connection, served))}\n\n`,
       })
     }
     if (url.pathname === '/api/parts/part-1/mesh') {
@@ -238,6 +239,14 @@ const serve = async (
     return route.fallback()
   })
 }
+
+/**
+ * The cube's analysis answered with `analysis` instead — a file of several
+ * bodies, say — and nothing navigated, so a spec can arrive by upload or by
+ * link.
+ */
+export const serveAnalysis = (page: Page, analysis: Record<string, unknown>): Promise<void> =>
+  serve(page, report, null, analysis)
 
 export const openCube = async (page: Page, query = ''): Promise<void> => {
   await serve(page, report)

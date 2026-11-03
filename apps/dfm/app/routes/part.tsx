@@ -1,5 +1,6 @@
 import { Link, useParams, useSearchParams } from 'react-router'
 import { Card } from '@toolpath/ui'
+import { BodyChoice } from 'components/body-picker'
 import { PartInspector } from 'components/part-inspector'
 import { useAnalysisEvents } from 'client/use-analysis-events'
 
@@ -35,7 +36,11 @@ const ActivePart = ({ partId, jobId }: { partId: string; jobId: string }) => {
     return <PartInspector report={state.report} jobId={jobId} />
   }
   if (state.status === 'failed') {
-    return <FailedPart message={state.message} />
+    return state.bodies ? (
+      <BodyChoice partId={partId} message={state.message} bodies={state.bodies} />
+    ) : (
+      <FailedPart message={state.message} />
+    )
   }
   const percent = state.progress === null ? null : `${Math.round(state.progress * 100)}%`
   return (

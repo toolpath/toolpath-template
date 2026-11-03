@@ -13,13 +13,14 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Badge, Button, Card, IconButton, cn, Panels } from '@toolpath/ui'
 import { toolCollisions, type CatalogTool, type Holder, type Margins } from '@toolpath/catalog-data'
 import { useAnalysisEvents, useSession } from '@toolpath/part-client'
-import type { PartFeature, PublicInspectionReport } from '@toolpath/part-contracts'
+import type { PartBody, PartFeature, PublicInspectionReport } from '@toolpath/part-contracts'
 import { heldRegions } from '@toolpath/part-contracts/selection'
 import { asNumber, asRecord } from '@toolpath/part-contracts/datasheet'
 import { partTop } from '@toolpath/part-contracts/measurements'
 import { directionColor, directionIndexOf } from '@toolpath/viewer'
 import { formatLength } from '@toolpath/tool-support'
 import { AppHeader } from 'components/app-header'
+import { BodyChoice, BodyPicker } from 'components/body-picker'
 import { ConnectForm } from 'components/connect-form'
 import { PartUploadOverlay, type ReplacementAnalysis } from 'components/part-upload-overlay'
 import { FeatureDetails } from 'components/feature-details'
@@ -366,6 +367,13 @@ const Failed = ({ message, children }: { message: string; children?: ReactNode }
   </Shell>
 )
 
+/** Why a replacement did not open, and — for a file of several bodies — which to choose from. */
+interface ReplacementFailure {
+  readonly partId: string
+  readonly message: string
+  readonly bodies?: ReadonlyArray<PartBody>
+}
+
 /** Follows a replacement job without taking the current part off screen. */
 const ReplacementProgress = ({
   part,
@@ -374,7 +382,7 @@ const ReplacementProgress = ({
 }: {
   part: StartedPartUpload
   onReady: (report: PublicInspectionReport, jobId: string) => void
-  onFailed: (message: string) => void
+  onFailed: (failure: ReplacementFailure) => void
 }) => {
   const state = useAnalysisEvents(part.partId, part.jobId)
 
@@ -384,9 +392,9 @@ const ReplacementProgress = ({
       return
     }
     if (state.status === 'failed') {
-      onFailed(state.message)
+      onFailed({ partId: part.partId, message: state.message, bodies: state.bodies })
     }
-  }, [onFailed, onReady, part.jobId, state])
+  }, [onFailed, onReady, part.jobId, part.partId, state])
 
   const analysis: ReplacementAnalysis =
     state.status === 'pending'
@@ -439,7 +447,7 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   const navigate = useNavigate()
   const [uploadOpen, setUploadOpen] = useState(() => search.get('upload') === '1')
   const [replacement, setReplacement] = useState<StartedPartUpload | null>(null)
-  const [analysisError, setAnalysisError] = useState<string | null>(null)
+  const [failure, setFailure] = useState<ReplacementFailure | null>(null)
   const {
     status: uploadStatus,
     error: uploadError,
@@ -448,9 +456,9 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
   } = usePartUpload({
     onStarted: (part) => setReplacement(part),
   })
-  const startReplacement = (file: File) => {
-    setAnalysisError(null)
-    void uploadPart(file)
+  const startReplacement = (file: File, bodyIndex?: number) => {
+    setFailure(null)
+    void uploadPart(file, { bodyIndex })
   }
   const finishReplacement = useCallback(
     (next: PublicInspectionReport, nextJobId: string) => {
@@ -460,16 +468,16 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
     [navigate],
   )
   const failReplacement = useCallback(
-    (message: string) => {
+    (next: ReplacementFailure) => {
       setReplacement(null)
-      setAnalysisError(message)
+      setFailure(next)
       resetUpload()
     },
     [resetUpload],
   )
   const closeUpload = () => {
     resetUpload()
-    setAnalysisError(null)
+    setFailure(null)
     setUploadOpen(false)
     if (search.has('upload')) {
       const next = new URLSearchParams(search)
@@ -6302,13 +6310,23 @@ const Inspecting = ({ report, jobId }: { report: PublicInspectionReport; jobId: 
                         onReady={finishReplacement}
                         onFailed={failReplacement}
                       />
+                    ) : failure?.bodies ? (
+                      <BodyPicker
+                        partId={failure.partId}
+                        message={failure.message}
+                        bodies={failure.bodies}
+                        status={uploadStatus}
+                        error={uploadError}
+                        onUpload={startReplacement}
+                        onClose={closeUpload}
+                      />
                     ) : (
                       <PartUploadOverlay
                         full
                         status={uploadStatus}
-                        error={analysisError ?? uploadError}
+                        error={failure?.message ?? uploadError}
                         analysis={null}
-                        onUpload={startReplacement}
+                        onUpload={(file) => startReplacement(file)}
                         onClose={closeUpload}
                       />
                     )
@@ -7403,6 +7421,24 @@ const Analysing = ({
 
   if (state.status === 'ready') {
     return <Inspecting report={state.report} jobId={jobId} />
+  }
+  if (state.status === 'failed' && state.bodies) {
+    return (
+      <Shell>
+        <div className="relative min-h-0 flex-1">
+          <BodyChoice
+            partId={partId}
+            message={state.message}
+            bodies={state.bodies}
+            footer={
+              <Link to="/parts" className="text-sm text-zinc-200 hover:underline">
+                Upload another part
+              </Link>
+            }
+          />
+        </div>
+      </Shell>
+    )
   }
   if (state.status === 'failed') {
     return (

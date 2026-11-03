@@ -1,5 +1,5 @@
 export { createPartApi, type PartApiOptions } from './app.js'
-export { createConnection, type Connection } from './connection.js'
+export { createConnection, isPlainLocalhost, type Connection } from './connection.js'
 export {
   EngineError,
   InvalidApiKeyError,

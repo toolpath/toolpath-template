@@ -1,4 +1,5 @@
 import type { FeatureDatasheet, PartFeature as ApiPartFeature, PartResponse } from '@toolpath/api'
+import { isPartBodies, type PartBody } from '@toolpath/part-contracts'
 
 /**
  * Datasheets are returned by a separate Engine endpoint, rather than embedded
@@ -37,7 +38,8 @@ export const toPublicInspectionReport = (report: PartReport): PublicInspectionRe
 
 export type AnalysisEvent =
   | { status: 'pending'; progress: number | null; message: string }
-  | { status: 'failed'; message: string }
+  /** `bodies` is present only when the failure is a choice of body to make. */
+  | { status: 'failed'; message: string; bodies?: Array<PartBody> }
   | { status: 'ready'; report: PublicInspectionReport }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -58,7 +60,12 @@ export const parseAnalysisEvent = (value: unknown): AnalysisEvent => {
     return { status: 'pending', progress: value.progress, message: value.message }
   }
   if (value.status === 'failed' && typeof value.message === 'string') {
-    return { status: 'failed', message: value.message }
+    if (value.bodies === undefined) {
+      return { status: 'failed', message: value.message }
+    }
+    if (isPartBodies(value.bodies)) {
+      return { status: 'failed', message: value.message, bodies: value.bodies }
+    }
   }
   if (
     value.status === 'ready' &&

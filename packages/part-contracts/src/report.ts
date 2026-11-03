@@ -1,4 +1,4 @@
-import type { FeatureDatasheetFacts, Vec3 } from '@toolpath/api'
+import type { FeatureFacts, Vec3 } from '@toolpath/api'
 import { sameDirection } from '@toolpath/viewer'
 import type { PartFeature } from './contracts.js'
 // The server-safe readers live apart so a Hono server can read a datasheet

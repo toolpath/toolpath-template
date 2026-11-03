@@ -15,6 +15,8 @@ export type PartUploadPhase = 'creating-part' | 'uploading-file' | 'starting-ana
 
 export interface UploadPartOptions {
   onPhaseChange?: (phase: PartUploadPhase) => void
+  /** Which body of a multi-body file to make the part of, by the index its failed analysis listed. */
+  bodyIndex?: number
 }
 
 const api = async <T>(path: string, init?: RequestInit): Promise<T> => {
@@ -64,7 +66,7 @@ const uploadToEngine = async (file: File, uploadUrl: string): Promise<void> => {
 /** Creates an Engine part, uploads directly to its short-lived PUT URL, then starts analysis. */
 export const uploadPart = async (
   file: File,
-  { onPhaseChange }: UploadPartOptions = {},
+  { onPhaseChange, bodyIndex }: UploadPartOptions = {},
 ): Promise<{ partId: string; jobId: string }> => {
   const validationError = validateCadFile(file)
   if (validationError) {
@@ -75,7 +77,7 @@ export const uploadPart = async (
   const { partId, uploadUrl } = await api<{ partId: string; uploadUrl: string }>('/api/parts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filename: file.name }),
+    body: JSON.stringify({ filename: file.name, bodyIndex }),
   })
   onPhaseChange?.('uploading-file')
   await uploadToEngine(file, uploadUrl)

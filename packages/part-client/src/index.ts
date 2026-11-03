@@ -16,3 +16,4 @@ export {
   type UseSessionOptions,
 } from './use-session.js'
 export { useAnalysisEvents } from './use-analysis-events.js'
+export { rememberUpload, uploadedFile } from './upload-memory.js'

@@ -6,7 +6,7 @@
  * moment it loads. A Hono server and a tool-fit calculation both need these
  * readers and neither can afford that import.
  */
-import type { FeatureDatasheetFacts } from '@toolpath/api'
+import type { FeatureFacts } from '@toolpath/api'
 import type { PartFeature } from './contracts.js'
 
 export const asRecord = (value: unknown): Record<string, unknown> | null =>
@@ -17,5 +17,4 @@ export const asRecord = (value: unknown): Record<string, unknown> | null =>
 export const asNumber = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null
 
-export const facts = (feature: PartFeature): FeatureDatasheetFacts | null =>
-  feature.datasheet?.facts ?? null
+export const facts = (feature: PartFeature): FeatureFacts | null => feature.datasheet?.facts ?? null

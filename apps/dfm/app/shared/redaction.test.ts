@@ -76,10 +76,6 @@ const baseReport = {
   directionZBounds: null,
   meshPointCount: 0,
   meshTriangleCount: 0,
-  downloadMs: 1,
-  recognitionMs: 1,
-  enrichmentMs: 1,
-  totalMs: 3,
 }
 
 describe('the report handed to the browser', () => {
@@ -135,16 +131,29 @@ describe('the report handed to the browser', () => {
      * If an application here ever fetches a holder, that is the moment to give
      * `HolderResponse` a redaction of its own — this list is not permission,
      * only a record that nobody is handling these yet.
+     *
+     * **The `CreateFile*`, `*Mesh*` and `Toolpath*` URLs are the same case**
+     * (`@toolpath/api` 0.12.0, 2026-11-02): the file, mesh-job and toolpath
+     * APIs, none of which this server calls, so no such response is ever
+     * fetched or redacted. Whichever application first calls one gives that
+     * response a redaction of its own.
      */
     expect(declared.sort()).toEqual([
+      'CreateFileResponse.uploadUrl',
       'CreateHolderResponse.uploadUrl',
       'CreatePartResponse.uploadUrl',
+      'FileMeshResponse.meshGlbUrl',
       'HolderResponse.meshGlbUrl',
       'HolderResponse.meshStlUrl',
       'HolderResponse.thumbnailUrl',
+      'PartMeshResponse.meshGlbUrl',
       'PartResponse.meshGlbUrl',
       'PartResponse.meshStlUrl',
       'PartResponse.thumbnailUrl',
+      'ToolpathAction.stockAfterUrl',
+      'ToolpathAction.toolpathUrl',
+      'ToolpathsResponse.camExportUrl',
+      'ToolpathsResponse.initialStockUrl',
     ])
   })
 })
